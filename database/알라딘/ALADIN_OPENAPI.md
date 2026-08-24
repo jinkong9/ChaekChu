@@ -34,22 +34,6 @@
 | 판형·무게·크기 | 자유 문자열 | mm·g 정수 제공 |
 | 목차·상세 설명 | URL만, 결측 93.87% | 기본형 키로는 제공되지 않음 |
 
-### 표준 폴더 구조
-
-[`database/API_DATA_STANDARD.md`](../API_DATA_STANDARD.md)의 구조를 그대로 따른다.
-
-```text
-알라딘/
-├── ALADIN_OPENAPI.md   # API 설명·필드·실제 값·저장 정책
-├── .gitignore          # 대용량 생성 결과물 제외
-├── scripts/            # 수집·정제·검증 코드
-├── raw/                # 원본 응답. Git 제외
-├── processed/          # 정제·병합 결과. Git 제외
-├── samples/            # Git에 포함하는 소형 샘플
-├── reports/            # 품질·결측 리포트
-└── metadata/           # 분야 목록·실행 계획·미해결 조건·호출 예산
-```
-
 ### 저장소에 포함한 산출물
 
 | 경로 | 내용 |
@@ -72,6 +56,22 @@
 수집 결과물(`raw/parts/`, `processed/`)은 저장소에 넣지 않는다. 조건 수에 따라 수 GB까지 늘어나고 재실행으로 다시 만들 수 있기 때문이다. `.gitignore`로 제외하고 `--output-dir`에 로컬 데이터 디렉터리를 지정한다.
 
 `metadata/range_plan.json`, `range_count_cache.json`, `unresolved_ranges.json`은 아직 실제 수집을 돌리지 않아 저장소에 없다. 첫 수집 후 국립중앙도서관과 같이 저장소에 포함한다.
+
+### 표준 폴더 구조
+
+[`database/API_DATA_STANDARD.md`](../API_DATA_STANDARD.md)의 구조를 그대로 따른다.
+
+```text
+알라딘/
+├── ALADIN_OPENAPI.md   # API 설명·필드·실제 값·저장 정책
+├── .gitignore          # 대용량 생성 결과물 제외
+├── scripts/            # 수집·정제·검증 코드
+├── raw/                # 원본 응답. Git 제외
+├── processed/          # 정제·병합 결과. Git 제외
+├── samples/            # Git에 포함하는 소형 샘플
+├── reports/            # 품질·결측 리포트
+└── metadata/           # 분야 목록·실행 계획·미해결 조건·호출 예산
+```
 
 ### 표준 대비 차이
 
@@ -257,7 +257,7 @@ https://www.aladin.co.kr/ttb/api/ItemList.aspx
 | --- | --- |
 | `ItemId` | ISBN 또는 알라딘 `itemId` (필수) |
 | `ItemIdType` | `ISBN`(기본, 10자리), `ISBN13`, `ItemId` |
-| `OptResult` | 확장 필드 요청 목록 (3.4 참고) |
+| `OptResult` | 확장 필드 요청 목록 (3절 「확장 필드 `subInfo`」 참고) |
 
 ### 오류 처리
 
@@ -275,7 +275,7 @@ https://www.aladin.co.kr/ttb/api/ItemList.aspx
 
 ## 3. 응답 구조
 
-### 3.1 응답 래퍼
+### 응답 래퍼
 
 `item` 배열 밖의 메타데이터다. 수집 검증에만 사용하고 도서 레코드로 저장하지 않는다.
 
@@ -310,7 +310,7 @@ https://www.aladin.co.kr/ttb/api/ItemList.aspx
 | `searchCategoryId` | Integer | 조회 분야 ID | 수집 로그 |
 | `searchCategoryName` | String | 조회 분야명 | 수집 로그 |
 
-### 3.2 `item` 기본 필드
+### `item` 기본 필드
 
 표본 300건에서 **모든 엔드포인트에 100% 존재**한 필드다. 분류 기준은 국립중앙도서관 문서와 동일하다.
 
@@ -347,7 +347,7 @@ https://www.aladin.co.kr/ttb/api/ItemList.aspx
 - **F. 품질이 낮아 제외**: 결측·오류가 심해 핵심 로직에서 제외할 속성
 - **G. 보조적으로만 사용**: 품질 추적·판본 보조·출처 표시용 속성
 
-### 3.3 조건부 필드
+### 조건부 필드
 
 **키 자체가 없을 수 있다.** 파서에서 반드시 기본값 처리를 해야 한다.
 
@@ -362,7 +362,7 @@ https://www.aladin.co.kr/ttb/api/ItemList.aspx
 | `categoryIdList[]` | Array | `ItemLookUp` 7/7 | `OptResult=categoryIdList`. **`item` 최상위**에 위치 |
 | `subInfo.paperBookList[]` | Array | 100/300 (33.33%) | `SearchTarget=eBook` 조회 시 종이책 연결 |
 
-### 3.4 확장 필드 `subInfo` — `ItemLookUp` 전용
+### 확장 필드 `subInfo` — `ItemLookUp` 전용
 
 `ItemSearch`·`ItemList`에서 `subInfo`는 **빈 객체 `{}`**로 온다. `OptResult`를 붙여도 검색·리스트에서 채워지는 것은 `ebookList`, `usedList`, `subBarcode` 세 개뿐이다. 나머지는 `ItemLookUp`으로만 얻는다.
 
@@ -656,7 +656,7 @@ previewImgList  b2bSupply
 
 이 절의 내용은 공식 매뉴얼에 없거나 매뉴얼과 다르다. 수집 설계에 직접 영향을 주므로 별도로 정리한다.
 
-### 6.1 `start`는 20까지만 유효하다
+### `start`는 20까지만 유효하다
 
 `MaxResults=50` 기준으로 `start=21` 이상을 요청하면 **오류 없이 1페이지가 다시 돌아온다.**
 
@@ -670,7 +670,7 @@ start = 21  ->  bestRank 1~50 (1페이지와 동일)
 1. `start`를 20에서 강제 종료한다.
 2. 파트 안에서 `itemId`를 추적해, 한 페이지가 전부 기존 항목이면 `중복 페이지 감지`로 종료하고 그 사유를 `.done.json`에 남긴다.
 
-### 6.2 한 조건으로 접근 가능한 것은 1,000건까지다
+### 한 조건으로 접근 가능한 것은 1,000건까지다
 
 표본에서 관측한 `totalResults`는 다음과 같다.
 
@@ -697,7 +697,7 @@ Sort 분할              SalesPoint / PublishTime / CustomerRating
 
 `--mode categories`는 이미 수집한 응답의 `categoryId`와 `categoryIdList`에서 실제 존재하는 분야를 뽑아 다음 회차의 입력 파일로 만든다. 알라딘 분야 엑셀 문서를 따로 구하지 않아도 분할 축을 확보할 수 있다. 절차는 [`metadata/COLLECTION_METADATA_GUIDE.md`](metadata/COLLECTION_METADATA_GUIDE.md)에 있다.
 
-### 6.3 호출 예산
+### 호출 예산
 
 | 항목 | 값 |
 | --- | ---: |
@@ -721,7 +721,7 @@ Sort 분할              SalesPoint / PublishTime / CustomerRating
 2. 그중 `salesPoint`가 높거나 우리 서비스에서 실제로 조회·서재 등록된 도서만 `lookup`으로 깊이 보강한다 (1호출 = 1건).
 3. 나머지 도서는 국립중앙도서관 서지만으로 서비스한다.
 
-### 6.4 그 외
+### 그 외
 
 | 항목 | 내용 |
 | --- | --- |
@@ -902,7 +902,7 @@ field_confidence
 
 ## 10. 저장 구조
 
-### 10.1 관계형 DB
+### 관계형 DB
 
 알라딘 데이터는 `book_edition`을 덮어쓰지 않고 별도 테이블로 붙인다. 출처가 다른 값을 한 컬럼에 섞으면 되돌릴 수 없다.
 
@@ -1002,7 +1002,7 @@ book_source_record
   - source_updated_at
 ```
 
-### 10.2 Elasticsearch
+### Elasticsearch
 
 알라딘 값 중 검색·추천 후보 생성에 필요한 것만 도서 인덱스에 추가한다.
 
