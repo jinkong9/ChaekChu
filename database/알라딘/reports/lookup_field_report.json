@@ -1,0 +1,817 @@
+{
+  "sample_isbns": [
+    "9791199489561 베스트1위 인문",
+    "9791141618575 신간 에세이",
+    "9788936439996 한국소설",
+    "9788937460449 민음사 세계문학",
+    "9791162245651 IT 실용서2",
+    "9780134685991 외서(Effective Java)",
+    "9788954682152 문학"
+  ],
+  "sample_count": 7,
+  "fields": {
+    "title": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"세네카, 오늘을 빼앗기고 있는 당신에게\"",
+        "\"그랬다고 적었다\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "link": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=396404956&amp;partner=openAPI&amp;start=api\"",
+        "\"https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=400193697&amp;partner=openAPI&amp;start=api\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "author": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"루키우스 안나이우스 세네카 (지은이), 하와이 대저택 (편역)\"",
+        "\"김애란 (지은이)\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "pubDate": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"2026-07-01\"",
+        "\"2026-08-24\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "description": {
+      "present": 7,
+      "null": 0,
+      "empty": 1,
+      "zero": 0,
+      "examples": [
+        "\"로마 제정기의 스토아 철학자 세네카의 대화편 다섯 편에서 핵심 사유를 선별해 55편의 짧은 글로 재구성한 편역서다. 세네카는 네로 황제의 스승이자 고문으로 제국의 운명을 좌...",
+        "\"소설가 김애란이 새 책과 함께 여름 인사를 건넨다. 장편소설 『이중 하나는 거짓말』(2024)과 소설집 『안녕이라 그랬어』(2025)를 펴내며 허구의 세계 안에서 지금 한국..."
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "isbn": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"K872130175\"",
+        "\"K742130236\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "isbn13": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"9791199489561\"",
+        "\"9791141618575\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "itemId": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "396404956",
+        "400193697"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "priceSales": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "16200",
+        "15300"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "priceStandard": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "18000",
+        "17000"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "mallType": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"BOOK\"",
+        "\"BOOK\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "stockStatus": {
+      "present": 7,
+      "null": 0,
+      "empty": 7,
+      "zero": 0,
+      "examples": [],
+      "types": [
+        "str"
+      ]
+    },
+    "mileage": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "900",
+        "850"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "cover": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"https://image.aladin.co.kr/product/39640/49/cover200/k872130175_1.jpg\"",
+        "\"https://image.aladin.co.kr/product/40019/36/cover200/k742130236_1.jpg\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "categoryId": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "51462",
+        "51371"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "categoryName": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"국내도서>인문학>서양철학>고대철학>고대철학 일반\"",
+        "\"국내도서>에세이>한국에세이\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "publisher": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"논픽션\"",
+        "\"문학동네\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "salesPoint": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "236490",
+        "112760"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "adult": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "false",
+        "false"
+      ],
+      "types": [
+        "bool"
+      ]
+    },
+    "fixedPrice": {
+      "present": 6,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "true",
+        "true"
+      ],
+      "types": [
+        "bool"
+      ]
+    },
+    "customerReviewRank": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 1,
+      "examples": [
+        "10",
+        "9"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.ebookList[]": {
+      "present": 6,
+      "null": 0,
+      "empty": 1,
+      "zero": 0,
+      "examples": [
+        "[{\"itemId\": 400584983, \"isbn\": \"E102639995\", \"isbn13\": \"9791141618889\", \"priceSales\": 10710, \"lin...",
+        "[{\"itemId\": 400361937, \"isbn\": \"E272639799\", \"isbn13\": \"9788936435257\", \"priceSales\": 12100, \"lin..."
+      ],
+      "types": [
+        "list"
+      ]
+    },
+    "subInfo.usedList.aladinUsed.itemCount": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 4,
+      "examples": [
+        "1",
+        "1"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.usedList.aladinUsed.minPrice": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 4,
+      "examples": [
+        "5200",
+        "13000"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.usedList.aladinUsed.link": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=396404956&amp;TabType=2&amp;part...",
+        "\"https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=400193697&amp;TabType=2&amp;part..."
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "subInfo.usedList.userUsed.itemCount": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 3,
+      "examples": [
+        "120",
+        "89"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.usedList.userUsed.minPrice": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 3,
+      "examples": [
+        "2880",
+        "9900"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.usedList.userUsed.link": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=396404956&amp;TabType=1&amp;part...",
+        "\"https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=400193697&amp;TabType=1&amp;part..."
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "subInfo.usedList.spaceUsed.itemCount": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 3,
+      "examples": [
+        "2",
+        "15"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.usedList.spaceUsed.minPrice": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 3,
+      "examples": [
+        "5400",
+        "13000"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.usedList.spaceUsed.link": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=396404956&amp;TabType=3&amp;part...",
+        "\"https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=400193697&amp;TabType=3&amp;part..."
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "subInfo.subTitle": {
+      "present": 7,
+      "null": 0,
+      "empty": 5,
+      "zero": 0,
+      "examples": [
+        "\"1:1 과외하듯 배우는 프로그래밍 자습서, 개정판\"",
+        "\"2024 노벨문학상 수상작가, 한강 장편소설\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "subInfo.originalTitle": {
+      "present": 7,
+      "null": 0,
+      "empty": 6,
+      "zero": 0,
+      "examples": [
+        "\"Demian: Die Geschichte von Emil Sinclairs Jugend (1919년)\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "subInfo.itemPage": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "236",
+        "220"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.ratingInfo.ratingScore": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 1,
+      "examples": [
+        "9.8",
+        "9.2"
+      ],
+      "types": [
+        "float",
+        "int"
+      ]
+    },
+    "subInfo.ratingInfo.ratingCount": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 1,
+      "examples": [
+        "17",
+        "8"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.ratingInfo.commentReviewCount": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 1,
+      "examples": [
+        "8",
+        "5"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.ratingInfo.myReviewCount": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 1,
+      "examples": [
+        "9",
+        "3"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.bestSellerRank": {
+      "present": 6,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"종합 주간 1위\"",
+        "\"종합 주간 2위\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "subInfo.packing.styleDesc": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"반양장본\"",
+        "\"반양장본\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "subInfo.packing.weight": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "236",
+        "286"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.packing.sizeDepth": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "14",
+        "13"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.packing.sizeHeight": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "190",
+        "200"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.packing.sizeWidth": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "122",
+        "133"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.c2bsales": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 1,
+      "examples": [
+        "1",
+        "1"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.c2bsales_price.AA": {
+      "present": 6,
+      "null": 0,
+      "empty": 0,
+      "zero": 2,
+      "examples": [
+        "8700",
+        "8200"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.c2bsales_price.A": {
+      "present": 6,
+      "null": 0,
+      "empty": 0,
+      "zero": 2,
+      "examples": [
+        "7800",
+        "7300"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.c2bsales_price.B": {
+      "present": 6,
+      "null": 0,
+      "empty": 0,
+      "zero": 2,
+      "examples": [
+        "6900",
+        "6500"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.c2bsales_price.C": {
+      "present": 6,
+      "null": 0,
+      "empty": 0,
+      "zero": 4,
+      "examples": [
+        "1900",
+        "1500"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.subBarcode": {
+      "present": 6,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"03190\"",
+        "\"03810\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "categoryIdList[]": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "[{\"categoryId\": 656, \"categoryName\": \"국내도서>인문학\"}, {\"categoryId\": 51390, \"categoryName\": \"국내도서>인문학...",
+        "[{\"categoryId\": 55889, \"categoryName\": \"국내도서>에세이\"}, {\"categoryId\": 51416, \"categoryName\": \"국내도서>에..."
+      ],
+      "types": [
+        "list"
+      ]
+    },
+    "categoryIdList[].categoryId": {
+      "present": 7,
+      "null": 0,
+      "empty": 0,
+      "zero": 1,
+      "examples": [
+        "656",
+        "55889"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "categoryIdList[].categoryName": {
+      "present": 7,
+      "null": 0,
+      "empty": 1,
+      "zero": 0,
+      "examples": [
+        "\"국내도서>인문학\"",
+        "\"국내도서>에세이\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "subInfo.ebookList[].itemId": {
+      "present": 5,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "400584983",
+        "400361937"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.ebookList[].isbn": {
+      "present": 5,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"E102639995\"",
+        "\"E272639799\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "subInfo.ebookList[].isbn13": {
+      "present": 5,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"9791141618889\"",
+        "\"9788936435257\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "subInfo.ebookList[].priceSales": {
+      "present": 5,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "10710",
+        "12100"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "subInfo.ebookList[].link": {
+      "present": 5,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=400584983&amp;partner=openAPI\"",
+        "\"https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=400361937&amp;partner=openAPI\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "subInfo.cardReviewImgList[]": {
+      "present": 3,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "[\"https://image.aladin.co.kr/product/40013/75/cardview/8936439995_t1.jpg\", \"https://image.aladin....",
+        "[\"https://image.aladin.co.kr/product/26/0/cardview/8937460440_t1.jpg\", \"https://image.aladin.co.k..."
+      ],
+      "types": [
+        "list"
+      ]
+    },
+    "seriesInfo.seriesId": {
+      "present": 2,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "13679",
+        "674661"
+      ],
+      "types": [
+        "int"
+      ]
+    },
+    "seriesInfo.seriesLink": {
+      "present": 2,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"https://www.aladin.co.kr/shop/common/wseriesitem.aspx?SRID=13679&amp;partner=openAPI\"",
+        "\"https://www.aladin.co.kr/shop/common/wseriesitem.aspx?SRID=674661&amp;partner=openAPI\""
+      ],
+      "types": [
+        "str"
+      ]
+    },
+    "seriesInfo.seriesName": {
+      "present": 2,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"민음사 세계문학전집 44\"",
+        "\"혼자 공부하는 시리즈 \""
+      ],
+      "types": [
+        "str"
+      ]
+    }
+  }
+}

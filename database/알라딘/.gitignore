@@ -1,0 +1,23 @@
+# TTBKey는 저장소에 넣지 않는다.
+.env
+
+# API 수집으로 생성되는 대용량 결과물은 저장소에 포함하지 않는다.
+aladin_output/
+data/
+output/
+raw/*
+!raw/README.md
+processed/*
+!processed/README.md
+parts/
+*.part
+*.tmp
+
+# 실행 중에만 의미가 있는 상태 파일
+metadata/quota_state.json
+metadata/isbn_not_found.jsonl
+metadata/unresolved_targets.json
+metadata/collection_plan.json
+
+__pycache__/
+*.pyc

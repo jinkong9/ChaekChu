@@ -1,0 +1,63 @@
+﻿field,total_count,key_present_count,key_missing_count,null_count,blank_count,effective_missing_count,effective_missing_rate_percent,zero_count,zero_rate_percent,types,example_valid_values
+stockStatus,7,7,0,0,7,7,100.0,0,0.0,str,
+subInfo.originalTitle,7,7,0,0,6,6,85.71,0,0.0,str,"""Demian: Die Geschichte von Emil Sinclairs Jugend (1919년)"""
+seriesInfo.seriesId,7,2,5,0,0,5,71.43,0,0.0,int,13679 | 674661
+seriesInfo.seriesLink,7,2,5,0,0,5,71.43,0,0.0,str,"""https://www.aladin.co.kr/shop/common/wseriesitem.aspx?SRID=13679&amp;partner=openAPI"" | ""https://www.aladin.co.kr/shop/common/wseriesitem.aspx?SRID=674661&amp;partner=openAPI"""
+seriesInfo.seriesName,7,2,5,0,0,5,71.43,0,0.0,str,"""민음사 세계문학전집 44"" | ""혼자 공부하는 시리즈 """
+subInfo.subTitle,7,7,0,0,5,5,71.43,0,0.0,str,"""1:1 과외하듯 배우는 프로그래밍 자습서, 개정판"" | ""2024 노벨문학상 수상작가, 한강 장편소설"""
+subInfo.cardReviewImgList[],7,3,4,0,0,4,57.14,0,0.0,list,"[""https://image.aladin.co.kr/product/40013/75/cardview/8936439995_t1.jpg"", ""https://image.aladin.... | [""https://image.aladin.co.kr/product/26/0/cardview/8937460440_t1.jpg"", ""https://image.aladin.co.k..."
+subInfo.ebookList[],7,6,1,0,1,2,28.57,0,0.0,list,"[{""itemId"": 400584983, ""isbn"": ""E102639995"", ""isbn13"": ""9791141618889"", ""priceSales"": 10710, ""lin... | [{""itemId"": 400361937, ""isbn"": ""E272639799"", ""isbn13"": ""9788936435257"", ""priceSales"": 12100, ""lin..."
+subInfo.ebookList[].isbn,7,5,2,0,0,2,28.57,0,0.0,str,"""E102639995"" | ""E272639799"""
+subInfo.ebookList[].isbn13,7,5,2,0,0,2,28.57,0,0.0,str,"""9791141618889"" | ""9788936435257"""
+subInfo.ebookList[].itemId,7,5,2,0,0,2,28.57,0,0.0,int,400584983 | 400361937
+subInfo.ebookList[].link,7,5,2,0,0,2,28.57,0,0.0,str,"""https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=400584983&amp;partner=openAPI"" | ""https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=400361937&amp;partner=openAPI"""
+subInfo.ebookList[].priceSales,7,5,2,0,0,2,28.57,0,0.0,int,10710 | 12100
+categoryIdList[].categoryName,7,7,0,0,1,1,14.29,0,0.0,str,"""국내도서>인문학"" | ""국내도서>에세이"""
+description,7,7,0,0,1,1,14.29,0,0.0,str,"""로마 제정기의 스토아 철학자 세네카의 대화편 다섯 편에서 핵심 사유를 선별해 55편의 짧은 글로 재구성한 편역서다. 세네카는 네로 황제의 스승이자 고문으로 제국의 운명을 좌... | ""소설가 김애란이 새 책과 함께 여름 인사를 건넨다. 장편소설 『이중 하나는 거짓말』(2024)과 소설집 『안녕이라 그랬어』(2025)를 펴내며 허구의 세계 안에서 지금 한국..."
+fixedPrice,7,6,1,0,0,1,14.29,0,0.0,bool,true | true
+subInfo.bestSellerRank,7,6,1,0,0,1,14.29,0,0.0,str,"""종합 주간 1위"" | ""종합 주간 2위"""
+subInfo.c2bsales_price.A,7,6,1,0,0,1,14.29,2,28.57,int,7800 | 7300
+subInfo.c2bsales_price.AA,7,6,1,0,0,1,14.29,2,28.57,int,8700 | 8200
+subInfo.c2bsales_price.B,7,6,1,0,0,1,14.29,2,28.57,int,6900 | 6500
+subInfo.c2bsales_price.C,7,6,1,0,0,1,14.29,4,57.14,int,1900 | 1500
+subInfo.subBarcode,7,6,1,0,0,1,14.29,0,0.0,str,"""03190"" | ""03810"""
+adult,7,7,0,0,0,0,0.0,0,0.0,bool,false | false
+author,7,7,0,0,0,0,0.0,0,0.0,str,"""루키우스 안나이우스 세네카 (지은이), 하와이 대저택 (편역)"" | ""김애란 (지은이)"""
+categoryId,7,7,0,0,0,0,0.0,0,0.0,int,51462 | 51371
+categoryIdList[],7,7,0,0,0,0,0.0,0,0.0,list,"[{""categoryId"": 656, ""categoryName"": ""국내도서>인문학""}, {""categoryId"": 51390, ""categoryName"": ""국내도서>인문학... | [{""categoryId"": 55889, ""categoryName"": ""국내도서>에세이""}, {""categoryId"": 51416, ""categoryName"": ""국내도서>에..."
+categoryIdList[].categoryId,7,7,0,0,0,0,0.0,1,14.29,int,656 | 55889
+categoryName,7,7,0,0,0,0,0.0,0,0.0,str,"""국내도서>인문학>서양철학>고대철학>고대철학 일반"" | ""국내도서>에세이>한국에세이"""
+cover,7,7,0,0,0,0,0.0,0,0.0,str,"""https://image.aladin.co.kr/product/39640/49/cover200/k872130175_1.jpg"" | ""https://image.aladin.co.kr/product/40019/36/cover200/k742130236_1.jpg"""
+customerReviewRank,7,7,0,0,0,0,0.0,1,14.29,int,10 | 9
+isbn,7,7,0,0,0,0,0.0,0,0.0,str,"""K872130175"" | ""K742130236"""
+isbn13,7,7,0,0,0,0,0.0,0,0.0,str,"""9791199489561"" | ""9791141618575"""
+itemId,7,7,0,0,0,0,0.0,0,0.0,int,396404956 | 400193697
+link,7,7,0,0,0,0,0.0,0,0.0,str,"""https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=396404956&amp;partner=openAPI&amp;start=api"" | ""https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=400193697&amp;partner=openAPI&amp;start=api"""
+mallType,7,7,0,0,0,0,0.0,0,0.0,str,"""BOOK"" | ""BOOK"""
+mileage,7,7,0,0,0,0,0.0,0,0.0,int,900 | 850
+priceSales,7,7,0,0,0,0,0.0,0,0.0,int,16200 | 15300
+priceStandard,7,7,0,0,0,0,0.0,0,0.0,int,18000 | 17000
+pubDate,7,7,0,0,0,0,0.0,0,0.0,str,"""2026-07-01"" | ""2026-08-24"""
+publisher,7,7,0,0,0,0,0.0,0,0.0,str,"""논픽션"" | ""문학동네"""
+salesPoint,7,7,0,0,0,0,0.0,0,0.0,int,236490 | 112760
+subInfo.c2bsales,7,7,0,0,0,0,0.0,1,14.29,int,1 | 1
+subInfo.itemPage,7,7,0,0,0,0,0.0,0,0.0,int,236 | 220
+subInfo.packing.sizeDepth,7,7,0,0,0,0,0.0,0,0.0,int,14 | 13
+subInfo.packing.sizeHeight,7,7,0,0,0,0,0.0,0,0.0,int,190 | 200
+subInfo.packing.sizeWidth,7,7,0,0,0,0,0.0,0,0.0,int,122 | 133
+subInfo.packing.styleDesc,7,7,0,0,0,0,0.0,0,0.0,str,"""반양장본"" | ""반양장본"""
+subInfo.packing.weight,7,7,0,0,0,0,0.0,0,0.0,int,236 | 286
+subInfo.ratingInfo.commentReviewCount,7,7,0,0,0,0,0.0,1,14.29,int,8 | 5
+subInfo.ratingInfo.myReviewCount,7,7,0,0,0,0,0.0,1,14.29,int,9 | 3
+subInfo.ratingInfo.ratingCount,7,7,0,0,0,0,0.0,1,14.29,int,17 | 8
+subInfo.ratingInfo.ratingScore,7,7,0,0,0,0,0.0,1,14.29,"float,int",9.8 | 9.2
+subInfo.usedList.aladinUsed.itemCount,7,7,0,0,0,0,0.0,4,57.14,int,1 | 1
+subInfo.usedList.aladinUsed.link,7,7,0,0,0,0,0.0,0,0.0,str,"""https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=396404956&amp;TabType=2&amp;part... | ""https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=400193697&amp;TabType=2&amp;part..."
+subInfo.usedList.aladinUsed.minPrice,7,7,0,0,0,0,0.0,4,57.14,int,5200 | 13000
+subInfo.usedList.spaceUsed.itemCount,7,7,0,0,0,0,0.0,3,42.86,int,2 | 15
+subInfo.usedList.spaceUsed.link,7,7,0,0,0,0,0.0,0,0.0,str,"""https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=396404956&amp;TabType=3&amp;part... | ""https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=400193697&amp;TabType=3&amp;part..."
+subInfo.usedList.spaceUsed.minPrice,7,7,0,0,0,0,0.0,3,42.86,int,5400 | 13000
+subInfo.usedList.userUsed.itemCount,7,7,0,0,0,0,0.0,3,42.86,int,120 | 89
+subInfo.usedList.userUsed.link,7,7,0,0,0,0,0.0,0,0.0,str,"""https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=396404956&amp;TabType=1&amp;part... | ""https://www.aladin.co.kr/shop/UsedShop/wuseditemall.aspx?ItemId=400193697&amp;TabType=1&amp;part..."
+subInfo.usedList.userUsed.minPrice,7,7,0,0,0,0,0.0,3,42.86,int,2880 | 9900
+title,7,7,0,0,0,0,0.0,0,0.0,str,"""세네카, 오늘을 빼앗기고 있는 당신에게"" | ""그랬다고 적었다"""

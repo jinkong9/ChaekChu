@@ -1,0 +1,34 @@
+﻿field,total_count,key_present_count,key_missing_count,null_count,blank_count,effective_missing_count,effective_missing_rate_percent,zero_count,zero_rate_percent,types,example_valid_values
+subInfo,300,200,100,0,200,300,100.0,0,0.0,dict,
+stockStatus,300,300,0,0,277,277,92.33,0,0.0,str,"""예약판매"" | ""판매중지"""
+bestDuration,300,33,267,0,0,267,89.0,0,0.0,str,"""종합 1위 3주"" | ""종합 10위 2주"" | ""종합 10위 17주"""
+subInfo.paperBookList[],300,100,200,0,41,241,80.33,0,0.0,list,"[{""itemId"": 317941024, ""isbn"": ""K362833219"", ""isbn13"": ""9... | [{""itemId"": 294996715, ""isbn"": ""K412837047"", ""isbn13"": ""9... | [{""itemId"": 247882118, ""isbn"": ""K342631735"", ""isbn13"": ""9..."
+subInfo.paperBookList[].isbn,300,59,241,0,0,241,80.33,0,0.0,str,"""K362833219"" | ""K412837047"" | ""K342631735"""
+subInfo.paperBookList[].isbn13,300,59,241,0,0,241,80.33,0,0.0,str,"""9791163034735"" | ""9791162245651"" | ""9791162243077"""
+subInfo.paperBookList[].itemId,300,59,241,0,0,241,80.33,0,0.0,int,317941024 | 294996715 | 247882118
+subInfo.paperBookList[].link,300,59,241,0,0,241,80.33,0,0.0,str,"""https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=31794... | ""https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=29499... | ""https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=24788..."
+subInfo.paperBookList[].priceSales,300,59,241,0,0,241,80.33,0,0.0,int,19800 | 30600 | 34200
+bestRank,300,100,200,0,0,200,66.67,0,0.0,int,1 | 2 | 3
+seriesInfo.seriesId,300,115,185,0,0,185,61.67,0,0.0,int,13679 | 112548 | 20827
+seriesInfo.seriesLink,300,115,185,0,0,185,61.67,0,0.0,str,"""https://www.aladin.co.kr/shop/common/wseriesitem.aspx?SR..."
+seriesInfo.seriesName,300,115,185,0,0,185,61.67,0,0.0,str,"""민음사 세계문학전집 58"" | ""현대지성 클래식 65"" | ""탐정 갈릴레오 시리즈 """
+description,300,300,0,0,136,136,45.33,0,0.0,str,"""로마 제정기의 스토아 철학자 세네카의 대화편 다섯 편에서 핵심 사유를 선별해 55편의 짧은 글로 재구... | ""소설가 김애란이 새 책과 함께 여름 인사를 건넨다. 장편소설 『이중 하나는 거짓말』(2024)과 소설... | ""한국현대사의 굵은 상흔을 남도의 구수한 입말과 뜨거운 인간애로 풀어내며 40만 독자의 마음을 사로잡은..."
+fixedPrice,300,250,50,0,0,50,16.67,0,0.0,bool,true
+isbn13,300,300,0,0,17,17,5.67,0,0.0,str,"""9791199489561"" | ""9791141618575"" | ""9788936439996"""
+adult,300,300,0,0,0,0,0.0,0,0.0,bool,false | true
+author,300,300,0,0,0,0,0.0,0,0.0,str,"""루키우스 안나이우스 세네카 (지은이), 하와이 대저택 (편역)"" | ""김애란 (지은이)"" | ""정지아 (지은이)"""
+categoryId,300,300,0,0,0,0,0.0,0,0.0,int,51462 | 51371 | 50993
+categoryName,300,300,0,0,0,0,0.0,0,0.0,str,"""국내도서>인문학>서양철학>고대철학>고대철학 일반"" | ""국내도서>에세이>한국에세이"" | ""국내도서>소설/시/희곡>한국소설>2000년대 이후 한국소설"""
+cover,300,300,0,0,0,0,0.0,0,0.0,str,"""https://image.aladin.co.kr/product/39640/49/cover200/k87... | ""https://image.aladin.co.kr/product/40019/36/cover200/k74... | ""https://image.aladin.co.kr/product/40013/75/cover200/893..."
+customerReviewRank,300,300,0,0,0,0,0.0,148,49.33,int,10 | 9 | 7
+isbn,300,300,0,0,0,0,0.0,0,0.0,str,"""K872130175"" | ""K742130236"" | ""8936439995"""
+itemId,300,300,0,0,0,0,0.0,0,0.0,int,396404956 | 400193697 | 400137507
+link,300,300,0,0,0,0,0.0,0,0.0,str,"""https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=39640... | ""https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=40019... | ""https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=40013..."
+mallType,300,300,0,0,0,0,0.0,0,0.0,str,"""BOOK"" | ""EBOOK"" | ""FOREIGN"""
+mileage,300,300,0,0,0,0,0.0,28,9.33,int,900 | 850 | 840
+priceSales,300,300,0,0,0,0,0.0,14,4.67,int,16200 | 15300 | 15120
+priceStandard,300,300,0,0,0,0,0.0,14,4.67,int,18000 | 17000 | 16800
+pubDate,300,300,0,0,0,0,0.0,0,0.0,str,"""2026-07-01"" | ""2026-08-24"" | ""2026-08-17"""
+publisher,300,300,0,0,0,0,0.0,0,0.0,str,"""논픽션"" | ""문학동네"" | ""창비"""
+salesPoint,300,300,0,0,0,0,0.0,51,17.0,int,236490 | 112760 | 79040
+title,300,300,0,0,0,0,0.0,0,0.0,str,"""세네카, 오늘을 빼앗기고 있는 당신에게"" | ""그랬다고 적었다"" | ""찌니주의보"""

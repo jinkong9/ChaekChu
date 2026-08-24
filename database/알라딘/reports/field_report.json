@@ -1,0 +1,689 @@
+{
+  "totals": {
+    "list/Bestseller(Book)": 50,
+    "list/ItemNewAll(Book)": 50,
+    "search/Keyword(Book)": 50,
+    "search/Keyword(eBook)": 50,
+    "search/Keyword(Foreign)": 50,
+    "list/Bestseller(eBook)": 50
+  },
+  "fields": {
+    "title": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"세네카, 오늘을 빼앗기고 있는 당신에게\"",
+        "\"그랬다고 적었다\"",
+        "\"찌니주의보\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "link": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=39640...",
+        "\"https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=40019...",
+        "\"https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=40013..."
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "author": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"루키우스 안나이우스 세네카 (지은이), 하와이 대저택 (편역)\"",
+        "\"김애란 (지은이)\"",
+        "\"정지아 (지은이)\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "pubDate": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"2026-07-01\"",
+        "\"2026-08-24\"",
+        "\"2026-08-17\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "description": {
+      "present": 300,
+      "null": 0,
+      "empty": 136,
+      "zero": 0,
+      "examples": [
+        "\"로마 제정기의 스토아 철학자 세네카의 대화편 다섯 편에서 핵심 사유를 선별해 55편의 짧은 글로 재구...",
+        "\"소설가 김애란이 새 책과 함께 여름 인사를 건넨다. 장편소설 『이중 하나는 거짓말』(2024)과 소설...",
+        "\"한국현대사의 굵은 상흔을 남도의 구수한 입말과 뜨거운 인간애로 풀어내며 40만 독자의 마음을 사로잡은..."
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "isbn": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"K872130175\"",
+        "\"K742130236\"",
+        "\"8936439995\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "isbn13": {
+      "present": 300,
+      "null": 0,
+      "empty": 17,
+      "zero": 0,
+      "examples": [
+        "\"9791199489561\"",
+        "\"9791141618575\"",
+        "\"9788936439996\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "itemId": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "396404956",
+        "400193697",
+        "400137507"
+      ],
+      "types": [
+        "int"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "priceSales": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 14,
+      "examples": [
+        "16200",
+        "15300",
+        "15120"
+      ],
+      "types": [
+        "int"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "priceStandard": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 14,
+      "examples": [
+        "18000",
+        "17000",
+        "16800"
+      ],
+      "types": [
+        "int"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "mallType": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"BOOK\"",
+        "\"EBOOK\"",
+        "\"FOREIGN\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "stockStatus": {
+      "present": 300,
+      "null": 0,
+      "empty": 277,
+      "zero": 0,
+      "examples": [
+        "\"예약판매\"",
+        "\"판매중지\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "mileage": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 28,
+      "examples": [
+        "900",
+        "850",
+        "840"
+      ],
+      "types": [
+        "int"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "cover": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"https://image.aladin.co.kr/product/39640/49/cover200/k87...",
+        "\"https://image.aladin.co.kr/product/40019/36/cover200/k74...",
+        "\"https://image.aladin.co.kr/product/40013/75/cover200/893..."
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "categoryId": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "51462",
+        "51371",
+        "50993"
+      ],
+      "types": [
+        "int"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "categoryName": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"국내도서>인문학>서양철학>고대철학>고대철학 일반\"",
+        "\"국내도서>에세이>한국에세이\"",
+        "\"국내도서>소설/시/희곡>한국소설>2000년대 이후 한국소설\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "publisher": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"논픽션\"",
+        "\"문학동네\"",
+        "\"창비\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "salesPoint": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 51,
+      "examples": [
+        "236490",
+        "112760",
+        "79040"
+      ],
+      "types": [
+        "int"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "adult": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "false",
+        "true"
+      ],
+      "types": [
+        "bool"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "fixedPrice": {
+      "present": 250,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "true"
+      ],
+      "types": [
+        "bool"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "customerReviewRank": {
+      "present": 300,
+      "null": 0,
+      "empty": 0,
+      "zero": 148,
+      "examples": [
+        "10",
+        "9",
+        "7"
+      ],
+      "types": [
+        "int"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "bestDuration": {
+      "present": 33,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"종합 1위 3주\"",
+        "\"종합 10위 2주\"",
+        "\"종합 10위 17주\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)"
+      ]
+    },
+    "bestRank": {
+      "present": 100,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "1",
+        "2",
+        "3"
+      ],
+      "types": [
+        "int"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)"
+      ]
+    },
+    "subInfo": {
+      "present": 200,
+      "null": 0,
+      "empty": 200,
+      "zero": 0,
+      "examples": [],
+      "types": [
+        "dict"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(Foreign)"
+      ]
+    },
+    "seriesInfo.seriesId": {
+      "present": 115,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "13679",
+        "112548",
+        "20827"
+      ],
+      "types": [
+        "int"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "seriesInfo.seriesLink": {
+      "present": 115,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"https://www.aladin.co.kr/shop/common/wseriesitem.aspx?SR..."
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "seriesInfo.seriesName": {
+      "present": 115,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"민음사 세계문학전집 58\"",
+        "\"현대지성 클래식 65\"",
+        "\"탐정 갈릴레오 시리즈 \""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(Book)",
+        "list/Bestseller(eBook)",
+        "list/ItemNewAll(Book)",
+        "search/Keyword(Book)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "subInfo.paperBookList[]": {
+      "present": 100,
+      "null": 0,
+      "empty": 41,
+      "zero": 0,
+      "examples": [
+        "[{\"itemId\": 317941024, \"isbn\": \"K362833219\", \"isbn13\": \"9...",
+        "[{\"itemId\": 294996715, \"isbn\": \"K412837047\", \"isbn13\": \"9...",
+        "[{\"itemId\": 247882118, \"isbn\": \"K342631735\", \"isbn13\": \"9..."
+      ],
+      "types": [
+        "list"
+      ],
+      "sources": [
+        "list/Bestseller(eBook)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "subInfo.paperBookList[].itemId": {
+      "present": 59,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "317941024",
+        "294996715",
+        "247882118"
+      ],
+      "types": [
+        "int"
+      ],
+      "sources": [
+        "list/Bestseller(eBook)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "subInfo.paperBookList[].isbn": {
+      "present": 59,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"K362833219\"",
+        "\"K412837047\"",
+        "\"K342631735\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(eBook)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "subInfo.paperBookList[].isbn13": {
+      "present": 59,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"9791163034735\"",
+        "\"9791162245651\"",
+        "\"9791162243077\""
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(eBook)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "subInfo.paperBookList[].priceSales": {
+      "present": 59,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "19800",
+        "30600",
+        "34200"
+      ],
+      "types": [
+        "int"
+      ],
+      "sources": [
+        "list/Bestseller(eBook)",
+        "search/Keyword(eBook)"
+      ]
+    },
+    "subInfo.paperBookList[].link": {
+      "present": 59,
+      "null": 0,
+      "empty": 0,
+      "zero": 0,
+      "examples": [
+        "\"https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=31794...",
+        "\"https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=29499...",
+        "\"https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=24788..."
+      ],
+      "types": [
+        "str"
+      ],
+      "sources": [
+        "list/Bestseller(eBook)",
+        "search/Keyword(eBook)"
+      ]
+    }
+  }
+}
