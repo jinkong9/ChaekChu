@@ -2,5 +2,9 @@
 nl_isbn_split_output/
 data/
 output/
+raw/*
+!raw/README.md
+processed/*
+!processed/README.md
 parts/
 *.part
