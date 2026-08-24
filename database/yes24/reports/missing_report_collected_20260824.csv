@@ -1,0 +1,39 @@
+﻿field,total,missing_count,missing_rate_pct,zero_count,example
+sortOrder,19751,0,0.0000,0,1
+itemId,19751,0,0.0000,0,195285696
+title,19751,0,0.0000,0,ROS2 로봇제작 1472
+subTitle,19751,13163,66.6447,0,통신직 지방공무원 9급 대비
+author,19751,906,4.5871,0,"이제원,허윤경,김자경 공저"
+goodsType,19751,0,0.0000,0,도서
+goodsSortNm,19751,0,0.0000,0,국내도서-대학교재
+adultYn,19751,0,0.0000,0,N
+publisher,19751,0,0.0000,0,구미서관
+isbn10,19751,7522,38.0841,0,1162574313
+isbn13,19751,0,0.0000,0,9791162574317
+shopPrice,19751,0,0.0000,0,27000.0
+salePrice,19751,0,0.0000,0,27000.0
+publishDate,19751,0,0.0000,0,20260923
+itemStatus,19751,0,0.0000,0,판매중
+originalTitle,19751,19311,97.7723,0,GROUP ANALYSIS
+originalTranslation,19751,19379,98.1166,0,원제
+yesPoint,19751,0,0.0000,5049,0
+salePoint,19751,0,0.0000,11168,0
+fixedBookPriceYn,19751,0,0.0000,0,Y
+pages,19751,3944,19.9686,2684,396
+weight,19751,9583,48.5191,6758,338
+width,19751,7568,38.3170,86,188
+length,19751,7568,38.3170,196,257
+height,19751,7833,39.6588,165,30
+itemFormat,19751,18813,95.2509,0,양장
+starScore,19751,0,0.0000,15950,0
+cover,19751,0,0.0000,0,https://image.yes24.com/goods/195285696/L
+link,19751,0,0.0000,0,https://www.yes24.com/product/goods/195285696
+addOnLink,19751,19751,100.0000,0,
+mobileLink,19751,0,0.0000,0,https://m.yes24.com/goods/detail/195285696
+eBookLink,19751,18224,92.2687,0,https://www.yes24.com/product/goods/195392744
+ebookId,19751,18224,92.2687,0,195392744
+upDown,19751,19751,100.0000,0,
+contentDetail.bookIntroduction,19751,9001,45.5724,0,<text length=373>
+contentDetail.bookSummary,19751,19568,99.0735,0,<text length=569>
+contentDetail.tableOfContents,19751,6690,33.8717,0,<text length=205>
+series,19751,17518,88.6942,0,<list length=1>

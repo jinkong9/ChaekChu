@@ -1,0 +1,31 @@
+YES24 detail collection data quality summary
+generated_at_utc=2026-08-24T10:30:54.178075+00:00
+input_file=C:\Users\SSAFY\Desktop\S15P21B102\database\yes24\raw\yes24_detail_raw_20260824.jsonl
+result_records=19754
+success_records=19751
+not_found_records=3
+invalid_isbn_records=0
+api_error_records=0
+request_error_records=0
+response_items=19751
+unique_request_isbn13=19754
+duplicate_request_isbn13=0
+unique_response_isbn13=19751
+duplicate_response_isbn13=0
+unique_item_ids=19751
+duplicate_item_ids=0
+exact_request_response_isbn_matches=19751
+request_response_isbn_mismatches=0
+exact_match_rate_pct=100.0000
+
+Key field missing rates
+title=0.0000%
+author=4.5871%
+publisher=0.0000%
+isbn13=0.0000%
+publishDate=0.0000%
+pages=19.9686%
+cover=0.0000%
+contentDetail.bookIntroduction=45.5724%
+contentDetail.bookSummary=99.0735%
+contentDetail.tableOfContents=33.8717%

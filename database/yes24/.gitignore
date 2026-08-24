@@ -1,0 +1,18 @@
+# 로컬 환경 및 비밀값
+.env
+.env.*
+!.env.example
+
+# Python 실행 환경 및 캐시
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# API 수집으로 생성되는 결과물
+raw/
+processed/
+data/
+output/
+parts/
+*.part
