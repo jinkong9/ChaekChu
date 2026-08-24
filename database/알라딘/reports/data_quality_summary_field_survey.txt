@@ -1,0 +1,64 @@
+알라딘 Open API 응답 필드 / 결측 요약
+============================================================================================================
+표본: 300건 (엔드포인트 6종 x 50건)
+  list/Bestseller(Book)         50건
+  list/ItemNewAll(Book)         50건
+  search/Keyword(Book)          50건
+  search/Keyword(eBook)         50건
+  search/Keyword(Foreign)       50건
+  list/Bestseller(eBook)        50건
+
+결측 표기: 알라딘은 null 을 쓰지 않는다. 문자열은 "", 숫자는 0 으로 온다.
+
+필드                                           존재율   null     빈문자     0값  타입           예시
+------------------------------------------------------------------------------------------------------------
+adult                                     100.0%     0%      0%     0%  bool         false | true
+author                                    100.0%     0%      0%     0%  str          "루키우스 안나이우스 세네카 (지은이), 하와이 대저택 (편역)"
+categoryId                                100.0%     0%      0%     0%  int          51462 | 51371 | 50993
+categoryName                              100.0%     0%      0%     0%  str          "국내도서>인문학>서양철학>고대철학>고대철학 일반" | "국내도서
+cover                                     100.0%     0%      0%     0%  str          "https://image.aladin.co.kr/product/
+customerReviewRank                        100.0%     0%      0%    49%  int          10 | 9 | 7
+description                               100.0%     0%     45%     0%  str          "로마 제정기의 스토아 철학자 세네카의 대화편 다섯 편에서 핵심 
+isbn                                      100.0%     0%      0%     0%  str          "K872130175" | "K742130236" | "89364
+isbn13                                    100.0%     0%      6%     0%  str          "9791199489561" | "9791141618575" | 
+itemId                                    100.0%     0%      0%     0%  int          396404956 | 400193697 | 400137507
+link                                      100.0%     0%      0%     0%  str          "https://www.aladin.co.kr/shop/wprod
+mallType                                  100.0%     0%      0%     0%  str          "BOOK" | "EBOOK" | "FOREIGN"
+mileage                                   100.0%     0%      0%     9%  int          900 | 850 | 840
+priceSales                                100.0%     0%      0%     5%  int          16200 | 15300 | 15120
+priceStandard                             100.0%     0%      0%     5%  int          18000 | 17000 | 16800
+pubDate                                   100.0%     0%      0%     0%  str          "2026-07-01" | "2026-08-24" | "2026-
+publisher                                 100.0%     0%      0%     0%  str          "논픽션" | "문학동네" | "창비"
+salesPoint                                100.0%     0%      0%    17%  int          236490 | 112760 | 79040
+stockStatus                               100.0%     0%     92%     0%  str          "예약판매" | "판매중지"
+title                                     100.0%     0%      0%     0%  str          "세네카, 오늘을 빼앗기고 있는 당신에게" | "그랬다고 적었다"
+fixedPrice                                 83.3%     0%      0%     0%  bool         true
+subInfo                                    66.7%     0%    100%     0%  dict         -
+seriesInfo.seriesId                        38.3%     0%      0%     0%  int          13679 | 112548 | 20827
+seriesInfo.seriesLink                      38.3%     0%      0%     0%  str          "https://www.aladin.co.kr/shop/commo
+seriesInfo.seriesName                      38.3%     0%      0%     0%  str          "민음사 세계문학전집 58" | "현대지성 클래식 65" | "탐
+bestRank                                   33.3%     0%      0%     0%  int          1 | 2 | 3
+subInfo.paperBookList[]                    33.3%     0%     41%     0%  list         [{"itemId": 317941024, "isbn": "K362
+subInfo.paperBookList[].isbn               19.7%     0%      0%     0%  str          "K362833219" | "K412837047" | "K3426
+subInfo.paperBookList[].isbn13             19.7%     0%      0%     0%  str          "9791163034735" | "9791162245651" | 
+subInfo.paperBookList[].itemId             19.7%     0%      0%     0%  int          317941024 | 294996715 | 247882118
+subInfo.paperBookList[].link               19.7%     0%      0%     0%  str          "https://www.aladin.co.kr/shop/wprod
+subInfo.paperBookList[].priceSales         19.7%     0%      0%     0%  int          19800 | 30600 | 34200
+bestDuration                               11.0%     0%      0%     0%  str          "종합 1위 3주" | "종합 10위 2주" | "종합 10위 1
+
+============================================================================================================
+일부 엔드포인트에만 존재하는 필드 (스키마 차이)
+============================================================================================================
+  fixedPrice                               없는 곳: search/Keyword(Foreign)
+  subInfo                                  없는 곳: list/Bestseller(eBook), search/Keyword(eBook)
+  seriesInfo.seriesId                      없는 곳: search/Keyword(Foreign)
+  seriesInfo.seriesLink                    없는 곳: search/Keyword(Foreign)
+  seriesInfo.seriesName                    없는 곳: search/Keyword(Foreign)
+  bestRank                                 없는 곳: list/ItemNewAll(Book), search/Keyword(Book), search/Keyword(Foreign), search/Keyword(eBook)
+  subInfo.paperBookList[]                  없는 곳: list/Bestseller(Book), list/ItemNewAll(Book), search/Keyword(Book), search/Keyword(Foreign)
+  subInfo.paperBookList[].isbn             없는 곳: list/Bestseller(Book), list/ItemNewAll(Book), search/Keyword(Book), search/Keyword(Foreign)
+  subInfo.paperBookList[].isbn13           없는 곳: list/Bestseller(Book), list/ItemNewAll(Book), search/Keyword(Book), search/Keyword(Foreign)
+  subInfo.paperBookList[].itemId           없는 곳: list/Bestseller(Book), list/ItemNewAll(Book), search/Keyword(Book), search/Keyword(Foreign)
+  subInfo.paperBookList[].link             없는 곳: list/Bestseller(Book), list/ItemNewAll(Book), search/Keyword(Book), search/Keyword(Foreign)
+  subInfo.paperBookList[].priceSales       없는 곳: list/Bestseller(Book), list/ItemNewAll(Book), search/Keyword(Book), search/Keyword(Foreign)
+  bestDuration                             없는 곳: list/Bestseller(eBook), list/ItemNewAll(Book), search/Keyword(Book), search/Keyword(Foreign), search/Keyword(eBook)

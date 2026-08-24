@@ -1,0 +1,25 @@
+# TTBKey는 저장소에 넣지 않는다.
+.env
+
+# API 수집으로 생성되는 대용량 결과물은 저장소에 포함하지 않는다.
+aladin_output/
+data/
+output/
+raw/*
+!raw/README.md
+processed/*
+!processed/README.md
+parts/
+*.part
+*.tmp
+
+# 첫 수집 실행 후 생성되는 메타데이터.
+# 실제 수집 결과가 나오면 국립중앙도서관처럼 저장소에 포함한다.
+metadata/range_plan.json
+metadata/range_count_cache.json
+metadata/unresolved_ranges.json
+metadata/isbn_not_found.jsonl
+metadata/quota_state.json
+
+__pycache__/
+*.pyc
