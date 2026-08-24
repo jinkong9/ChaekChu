@@ -588,88 +588,7 @@ previewImgList  b2bSupply
 
 ---
 
-## 5. 실측으로 확인된 API 제약
-
-이 절의 내용은 공식 매뉴얼에 없거나 매뉴얼과 다르다. 수집 설계에 직접 영향을 주므로 별도로 정리한다.
-
-### 5.1 `start`는 20까지만 유효하다
-
-`MaxResults=50` 기준으로 `start=21` 이상을 요청하면 **오류 없이 1페이지가 다시 돌아온다.**
-
-```text
-totalResults = 1000
-start = 21  ->  bestRank 1~50 (1페이지와 동일)
-```
-
-에러가 아니므로 수집 루프가 이를 감지하지 못하면 중복만 무한히 쌓인다. `aladin_collector.py`는 두 가지로 이를 막는다.
-
-1. `start`를 20에서 강제 종료한다.
-2. 파트 안에서 `itemId`를 추적해, 한 페이지가 전부 기존 항목이면 `중복 페이지 감지`로 종료하고 그 사유를 `.done.json`에 남긴다.
-
-### 5.2 한 조건으로 접근 가능한 것은 1,000건까지다
-
-표본에서 관측한 `totalResults`는 다음과 같다.
-
-| 조회 조건 | `totalResults` | 실제 접근 가능 |
-| --- | ---: | ---: |
-| `ItemList` Bestseller / Book | 1,000 | 1,000 |
-| `ItemList` ItemNewAll / Book | 1,000 | 1,000 |
-| `ItemList` Bestseller / eBook | 1,000 | 1,000 |
-| `ItemSearch` `파이썬` / Book | 1,365 | 1,000 |
-| `ItemSearch` `파이썬` / eBook | 731 | 731 |
-| `ItemSearch` `python` / Foreign | 11,240 | 1,000 |
-
-`ItemList`의 `totalResults`는 실제 건수가 아니라 1,000으로 고정된 상한값이다. `ItemSearch`는 실제 건수를 보여주지만 접근은 앞의 1,000건뿐이다.
-
-따라서 넓게 모으려면 **조건을 쪼개는 것이 유일한 방법**이다.
-
-```text
-CategoryId 분할        분야별로 각각 1,000건
-QueryType 분할         Bestseller / ItemNewAll / ItemNewSpecial / ItemEditorChoice / BlogBest
-Year·Month·Week 분할   과거 주간 베스트셀러 이력
-SearchTarget 분할      Book / eBook / Foreign
-Sort 분할              SalesPoint / PublishTime / CustomerRating
-```
-
-`--mode categories`는 이미 수집한 응답의 `categoryId`와 `categoryIdList`에서 실제 존재하는 분야를 뽑아 다음 회차의 입력 파일로 만든다. 알라딘 분야 엑셀 문서를 따로 구하지 않아도 분할 축을 확보할 수 있다. 절차는 [`metadata/COLLECTION_METADATA_GUIDE.md`](metadata/COLLECTION_METADATA_GUIDE.md)에 있다.
-
-### 5.3 호출 예산
-
-| 항목 | 값 |
-| --- | ---: |
-| 하루 호출 한도 (기본형) | 5,000회 |
-| 수집기 기본 상한 | 4,800회 |
-| 한 조건 완주 비용 | 20회 (50건 × 20페이지) |
-| 하루 완주 가능 조건 수 | 240개 |
-| 하루 최대 수집 행 수 (중복 포함) | 240,000행 |
-| `lookup` 하루 처리량 | 4,800 ISBN |
-
-여기서 나오는 결론이 수집 전략을 결정한다.
-
-```text
-국립중앙도서관 ISBN 204만건을 전부 lookup 하면
-  2,047,239 / 4,800 = 약 427일
-```
-
-**전량 상세 보강은 불가능하다.** 따라서 다음 순서로 우선순위를 둔다.
-
-1. `list` / `search`로 넓게 모아 기본 21개 필드를 확보한다 (1호출 = 50건).
-2. 그중 `salesPoint`가 높거나 우리 서비스에서 실제로 조회·서재 등록된 도서만 `lookup`으로 깊이 보강한다 (1호출 = 1건).
-3. 나머지 도서는 국립중앙도서관 서지만으로 서비스한다.
-
-### 5.4 그 외
-
-| 항목 | 내용 |
-| --- | --- |
-| 절판 도서 조회 | 오류가 아니라 빈 `item` 배열. 표본에서 `9788966262038`(클린 코드)이 이 경우였다 |
-| `Version` 기본값 | 명시하지 않으면 `20070901`이 적용되어 필드가 줄어든다. 항상 `20131101`을 보낸다 |
-| 응답 인코딩 | `utf-8`이지만 제어문자가 섞여 `strict=False` 파싱이 필요하다 |
-| `subInfo` 위치 | `ItemSearch`·`ItemList`에서는 항상 `{}`. 확장 필드는 `ItemLookUp`에서만 |
-| `categoryIdList` 위치 | 매뉴얼은 `subInfo` 아래로 적었으나 실제 응답은 `item` 최상위다 |
-
----
-
-## 6. 현재 보유 데이터 분석
+## 5. 현재 보유 데이터 분석
 
 분석 대상은 `reports/`와 `samples/`의 산출물이다.
 
@@ -730,6 +649,87 @@ Sort 분할              SalesPoint / PublishTime / CustomerRating
 8. **`categoryName`의 최상위가 몰 구분이다.** `국내도서`/`전자책`/`외국도서`가 1단계이므로, 주제 분류를 쓸 때는 2단계부터 사용한다.
 9. **`link`에 `&amp;`가 남아 있다.** 언이스케이프 없이 저장하면 클릭 시 동작하지 않는다.
 10. **응답 래퍼의 `pubDate`와 `item.pubDate`는 다른 값이다.** 래퍼의 것은 응답 생성 시각이다.
+
+---
+
+## 6. 실측으로 확인된 API 제약
+
+이 절의 내용은 공식 매뉴얼에 없거나 매뉴얼과 다르다. 수집 설계에 직접 영향을 주므로 별도로 정리한다.
+
+### 6.1 `start`는 20까지만 유효하다
+
+`MaxResults=50` 기준으로 `start=21` 이상을 요청하면 **오류 없이 1페이지가 다시 돌아온다.**
+
+```text
+totalResults = 1000
+start = 21  ->  bestRank 1~50 (1페이지와 동일)
+```
+
+에러가 아니므로 수집 루프가 이를 감지하지 못하면 중복만 무한히 쌓인다. `aladin_collector.py`는 두 가지로 이를 막는다.
+
+1. `start`를 20에서 강제 종료한다.
+2. 파트 안에서 `itemId`를 추적해, 한 페이지가 전부 기존 항목이면 `중복 페이지 감지`로 종료하고 그 사유를 `.done.json`에 남긴다.
+
+### 6.2 한 조건으로 접근 가능한 것은 1,000건까지다
+
+표본에서 관측한 `totalResults`는 다음과 같다.
+
+| 조회 조건 | `totalResults` | 실제 접근 가능 |
+| --- | ---: | ---: |
+| `ItemList` Bestseller / Book | 1,000 | 1,000 |
+| `ItemList` ItemNewAll / Book | 1,000 | 1,000 |
+| `ItemList` Bestseller / eBook | 1,000 | 1,000 |
+| `ItemSearch` `파이썬` / Book | 1,365 | 1,000 |
+| `ItemSearch` `파이썬` / eBook | 731 | 731 |
+| `ItemSearch` `python` / Foreign | 11,240 | 1,000 |
+
+`ItemList`의 `totalResults`는 실제 건수가 아니라 1,000으로 고정된 상한값이다. `ItemSearch`는 실제 건수를 보여주지만 접근은 앞의 1,000건뿐이다.
+
+따라서 넓게 모으려면 **조건을 쪼개는 것이 유일한 방법**이다.
+
+```text
+CategoryId 분할        분야별로 각각 1,000건
+QueryType 분할         Bestseller / ItemNewAll / ItemNewSpecial / ItemEditorChoice / BlogBest
+Year·Month·Week 분할   과거 주간 베스트셀러 이력
+SearchTarget 분할      Book / eBook / Foreign
+Sort 분할              SalesPoint / PublishTime / CustomerRating
+```
+
+`--mode categories`는 이미 수집한 응답의 `categoryId`와 `categoryIdList`에서 실제 존재하는 분야를 뽑아 다음 회차의 입력 파일로 만든다. 알라딘 분야 엑셀 문서를 따로 구하지 않아도 분할 축을 확보할 수 있다. 절차는 [`metadata/COLLECTION_METADATA_GUIDE.md`](metadata/COLLECTION_METADATA_GUIDE.md)에 있다.
+
+### 6.3 호출 예산
+
+| 항목 | 값 |
+| --- | ---: |
+| 하루 호출 한도 (기본형) | 5,000회 |
+| 수집기 기본 상한 | 4,800회 |
+| 한 조건 완주 비용 | 20회 (50건 × 20페이지) |
+| 하루 완주 가능 조건 수 | 240개 |
+| 하루 최대 수집 행 수 (중복 포함) | 240,000행 |
+| `lookup` 하루 처리량 | 4,800 ISBN |
+
+여기서 나오는 결론이 수집 전략을 결정한다.
+
+```text
+국립중앙도서관 ISBN 204만건을 전부 lookup 하면
+  2,047,239 / 4,800 = 약 427일
+```
+
+**전량 상세 보강은 불가능하다.** 따라서 다음 순서로 우선순위를 둔다.
+
+1. `list` / `search`로 넓게 모아 기본 21개 필드를 확보한다 (1호출 = 50건).
+2. 그중 `salesPoint`가 높거나 우리 서비스에서 실제로 조회·서재 등록된 도서만 `lookup`으로 깊이 보강한다 (1호출 = 1건).
+3. 나머지 도서는 국립중앙도서관 서지만으로 서비스한다.
+
+### 6.4 그 외
+
+| 항목 | 내용 |
+| --- | --- |
+| 절판 도서 조회 | 오류가 아니라 빈 `item` 배열. 표본에서 `9788966262038`(클린 코드)이 이 경우였다 |
+| `Version` 기본값 | 명시하지 않으면 `20070901`이 적용되어 필드가 줄어든다. 항상 `20131101`을 보낸다 |
+| 응답 인코딩 | `utf-8`이지만 제어문자가 섞여 `strict=False` 파싱이 필요하다 |
+| `subInfo` 위치 | `ItemSearch`·`ItemList`에서는 항상 `{}`. 확장 필드는 `ItemLookUp`에서만 |
+| `categoryIdList` 위치 | 매뉴얼은 `subInfo` 아래로 적었으나 실제 응답은 `item` 최상위다 |
 
 ---
 
@@ -814,21 +814,20 @@ pubDate -> publication_date  (YYYY-MM-DD)
 
 파싱 실패는 오류가 아니다. 원문을 보존하고 파생 필드만 `NULL`로 둔다.
 
-### 7.7 중복 처리
+## 8. 도서 Entity 및 중복 처리
 
-| 상황 | 처리 |
-| --- | --- |
-| 같은 상품이 여러 조회 조건에 등장 | `itemId` 기준 중복 제거. 첫 레코드 채택 |
-| 상위·하위 분야 순회로 인한 중복 | 위와 동일. 리포트에 중복 건수 기록 |
-| 같은 `isbn13`에 `itemId`가 여럿 | 별도 판본으로 저장하고 `isbn13`으로 묶어 관계 표시 |
-| 종이책·전자책 | `mallType`과 `subInfo.ebookList`로 관계 저장. 합치지 않음 |
-| `isbn13`이 빈 값 | `itemId`만으로 저장. 국립중앙도서관과 연결하지 않음 |
+알라딘은 `itemId`(상품 단위)와 `isbn13`(도서 판본 단위)이라는 두 식별자를 준다. 둘의 역할이 달라 분리해서 다룬다.
 
----
+```text
+aladin_item_id
+  - 알라딘 상품 단위. 결측·중복이 없어 수집 측 PK로 사용
 
-## 8. 국립중앙도서관 데이터와의 연결
+isbn13
+  - 도서 판본 단위. 5.67% 결측이므로 단독 PK로 쓸 수 없음
+  - 국립중앙도서관 BOOK_EDITION 과의 표준 JOIN 키
+```
 
-### 8.1 JOIN 키
+### 식별 우선순위
 
 ```text
 1순위  isbn13 (양쪽 모두 유효한 13자리)
@@ -838,7 +837,20 @@ pubDate -> publication_date  (YYYY-MM-DD)
 
 제목·저자만으로 두 소스를 합치지 않는다. 알라딘 `title`에는 부제·판본 정보가 섞여 있어 오매칭 위험이 크다.
 
-### 8.2 매칭 실패의 원인
+### 판본 관계
+
+| 사례 | 처리 |
+| --- | --- |
+| 같은 상품이 여러 조회 조건에 등장 | `itemId` 기준 중복 제거. 첫 레코드 채택 |
+| 상위·하위 분야 순회로 인한 중복 | 위와 동일. 리포트에 중복 건수 기록 |
+| 같은 `isbn13`에 `itemId`가 여럿 | 별도 판본으로 저장하고 `isbn13`으로 묶어 관계 표시 |
+| 종이책·전자책 | `mallType`과 `subInfo.ebookList`로 관계 저장. 합치지 않음 |
+| `isbn13`이 빈 값 | `itemId`만으로 저장. 국립중앙도서관과 연결하지 않음 |
+| 세트 상품 | `title`의 `[세트]` 표기는 파싱 보조일 뿐, 낱권과 자동으로 묶지 않는다 |
+
+`itemId`가 다르면 기본적으로 별도 상품으로 저장한다. 합치는 판단은 `isbn13`이 같을 때만 하고, 그때도 하나로 병합하지 않고 관계로 표시한다.
+
+### 국립중앙도서관 매칭 실패의 원인
 
 | 원인 | 처리 |
 | --- | --- |
@@ -850,7 +862,11 @@ pubDate -> publication_date  (YYYY-MM-DD)
 
 `--seed-nl` 옵션은 국립중앙도서관 JSONL에서 13자리 `EA_ISBN`만 추출한다. ISBN-10은 알라딘 `ItemIdType=ISBN13` 조회에 쓸 수 없으므로, ISBN-13 변환은 정제 파이프라인에서 먼저 수행하고 그 결과를 `--seed-txt`로 넘기는 것을 권장한다.
 
-### 8.3 필드별 출처 우선순위
+---
+
+## 9. 우리 서비스의 Source Priority
+
+알라딘 값을 무조건 모든 필드의 최우선으로 사용하지 않는다. 필드별로 출처 우선순위를 둔다.
 
 | 필드 | 1순위 | 2순위 | 비고 |
 | --- | --- | --- | --- |
@@ -884,9 +900,9 @@ field_confidence
 
 ---
 
-## 9. 저장 구조
+## 10. 저장 구조
 
-### 9.1 관계형 DB
+### 10.1 관계형 DB
 
 알라딘 데이터는 `book_edition`을 덮어쓰지 않고 별도 테이블로 붙인다. 출처가 다른 값을 한 컬럼에 섞으면 되돌릴 수 없다.
 
@@ -986,7 +1002,7 @@ book_source_record
   - source_updated_at
 ```
 
-### 9.2 Elasticsearch
+### 10.2 Elasticsearch
 
 알라딘 값 중 검색·추천 후보 생성에 필요한 것만 도서 인덱스에 추가한다.
 
@@ -1009,7 +1025,7 @@ description
 
 ---
 
-## 10. 수집·정제 파이프라인
+## 11. 수집·정제 파이프라인
 
 ```text
 CategoryId·QueryType 조합 생성 -> metadata/range_plan.json
@@ -1059,7 +1075,7 @@ CategoryId·QueryType 조합 생성 -> metadata/range_plan.json
 
 ---
 
-## 11. 추천 시스템에서의 사용 범위
+## 12. 추천 시스템에서의 사용 범위
 
 ### 직접 사용할 Feature
 
@@ -1099,7 +1115,7 @@ normalized_score
 
 ---
 
-## 12. MVP 우선순위
+## 13. MVP 우선순위
 
 ### MVP에 필수
 
@@ -1132,7 +1148,7 @@ normalized_score
 
 ---
 
-## 13. 결론
+## 14. 결론
 
 알라딘 Open API는 다음 용도로 사용한다.
 
