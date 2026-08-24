@@ -62,17 +62,27 @@
 | `samples/sample_items.pretty.json` | 동일한 샘플을 사람이 읽기 좋게 들여쓴 JSON 배열 |
 | `samples/sample_lookup.jsonl` | `ItemLookUp` 응답 레코드 7건 (`subInfo` 포함) |
 | `samples/sample_lookup.pretty.json` | 동일한 샘플의 들여쓴 JSON 배열 |
-| `samples/sample_envelope.json` | 엔드포인트 6종의 응답 래퍼 |
 | `reports/data_quality_summary_field_survey.txt` | 표본 300건 필드 품질 요약 |
 | `reports/missing_report_field_survey.csv` | 필드별 결측률과 실제 값 예시 (표본 300건) |
 | `reports/missing_report_lookup.csv` | `subInfo` 확장 필드 결측률 (표본 7건) |
-| `reports/field_report.json` | `analyze_fields.py` 집계 원본 |
-| `reports/lookup_field_report.json` | `analyze_lookup.py` 집계 원본 |
 | `metadata/category_index.jsonl` | 응답에서 확인된 분야 ID·분야명·깊이 86건 |
 | `metadata/category_ids.txt` | 분야 순회 입력용 ID 목록 |
 | `metadata/COLLECTION_METADATA_GUIDE.md` | 메타데이터 파일 설명 |
 
 수집 결과물(`raw/parts/`, `processed/`)은 저장소에 넣지 않는다. 조건 수에 따라 수 GB까지 늘어나고 재실행으로 다시 만들 수 있기 때문이다. `.gitignore`로 제외하고 `--output-dir`에 로컬 데이터 디렉터리를 지정한다.
+
+`metadata/range_plan.json`, `range_count_cache.json`, `unresolved_ranges.json`은 아직 실제 수집을 돌리지 않아 저장소에 없다. 첫 수집 후 국립중앙도서관과 같이 저장소에 포함한다.
+
+### 표준 대비 차이
+
+[`API_DATA_STANDARD.md`](../API_DATA_STANDARD.md)의 파일명 규칙을 그대로 따르되, 알라딘 API의 성격상 다음 두 가지가 다르다.
+
+| 표준 | 알라딘 | 이유 |
+| --- | --- | --- |
+| `raw/{resource}_raw_{date}.jsonl` | `raw/parts/{조건명}.jsonl` | 하루 호출 한도로 여러 날에 걸쳐 수집하므로 조건 단위 재개가 필요하다. 국립중앙도서관도 같은 이유로 `raw/parts/`를 쓴다 |
+| `metadata/range_count_cache.json`은 건수 조회 캐시 | 조건별 `totalResults` 캐시 | 알라딘에는 건수 전용 조회가 없다. 대신 각 조건 1페이지 응답의 `totalResults`를 같은 목적으로 캐시한다 |
+
+`category_index.jsonl`과 `category_ids.txt`는 표준에 없는 알라딘 전용 파일이다. 분야를 쪼개야만 1,000건 상한을 넘길 수 있어 분야 목록 자체가 수집 계획의 입력이 된다.
 
 **TTBKey는 코드·문서·커밋에 절대 기록하지 않는다.** 환경변수 `ALADIN_TTB_KEY` 또는 `.env`로만 전달하며, `.env`는 `.gitignore`에 포함되어 있다.
 
@@ -126,7 +136,7 @@ start           1~20 (알라딘 실제 상한)
 ```text
 {output-dir}/
 ├── raw/parts/                                 # 조건별 원본 JSONL과 .done.json
-├── processed/items_normalized_{scope}.jsonl
+├── processed/items_normalized_{date}.jsonl
 ├── samples/
 │   ├── sample_items.jsonl
 │   └── sample_items.pretty.json
@@ -134,10 +144,10 @@ start           1~20 (알라딘 실제 상한)
 │   ├── missing_report_{scope}.csv
 │   └── data_quality_summary_{scope}.txt
 └── metadata/
-    ├── collection_plan.json      # 조회 조건별 실행 계획과 예상 호출 수
+    ├── range_plan.json           # 조회 조건별 실행 계획과 예상 호출 수
     ├── category_ids.txt          # 다음 회차 분야 순회 입력
     ├── category_index.jsonl      # 분야 ID·명·깊이·건수
-    ├── unresolved_targets.json   # 실패한 조회 조건
+    ├── unresolved_ranges.json    # 실패한 조회 조건
     ├── isbn_not_found.jsonl      # 알라딘 미등록·절판 ISBN
     └── quota_state.json          # 날짜별 호출 사용량
 ```
@@ -257,7 +267,7 @@ https://www.aladin.co.kr/ttb/api/ItemList.aspx
 | --- | --- | --- |
 | 본문에 `errorCode` 존재 | API 오류 | 재시도하지 않고 호출자에게 전달 |
 | 메시지에 key·차단 관련 문구 | 치명적 오류 | 수집 즉시 중단 |
-| 그 외 `errorCode` | 대상 문제 | 해당 조건만 `metadata/unresolved_targets.json`에 기록하고 계속 |
+| 그 외 `errorCode` | 대상 문제 | 해당 조건만 `metadata/unresolved_ranges.json`에 기록하고 계속 |
 | HTTP 오류·타임아웃·JSON 파싱 실패 | 일시 오류 | 5·15·30·60·120초 백오프로 최대 4회 재시도 |
 | `item` 배열이 빈 배열 | 오류가 아님 | 미등록·절판. `metadata/isbn_not_found.jsonl`에 기록 |
 
@@ -267,7 +277,7 @@ https://www.aladin.co.kr/ttb/api/ItemList.aspx
 
 ### 3.1 응답 래퍼
 
-`item` 배열 밖의 메타데이터다. 수집 검증에만 사용하고 도서 레코드로 저장하지 않는다. 전체 예시는 [`samples/sample_envelope.json`](samples/sample_envelope.json)에 있다.
+`item` 배열 밖의 메타데이터다. 수집 검증에만 사용하고 도서 레코드로 저장하지 않는다.
 
 ```json
 {
@@ -1002,14 +1012,14 @@ description
 ## 10. 수집·정제 파이프라인
 
 ```text
-CategoryId·QueryType 조합 생성 -> metadata/collection_plan.json
+CategoryId·QueryType 조합 생성 -> metadata/range_plan.json
   -> ItemList / ItemSearch 페이지 순회 (start<=20, itemId 중복 검사)
   -> raw/parts/ 에 원문 JSONL + .done.json 저장
   -> 쿼터 소진 시 정상 종료, 다음 날 이어서 수집
   -> categories 모드로 분야 목록 확장
   -> 우선순위 ISBN 선별
   -> ItemLookUp 상세 보강
-  -> 파트 병합 + itemId 중복 제거 -> processed/items_normalized_{scope}.jsonl
+  -> 파트 병합 + itemId 중복 제거 -> processed/items_normalized_{date}.jsonl
   -> reports/ 품질·결측 리포트 생성
   -> HTML 엔티티·문자열·숫자·분류·날짜 정규화
   -> isbn13 기준 국립중앙도서관 매칭

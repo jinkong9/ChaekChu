@@ -13,11 +13,13 @@ parts/
 *.part
 *.tmp
 
-# 실행 중에만 의미가 있는 상태 파일
-metadata/quota_state.json
+# 첫 수집 실행 후 생성되는 메타데이터.
+# 실제 수집 결과가 나오면 국립중앙도서관처럼 저장소에 포함한다.
+metadata/range_plan.json
+metadata/range_count_cache.json
+metadata/unresolved_ranges.json
 metadata/isbn_not_found.jsonl
-metadata/unresolved_targets.json
-metadata/collection_plan.json
+metadata/quota_state.json
 
 __pycache__/
 *.pyc

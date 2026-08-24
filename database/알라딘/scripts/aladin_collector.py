@@ -40,17 +40,18 @@
 --output-dir 아래에 database/API_DATA_STANDARD.md 의 표준 폴더가 생성된다.
 
     {output-dir}/
-    ├── raw/parts/                              # 조건별 원본 JSONL과 .done.json
-    ├── processed/items_normalized_{scope}.jsonl
+    ├── raw/parts/                                # 조건별 원본 JSONL과 .done.json
+    ├── processed/items_normalized_{date}.jsonl
     ├── samples/sample_items.jsonl
     ├── samples/sample_items.pretty.json
     ├── reports/missing_report_{scope}.csv
     ├── reports/data_quality_summary_{scope}.txt
     └── metadata/
-        ├── collection_plan.json      # 조회 조건별 실행 계획
+        ├── range_plan.json           # 조회 조건별 실행 계획
+        ├── range_count_cache.json    # 조건별 totalResults 캐시
+        ├── unresolved_ranges.json    # 실패한 조회 조건
         ├── category_ids.txt          # 다음 회차 분야 순회 입력
         ├── category_index.jsonl      # 분야 ID·명·깊이·건수
-        ├── unresolved_targets.json   # 실패한 조회 조건
         ├── isbn_not_found.jsonl      # 알라딘 미등록·절판 ISBN
         └── quota_state.json          # 날짜별 호출 사용량
 """
@@ -216,6 +217,39 @@ class QuotaExhausted(RuntimeError):
 
 
 # ---------------------------------------------------------------- 호출 쿼터
+
+
+class CountCache:
+    """
+    조회 조건별 totalResults 캐시. metadata/range_count_cache.json 에 저장한다.
+
+    알라딘에는 국립중앙도서관의 TOTAL_COUNT 전용 조회가 없다.
+    대신 각 조건의 1페이지 응답이 totalResults 를 함께 돌려주므로,
+    그 값을 조건명 기준으로 남겨 다음 실행의 계획 수립에 재사용한다.
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.data = {}
+        if path.exists():
+            try:
+                self.data = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                self.data = {}
+
+    def get(self, name):
+        return self.data.get(name)
+
+    def set(self, name, count):
+        if self.data.get(name) == int(count):
+            return
+        self.data[name] = int(count)
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps(self.data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        tmp.replace(self.path)
 
 
 class QuotaGuard:
@@ -489,7 +523,7 @@ def write_done_meta(meta_path: Path, name, count, extra=None):
 
 
 def collect_paged(client, parts_dir, name, fetch_page, max_items,
-                  max_results, unresolved, label):
+                  max_results, unresolved, label, cache=None):
     """
     ItemList / ItemSearch 공통 페이지 순회.
 
@@ -523,6 +557,8 @@ def collect_paged(client, parts_dir, name, fetch_page, max_items,
                 if total_results is None:
                     total_results = int(data.get("totalResults", 0) or 0)
                     print(f"  totalResults={total_results:,}")
+                    if cache is not None:
+                        cache.set(name, total_results)
 
                 items = data.get("item", []) or []
                 if not items:
@@ -599,9 +635,9 @@ def collect_paged(client, parts_dir, name, fetch_page, max_items,
 # ---------------------------------------------------------------- 수집 모드
 
 
-def write_collection_plan(path: Path, mode, targets, max_items):
+def write_range_plan(path: Path, mode, targets, max_items):
     """
-    실행 계획을 metadata/collection_plan.json 에 남긴다.
+    실행 계획을 metadata/range_plan.json 에 남긴다.
     국립중앙도서관 수집기의 range_plan.json 과 같은 역할이다.
     알라딘은 사전에 건수를 알 수 없으므로 조건별 상한값을 예상치로 기록한다.
     """
@@ -668,7 +704,7 @@ def build_list_targets(categories, query_types, search_target, weeks):
 
 
 def run_list_mode(client, parts_dir, targets, max_results, max_items,
-                  unresolved):
+                  unresolved, cache=None):
     results = []
 
     for target in targets:
@@ -682,7 +718,7 @@ def run_list_mode(client, parts_dir, targets, max_results, max_items,
 
         results.extend(collect_paged(
             client, parts_dir, target["name"], fetch,
-            max_items, max_results, unresolved, target["label"],
+            max_items, max_results, unresolved, target["label"], cache,
         ))
 
     return results
@@ -711,7 +747,7 @@ def build_search_targets(queries, query_type, categories, search_target, sort):
 
 
 def run_search_mode(client, parts_dir, targets, max_results, max_items,
-                    unresolved):
+                    unresolved, cache=None):
     results = []
 
     for target in targets:
@@ -724,7 +760,7 @@ def run_search_mode(client, parts_dir, targets, max_results, max_items,
 
         results.extend(collect_paged(
             client, parts_dir, target["name"], fetch,
-            max_items, max_results, unresolved, target["label"],
+            max_items, max_results, unresolved, target["label"], cache,
         ))
 
     return results
@@ -1161,6 +1197,10 @@ def build_parser():
         help="리포트 파일명에 들어갈 수집 범위 식별자 "
              "(reports/data_quality_summary_{scope}.txt)",
     )
+    parser.add_argument(
+        "--date",
+        help="raw·processed 파일명에 들어갈 YYYYMMDD. 기본값은 오늘 날짜",
+    )
     parser.add_argument("--sample-size", type=int, default=3000)
     parser.add_argument(
         "--no-merge", action="store_true",
@@ -1195,13 +1235,15 @@ def main():
         directory.mkdir(parents=True, exist_ok=True)
 
     scope = args.scope
-    merged_path = processed_dir / f"items_normalized_{scope}.jsonl"
+    stamp = args.date or date.today().strftime("%Y%m%d")
+    merged_path = processed_dir / f"items_normalized_{stamp}.jsonl"
     report_path = reports_dir / f"missing_report_{scope}.csv"
     summary_path = reports_dir / f"data_quality_summary_{scope}.txt"
     sample_path = samples_dir / "sample_items.jsonl"
     sample_pretty_path = samples_dir / "sample_items.pretty.json"
-    plan_path = metadata_dir / "collection_plan.json"
-    unresolved_path = metadata_dir / "unresolved_targets.json"
+    plan_path = metadata_dir / "range_plan.json"
+    count_cache_path = metadata_dir / "range_count_cache.json"
+    unresolved_path = metadata_dir / "unresolved_ranges.json"
     not_found_path = metadata_dir / "isbn_not_found.jsonl"
     category_path = metadata_dir / "category_ids.txt"
     category_index_path = metadata_dir / "category_index.jsonl"
@@ -1219,6 +1261,7 @@ def main():
             parser.error("TTBKey가 필요합니다. ALADIN_TTB_KEY 환경변수를 쓰세요.")
 
         quota = QuotaGuard(quota_path, args.daily_limit)
+        count_cache = CountCache(count_cache_path)
         print(
             f"오늘 사용 호출 {quota.used:,} / 한도 {quota.daily_limit:,} "
             f"(남은 호출 {quota.remaining:,})"
@@ -1249,11 +1292,11 @@ def main():
                     search_target=args.search_target,
                     weeks=weeks,
                 )
-                write_collection_plan(plan_path, args.mode, targets, args.max_items)
+                write_range_plan(plan_path, args.mode, targets, args.max_items)
                 run_list_mode(
                     client=client, parts_dir=parts_dir, targets=targets,
                     max_results=args.max_results, max_items=args.max_items,
-                    unresolved=unresolved,
+                    unresolved=unresolved, cache=count_cache,
                 )
 
             elif args.mode == "search":
@@ -1265,11 +1308,11 @@ def main():
                     categories=categories, search_target=args.search_target,
                     sort=args.sort,
                 )
-                write_collection_plan(plan_path, args.mode, targets, args.max_items)
+                write_range_plan(plan_path, args.mode, targets, args.max_items)
                 run_search_mode(
                     client=client, parts_dir=parts_dir, targets=targets,
                     max_results=args.max_results, max_items=args.max_items,
-                    unresolved=unresolved,
+                    unresolved=unresolved, cache=count_cache,
                 )
 
             elif args.mode == "lookup":

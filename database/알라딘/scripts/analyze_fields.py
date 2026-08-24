@@ -5,6 +5,7 @@
 '키 없음'과 '빈값'을 분리해서 집계한다.
 """
 
+import csv
 import json
 import os
 import sys
@@ -58,6 +59,59 @@ def flatten(obj, prefix=""):
         else:
             out[path] = v
     return out
+
+
+MISSING_REPORT_COLUMNS = [
+    "field", "total_count", "key_present_count", "key_missing_count",
+    "null_count", "blank_count", "effective_missing_count",
+    "effective_missing_rate_percent", "zero_count", "zero_rate_percent",
+    "types", "example_valid_values",
+]
+
+
+def write_missing_report(stats, total, scope):
+    """reports/missing_report_{scope}.csv 를 표준 컬럼으로 저장한다."""
+    rows = []
+    for path, s in stats.items():
+        present = s["present"]
+        key_missing = total - present
+        missing = key_missing + s["null"] + s["empty"]
+        rows.append({
+            "field": path,
+            "total_count": total,
+            "key_present_count": present,
+            "key_missing_count": key_missing,
+            "null_count": s["null"],
+            "blank_count": s["empty"],
+            "effective_missing_count": missing,
+            "effective_missing_rate_percent":
+                round(missing / total * 100, 2) if total else 0,
+            "zero_count": s["zero"],
+            "zero_rate_percent": round(s["zero"] / total * 100, 2) if total else 0,
+            "types": ",".join(sorted(s["types"])),
+            "example_valid_values": " | ".join(
+                x.replace("\r", " ").replace("\n", " ") for x in s["examples"]
+            ),
+        })
+
+    rows.sort(key=lambda x: (-x["effective_missing_rate_percent"], x["field"]))
+    out = os.path.join(REPORTS_DIR, f"missing_report_{scope}.csv")
+    with open(out, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=MISSING_REPORT_COLUMNS)
+        w.writeheader()
+        w.writerows(rows)
+    return out
+
+
+def write_sample(records, resource, pretty_limit=50):
+    """samples/sample_{resource}.jsonl 과 .pretty.json 을 함께 저장한다."""
+    base = os.path.join(SAMPLES_DIR, f"sample_{resource}")
+    with open(base + ".jsonl", "w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    with open(base + ".pretty.json", "w", encoding="utf-8") as f:
+        json.dump(records[:pretty_limit], f, ensure_ascii=False, indent=2)
+    return base
 
 
 def is_blank(v):
@@ -145,17 +199,14 @@ def analyze():
             missing = sorted(all_labels - s["sources"])
             print(f"  {path:32s} 없는 곳: {', '.join(missing)}")
 
-    with open(os.path.join(REPORTS_DIR, "field_report.json"), "w", encoding="utf-8") as f:
-        json.dump({
-            "totals": totals,
-            "fields": {p: {**{k: v for k, v in s.items() if k not in ("types", "sources")},
-                           "types": sorted(s["types"]),
-                           "sources": sorted(s["sources"])}
-                       for p, s in stats.items()},
-        }, f, ensure_ascii=False, indent=2)
-    with open(os.path.join(SAMPLES_DIR, "sample_envelope.raw.json"), "w", encoding="utf-8") as f:
-        json.dump(raw_dump, f, ensure_ascii=False, indent=2)
-    print("\n저장: reports/field_report.json (집계), samples/sample_envelope.raw.json (원본 응답)")
+    # 산출물 파일명은 database/API_DATA_STANDARD.md 규칙을 따른다.
+    write_missing_report(stats, grand, "field_survey")
+
+    items = [it for data in raw_dump.values() for it in data.get("item", [])[:3]]
+    write_sample(items, "items")
+
+    print("\n저장: reports/missing_report_field_survey.csv, "
+          "samples/sample_items.jsonl, samples/sample_items.pretty.json")
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ import sys
 from collections import defaultdict
 
 from aladin_cli import call
-from analyze_fields import REPORTS_DIR, SAMPLES_DIR, flatten, is_blank
+from analyze_fields import flatten, is_blank, write_missing_report, write_sample
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")

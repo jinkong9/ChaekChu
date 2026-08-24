@@ -6,8 +6,9 @@
 | --- | --- | --- |
 | `category_index.jsonl` | 응답에서 실제로 확인된 분야 ID·분야명·깊이·건수 | 포함 |
 | `category_ids.txt` | 위 목록에서 뽑은 `--category-file` 입력용 ID 목록 | 포함 |
-| `collection_plan.json` | 조회 조건별 실행 계획과 예상 호출 수 | 제외 |
-| `unresolved_targets.json` | API 오류로 끝까지 수집하지 못한 조회 조건과 원인 | 제외 |
+| `range_plan.json` | 조회 조건별 실행 계획과 예상 호출 수 | 첫 수집 후 포함 |
+| `range_count_cache.json` | 조회 조건별 `totalResults` 캐시 | 첫 수집 후 포함 |
+| `unresolved_ranges.json` | API 오류로 끝까지 수집하지 못한 조회 조건과 원인 | 첫 수집 후 포함 |
 | `isbn_not_found.jsonl` | 알라딘에 등록되지 않았거나 절판된 ISBN | 제외 |
 | `quota_state.json` | 날짜별 호출 사용량 | 제외 |
 
@@ -15,7 +16,7 @@
 
 국립중앙도서관은 날짜 구간을 나누고 `TOTAL_COUNT`로 구간별 건수를 미리 확정할 수 있어 `range_plan.json`이 실제 예상 건수를 담는다.
 
-알라딘은 조회 전에 건수를 알 수 없고 한 조건당 접근 가능 건수가 1,000건으로 고정되어 있다. 따라서 `collection_plan.json`의 건수는 실측이 아니라 **조건 수 × 조건별 상한**으로 계산한 최대치다.
+알라딘은 조회 전에 건수를 알 수 없고 한 조건당 접근 가능 건수가 1,000건으로 고정되어 있다. 따라서 `range_plan.json`의 건수는 실측이 아니라 **조건 수 × 조건별 상한**으로 계산한 최대치다.
 
 ```json
 {
