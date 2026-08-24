@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "source": "YES24",
+  "collectedDate": "2026-08-24",
+  "timezone": "Asia/Seoul",
+  "status": "daily_quota_exceeded",
+  "selection": {
+    "seedEndpoint": "/v1/category/newproduct",
+    "seedSort": "RegDate",
+    "seedPageSize": 100,
+    "seedCategories": [
+      "001",
+      "002",
+      "017"
+    ],
+    "seedUniqueIsbn13": 20000,
+    "detailEndpoint": "/v1/goods/itemDetail",
+    "detailSearchType": "ISBN13",
+    "detail": "Y",
+    "detailSelectionNote": "Seed input order의 앞 19,754건. 국내도서·외국도서·eBook 신상품 중심이며 246건은 한도 소진으로 미조회"
+  },
+  "observedApiCalls": {
+    "seedDomesticAndForeign": 192,
+    "seedEbook": 50,
+    "detailMainTerminal": 19754,
+    "detailMainSuccess": 19751,
+    "detailMainNotFound": 3,
+    "detailSmoke": 3,
+    "terminalResponseTotal": 19999,
+    "dailyQuotaResponseReceived": true,
+    "note": "로컬 산출물의 종결 응답 합계이며 다음 요청에서 RATE_002가 반환됨"
+  },
+  "artifacts": {
+    "seedRaw": {
+      "path": "raw/yes24_seed_raw_20260824.jsonl",
+      "records": 20000,
+      "sizeBytes": 53809746,
+      "gitTracked": false
+    },
+    "detailRaw": {
+      "path": "raw/yes24_detail_raw_20260824.jsonl",
+      "records": 19754,
+      "sizeBytes": 69381879,
+      "gitTracked": false
+    },
+    "qualitySummary": "reports/data_quality_summary_collected_20260824.txt",
+    "missingReport": "reports/missing_report_collected_20260824.csv"
+  },
+  "quality": {
+    "successRecords": 19751,
+    "notFoundRecords": 3,
+    "failedRecords": 0,
+    "uniqueRequestIsbn13": 19754,
+    "uniqueResponseIsbn13": 19751,
+    "requestResponseExactMatches": 19751,
+    "exactMatchRatePct": 100.0
+  },
+  "resumeRun": {
+    "maxRuntimeMinutes": 20,
+    "newSuccessRecords": 6868,
+    "dailyQuotaExceeded": false
+  },
+  "finalRun": {
+    "startingRecords": 11398,
+    "newTerminalRecords": 8356,
+    "newSuccessRecords": 8353,
+    "newNotFoundRecords": 3,
+    "dailyQuotaExceeded": true,
+    "remainingSeedCandidates": 246
+  }
+}
