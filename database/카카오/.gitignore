@@ -1,0 +1,13 @@
+# API 수집으로 생성되는 대용량 결과물은 저장소에 포함하지 않는다.
+raw/*
+!raw/README.md
+processed/*
+!processed/README.md
+metadata/*.runtime.json
+metadata/*.sqlite3
+metadata/*.sqlite3-shm
+metadata/*.sqlite3-wal
+metadata/*.stdout.log
+metadata/*.stderr.log
+scripts/__pycache__/
+*.part

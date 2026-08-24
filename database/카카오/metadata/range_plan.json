@@ -1,0 +1,26 @@
+{
+  "created_at": "2026-08-24T08:32:16.121087+00:00",
+  "api": "Kakao Book Search",
+  "endpoint": "https://dapi.kakao.com/v3/search/book",
+  "strategy": "generated Korean syllable title queries; each query paged until is_end or page 50",
+  "target": "title",
+  "sort": "accuracy",
+  "page_size": 50,
+  "max_requests_this_batch": 29999,
+  "previous_confirmed_request_count_today": 1,
+  "daily_quota_target_total": 30000,
+  "query_generation": {
+    "initial_consonants": 19,
+    "medial_vowels": 21,
+    "final_variants": [
+      0,
+      1,
+      4,
+      8,
+      16,
+      17,
+      19,
+      21
+    ]
+  }
+}
