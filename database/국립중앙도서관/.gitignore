@@ -1,0 +1,6 @@
+# API 수집으로 생성되는 대용량 결과물은 저장소에 포함하지 않는다.
+nl_isbn_split_output/
+data/
+output/
+parts/
+*.part

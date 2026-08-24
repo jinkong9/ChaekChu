@@ -1,0 +1,8 @@
+[
+  {
+    "start": "20041130",
+    "end": "20041130",
+    "expected_count": 454,
+    "reason": "날짜 단위 + page_size 1까지 시도했으나 API 오류"
+  }
+]
