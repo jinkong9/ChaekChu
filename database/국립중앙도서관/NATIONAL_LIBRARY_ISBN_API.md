@@ -25,11 +25,27 @@
 | --- | --- |
 | `scripts/nl_isbn_collector_adaptive_v2.py` | 날짜 자동 분할·재시도·파트 수집·병합·품질 리포트 생성 코드 |
 | `samples/sample_books.jsonl` | 실제 수집 레코드에서 추린 소형 샘플 3건 |
+| `samples/sample_books.pretty.json` | 동일한 샘플을 사람이 읽기 좋게 들여쓴 JSON 배열 |
 | `reports/data_quality_summary_all_years.txt` | 실제 수집 결과 품질 요약 |
 | `reports/missing_report_all_years.csv` | 필드별 결측률과 실제 값 예시 |
-| `reports/range_plan.json` | 날짜별 수집 구간과 건수 |
-| `reports/range_count_cache.json` | 날짜 구간별 API 건수 조회 캐시 |
-| `reports/unresolved_ranges.json` | API 오류로 미해결된 구간 |
+| `metadata/range_plan.json` | 날짜별 수집 구간과 건수 |
+| `metadata/range_count_cache.json` | 날짜 구간별 API 건수 조회 캐시 |
+| `metadata/unresolved_ranges.json` | API 오류로 미해결된 구간 |
+
+### 표준 폴더 구조
+
+```text
+국립중앙도서관/
+├── NATIONAL_LIBRARY_ISBN_API.md  # API 설명·필드·실제 값·저장 정책
+├── scripts/        # 수집·정제 코드
+├── raw/            # 원본 응답·대용량 JSONL
+├── processed/      # 정제·병합 결과
+├── samples/        # Git에 포함하는 소형 샘플
+├── reports/        # 품질·결측 리포트
+└── metadata/       # 수집 구간·캐시·미해결 구간
+```
+
+다른 API 담당자는 이 폴더를 복사한 뒤 API명과 데이터 리소스명만 변경하는 것을 기준으로 한다. 원본·정제 결과는 분리하고, 실제 값이 확인 가능한 작은 샘플과 품질 리포트는 저장소에 포함한다.
 
 `books_all_years.jsonl`과 `parts/` 전체는 약 2.2GB의 생성 결과물이므로 저장소에 넣지 않는다. `.gitignore`로 재생성 결과를 제외하고, 필요할 때 외부 저장소나 로컬 데이터 디렉터리를 `--output-dir`로 지정한다.
 
@@ -55,7 +71,22 @@ API 키를 환경변수로 지정하지 않으면 실행 중 입력받는다. �
 재시도 횟수     5회
 ```
 
-실행 시 완료된 `.done.json` 파트는 재사용하고, API 오류가 발생한 날짜 구간은 자동으로 더 작은 범위로 분할한다. 날짜 단위와 `page_size=1`까지 실패한 구간은 `unresolved_ranges.json`에 기록한다.
+실행 시 `--output-dir` 아래에 표준 폴더가 자동 생성된다.
+
+```text
+{output-dir}/
+├── raw/parts/                 # 날짜 구간별 원본 JSONL과 .done.json
+├── processed/books_all_years.jsonl
+├── reports/
+│   ├── missing_report_all_years.csv
+│   └── data_quality_summary_all_years.txt
+└── metadata/
+    ├── range_plan.json
+    ├── range_count_cache.json
+    └── unresolved_ranges.json
+```
+
+완료된 `.done.json` 파트는 재사용하고, API 오류가 발생한 날짜 구간은 자동으로 더 작은 범위로 분할한다. 날짜 단위와 `page_size=1`까지 실패한 구간은 `metadata/unresolved_ranges.json`에 기록한다.
 
 ---
 
@@ -308,7 +339,7 @@ REAL_PUBLISH_DATE 또는 외부 API와 충돌하는가?
 
 ## 5. 현재 보유 데이터 분석
 
-분석 대상은 `books_all_years.jsonl`, `missing_report_all_years.csv`, `data_quality_summary_all_years.txt`, `unresolved_ranges.json`, `parts/`, `sample_books.jsonl`이다.
+분석 대상은 `books_all_years.jsonl`, `missing_report_all_years.csv`, `data_quality_summary_all_years.txt`, `unresolved_ranges.json`, `parts/`, `sample_books.jsonl`이다. 저장소에는 이 중 소형 샘플과 리포트·메타데이터만 포함한다.
 
 ### 수집 규모
 
@@ -321,7 +352,7 @@ REAL_PUBLISH_DATE 또는 외부 API와 충돌하는가?
 | API 전체 대비 최종 커버리지 | 98.2737% |
 | 미해결 구간 | 20041130, 454건 |
 
-`books_all_years.jsonl`은 실제 2,047,239줄이며, `sample_books.jsonl`은 5,000줄이다. `sample_books.jsonl`은 전체 파일의 앞 5,000줄과 동일하다.
+원본 `books_all_years.jsonl`은 실제 2,047,239줄이며, 원본 `sample_books.jsonl`은 전체 파일의 앞 5,000줄과 동일하다. 저장소의 `samples/sample_books.jsonl`은 문서 검토용으로 추린 실제 레코드 3건이다.
 
 ### 필드별 품질
 

@@ -890,12 +890,23 @@ def main():
     )
 
     outdir = Path(args.output_dir)
-    parts_dir = outdir / "parts"
-    outdir.mkdir(parents=True, exist_ok=True)
-    parts_dir.mkdir(parents=True, exist_ok=True)
+    raw_dir = outdir / "raw"
+    processed_dir = outdir / "processed"
+    reports_dir = outdir / "reports"
+    metadata_dir = outdir / "metadata"
+    parts_dir = raw_dir / "parts"
+
+    for directory in (
+        raw_dir,
+        processed_dir,
+        reports_dir,
+        metadata_dir,
+        parts_dir,
+    ):
+        directory.mkdir(parents=True, exist_ok=True)
 
     cache = CountCache(
-        outdir / "range_count_cache.json"
+        metadata_dir / "range_count_cache.json"
     )
 
     client = ApiClient(
@@ -933,6 +944,23 @@ def main():
         f"{api_all_count - planned_count:+,}"
     )
 
+    range_plan_path = metadata_dir / "range_plan.json"
+    range_plan_path.write_text(
+        json.dumps(
+            [
+                {
+                    "start": fmt(start),
+                    "end": fmt(end),
+                    "count": int(count),
+                }
+                for start, end, count in ranges
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
     print("\n[3/4] 동적 수집")
     all_results = []
     unresolved = []
@@ -956,7 +984,7 @@ def main():
 
         all_results.extend(results)
 
-    unresolved_path = outdir / "unresolved_ranges.json"
+    unresolved_path = metadata_dir / "unresolved_ranges.json"
     unresolved_path.write_text(
         json.dumps(
             unresolved,
@@ -968,10 +996,10 @@ def main():
 
     print("\n[4/4] 병합 및 결측률 분석")
 
-    merged_path = outdir / "books_all_years.jsonl"
-    report_path = outdir / "missing_report_all_years.csv"
+    merged_path = processed_dir / "books_all_years.jsonl"
+    report_path = reports_dir / "missing_report_all_years.csv"
     summary_path = (
-        outdir / "data_quality_summary_all_years.txt"
+        reports_dir / "data_quality_summary_all_years.txt"
     )
 
     actual = merge_and_analyze(
