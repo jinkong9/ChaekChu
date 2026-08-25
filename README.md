@@ -59,34 +59,36 @@ SSAFY 15기 2학기 관통 프로젝트 · 서울 1캠퍼스 B반 102팀
 
 ## 기술 스택
 
+> 버전 선택 이유와 호환성 기준은 [기술 스택 및 버전 기준](docs/TECH_STACK_AND_VERSIONS.md)에서 관리합니다.
+
 ### Frontend
 
 | 분류 | 기술 | 버전 |
 | --- | --- | --- |
-| Language | | |
-| Framework | | |
-| State | | |
-| Styling | | |
-| Build | | |
+| Language | TypeScript | 5.9.x |
+| Framework | React | 19.2.x |
+| State | TanStack Query / Zustand | 5.x / 5.x |
+| Styling | Tailwind CSS | 4.x |
+| Build | Vite | 7.3.x |
 
 ### Backend
 
 | 분류 | 기술 | 버전 |
 | --- | --- | --- |
-| Language | | |
-| Framework | | |
-| ORM | | |
-| Database | | |
-| Auth | | |
+| Language | Java | 21 LTS |
+| Framework | Spring Boot | 3.5.16 |
+| ORM | Spring Data JPA / Hibernate | Spring Boot 관리 버전 |
+| Database | PostgreSQL / Elasticsearch | 16.15 / 8.18.1 |
+| Auth | Spring Security + JWT | Spring Boot 관리 버전 |
 
 ### Infra / DevOps
 
 | 분류 | 기술 |
 | --- | --- |
-| CI/CD | |
-| Container | |
-| Server | |
-| Web Server | |
+| CI/CD | GitLab CI/CD |
+| Container | Docker Engine 27.x / Compose v2 |
+| Server | Eclipse Temurin 21 |
+| Web Server | Nginx 1.27.x |
 
 ### 협업 도구
 
@@ -145,9 +147,9 @@ S15P21B102/
 
 ### 사전 요구사항
 
-- Node.js `>= `
-- JDK `>= `
-- Docker `>= `
+- Node.js `24 LTS`
+- JDK `21`
+- Docker Engine `27.x` 이상
 
 ### 환경 변수
 
