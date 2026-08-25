@@ -1,0 +1,39 @@
+{"isbn13": "9780132350884", "stratum": "FOREIGN", "source_folder": "yes24", "source_file": "yes24/tests/test_yes24_isbn_collector.py", "source_note": "YES24 신상품 표본", "checksum_valid": true}
+{"isbn13": "9780134685991", "stratum": "FOREIGN", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_lookup.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9781442445765", "stratum": "FOREIGN", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_items.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9781680502688", "stratum": "FOREIGN", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_items.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9781803244808", "stratum": "FOREIGN", "source_folder": "알라딘", "source_file": "알라딘/ALADIN_OPENAPI.md", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791130309835", "stratum": "KR_CATALOG", "source_folder": "국립중앙도서관", "source_file": "국립중앙도서관/NATIONAL_LIBRARY_ISBN_API.md", "source_note": "국중 카탈로그 샘플(상업성 낮음 포함)", "checksum_valid": true}
+{"isbn13": "9791138369855", "stratum": "KR_CATALOG", "source_folder": "국립중앙도서관", "source_file": "국립중앙도서관/NATIONAL_LIBRARY_ISBN_API.md", "source_note": "국중 카탈로그 샘플(상업성 낮음 포함)", "checksum_valid": true}
+{"isbn13": "9791138377713", "stratum": "KR_CATALOG", "source_folder": "국립중앙도서관", "source_file": "국립중앙도서관/reports/missing_report_all_years.csv", "source_note": "국중 카탈로그 샘플(상업성 낮음 포함)", "checksum_valid": true}
+{"isbn13": "9791186150306", "stratum": "KR_CATALOG", "source_folder": "국립중앙도서관", "source_file": "국립중앙도서관/NATIONAL_LIBRARY_ISBN_API.md", "source_note": "국중 카탈로그 샘플(상업성 낮음 포함)", "checksum_valid": true}
+{"isbn13": "9791196965402", "stratum": "KR_CATALOG", "source_folder": "국립중앙도서관", "source_file": "국립중앙도서관/reports/missing_report_all_years.csv", "source_note": "국중 카탈로그 샘플(상업성 낮음 포함)", "checksum_valid": true}
+{"isbn13": "9788936435257", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/reports/missing_report_lookup.csv", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9788936439996", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/reports/missing_report_field_survey.csv", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9788937418631", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_lookup.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9788937460449", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_lookup.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9788937493447", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_lookup.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9788954682152", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_lookup.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9788954682237", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_lookup.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9788958974048", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_items.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9788966260950", "stratum": "KR_RETAIL", "source_folder": "yes24", "source_file": "yes24/tests/test_yes24_isbn_collector.py", "source_note": "YES24 신상품 표본", "checksum_valid": false}
+{"isbn13": "9788966260959", "stratum": "KR_RETAIL", "source_folder": "yes24", "source_file": "yes24/tests/test_yes24_isbn_collector.py", "source_note": "YES24 신상품 표본", "checksum_valid": true}
+{"isbn13": "9788966262038", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/ALADIN_OPENAPI.md", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9788972188766", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/ALADIN_OPENAPI.md", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9788994797700", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_items.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9788996991342", "stratum": "KR_RETAIL", "source_folder": "카카오", "source_file": "카카오/KAKAO_BOOK_SEARCH_API.md", "source_note": "카카오 검색 표본", "checksum_valid": true}
+{"isbn13": "9791112259431", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_items.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791127888022", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_items.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791141618575", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/reports/data_quality_summary_field_survey.txt", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791141618889", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/reports/missing_report_lookup.csv", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791157787715", "stratum": "KR_RETAIL", "source_folder": "yes24", "source_file": "yes24/samples/sample_yes24_books.jsonl", "source_note": "YES24 신상품 표본", "checksum_valid": true}
+{"isbn13": "9791162243077", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/reports/missing_report_field_survey.csv", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791162245651", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/reports/data_quality_summary_field_survey.txt", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791162245767", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_lookup.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791162574300", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_items.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791162574317", "stratum": "KR_RETAIL", "source_folder": "yes24", "source_file": "yes24/reports/missing_report_collected_20260824.csv", "source_note": "YES24 신상품 표본", "checksum_valid": true}
+{"isbn13": "9791163034735", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/reports/data_quality_summary_field_survey.txt", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791163034803", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/samples/sample_items.jsonl", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791170528227", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/ALADIN_OPENAPI.md", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}
+{"isbn13": "9791195928873", "stratum": "KR_RETAIL", "source_folder": "yes24", "source_file": "yes24/samples/sample_yes24_books.jsonl", "source_note": "YES24 신상품 표본", "checksum_valid": true}
+{"isbn13": "9791199489561", "stratum": "KR_RETAIL", "source_folder": "알라딘", "source_file": "알라딘/ALADIN_OPENAPI.md", "source_note": "알라딘 베스트셀러·신간 표본", "checksum_valid": true}

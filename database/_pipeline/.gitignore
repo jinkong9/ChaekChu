@@ -1,0 +1,7 @@
+# Parquet 등 대용량 파생 결과물은 저장소에 넣지 않는다.
+# 원본(books_all_years.jsonl)과 변환본은 project_personal/ 등 외부 경로에 둔다.
+*.parquet
+data/
+output/
+__pycache__/
+*.py[cod]
