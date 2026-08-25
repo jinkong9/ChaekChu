@@ -1,0 +1,17 @@
+﻿field,matched_total,key_present_count,effective_missing_count,effective_missing_rate_percent,valid_count,example_valid_values
+title,21,21,0,0.0,21,Clean Code | Effective Java | The Greedy Python
+subtitle,21,9,13,61.9,8,A Handbook of Agile Software Craftsmanship | An Introduction to Computer Science Using Python 3.6 | Write Your Own Practical Quantum Programs with Python
+authors,21,18,3,14.29,18,"[""Robert C. Martin""] | [""Joshua Bloch""] | [""Richard Buckley""]"
+publisher,21,8,13,61.9,8,Pearson Education | Addison-Wesley Professional | Simon Spotlight
+publishedDate,21,21,0,0.0,21,2009 | 2018 | 2012-05-01
+description,21,10,11,52.38,10,"This title shows the process of cleaning code. Rather than just illustrating the end result, or just the starting and en | Since this Jolt-award winning classic was last updated in 2008 (shortly after Java 6 was released), Java has changed dra | A classic tale of a greedy snake, with illustrations from Eric Carle, is now available as a Ready-to-Read. In this humor"
+pageCount,21,21,0,0.0,21,464 | 416 | 24
+printType,21,21,0,0.0,21,BOOK | BOOK | BOOK
+categories,21,11,10,47.62,11,"[""Computers""] | [""Computers""] | [""Juvenile Fiction""]"
+averageRating,21,3,18,85.71,3,4.5 | 4 | 5
+ratingsCount,21,3,18,85.71,3,3 | 1 | 1
+maturityRating,21,21,0,0.0,21,NOT_MATURE | NOT_MATURE | NOT_MATURE
+language,21,21,0,0.0,21,en | en | en
+previewLink,21,21,0,0.0,21,http://books.google.co.kr/books?id=hjEFCAAAQBAJ&dq=isbn:9780132350884&hl=&cd=1&source=gbs_api | http://books.google.co.kr/books?id=1cVqswEACAAJ&dq=isbn:9780134685991&hl=&cd=1&source=gbs_api | http://books.google.co.kr/books?id=aebsZwEACAAJ&dq=isbn:9781442445765&hl=&cd=1&source=gbs_api
+infoLink,21,21,0,0.0,21,http://books.google.co.kr/books?id=hjEFCAAAQBAJ&dq=isbn:9780132350884&hl=&source=gbs_api | http://books.google.co.kr/books?id=1cVqswEACAAJ&dq=isbn:9780134685991&hl=&source=gbs_api | http://books.google.co.kr/books?id=aebsZwEACAAJ&dq=isbn:9781442445765&hl=&source=gbs_api
+canonicalVolumeLink,21,21,0,0.0,21,https://books.google.com/books/about/Clean_Code.html?hl=&id=hjEFCAAAQBAJ | https://books.google.com/books/about/Effective_Java.html?hl=&id=1cVqswEACAAJ | https://books.google.com/books/about/The_Greedy_Python.html?hl=&id=aebsZwEACAAJ

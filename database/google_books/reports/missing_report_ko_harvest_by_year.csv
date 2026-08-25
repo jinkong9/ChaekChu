@@ -1,0 +1,8 @@
+﻿bucket,axis,sample_n,with_usable_description,usable_rate_percent,ci95_low,ci95_high,partner_n,partner_usable_rate_percent,scanned_n,scanned_usable_rate_percent,sample_share_percent,nl_actual_share_percent
+~1999,subject,967,9,0.93,0.49,1.76,67,0.0,900,1.0,29.42,5.6
+2000-04,subject,402,12,2.99,1.72,5.14,78,5.13,324,2.47,12.23,7.6
+2005-09,subject,553,17,3.07,1.93,4.87,82,10.98,471,1.7,16.82,14.3
+2010-14,subject,403,59,14.64,11.52,18.43,73,68.49,330,2.73,12.26,17.2
+2015-19,subject,475,82,17.26,14.13,20.92,84,96.43,391,0.26,14.45,21.5
+2020-24,subject,411,85,20.68,17.05,24.86,83,93.98,328,2.13,12.5,26.2
+2025-,subject,76,64,84.21,74.4,90.73,65,98.46,11,0.0,2.31,7.6

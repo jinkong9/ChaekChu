@@ -1,0 +1,46 @@
+Google Books API 데이터 품질 요약
+======================================================================
+생성 시각(UTC): 2026-08-25T00:33:55.709282+00:00
+입력 파일: C:\Users\SSAFY\ygg\특화프로젝트\S15P21B102\database\google_books\raw\volumes_raw_20260825.jsonl
+대상 범위: seed_sample
+조회 요청 수: 39
+  invalid_isbn: 1건
+  not_found: 17건
+  success: 21건
+
+[계층별 매칭률 / description 보유율]
+계층              요청    매칭      매칭률     소개보유        보유율(매칭중)        보유율(요청중)
+--------------------------------------------------------------------------
+FOREIGN          5     5   100.0%        5          100.0%          100.0%
+KR_CATALOG       5     4    80.0%        0            0.0%            0.0%
+KR_RETAIL       29    12    41.4%        5           41.7%           17.2%
+
+[description 길이 분포 (매칭+보유 건)]
+  FOREIGN      n=5    최소=210    중앙=325    최대=2649
+  KR_RETAIL    n=5    최소=21     중앙=418    최대=2645
+
+[임베딩에 실제로 쓸 수 있는 description (>= 100자)]
+계층               유효요청    보유     사용가능          사용가능률(요청중)
+--------------------------------------------------------
+FOREIGN             5     5        5              100.0%
+KR_CATALOG          5     0        0                0.0%
+KR_RETAIL          28     5        4               14.3%
+  버려지는 짧은 값: 1건 [21]
+
+[매칭 성공 21건 기준 필드별 결측률]
+  title                    0.00%  (유효 21건)
+  subtitle                61.90%  (유효 8건)
+  authors                 14.29%  (유효 18건)
+  publisher               61.90%  (유효 8건)
+  publishedDate            0.00%  (유효 21건)
+  description             52.38%  (유효 10건)
+  pageCount                0.00%  (유효 21건)
+  printType                0.00%  (유효 21건)
+  categories              47.62%  (유효 11건)
+  averageRating           85.71%  (유효 3건)
+  ratingsCount            85.71%  (유효 3건)
+  maturityRating           0.00%  (유효 21건)
+  language                 0.00%  (유효 21건)
+  previewLink              0.00%  (유효 21건)
+  infoLink                 0.00%  (유효 21건)
+  canonicalVolumeLink      0.00%  (유효 21건)

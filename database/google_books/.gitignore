@@ -1,0 +1,20 @@
+# 로컬 환경 및 비밀값
+.env
+.env.*
+!.env.example
+
+# Python 실행 환경 및 캐시
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# API 수집으로 생성되는 대용량 결과물은 저장소에 포함하지 않는다.
+raw/*
+!raw/README.md
+processed/*
+!processed/README.md
+data/
+output/
+parts/
+*.part

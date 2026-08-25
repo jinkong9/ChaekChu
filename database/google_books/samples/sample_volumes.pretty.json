@@ -1,0 +1,570 @@
+[
+  {
+    "collected_at_utc": "2026-08-25T00:30:57.391757+00:00",
+    "request": {
+      "isbn13": "9780132350884",
+      "q": "isbn:9780132350884",
+      "country": "KR",
+      "stratum": "FOREIGN",
+      "source_folder": "yes24"
+    },
+    "status": "success",
+    "exact_isbn_match": true,
+    "total_items": 1,
+    "matched_volume": {
+      "kind": "books#volume",
+      "id": "hjEFCAAAQBAJ",
+      "etag": "/zIoM8AFACE",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/hjEFCAAAQBAJ",
+      "volumeInfo": {
+        "title": "Clean Code",
+        "subtitle": "A Handbook of Agile Software Craftsmanship",
+        "authors": [
+          "Robert C. Martin"
+        ],
+        "publisher": "Pearson Education",
+        "publishedDate": "2009",
+        "description": "This title shows the process of cleaning code. Rather than just illustrating the end result, or just the starting and ending state, the author shows how several dozen seemingly small code changes can positively impact the performance and maintainability of an application code base.",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_13",
+            "identifier": "9780132350884"
+          },
+          {
+            "type": "ISBN_10",
+            "identifier": "0132350882"
+          }
+        ],
+        "readingModes": {
+          "text": false,
+          "image": false
+        },
+        "pageCount": 464,
+        "printType": "BOOK",
+        "categories": [
+          "Computers"
+        ],
+        "averageRating": 4.5,
+        "ratingsCount": 3,
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "0.1.1.0.preview.0",
+        "panelizationSummary": {
+          "containsEpubBubbles": false,
+          "containsImageBubbles": false
+        },
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=hjEFCAAAQBAJ&printsec=frontcover&img=1&zoom=5&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=hjEFCAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api"
+        },
+        "language": "en",
+        "previewLink": "http://books.google.co.kr/books?id=hjEFCAAAQBAJ&dq=isbn:9780132350884&hl=&cd=1&source=gbs_api",
+        "infoLink": "http://books.google.co.kr/books?id=hjEFCAAAQBAJ&dq=isbn:9780132350884&hl=&source=gbs_api",
+        "canonicalVolumeLink": "https://books.google.com/books/about/Clean_Code.html?hl=&id=hjEFCAAAQBAJ"
+      },
+      "saleInfo": {
+        "country": "KR",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "KR",
+        "viewability": "NO_PAGES",
+        "embeddable": false,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": true
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=hjEFCAAAQBAJ&hl=&source=gbs_api",
+        "accessViewStatus": "NONE",
+        "quoteSharingAllowed": false
+      },
+      "searchInfo": {
+        "textSnippet": "This title shows the process of cleaning code."
+      }
+    },
+    "response": {
+      "kind": "books#volumes",
+      "totalItems": 1,
+      "items": [
+        {
+          "kind": "books#volume",
+          "id": "hjEFCAAAQBAJ",
+          "etag": "/zIoM8AFACE",
+          "selfLink": "https://www.googleapis.com/books/v1/volumes/hjEFCAAAQBAJ",
+          "volumeInfo": {
+            "title": "Clean Code",
+            "subtitle": "A Handbook of Agile Software Craftsmanship",
+            "authors": [
+              "Robert C. Martin"
+            ],
+            "publisher": "Pearson Education",
+            "publishedDate": "2009",
+            "description": "This title shows the process of cleaning code. Rather than just illustrating the end result, or just the starting and ending state, the author shows how several dozen seemingly small code changes can positively impact the performance and maintainability of an application code base.",
+            "industryIdentifiers": [
+              {
+                "type": "ISBN_13",
+                "identifier": "9780132350884"
+              },
+              {
+                "type": "ISBN_10",
+                "identifier": "0132350882"
+              }
+            ],
+            "readingModes": {
+              "text": false,
+              "image": false
+            },
+            "pageCount": 464,
+            "printType": "BOOK",
+            "categories": [
+              "Computers"
+            ],
+            "averageRating": 4.5,
+            "ratingsCount": 3,
+            "maturityRating": "NOT_MATURE",
+            "allowAnonLogging": false,
+            "contentVersion": "0.1.1.0.preview.0",
+            "panelizationSummary": {
+              "containsEpubBubbles": false,
+              "containsImageBubbles": false
+            },
+            "imageLinks": {
+              "smallThumbnail": "http://books.google.com/books/content?id=hjEFCAAAQBAJ&printsec=frontcover&img=1&zoom=5&source=gbs_api",
+              "thumbnail": "http://books.google.com/books/content?id=hjEFCAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api"
+            },
+            "language": "en",
+            "previewLink": "http://books.google.co.kr/books?id=hjEFCAAAQBAJ&dq=isbn:9780132350884&hl=&cd=1&source=gbs_api",
+            "infoLink": "http://books.google.co.kr/books?id=hjEFCAAAQBAJ&dq=isbn:9780132350884&hl=&source=gbs_api",
+            "canonicalVolumeLink": "https://books.google.com/books/about/Clean_Code.html?hl=&id=hjEFCAAAQBAJ"
+          },
+          "saleInfo": {
+            "country": "KR",
+            "saleability": "NOT_FOR_SALE",
+            "isEbook": false
+          },
+          "accessInfo": {
+            "country": "KR",
+            "viewability": "NO_PAGES",
+            "embeddable": false,
+            "publicDomain": false,
+            "textToSpeechPermission": "ALLOWED",
+            "epub": {
+              "isAvailable": false
+            },
+            "pdf": {
+              "isAvailable": true
+            },
+            "webReaderLink": "http://play.google.com/books/reader?id=hjEFCAAAQBAJ&hl=&source=gbs_api",
+            "accessViewStatus": "NONE",
+            "quoteSharingAllowed": false
+          },
+          "searchInfo": {
+            "textSnippet": "This title shows the process of cleaning code."
+          }
+        }
+      ]
+    }
+  },
+  {
+    "collected_at_utc": "2026-08-25T00:31:01.985167+00:00",
+    "request": {
+      "isbn13": "9791130309835",
+      "q": "isbn:9791130309835",
+      "country": "KR",
+      "stratum": "KR_CATALOG",
+      "source_folder": "국립중앙도서관"
+    },
+    "status": "success",
+    "exact_isbn_match": true,
+    "total_items": 1,
+    "matched_volume": {
+      "kind": "books#volume",
+      "id": "7T6YzQEACAAJ",
+      "etag": "ChD804Fc7Jc",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/7T6YzQEACAAJ",
+      "volumeInfo": {
+        "title": "인사노무관리 실무(2판)",
+        "authors": [
+          "양재모"
+        ],
+        "publishedDate": "2020-05-25",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_13",
+            "identifier": "9791130309835"
+          }
+        ],
+        "readingModes": {
+          "text": false,
+          "image": false
+        },
+        "pageCount": 388,
+        "printType": "BOOK",
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "preview-1.0.0",
+        "panelizationSummary": {
+          "containsEpubBubbles": false,
+          "containsImageBubbles": false
+        },
+        "language": "ko",
+        "previewLink": "http://books.google.co.kr/books?id=7T6YzQEACAAJ&dq=isbn:9791130309835&hl=&cd=1&source=gbs_api",
+        "infoLink": "http://books.google.co.kr/books?id=7T6YzQEACAAJ&dq=isbn:9791130309835&hl=&source=gbs_api",
+        "canonicalVolumeLink": "https://books.google.com/books/about/%EC%9D%B8%EC%82%AC%EB%85%B8%EB%AC%B4%EA%B4%80%EB%A6%AC_%EC%8B%A4%EB%AC%B4_2%ED%8C%90.html?hl=&id=7T6YzQEACAAJ"
+      },
+      "saleInfo": {
+        "country": "KR",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "KR",
+        "viewability": "NO_PAGES",
+        "embeddable": false,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=7T6YzQEACAAJ&hl=&source=gbs_api",
+        "accessViewStatus": "NONE",
+        "quoteSharingAllowed": false
+      }
+    },
+    "response": {
+      "kind": "books#volumes",
+      "totalItems": 1,
+      "items": [
+        {
+          "kind": "books#volume",
+          "id": "7T6YzQEACAAJ",
+          "etag": "ChD804Fc7Jc",
+          "selfLink": "https://www.googleapis.com/books/v1/volumes/7T6YzQEACAAJ",
+          "volumeInfo": {
+            "title": "인사노무관리 실무(2판)",
+            "authors": [
+              "양재모"
+            ],
+            "publishedDate": "2020-05-25",
+            "industryIdentifiers": [
+              {
+                "type": "ISBN_13",
+                "identifier": "9791130309835"
+              }
+            ],
+            "readingModes": {
+              "text": false,
+              "image": false
+            },
+            "pageCount": 388,
+            "printType": "BOOK",
+            "maturityRating": "NOT_MATURE",
+            "allowAnonLogging": false,
+            "contentVersion": "preview-1.0.0",
+            "panelizationSummary": {
+              "containsEpubBubbles": false,
+              "containsImageBubbles": false
+            },
+            "language": "ko",
+            "previewLink": "http://books.google.co.kr/books?id=7T6YzQEACAAJ&dq=isbn:9791130309835&hl=&cd=1&source=gbs_api",
+            "infoLink": "http://books.google.co.kr/books?id=7T6YzQEACAAJ&dq=isbn:9791130309835&hl=&source=gbs_api",
+            "canonicalVolumeLink": "https://books.google.com/books/about/%EC%9D%B8%EC%82%AC%EB%85%B8%EB%AC%B4%EA%B4%80%EB%A6%AC_%EC%8B%A4%EB%AC%B4_2%ED%8C%90.html?hl=&id=7T6YzQEACAAJ"
+          },
+          "saleInfo": {
+            "country": "KR",
+            "saleability": "NOT_FOR_SALE",
+            "isEbook": false
+          },
+          "accessInfo": {
+            "country": "KR",
+            "viewability": "NO_PAGES",
+            "embeddable": false,
+            "publicDomain": false,
+            "textToSpeechPermission": "ALLOWED",
+            "epub": {
+              "isAvailable": false
+            },
+            "pdf": {
+              "isAvailable": false
+            },
+            "webReaderLink": "http://play.google.com/books/reader?id=7T6YzQEACAAJ&hl=&source=gbs_api",
+            "accessViewStatus": "NONE",
+            "quoteSharingAllowed": false
+          }
+        }
+      ]
+    }
+  },
+  {
+    "collected_at_utc": "2026-08-25T00:31:05.566864+00:00",
+    "request": {
+      "isbn13": "9791196965402",
+      "q": "isbn:9791196965402",
+      "country": "KR",
+      "stratum": "KR_CATALOG",
+      "source_folder": "국립중앙도서관"
+    },
+    "status": "not_found",
+    "exact_isbn_match": false,
+    "total_items": 0,
+    "matched_volume": null,
+    "response": {
+      "kind": "books#volumes",
+      "totalItems": 0
+    }
+  },
+  {
+    "collected_at_utc": "2026-08-25T00:31:07.002204+00:00",
+    "request": {
+      "isbn13": "9788936435257",
+      "q": "isbn:9788936435257",
+      "country": "KR",
+      "stratum": "KR_RETAIL",
+      "source_folder": "알라딘"
+    },
+    "status": "not_found",
+    "exact_isbn_match": false,
+    "total_items": 0,
+    "matched_volume": null,
+    "response": {
+      "kind": "books#volumes",
+      "totalItems": 0
+    }
+  },
+  {
+    "collected_at_utc": "2026-08-25T00:31:10.894874+00:00",
+    "request": {
+      "isbn13": "9788937460449",
+      "q": "isbn:9788937460449",
+      "country": "KR",
+      "stratum": "KR_RETAIL",
+      "source_folder": "알라딘"
+    },
+    "status": "success",
+    "exact_isbn_match": true,
+    "total_items": 1,
+    "matched_volume": {
+      "kind": "books#volume",
+      "id": "hHrFCQAAQBAJ",
+      "etag": "0HPoav+QDhU",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/hHrFCQAAQBAJ",
+      "volumeInfo": {
+        "title": "데미안",
+        "authors": [
+          "헤르만 헤세"
+        ],
+        "publisher": "민음사",
+        "publishedDate": "2000",
+        "description": "“새는 알에서 나오려고 투쟁한다. 알은 세계다. 태어나려는 자는 하나의 세계를 깨뜨려야 한다.” 독일 문학의 거장 헤르만 헤세가 그린 ‘자신에 이르는 길’ 『데미안』은 자아의 삶을 추구하는 한 젊은이의 통과의례를 기록한 책으로, 유년으로부터 자아에 이르는 과정을 누구에게나 익숙한 성장의 경험을 통해 성찰한다. 이 책은 주인공 싱클레어와 데미안과의 우정을 바탕으로 성장의 과정에서 겪는 시련과 그 시련의 극복, 깨달음을 그려 낸다. 헤세는 원래 『데미안』을 에밀 싱클레어라는 필명으로 발표했으나, 곧 비평가의 문체 분석으로 작가가 헤세라는 것이 드러났다. 이 작품은 헤세 자신에게도 재출발을 의미했으며, 소년기의 심리, 엄격한 구도성, 문명 비판, 만물의 근원으로서의 어머니의 관념 등 헤세의 전, 후기 작품 특징이 고루 나타나 있다.",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_13",
+            "identifier": "9788937460449"
+          },
+          {
+            "type": "ISBN_10",
+            "identifier": "8937460440"
+          }
+        ],
+        "readingModes": {
+          "text": true,
+          "image": true
+        },
+        "pageCount": 333,
+        "printType": "BOOK",
+        "categories": [
+          "Literary Collections"
+        ],
+        "averageRating": 4,
+        "ratingsCount": 1,
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": true,
+        "contentVersion": "0.2.2.0.preview.3",
+        "panelizationSummary": {
+          "containsEpubBubbles": false,
+          "containsImageBubbles": false
+        },
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=hHrFCQAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=hHrFCQAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "language": "ko",
+        "previewLink": "http://books.google.co.kr/books?id=hHrFCQAAQBAJ&printsec=frontcover&dq=isbn:9788937460449&hl=&cd=1&source=gbs_api",
+        "infoLink": "https://play.google.com/store/books/details?id=hHrFCQAAQBAJ&source=gbs_api",
+        "canonicalVolumeLink": "https://play.google.com/store/books/details?id=hHrFCQAAQBAJ"
+      },
+      "saleInfo": {
+        "country": "KR",
+        "saleability": "FOR_SALE",
+        "isEbook": true,
+        "listPrice": {
+          "amount": 5600,
+          "currencyCode": "KRW"
+        },
+        "retailPrice": {
+          "amount": 5040,
+          "currencyCode": "KRW"
+        },
+        "buyLink": "https://play.google.com/store/books/details?id=hHrFCQAAQBAJ&rdid=book-hHrFCQAAQBAJ&rdot=1&source=gbs_api",
+        "offers": [
+          {
+            "finskyOfferType": 1,
+            "listPrice": {
+              "amountInMicros": 5600000000,
+              "currencyCode": "KRW"
+            },
+            "retailPrice": {
+              "amountInMicros": 5040000000,
+              "currencyCode": "KRW"
+            }
+          }
+        ]
+      },
+      "accessInfo": {
+        "country": "KR",
+        "viewability": "PARTIAL",
+        "embeddable": true,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "webReaderLink": "http://play.google.com/books/reader?id=hHrFCQAAQBAJ&hl=&source=gbs_api",
+        "accessViewStatus": "SAMPLE",
+        "quoteSharingAllowed": false
+      },
+      "searchInfo": {
+        "textSnippet": "“새는 알에서 나오려고 투쟁한다. 알은 세계다. 태어나려는 자는 하나의 세계를 깨뜨려야 한다.” 독일 문학의 거장 헤르만 헤세가 그린 ‘자신에 이르는 길’ 『데미안』은 ..."
+      }
+    },
+    "response": {
+      "kind": "books#volumes",
+      "totalItems": 1,
+      "items": [
+        {
+          "kind": "books#volume",
+          "id": "hHrFCQAAQBAJ",
+          "etag": "0HPoav+QDhU",
+          "selfLink": "https://www.googleapis.com/books/v1/volumes/hHrFCQAAQBAJ",
+          "volumeInfo": {
+            "title": "데미안",
+            "authors": [
+              "헤르만 헤세"
+            ],
+            "publisher": "민음사",
+            "publishedDate": "2000",
+            "description": "“새는 알에서 나오려고 투쟁한다. 알은 세계다. 태어나려는 자는 하나의 세계를 깨뜨려야 한다.” 독일 문학의 거장 헤르만 헤세가 그린 ‘자신에 이르는 길’ 『데미안』은 자아의 삶을 추구하는 한 젊은이의 통과의례를 기록한 책으로, 유년으로부터 자아에 이르는 과정을 누구에게나 익숙한 성장의 경험을 통해 성찰한다. 이 책은 주인공 싱클레어와 데미안과의 우정을 바탕으로 성장의 과정에서 겪는 시련과 그 시련의 극복, 깨달음을 그려 낸다. 헤세는 원래 『데미안』을 에밀 싱클레어라는 필명으로 발표했으나, 곧 비평가의 문체 분석으로 작가가 헤세라는 것이 드러났다. 이 작품은 헤세 자신에게도 재출발을 의미했으며, 소년기의 심리, 엄격한 구도성, 문명 비판, 만물의 근원으로서의 어머니의 관념 등 헤세의 전, 후기 작품 특징이 고루 나타나 있다.",
+            "industryIdentifiers": [
+              {
+                "type": "ISBN_13",
+                "identifier": "9788937460449"
+              },
+              {
+                "type": "ISBN_10",
+                "identifier": "8937460440"
+              }
+            ],
+            "readingModes": {
+              "text": true,
+              "image": true
+            },
+            "pageCount": 333,
+            "printType": "BOOK",
+            "categories": [
+              "Literary Collections"
+            ],
+            "averageRating": 4,
+            "ratingsCount": 1,
+            "maturityRating": "NOT_MATURE",
+            "allowAnonLogging": true,
+            "contentVersion": "0.2.2.0.preview.3",
+            "panelizationSummary": {
+              "containsEpubBubbles": false,
+              "containsImageBubbles": false
+            },
+            "imageLinks": {
+              "smallThumbnail": "http://books.google.com/books/content?id=hHrFCQAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+              "thumbnail": "http://books.google.com/books/content?id=hHrFCQAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+            },
+            "language": "ko",
+            "previewLink": "http://books.google.co.kr/books?id=hHrFCQAAQBAJ&printsec=frontcover&dq=isbn:9788937460449&hl=&cd=1&source=gbs_api",
+            "infoLink": "https://play.google.com/store/books/details?id=hHrFCQAAQBAJ&source=gbs_api",
+            "canonicalVolumeLink": "https://play.google.com/store/books/details?id=hHrFCQAAQBAJ"
+          },
+          "saleInfo": {
+            "country": "KR",
+            "saleability": "FOR_SALE",
+            "isEbook": true,
+            "listPrice": {
+              "amount": 5600,
+              "currencyCode": "KRW"
+            },
+            "retailPrice": {
+              "amount": 5040,
+              "currencyCode": "KRW"
+            },
+            "buyLink": "https://play.google.com/store/books/details?id=hHrFCQAAQBAJ&rdid=book-hHrFCQAAQBAJ&rdot=1&source=gbs_api",
+            "offers": [
+              {
+                "finskyOfferType": 1,
+                "listPrice": {
+                  "amountInMicros": 5600000000,
+                  "currencyCode": "KRW"
+                },
+                "retailPrice": {
+                  "amountInMicros": 5040000000,
+                  "currencyCode": "KRW"
+                }
+              }
+            ]
+          },
+          "accessInfo": {
+            "country": "KR",
+            "viewability": "PARTIAL",
+            "embeddable": true,
+            "publicDomain": false,
+            "textToSpeechPermission": "ALLOWED",
+            "epub": {
+              "isAvailable": false
+            },
+            "pdf": {
+              "isAvailable": false
+            },
+            "webReaderLink": "http://play.google.com/books/reader?id=hHrFCQAAQBAJ&hl=&source=gbs_api",
+            "accessViewStatus": "SAMPLE",
+            "quoteSharingAllowed": false
+          },
+          "searchInfo": {
+            "textSnippet": "“새는 알에서 나오려고 투쟁한다. 알은 세계다. 태어나려는 자는 하나의 세계를 깨뜨려야 한다.” 독일 문학의 거장 헤르만 헤세가 그린 ‘자신에 이르는 길’ 『데미안』은 ..."
+          }
+        }
+      ]
+    }
+  },
+  {
+    "collected_at_utc": "2026-08-25T00:31:16.319901+00:00",
+    "request": {
+      "isbn13": "9788966260950",
+      "q": "isbn:9788966260950",
+      "country": "KR",
+      "stratum": "KR_RETAIL",
+      "source_folder": "yes24"
+    },
+    "status": "invalid_isbn",
+    "exact_isbn_match": false,
+    "total_items": null,
+    "matched_volume": null,
+    "response": {}
+  }
+]
