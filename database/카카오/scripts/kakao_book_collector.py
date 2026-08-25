@@ -1,29 +1,30 @@
 #!/usr/bin/env python3
-"""Collect Kakao Book Search data while preserving every documented book field."""
+"""Resumable Kakao Book Search collector using book-per-line raw parts."""
 
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import os
-import re
 import sys
 import time
-from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from kakao_book_common import (
+    merge_normalize_and_report,
+    parse_isbn,
+    raw_book,
+    utc_now,
+    write_json,
+)
+
 
 API_URL = "https://dapi.kakao.com/v3/search/book"
-BOOK_FIELDS = (
-    "title", "contents", "url", "isbn", "datetime", "authors", "publisher",
-    "translators", "price", "sale_price", "thumbnail", "status",
-)
 
 
 def load_dotenv(env_path: Path) -> None:
@@ -34,37 +35,34 @@ def load_dotenv(env_path: Path) -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip("\"'") )
+        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
 def parse_args() -> argparse.Namespace:
     here = Path(__file__).resolve()
-    parser = argparse.ArgumentParser(description="카카오 도서 검색 API 수집기")
-    source = parser.add_mutually_exclusive_group(required=True)
+    parser = argparse.ArgumentParser(description="카카오 도서 검색 API 파트 수집기")
+    source = parser.add_mutually_exclusive_group()
     source.add_argument("--query", action="append", help="검색어. 여러 번 지정 가능")
     source.add_argument("--input-jsonl", type=Path, help="ISBN을 읽을 JSONL 파일")
-    parser.add_argument("--isbn-field", default="EA_ISBN", help="입력 JSONL ISBN 필드명 (기본: EA_ISBN)")
+    parser.add_argument("--isbn-field", default="EA_ISBN", help="입력 JSONL ISBN 필드명")
     parser.add_argument("--limit", type=int, default=0, help="입력 ISBN 최대 처리 수. 0이면 전체")
     parser.add_argument("--size", type=int, default=50, choices=range(1, 51), metavar="1..50")
-    parser.add_argument("--delay", type=float, default=0.2, help="요청 사이 대기 초 (기본: 0.2)")
+    parser.add_argument("--part-size", type=int, default=500, help="Raw 파트당 검색어/ISBN 수")
+    parser.add_argument("--delay", type=float, default=0.2, help="성공 요청 사이 대기 초")
     parser.add_argument("--retries", type=int, default=3, help="일시 오류 재시도 횟수")
     parser.add_argument(
         "--output-dir", type=Path, default=here.parents[1],
         help="카카오 데이터 루트. 기본: database/카카오",
     )
-    parser.add_argument("--sample-size", type=int, default=10, help="저장할 샘플 레코드 수")
-    return parser.parse_args()
-
-
-def cleaned_isbns(value: Any) -> tuple[str | None, str | None]:
-    isbn10 = isbn13 = None
-    for token in str(value or "").split():
-        normalized = re.sub(r"[^0-9Xx]", "", token).upper()
-        if len(normalized) == 13 and normalized.isdigit():
-            isbn13 = normalized
-        elif len(normalized) == 10 and re.fullmatch(r"[0-9]{9}[0-9X]", normalized):
-            isbn10 = normalized
-    return isbn10, isbn13
+    parser.add_argument("--sample-size", type=int, default=10)
+    parser.add_argument("--merge-only", action="store_true", help="API 호출 없이 완료 파트만 병합")
+    parser.add_argument("--merge-scope", choices=("isbn", "query"), default="isbn", help="merge-only 대상")
+    args = parser.parse_args()
+    if not args.merge_only and not args.query and not args.input_jsonl:
+        parser.error("--query 또는 --input-jsonl이 필요합니다.")
+    if args.part_size < 1:
+        parser.error("--part-size는 1 이상이어야 합니다.")
+    return args
 
 
 def read_isbn_queries(path: Path, field: str, limit: int) -> Iterable[str]:
@@ -77,16 +75,22 @@ def read_isbn_queries(path: Path, field: str, limit: int) -> Iterable[str]:
                 record = json.loads(line)
             except json.JSONDecodeError as exc:
                 raise ValueError(f"입력 JSONL {line_no}행이 올바른 JSON이 아닙니다.") from exc
-            isbn10, isbn13 = cleaned_isbns(record.get(field))
+            isbn10, isbn13, valid, _ = parse_isbn(record.get(field))
             query = isbn13 or isbn10
-            if query and query not in seen:
+            if valid and query and query not in seen:
                 seen.add(query)
                 yield query
                 if limit and len(seen) >= limit:
                     return
 
 
-def request_books(api_key: str, query: str, page: int, size: int, target: str | None) -> tuple[int, dict[str, Any]]:
+def request_books(
+    api_key: str,
+    query: str,
+    page: int,
+    size: int,
+    target: str | None,
+) -> tuple[int, dict[str, Any]]:
     params: dict[str, Any] = {"query": query, "page": page, "size": size}
     if target:
         params["target"] = target
@@ -99,36 +103,130 @@ def request_books(api_key: str, query: str, page: int, size: int, target: str | 
         return response.status, json.loads(response.read().decode("utf-8"))
 
 
-def normalized_book(document: dict[str, Any], query: str, collected_at: str) -> dict[str, Any]:
-    isbn10, isbn13 = cleaned_isbns(document.get("isbn"))
-    result: dict[str, Any] = {field: document.get(field) for field in BOOK_FIELDS}
-    result.update({
-        "isbn10_normalized": isbn10,
-        "isbn13_normalized": isbn13,
-        "source": "kakao_book_search",
-        "source_query": query,
-        "collected_at": collected_at,
+def load_json_list(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    value = json.loads(path.read_text(encoding="utf-8"))
+    return value if isinstance(value, list) else []
+
+
+def collect_part(
+    *,
+    api_key: str,
+    queries: list[str],
+    target: str | None,
+    scope: str,
+    part_number: int,
+    parts_dir: Path,
+    page_size: int,
+    retries: int,
+    delay: float,
+    unresolved: list[dict[str, Any]],
+    count_cache: dict[str, dict[str, Any]],
+) -> tuple[Path | None, int, int]:
+    name = f"{scope}_{part_number:06d}"
+    final_path = parts_dir / f"{name}.jsonl"
+    done_path = parts_dir / f"{name}.done.json"
+    temp_path = parts_dir / f"{name}.part"
+    if final_path.exists() and done_path.exists():
+        metadata = json.loads(done_path.read_text(encoding="utf-8"))
+        print(f"[건너뜀] {name} - {metadata.get('document_count', 0):,}건")
+        return final_path, 0, int(metadata.get("document_count", 0))
+
+    temp_path.unlink(missing_ok=True)
+    request_count = 0
+    document_count = 0
+    failed = False
+    quota_exhausted = False
+    unresolved_before = len(unresolved)
+    print(f"[수집] {name} - 입력 {len(queries):,}건")
+
+    with temp_path.open("w", encoding="utf-8") as raw_handle:
+        for query_index, query in enumerate(queries, 1):
+            page = 1
+            query_documents = 0
+            while page <= 50:
+                payload: dict[str, Any] | None = None
+                status: int | None = None
+                last_error = ""
+                attempts = 0
+                for attempt in range(retries + 1):
+                    attempts += 1
+                    request_count += 1
+                    try:
+                        status, payload = request_books(api_key, query, page, page_size, target)
+                        break
+                    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as error:
+                        status = getattr(error, "code", None)
+                        last_error = str(error)
+                        if attempt < retries and status != 429:
+                            time.sleep(min(2 ** attempt, 8))
+                        if status == 429:
+                            quota_exhausted = True
+                            break
+                if payload is None:
+                    unresolved.append({
+                        "scope": scope, "part": name, "query": query, "target": target,
+                        "page": page, "http_status": status, "error": last_error,
+                        "attempts": attempts, "last_attempt_at": utc_now(),
+                    })
+                    failed = True
+                    break
+
+                collected_at = utc_now()
+                documents = payload.get("documents", [])
+                for document in documents:
+                    if not isinstance(document, dict):
+                        continue
+                    raw_handle.write(json.dumps(raw_book(
+                        document,
+                        query=query,
+                        target=target,
+                        page=page,
+                        collected_at=collected_at,
+                        http_status=int(status or 200),
+                    ), ensure_ascii=False) + "\n")
+                    document_count += 1
+                    query_documents += 1
+
+                meta = payload.get("meta", {})
+                if meta.get("is_end", True):
+                    count_cache[query] = {
+                        "target": target,
+                        "total_count": int(meta.get("total_count", query_documents) or 0),
+                        "page_count": page,
+                        "document_count": query_documents,
+                    }
+                    break
+                page += 1
+                time.sleep(delay)
+
+            print(f"\r  {query_index:,}/{len(queries):,} | 도서 {document_count:,}건", end="", flush=True)
+            if quota_exhausted:
+                break
+            if delay > 0:
+                time.sleep(delay)
+    print()
+
+    if quota_exhausted:
+        temp_path.unlink(missing_ok=True)
+        print(f"[미완료] {name} - 429 응답을 metadata/unresolved_ranges.json에 기록")
+        return None, request_count, 0
+
+    temp_path.replace(final_path)
+    part_unresolved = len(unresolved) - unresolved_before
+    write_json(done_path, {
+        "name": name,
+        "scope": scope,
+        "status": "completed_with_unresolved" if failed else "completed",
+        "input_count": len(queries),
+        "request_count": request_count,
+        "document_count": document_count,
+        "unresolved_request_count": part_unresolved,
+        "completed_at": utc_now(),
+        "stop_reason": "completed",
     })
-    # API array fields are normalized to empty arrays; numeric price fields use -1 when absent.
-    for array_field in ("authors", "translators"):
-        result[array_field] = result[array_field] or []
-    for number_field in ("price", "sale_price"):
-        result[number_field] = result[number_field] if result[number_field] is not None else -1
-    for string_field in ("title", "contents", "url", "isbn", "datetime", "publisher", "thumbnail", "status"):
-        result[string_field] = result[string_field] or ""
-    return result
-
-
-def record_key(book: dict[str, Any]) -> str:
-    return (
-        f"isbn13:{book['isbn13_normalized']}" if book["isbn13_normalized"] else
-        f"isbn10:{book['isbn10_normalized']}" if book["isbn10_normalized"] else
-        "fallback:" + "|".join((book["title"], ",".join(book["authors"]), book["publisher"]))
-    )
-
-
-def write_json(path: Path, value: Any) -> None:
-    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return final_path, request_count, document_count
 
 
 def main() -> int:
@@ -136,115 +234,98 @@ def main() -> int:
     project_root = Path(__file__).resolve().parents[3]
     load_dotenv(project_root / ".env")
     api_key = os.environ.get("KAKAO_REST_API_KEY")
-    if not api_key:
+    if not args.merge_only and not api_key:
         print("KAKAO_REST_API_KEY가 .env 또는 환경 변수에 필요합니다.", file=sys.stderr)
         return 2
 
     output = args.output_dir.resolve()
-    for name in ("raw", "processed", "samples", "reports", "metadata"):
-        (output / name).mkdir(parents=True, exist_ok=True)
+    for directory in ("raw/parts", "processed", "samples", "reports", "metadata"):
+        (output / directory).mkdir(parents=True, exist_ok=True)
 
     if args.input_jsonl:
         queries = list(read_isbn_queries(args.input_jsonl, args.isbn_field, args.limit))
         target = "isbn"
+        scope = "isbn"
         input_description = {"type": "jsonl_isbn", "path": str(args.input_jsonl), "field": args.isbn_field}
-    else:
+    elif args.query:
         queries = list(dict.fromkeys(args.query))
         target = None
+        scope = "query"
         input_description = {"type": "search_query", "queries": queries}
+    else:
+        queries = []
+        target = None
+        scope = args.merge_scope
+        input_description = {"type": "merge_only"}
+
+    metadata_dir = output / "metadata"
+    parts_dir = output / "raw" / "parts"
+    unresolved_path = metadata_dir / "unresolved_ranges.json"
+    cache_path = metadata_dir / "range_count_cache.json"
+    unresolved = load_json_list(unresolved_path)
+    count_cache: dict[str, dict[str, Any]] = {}
+    if cache_path.exists():
+        loaded_cache = json.loads(cache_path.read_text(encoding="utf-8"))
+        if isinstance(loaded_cache, dict):
+            count_cache = loaded_cache
+
+    part_plan = [
+        {"name": f"{scope}_{index // args.part_size + 1:06d}", "input_count": len(queries[index:index + args.part_size])}
+        for index in range(0, len(queries), args.part_size)
+    ]
+    if not args.merge_only:
+        write_json(metadata_dir / "range_plan.json", {
+            "created_at": utc_now(),
+            "api": "Kakao Book Search",
+            "endpoint": API_URL,
+            "scope": scope,
+            "raw_record_unit": "one book document per JSONL line",
+            "input": input_description,
+            "query_count": len(queries),
+            "page_size": args.size,
+            "part_size": args.part_size,
+            "parts": part_plan,
+        })
+
+    total_requests = 0
+    if not args.merge_only:
+        for offset in range(0, len(queries), args.part_size):
+            part_number = offset // args.part_size + 1
+            _, request_count, _ = collect_part(
+                api_key=str(api_key),
+                queries=queries[offset:offset + args.part_size],
+                target=target,
+                scope=scope,
+                part_number=part_number,
+                parts_dir=parts_dir,
+                page_size=args.size,
+                retries=args.retries,
+                delay=args.delay,
+                unresolved=unresolved,
+                count_cache=count_cache,
+            )
+            total_requests += request_count
+            write_json(unresolved_path, unresolved)
+            write_json(cache_path, count_cache)
 
     stamp = datetime.now().strftime("%Y%m%d")
-    collected_at = datetime.now(timezone.utc).isoformat()
-    raw_path = output / "raw" / f"books_raw_{stamp}.jsonl"
-    processed_path = output / "processed" / f"books_normalized_{stamp}.jsonl"
-    unresolved: list[dict[str, Any]] = []
-    documents: list[dict[str, Any]] = []
-    request_count = 0
-
-    write_json(output / "metadata" / "range_plan.json", {
-        "created_at": collected_at,
-        "api": "Kakao Book Search",
-        "endpoint": API_URL,
-        "input": input_description,
-        "query_count": len(queries),
-        "page_size": args.size,
-        "note": "카카오 책 검색 일간 쿼터를 초과하지 않도록 실행 범위를 조절한다.",
-    })
-
-    with raw_path.open("w", encoding="utf-8") as raw_handle:
-        for query_index, query in enumerate(queries, 1):
-            page = 1
-            while page <= 50:
-                for attempt in range(args.retries + 1):
-                    try:
-                        status, payload = request_books(api_key, query, page, args.size, target)
-                        break
-                    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
-                        if attempt == args.retries:
-                            unresolved.append({"query": query, "page": page, "error": str(exc), "attempts": attempt + 1})
-                            payload = None
-                            status = getattr(exc, "code", None)
-                            break
-                        time.sleep(min(2 ** attempt, 8))
-                request_count += 1
-                if payload is None:
-                    break
-                raw_record = {
-                    "collected_at": datetime.now(timezone.utc).isoformat(),
-                    "request": {"query": query, "page": page, "size": args.size, "target": target},
-                    "http_status": status,
-                    "response": payload,
-                }
-                raw_handle.write(json.dumps(raw_record, ensure_ascii=False) + "\n")
-                documents.extend(normalized_book(doc, query, collected_at) for doc in payload.get("documents", []))
-                if payload.get("meta", {}).get("is_end", True):
-                    break
-                page += 1
-                time.sleep(args.delay)
-            print(f"[{query_index}/{len(queries)}] {query}", file=sys.stderr)
-
-    deduplicated: dict[str, dict[str, Any]] = {}
-    for book in documents:
-        deduplicated.setdefault(record_key(book), book)
-    normalized = list(deduplicated.values())
-    with processed_path.open("w", encoding="utf-8") as processed_handle:
-        for book in normalized:
-            processed_handle.write(json.dumps(book, ensure_ascii=False) + "\n")
-
-    sample = normalized[:args.sample_size]
-    sample_base = output / "samples" / "sample_books"
-    with (sample_base.with_suffix(".jsonl")).open("w", encoding="utf-8") as handle:
-        for book in sample:
-            handle.write(json.dumps(book, ensure_ascii=False) + "\n")
-    write_json(sample_base.with_suffix(".pretty.json"), sample)
-
-    missing = Counter()
-    for book in normalized:
-        for field in BOOK_FIELDS + ("isbn10_normalized", "isbn13_normalized"):
-            if book.get(field) in (None, "", [], -1):
-                missing[field] += 1
-    with (output / "reports" / "missing_report_latest.csv").open("w", newline="", encoding="utf-8-sig") as handle:
-        writer = csv.writer(handle)
-        writer.writerow(["field", "missing_count", "total_count", "missing_rate"])
-        for field in BOOK_FIELDS + ("isbn10_normalized", "isbn13_normalized"):
-            total = len(normalized)
-            writer.writerow([field, missing[field], total, f"{(missing[field] / total * 100) if total else 0:.2f}%"])
-    (output / "reports" / "data_quality_summary_latest.txt").write_text(
-        "카카오 도서 검색 데이터 품질 요약\n"
-        + "=" * 62 + "\n"
-        + f"생성 시각(UTC): {collected_at}\n"
-        + f"검색어/ISBN 입력 수: {len(queries):,}\n"
-        + f"API 호출 수: {request_count:,}\n"
-        + f"원본 도서 레코드 수: {len(documents):,}\n"
-        + f"ISBN/서지 기준 중복 제거 후: {len(normalized):,}\n"
-        + f"중복 제거 수: {len(documents) - len(normalized):,}\n"
-        + f"미해결 요청 수: {len(unresolved):,}\n",
-        encoding="utf-8",
+    result = merge_normalize_and_report(
+        parts=parts_dir.glob(f"{scope}_*.jsonl"),
+        merged_path=output / "processed" / f"books_merged_{stamp}.jsonl",
+        processed_path=output / "processed" / f"books_normalized_{stamp}.jsonl",
+        sample_jsonl_path=output / "samples" / "sample_books.jsonl",
+        sample_pretty_path=output / "samples" / "sample_books.pretty.json",
+        report_path=output / "reports" / f"missing_report_{scope}.csv",
+        summary_path=output / "reports" / f"data_quality_summary_{scope}.txt",
+        database_path=metadata_dir / f"{scope}_merge.sqlite3",
+        unresolved=unresolved,
+        scope=scope,
+        sample_size=args.sample_size,
     )
-    write_json(output / "metadata" / "unresolved_ranges.json", unresolved)
-    print(f"raw: {raw_path}")
-    print(f"processed: {processed_path}")
-    print(f"records: {len(normalized):,}, requests: {request_count:,}")
+    write_json(unresolved_path, unresolved)
+    write_json(cache_path, count_cache)
+    print(f"완료 파트: {result['part_count']:,}")
+    print(f"고유 도서: {result['unique_count']:,}, 이번 실행 HTTP 요청: {total_requests:,}")
     return 0
 
 

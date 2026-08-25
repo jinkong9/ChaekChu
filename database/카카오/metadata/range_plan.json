@@ -1,26 +1,75 @@
 {
-  "created_at": "2026-08-24T08:32:16.121087+00:00",
+  "created_at": "2026-08-25T01:51:07.297891+00:00",
   "api": "Kakao Book Search",
   "endpoint": "https://dapi.kakao.com/v3/search/book",
-  "strategy": "generated Korean syllable title queries; each query paged until is_end or page 50",
-  "target": "title",
-  "sort": "accuracy",
-  "page_size": 50,
-  "max_requests_this_batch": 29999,
-  "previous_confirmed_request_count_today": 1,
-  "daily_quota_target_total": 30000,
-  "query_generation": {
-    "initial_consonants": 19,
-    "medial_vowels": 21,
-    "final_variants": [
-      0,
-      1,
-      4,
-      8,
-      16,
-      17,
-      19,
-      21
-    ]
-  }
+  "scope": "quota_crawl_migration",
+  "raw_record_unit": "one book document per JSONL line",
+  "source_format": "v1 request envelope",
+  "target_format": "v2 book document",
+  "source_part_count": 8,
+  "completed_v1_part_count": 7,
+  "migration_boundary_part_count": 1,
+  "source_request_count": 10665,
+  "source_document_count": 429399,
+  "legacy_state_document_count": 296149,
+  "state_count_difference": 133250,
+  "parts": [
+    {
+      "source": "books_raw_part_00001.jsonl",
+      "target": "title_000001.jsonl",
+      "status": "completed",
+      "request_count": 1724,
+      "document_count": 76858
+    },
+    {
+      "source": "books_raw_part_00002.jsonl",
+      "target": "title_000002.jsonl",
+      "status": "completed",
+      "request_count": 1987,
+      "document_count": 86833
+    },
+    {
+      "source": "books_raw_part_00003.jsonl",
+      "target": "title_000003.jsonl",
+      "status": "completed",
+      "request_count": 1983,
+      "document_count": 82843
+    },
+    {
+      "source": "books_raw_part_00004.jsonl",
+      "target": "title_000004.jsonl",
+      "status": "completed",
+      "request_count": 1536,
+      "document_count": 54210
+    },
+    {
+      "source": "books_raw_part_00005.jsonl",
+      "target": "title_000005.jsonl",
+      "status": "completed",
+      "request_count": 1000,
+      "document_count": 38680
+    },
+    {
+      "source": "books_raw_part_00006.jsonl",
+      "target": "title_000006.jsonl",
+      "status": "completed",
+      "request_count": 1000,
+      "document_count": 39915
+    },
+    {
+      "source": "books_raw_part_00007.jsonl",
+      "target": "title_000007.jsonl",
+      "status": "completed",
+      "request_count": 1000,
+      "document_count": 38461
+    },
+    {
+      "source": "books_raw_part_00008.jsonl",
+      "target": "title_000008.jsonl",
+      "status": "closed_at_migration_boundary",
+      "request_count": 435,
+      "document_count": 11599
+    }
+  ],
+  "note": "기존 v1 Raw를 API 재호출 없이 변환한 실행 계획"
 }

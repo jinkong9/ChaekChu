@@ -1,0 +1,86 @@
+{
+  "schema_version": 2,
+  "created_at": "2026-08-25T01:54:55.644702+00:00",
+  "raw_record_unit": "one book document per JSONL line",
+  "source_v1_preserved": true,
+  "raw_record_count": 429399,
+  "unique_record_count": 254640,
+  "duplicate_record_count": 174759,
+  "raw_parts": [
+    {
+      "path": "raw/parts/title_000001.jsonl",
+      "status": "completed",
+      "request_count": 1724,
+      "record_count": 76858,
+      "bytes": 88139072
+    },
+    {
+      "path": "raw/parts/title_000002.jsonl",
+      "status": "completed",
+      "request_count": 1987,
+      "record_count": 86833,
+      "bytes": 97358456
+    },
+    {
+      "path": "raw/parts/title_000003.jsonl",
+      "status": "completed",
+      "request_count": 1983,
+      "record_count": 82843,
+      "bytes": 94372309
+    },
+    {
+      "path": "raw/parts/title_000004.jsonl",
+      "status": "completed",
+      "request_count": 1536,
+      "record_count": 54210,
+      "bytes": 62598761
+    },
+    {
+      "path": "raw/parts/title_000005.jsonl",
+      "status": "completed",
+      "request_count": 1000,
+      "record_count": 38680,
+      "bytes": 44951222
+    },
+    {
+      "path": "raw/parts/title_000006.jsonl",
+      "status": "completed",
+      "request_count": 1000,
+      "record_count": 39915,
+      "bytes": 46527610
+    },
+    {
+      "path": "raw/parts/title_000007.jsonl",
+      "status": "completed",
+      "request_count": 1000,
+      "record_count": 38461,
+      "bytes": 44389410
+    },
+    {
+      "path": "raw/parts/title_000008.jsonl",
+      "status": "closed_at_migration_boundary",
+      "request_count": 435,
+      "record_count": 11599,
+      "bytes": 13376975
+    }
+  ],
+  "processed_files": [
+    {
+      "path": "processed/books_merged_quota_20260824.jsonl",
+      "record_count": 254640,
+      "bytes": 291074928,
+      "sha256": "abb3345cc66cb21f43f9c5d236aa6f77b01ede1fe5059d0769f04529d6ec6657"
+    },
+    {
+      "path": "processed/books_normalized_quota_20260824.jsonl",
+      "record_count": 254640,
+      "bytes": 330371888,
+      "sha256": "c76f0291530fb79d62a86198754c12e57c5ab701d755be0894de50fa51b7b5e7"
+    }
+  ],
+  "resume": {
+    "query_index": 1978,
+    "page": 3,
+    "next_part_number": 9
+  }
+}

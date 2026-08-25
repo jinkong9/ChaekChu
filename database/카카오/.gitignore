@@ -9,5 +9,6 @@ metadata/*.sqlite3-shm
 metadata/*.sqlite3-wal
 metadata/*.stdout.log
 metadata/*.stderr.log
-scripts/__pycache__/
+__pycache__/
+*.pyc
 *.part
