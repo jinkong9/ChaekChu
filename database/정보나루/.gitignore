@@ -1,0 +1,23 @@
+# 로컬 환경 및 비밀값
+.env
+.env.*
+!.env.example
+
+# Python 실행 환경 및 캐시
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# API 수집으로 생성되는 대용량 결과물
+raw/*
+!raw/README.md
+processed/*
+!processed/README.md
+data/
+output/
+parts/
+*.part
+
+# gap list는 수십 MB라 커밋하지 않는다 (추출 요약 JSON만 커밋)
+metadata/gap_isbn_list_*.jsonl
