@@ -1,37 +1,34 @@
 #!/usr/bin/env python3
-"""Use the remaining Kakao Book Search daily quota for a resumable catalog crawl.
-
-Kakao provides a search API, not a catalog-export API.  This collector therefore
-uses a broad, deterministic Korean title-query plan and preserves every response.
-"""
+"""Resumable title-query crawl using the shared Kakao book data contract."""
 
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import os
-import re
-import sqlite3
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from kakao_book_common import (
+    merge_normalize_and_report,
+    raw_book,
+    utc_now,
+    write_json,
+)
+
 
 API_URL = "https://dapi.kakao.com/v3/search/book"
-BOOK_FIELDS = (
-    "title", "contents", "url", "isbn", "datetime", "authors", "publisher",
-    "translators", "price", "sale_price", "thumbnail", "status",
-)
 HANGUL_BASE = 0xAC00
 CHOSUNG = 19
 JUNGSUNG = 21
-JONGSUNG = (0, 1, 4, 8, 16, 17, 19, 21)  # no-final plus frequent final-consonant variants
+JONGSUNG = (0, 1, 4, 8, 16, 17, 19, 21)
+STATE_VERSION = 2
 
 
 def load_dotenv(path: Path) -> None:
@@ -47,128 +44,60 @@ def load_dotenv(path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     root = Path(__file__).resolve().parents[1]
-    parser = argparse.ArgumentParser(description="카카오 도서 검색 일일 쿼터 수집기")
-    parser.add_argument("--max-requests", type=int, default=29999,
-                        help="이번 배치에서 사용할 최대 HTTP 요청 수. 기본 29,999")
+    parser = argparse.ArgumentParser(description="카카오 도서 검색 일일 쿼터 파트 수집기")
+    parser.add_argument("--max-requests", type=int, default=29999, help="이번 실행의 최대 HTTP 요청 수")
     parser.add_argument("--page-size", type=int, default=50, choices=range(1, 51), metavar="1..50")
-    parser.add_argument("--part-size", type=int, default=1000, help="Raw 파트 하나의 최대 요청 수")
-    parser.add_argument("--delay", type=float, default=0.10, help="성공 요청 사이 대기 초")
-    parser.add_argument("--retries", type=int, default=5, help="일시 오류 재시도 횟수")
+    parser.add_argument("--part-size", type=int, default=1000, help="완료 Raw 파트당 HTTP 요청 수")
+    parser.add_argument("--delay", type=float, default=0.10)
+    parser.add_argument("--retries", type=int, default=5)
     parser.add_argument("--output-dir", type=Path, default=root)
-    parser.add_argument("--reset", action="store_true", help="기존 미완료 실행 상태를 지우고 새로 시작")
-    return parser.parse_args()
+    parser.add_argument("--sample-size", type=int, default=10)
+    args = parser.parse_args()
+    if args.max_requests < 1 or args.part_size < 1:
+        parser.error("--max-requests와 --part-size는 1 이상이어야 합니다.")
+    return args
 
 
 def generated_title_queries() -> Iterator[str]:
-    """Interleave initial consonant/vowel/final variants for broad title coverage."""
     for final in JONGSUNG:
         for medial in range(JUNGSUNG):
             for initial in range(CHOSUNG):
                 yield chr(HANGUL_BASE + ((initial * JUNGSUNG + medial) * 28) + final)
 
 
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def write_json(path: Path, value: Any) -> None:
-    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-
-def isbn10_is_valid(value: str) -> bool:
-    if not re.fullmatch(r"\d{9}[\dX]", value):
-        return False
-    total = sum((10 - index) * int(char) for index, char in enumerate(value[:9]))
-    total += 10 if value[-1] == "X" else int(value[-1])
-    return total % 11 == 0
-
-
-def isbn13_is_valid(value: str) -> bool:
-    if not re.fullmatch(r"\d{13}", value):
-        return False
-    total = sum(int(char) * (1 if index % 2 == 0 else 3) for index, char in enumerate(value[:12]))
-    return (10 - total % 10) % 10 == int(value[-1])
-
-
-def isbn10_to_13(value: str) -> str | None:
-    if not isbn10_is_valid(value):
-        return None
-    prefix = "978" + value[:9]
-    total = sum(int(char) * (1 if index % 2 == 0 else 3) for index, char in enumerate(prefix))
-    return prefix + str((10 - total % 10) % 10)
-
-
-def parse_isbn(value: Any) -> tuple[str | None, str | None, bool, str]:
-    isbn10 = isbn13 = None
-    valid = False
-    for token in str(value or "").split():
-        candidate = re.sub(r"[^0-9Xx]", "", token).upper()
-        if len(candidate) == 13 and isbn13_is_valid(candidate):
-            isbn13, valid = candidate, True
-        elif len(candidate) == 10 and isbn10_is_valid(candidate):
-            isbn10, valid = candidate, True
-    if isbn13 and isbn10:
-        kind = "BOTH"
-    elif isbn13:
-        kind = "ISBN13"
-    elif isbn10:
-        kind = "ISBN10"
-    else:
-        kind = "INVALID_OR_MISSING"
-    return isbn10, isbn13 or (isbn10_to_13(isbn10) if isbn10 else None), valid, kind
-
-
-def normalize(document: dict[str, Any], query: str, collected_at: str) -> dict[str, Any]:
-    isbn10, isbn13, isbn_valid, isbn_type = parse_isbn(document.get("isbn"))
-    record = {field: document.get(field) for field in BOOK_FIELDS}
-    record.update({
-        "isbn_raw": document.get("isbn") or "",
-        "isbn10": isbn10,
-        "isbn13": isbn13,
-        "isbn13_normalized": isbn13,
-        "isbn_valid": isbn_valid,
-        "isbn_type": isbn_type,
-        "source": "kakao_book_search",
-        "source_query": query,
-        "collected_at": collected_at,
-    })
-    for field in ("authors", "translators"):
-        record[field] = record[field] or []
-    for field in ("price", "sale_price"):
-        record[field] = record[field] if record[field] is not None else None
-    for field in ("title", "contents", "url", "isbn", "datetime", "publisher", "thumbnail", "status"):
-        record[field] = record[field] or ""
-    return record
-
-
-def dedupe_key(record: dict[str, Any]) -> str:
-    if record["isbn13"]:
-        return f"isbn13:{record['isbn13']}"
-    return "fallback:" + "|".join((
-        record["title"].strip(), ",".join(record["authors"]), record["publisher"].strip(), record["datetime"],
-    ))
-
-
-def open_database(path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(path)
-    connection.execute("PRAGMA journal_mode=WAL")
-    connection.execute("PRAGMA synchronous=NORMAL")
-    connection.execute("CREATE TABLE IF NOT EXISTS books (dedupe_key TEXT PRIMARY KEY, payload TEXT NOT NULL)")
-    return connection
-
-
-def api_request(api_key: str, query: str, page: int, page_size: int) -> dict[str, Any]:
+def api_request(api_key: str, query: str, page: int, page_size: int) -> tuple[int, dict[str, Any]]:
     params = urlencode({"query": query, "target": "title", "sort": "accuracy", "page": page, "size": page_size})
     request = Request(
-        f"{API_URL}?{params}", headers={"Authorization": f"KakaoAK {api_key}"}, method="GET"
+        f"{API_URL}?{params}",
+        headers={"Authorization": f"KakaoAK {api_key}"},
+        method="GET",
     )
     with urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8"))
+        return response.status, json.loads(response.read().decode("utf-8"))
 
 
-def load_state(path: Path, reset: bool) -> dict[str, Any]:
-    if reset or not path.exists():
-        return {"query_index": 0, "page": 1, "request_count": 0, "raw_records": 0, "started_at": utc_now()}
+def load_state(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "schema_version": STATE_VERSION,
+            "query_index": 0,
+            "page": 1,
+            "total_request_count": 0,
+            "raw_records": 0,
+            "part_number": 1,
+            "part_requests": 0,
+            "part_documents": 0,
+            "started_at": utc_now(),
+        }
+    state = json.loads(path.read_text(encoding="utf-8"))
+    if state.get("schema_version") != STATE_VERSION:
+        raise ValueError("호환되지 않는 상태 파일입니다. 새 output-dir에서 v2 수집을 시작하세요.")
+    return state
+
+
+def load_json(path: Path, default: Any) -> Any:
+    if not path.exists():
+        return default
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -184,147 +113,208 @@ def main() -> int:
     output = args.output_dir.resolve()
     for directory in ("raw/parts", "processed", "samples", "reports", "metadata"):
         (output / directory).mkdir(parents=True, exist_ok=True)
-    state_path = output / "metadata" / "quota_crawl.runtime.json"
-    state = load_state(state_path, args.reset)
-    database_path = output / "metadata" / "quota_dedupe.sqlite3"
-    database = open_database(database_path)
+    parts_dir = output / "raw" / "parts"
+    metadata_dir = output / "metadata"
+    state_path = metadata_dir / "title_crawl_v2.runtime.json"
+    unresolved_path = metadata_dir / "unresolved_ranges.json"
+    cache_path = metadata_dir / "range_count_cache.json"
+
+    try:
+        state = load_state(state_path)
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    unresolved = load_json(unresolved_path, [])
+    if not isinstance(unresolved, list):
+        unresolved = []
+    count_cache = load_json(cache_path, {})
+    if not isinstance(count_cache, dict):
+        count_cache = {}
     queries = list(generated_title_queries())
-    stamp = datetime.now().strftime("%Y%m%d")
-    run_plan = {
-        "created_at": utc_now(), "api": "Kakao Book Search", "endpoint": API_URL,
-        "strategy": "generated Korean syllable title queries; each query paged until is_end or page 50",
-        "target": "title", "sort": "accuracy", "page_size": args.page_size,
-        "max_requests_this_batch": args.max_requests,
-        "previous_confirmed_request_count_today": 1,
-        "daily_quota_target_total": 30000,
-        "query_generation": {"initial_consonants": CHOSUNG, "medial_vowels": JUNGSUNG, "final_variants": list(JONGSUNG)},
-    }
-    write_json(output / "metadata" / "range_plan.json", run_plan)
-    unresolved: list[dict[str, Any]] = []
-    query_counts: list[dict[str, Any]] = []
-    part_number = state["request_count"] // args.part_size + 1
-    part_requests = state["request_count"] % args.part_size
-    part_path = output / "raw" / "parts" / f"books_raw_part_{part_number:05d}.jsonl"
-    raw_handle = part_path.open("a", encoding="utf-8")
+
+    write_json(metadata_dir / "range_plan.json", {
+        "created_at": utc_now(),
+        "api": "Kakao Book Search",
+        "endpoint": API_URL,
+        "scope": "quota_crawl",
+        "strategy": "deterministic Korean syllable title queries",
+        "raw_record_unit": "one book document per JSONL line",
+        "target": "title",
+        "sort": "accuracy",
+        "page_size": args.page_size,
+        "part_size_requests": args.part_size,
+        "max_requests_this_run": args.max_requests,
+        "query_count": len(queries),
+        "query_generation": {
+            "initial_consonants": CHOSUNG,
+            "medial_vowels": JUNGSUNG,
+            "final_variants": list(JONGSUNG),
+        },
+        "note": "검색 API 순회이므로 전체 카탈로그 완전성을 보장하지 않는다.",
+    })
 
     def persist_state() -> None:
         state["updated_at"] = utc_now()
         write_json(state_path, state)
+        write_json(unresolved_path, unresolved)
+        write_json(cache_path, count_cache)
+
+    part_name = f"title_{int(state['part_number']):06d}"
+    temp_path = parts_dir / f"{part_name}.part"
+    raw_handle = temp_path.open("a", encoding="utf-8")
+    batch_requests = 0
+    stop_reason = "batch_request_limit"
+
+    def complete_part() -> None:
+        nonlocal raw_handle, temp_path, part_name
+        raw_handle.close()
+        final_path = parts_dir / f"{part_name}.jsonl"
+        temp_path.replace(final_path)
+        write_json(parts_dir / f"{part_name}.done.json", {
+            "name": part_name,
+            "scope": "quota_crawl",
+            "status": "completed",
+            "request_count": int(state["part_requests"]),
+            "document_count": int(state["part_documents"]),
+            "completed_at": utc_now(),
+            "stop_reason": "part_size_reached",
+        })
+        state["part_number"] += 1
+        state["part_requests"] = 0
+        state["part_documents"] = 0
+        part_name = f"title_{int(state['part_number']):06d}"
+        temp_path = parts_dir / f"{part_name}.part"
+        raw_handle = temp_path.open("a", encoding="utf-8")
 
     try:
-        while state["request_count"] < args.max_requests and state["query_index"] < len(queries):
+        while batch_requests < args.max_requests and state["query_index"] < len(queries):
             query = queries[state["query_index"]]
-            page = state["page"]
+            page = int(state["page"])
             if page > 50:
                 state["query_index"] += 1
                 state["page"] = 1
                 continue
+
             payload: dict[str, Any] | None = None
-            last_error: str | None = None
+            status: int | None = None
+            last_error = ""
+            attempts = 0
+            quota_exhausted = False
             for attempt in range(args.retries + 1):
-                if state["request_count"] >= args.max_requests:
+                if batch_requests >= args.max_requests:
                     break
-                state["request_count"] += 1  # every network attempt consumes a quota request
+                attempts += 1
+                batch_requests += 1
+                state["total_request_count"] += 1
+                state["part_requests"] += 1
                 try:
-                    payload = api_request(api_key, query, page, args.page_size)
+                    status, payload = api_request(api_key, query, page, args.page_size)
                     break
                 except HTTPError as error:
+                    status = error.code
                     last_error = f"HTTP {error.code}: {error.reason}"
                     if error.code == 429:
-                        unresolved.append({"query": query, "page": page, "error": last_error, "attempts": attempt + 1})
-                        persist_state()
-                        print("카카오 쿼터/요청 제한(429)을 받아 수집을 중단합니다.", file=sys.stderr)
-                        return 3
+                        quota_exhausted = True
+                        break
                 except (URLError, TimeoutError, json.JSONDecodeError) as error:
                     last_error = str(error)
                 if attempt < args.retries:
                     time.sleep(min(2 ** attempt, 16))
+
             if payload is None:
-                unresolved.append({"query": query, "page": page, "error": last_error, "attempts": args.retries + 1})
+                if batch_requests >= args.max_requests and not quota_exhausted:
+                    stop_reason = "batch_request_limit"
+                    persist_state()
+                    break
+                unresolved.append({
+                    "scope": "quota_crawl", "part": part_name, "query": query,
+                    "target": "title", "page": page, "http_status": status,
+                    "error": last_error or "request limit reached before response",
+                    "attempts": attempts, "last_attempt_at": utc_now(),
+                })
+                if quota_exhausted:
+                    stop_reason = "http_429"
+                    persist_state()
+                    break
                 state["query_index"] += 1
                 state["page"] = 1
                 persist_state()
                 continue
 
             collected_at = utc_now()
-            raw_handle.write(json.dumps({
-                "collected_at": collected_at,
-                "request": {"query": query, "target": "title", "sort": "accuracy", "page": page, "size": args.page_size},
-                "response": payload,
-            }, ensure_ascii=False) + "\n")
             documents = payload.get("documents", [])
-            state["raw_records"] += len(documents)
             for document in documents:
-                record = normalize(document, query, collected_at)
-                database.execute("INSERT OR IGNORE INTO books(dedupe_key, payload) VALUES (?, ?)",
-                                 (dedupe_key(record), json.dumps(record, ensure_ascii=False)))
-            database.commit()
-            part_requests += 1
-            if state["request_count"] % 50 == 0:
-                print(f"requests={state['request_count']:,} raw={state['raw_records']:,} unique={database.execute('SELECT COUNT(*) FROM books').fetchone()[0]:,}", flush=True)
-                persist_state()
-            if part_requests >= args.part_size:
-                raw_handle.close()
-                write_json(part_path.with_suffix(".done.json"), {
-                    "completed_at": utc_now(), "request_count": state["request_count"], "raw_records": state["raw_records"],
-                })
-                part_number += 1
-                part_requests = 0
-                part_path = output / "raw" / "parts" / f"books_raw_part_{part_number:05d}.jsonl"
-                raw_handle = part_path.open("a", encoding="utf-8")
-            if payload.get("meta", {}).get("is_end", True):
-                query_counts.append({"query": query, "pages": page, "total_count": payload.get("meta", {}).get("total_count", 0)})
+                if not isinstance(document, dict):
+                    continue
+                raw_handle.write(json.dumps(raw_book(
+                    document,
+                    query=query,
+                    target="title",
+                    page=page,
+                    collected_at=collected_at,
+                    http_status=int(status or 200),
+                ), ensure_ascii=False) + "\n")
+                state["raw_records"] += 1
+                state["part_documents"] += 1
+            raw_handle.flush()
+
+            meta = payload.get("meta", {})
+            if meta.get("is_end", True):
+                count_cache[query] = {
+                    "target": "title",
+                    "total_count": int(meta.get("total_count", 0) or 0),
+                    "page_count": page,
+                }
                 state["query_index"] += 1
                 state["page"] = 1
             else:
                 state["page"] += 1
+
+            if state["part_requests"] >= args.part_size:
+                complete_part()
+            if batch_requests % 50 == 0:
+                print(
+                    f"requests={batch_requests:,} total={state['total_request_count']:,} "
+                    f"raw={state['raw_records']:,}",
+                    flush=True,
+                )
             persist_state()
             time.sleep(args.delay)
-    finally:
-        raw_handle.close()
-        database.commit()
 
-    unique_count = database.execute("SELECT COUNT(*) FROM books").fetchone()[0]
-    processed_path = output / "processed" / f"books_normalized_quota_{stamp}.jsonl"
-    samples: list[dict[str, Any]] = []
-    missing = {field: 0 for field in BOOK_FIELDS + ("isbn10", "isbn13", "isbn13_normalized")}
-    with processed_path.open("w", encoding="utf-8") as processed:
-        for (payload,) in database.execute("SELECT payload FROM books ORDER BY dedupe_key"):
-            record = json.loads(payload)
-            processed.write(json.dumps(record, ensure_ascii=False) + "\n")
-            if len(samples) < 10:
-                samples.append(record)
-            for field in missing:
-                if record.get(field) in (None, "", []):
-                    missing[field] += 1
-    with (output / "samples" / "sample_books.jsonl").open("w", encoding="utf-8") as sample_file:
-        for record in samples:
-            sample_file.write(json.dumps(record, ensure_ascii=False) + "\n")
-    write_json(output / "samples" / "sample_books.pretty.json", samples)
-    with (output / "reports" / "missing_report_quota_crawl.csv").open("w", newline="", encoding="utf-8-sig") as report:
-        writer = csv.writer(report)
-        writer.writerow(["field", "missing_count", "total_count", "missing_rate"])
-        for field, count in missing.items():
-            writer.writerow([field, count, unique_count, f"{(count / unique_count * 100) if unique_count else 0:.2f}%"])
-    write_json(output / "metadata" / "range_count_cache.json", query_counts)
-    write_json(output / "metadata" / "unresolved_ranges.json", unresolved)
-    (output / "reports" / "data_quality_summary_quota_crawl.txt").write_text(
-        "카카오 도서 검색 일일 쿼터 수집 품질 요약\n"
-        + "=" * 62 + "\n"
-        + f"완료 시각(UTC): {utc_now()}\n"
-        + f"이번 배치 API 요청 수: {state['request_count']:,}\n"
-        + "당일 기존 검증 호출 수: 1\n"
-        + f"당일 합산 목표 호출 수: {state['request_count'] + 1:,}\n"
-        + f"원본 도서 레코드 수: {state['raw_records']:,}\n"
-        + f"ISBN/서지 기준 중복 제거 후: {unique_count:,}\n"
-        + f"중복 제거 수: {state['raw_records'] - unique_count:,}\n"
-        + f"미해결 요청 수: {len(unresolved):,}\n",
-        encoding="utf-8",
+        if state["query_index"] >= len(queries):
+            stop_reason = "query_plan_completed"
+            if state["part_requests"] > 0:
+                complete_part()
+            if not raw_handle.closed:
+                raw_handle.close()
+            temp_path.unlink(missing_ok=True)
+            state_path.unlink(missing_ok=True)
+        else:
+            persist_state()
+    finally:
+        if not raw_handle.closed:
+            raw_handle.close()
+
+    stamp = datetime.now().strftime("%Y%m%d")
+    result = merge_normalize_and_report(
+        parts=parts_dir.glob("title_*.jsonl"),
+        merged_path=output / "processed" / f"books_merged_quota_{stamp}.jsonl",
+        processed_path=output / "processed" / f"books_normalized_quota_{stamp}.jsonl",
+        sample_jsonl_path=output / "samples" / "sample_books.jsonl",
+        sample_pretty_path=output / "samples" / "sample_books.pretty.json",
+        report_path=output / "reports" / "missing_report_quota_crawl.csv",
+        summary_path=output / "reports" / "data_quality_summary_quota_crawl.txt",
+        database_path=metadata_dir / "title_merge.sqlite3",
+        unresolved=unresolved,
+        scope="quota_crawl",
+        sample_size=args.sample_size,
     )
-    database.close()
-    state_path.unlink(missing_ok=True)
-    print(f"complete requests={state['request_count']:,} raw={state['raw_records']:,} unique={unique_count:,}")
-    return 0
+    print(
+        f"stop={stop_reason} batch_requests={batch_requests:,} "
+        f"completed_parts={result['part_count']:,} unique={result['unique_count']:,}"
+    )
+    return 3 if stop_reason == "http_429" else 0
 
 
 if __name__ == "__main__":
