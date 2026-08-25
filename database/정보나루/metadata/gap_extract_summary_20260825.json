@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-08-25T01:05:05.369766+00:00",
+  "field_groups": [
+    "author",
+    "description"
+  ],
+  "min_year": 2015,
+  "input_files": 1,
+  "total_records": 2047239,
+  "bad_json_lines": 0,
+  "invalid_isbn_records": 23696,
+  "year_filtered_records": 911390,
+  "unique_isbn13": 1112081,
+  "gap_isbn13": 978291,
+  "missing_count_by_group": {
+    "author": 877,
+    "description": 978192
+  },
+  "gap_list_path": "C:\\workspace\\특화\\S15P21B102\\database\\정보나루\\metadata\\gap_isbn_list_20260825.jsonl"
+}

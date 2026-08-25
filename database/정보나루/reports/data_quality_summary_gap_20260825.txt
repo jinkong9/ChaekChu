@@ -1,0 +1,23 @@
+정보나루 결측 보강 수집 품질 요약
+==============================================================
+완료 시각(UTC): 2026-08-25T01:29:49.093434+00:00
+gap list: C:\workspace\특화\S15P21B102\database\정보나루\metadata\gap_isbn_list_20260825.jsonl
+gap list 전체 ISBN 수: 978,291
+진행 위치(next_index): 465
+이번 실행 API 요청 수: 480
+누적 API 요청 수: 480
+누적 히트(레코드 확보): 460
+누적 미히트(레코드 없음): 0
+누적 히트율: 100.00%
+이번 실행 미해결 요청 수: 5
+
+이번 실행에서 정규화 후 값이 채워진 건수:
+  TITLE: 460
+  AUTHOR: 460
+  PUBLISHER: 456
+  EA_ISBN: 460
+  EA_ADD_CODE: 378
+  VOL: 272
+  KDC: 453
+  BOOK_INTRODUCTION: 343
+  TITLE_URL: 393

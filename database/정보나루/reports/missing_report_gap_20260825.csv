@@ -1,0 +1,40 @@
+﻿field,total_count,missing_count,missing_rate_percent,example_valid_values
+SET_ISBN,460,460,100.00,
+SET_ADD_CODE,460,460,100.00,
+SET_EXPRESSION,460,460,100.00,
+SERIES_TITLE,460,460,100.00,
+SERIES_NO,460,460,100.00,
+EDITION_STMT,460,460,100.00,
+PRE_PRICE,460,460,100.00,
+REAL_PRICE,460,460,100.00,
+DDC,460,460,100.00,
+SUBJECT,460,460,100.00,
+PAGE,460,460,100.00,
+BOOK_SIZE,460,460,100.00,
+FORM,460,460,100.00,
+FORM_DETAIL,460,460,100.00,
+PUBLISH_PREDATE,460,460,100.00,
+REAL_PUBLISH_DATE,460,460,100.00,
+INPUT_DATE,460,460,100.00,
+UPDATE_DATE,460,460,100.00,
+PUBLISHER_URL,460,460,100.00,
+BOOK_TB_CNT,460,460,100.00,
+BOOK_TB_CNT_URL,460,460,100.00,
+BOOK_INTRODUCTION_URL,460,460,100.00,
+BOOK_SUMMARY,460,460,100.00,
+BOOK_SUMMARY_URL,460,460,100.00,
+CONTROL_NO,460,460,100.00,
+RELATED_ISBN,460,460,100.00,
+CIP_YN,460,460,100.00,
+DEPOSIT_YN,460,460,100.00,
+EBOOK_YN,460,460,100.00,
+BIB_YN,460,460,100.00,
+VOL,460,188,40.87,hbk | 2 | 3
+BOOK_INTRODUCTION,460,117,25.43,"Decades after the end of the World War II East Asia continues to struggle with l | 틈만 나면 보고 싶은 융합 과학 이야기 시리즈. 단순히 과학원리만 알려주는 것이 아니라, 과학이 우리 생활에 어떻게 활용되고, 우리 생활을 얼마 | 틈만 나면 보고 싶은 융합 과학 이야기 시리즈. 단순히 과학원리만 알려주는 것이 아니라, 과학이 우리 생활에 어떻게 활용되고, 우리 생활을 얼마"
+EA_ADD_CODE,460,82,17.83,0322 | 3031 | 11
+TITLE_URL,460,67,14.57,https://image.aladin.co.kr/product/3548/10/cover/0415835135_1.jpg | http://image.aladin.co.kr/product/11812/38/cover/scm5198245569689.png | https://image.aladin.co.kr/product/10398/4/cover/1532613253_2.jpg
+KDC,460,7,1.52,266.023 | 981.4602 | 235.35
+PUBLISHER,460,4,0.87,Routledge | 지구라는별 | Wipf & Stock Publishers
+TITLE,460,0,0.00,Routledge handbook of memory and reconciliation in East Asia | Diary of Dr. Rosetta Hall | Diary of Dr. Rosetta Hall
+AUTHOR,460,0,0.00,edited by Mikyoung Kim | Rosetta Sherwood Hall ;transcribed by Hyun Sue Kim | Rosetta Sherwood Hall ;transcribed by Hyun Sue Kim
+EA_ISBN,460,0,0.00,9780415835138 | 9780692618318 | 9780692731291
