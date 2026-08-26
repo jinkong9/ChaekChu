@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+/* ==== 테마 C · 팝 책추책책추 ====
+   팀 확정 전 가영 선택 반영 — 방향이 바뀌면 이 파일의 토큰만 교체.
+   시안: https://claude.ai/code/artifact/09675040-b086-4460-b24a-6b8784621cee */
+@theme {
+  --color-primary: #22224a;   /* 네이비 잉크 — 테두리·버튼·본문 강조 */
+  --color-accent: #ff6b4a;    /* 코랄 — 점수·이유·CTA 포인트 */
+  --color-cream: #fff8ec;     /* 배경 */
+  --color-sunny: #ffd166;     /* 보조 포인트 (그림자·하이라이트) */
+  --font-display: 'Jua', 'Apple SD Gothic Neo', sans-serif;
+}
+
+body {
+  font-family: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', sans-serif;
+  background: #fff8ec;
+  color: #22224a;
+}
+
+h1, h2 {
+  font-family: 'Jua', 'Apple SD Gothic Neo', sans-serif;
+  font-weight: 400;
+}
