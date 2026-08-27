@@ -58,12 +58,18 @@ const library: LibraryItem[] = [
 
 /** ============ 핸들러 ============ */
 export const handlers = [
-  // 인증 — mock: 어떤 입력이든 통과
-  http.post('*/auth/signup', async ({ request }) => {
-    const body = (await request.json()) as { nickname?: string }
-    return HttpResponse.json({ accessToken: 'mock-token', nickname: body.nickname ?? '독자', onboarded: false })
+  // 인증 — mock: OAuth authorize 응답으로 callback 이후 상태를 대신한다.
+  http.get('*/auth/oauth/:provider/authorize', ({ params }) => {
+    const provider = String(params.provider).toUpperCase()
+    if (provider !== 'KAKAO' && provider !== 'GOOGLE') {
+      return HttpResponse.json({ message: '지원하지 않는 OAuth provider입니다.' }, { status: 400 })
+    }
+    return HttpResponse.json({
+      accessToken: 'mock-token',
+      nickname: provider === 'KAKAO' ? '카카오 독자' : 'Google 독자',
+      onboarded: false,
+    })
   }),
-  http.post('*/auth/login', () => HttpResponse.json({ accessToken: 'mock-token', nickname: '가영', onboarded: true })),
 
   // 온보딩
   http.get('*/books/popular', () => HttpResponse.json({ items: CATALOG.slice(4, 12) })), // 세그먼트 인기 (온보딩 그리드용)

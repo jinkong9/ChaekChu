@@ -21,7 +21,7 @@
 | DB 마이그레이션 | Flyway | 11.x | 운영 DB 스키마 변경 이력 관리 |
 | 검색 엔진 | Elasticsearch | 8.18.1 | 도서 검색·유사 도서 조회·검색어 분석 |
 | Elasticsearch 연동 | Spring Data Elasticsearch | 5.5.x | Spring Boot 3.5와 호환되는 2025.0 라인 사용 |
-| 캐시 | Redis | 7.4.x | 선택 사항. 인기 도서·추천 결과 캐시 용도 |
+| 캐시 | Redis | 7.4.x | 선택 사항. 최신 추천 응답 캐시 용도이며 PostgreSQL 결과 스냅샷을 대체하지 않음 |
 | API 문서 | springdoc-openapi | 2.8.x | Swagger UI 제공 |
 
 ### Frontend
@@ -96,7 +96,7 @@ Node.js 24 LTS는 Vite 7의 Node.js 요구사항을 충족하며, 로컬 확인 
     └─ Spring Boot API
             ├─ PostgreSQL: 회원·서재·평가·추천 이력 CRUD
             ├─ Elasticsearch: 도서 검색·유사 도서 조회
-            └─ Redis: 인기 도서·추천 결과 캐시(필요할 때만)
+            └─ Redis: 최신 추천 응답 캐시(선택 사항, 캐시 미스 시 PostgreSQL fallback)
                     │
                     └─ React + TypeScript 웹 클라이언트
 ```

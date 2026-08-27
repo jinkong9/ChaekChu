@@ -130,8 +130,9 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 | 필드 | 타입 | 필수 | 규칙 |
 | --- | --- | ---: | --- |
 | `userId` | `string` | O | 내부 opaque 식별자 |
-| `email` | `string` | O | unique, 인증 식별자 |
-| `passwordHash` | `string` | O | 평문 저장·응답 금지 |
+| `oauthProvider` | `enum` | O | `KAKAO` 또는 `GOOGLE` |
+| `oauthSubject` | `string` | O | 제공자가 발급한 사용자 고유 식별자. `(oauthProvider, oauthSubject)` unique |
+| `email` | `string \| null` |  | OAuth에서 제공된 이메일. 인증 식별자로 사용하지 않음 |
 | `nickname` | `string \| null` |  | 화면 표시용 |
 | `birthYear` | `integer \| null` |  | 세그먼트 계산 전용, 다른 사용자에게 공개하지 않음 |
 | `gender` | `enum \| null` |  | 세그먼트 계산 전용 |
@@ -174,6 +175,8 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 | `createdAt` | `datetime` | O | 생성 시각 |
 | `updatedAt` | `datetime` | O | 수정 시각 |
 
+인증은 카카오 OAuth와 Google OAuth(Gmail 계정)만 지원한다. 자체 회원가입·이메일/비밀번호 로그인은 제공하지 않으며, OAuth callback에서 provider와 subject를 검증한 뒤 최초 사용자 레코드를 생성하고 서비스 JWT를 발급한다. OAuth access token과 원 제공자 비밀번호는 서비스 DB에 저장하지 않는다.
+
 `(userId, bookId)`는 unique다. 평점은 서재 상태와 별도로 저장한다. `reviewText`는 선택값이며 앞뒤 공백을 제거하고 빈 문자열은 `null`로 저장한다. 감상평은 본인 기록용으로만 제공하고 다른 사용자의 응답·검색 색인·추천 계산에는 포함하지 않는다.
 
 MVP 추천 입력에는 평점·서재 상태·초기 취향만 사용한다. 감상평 원문은 다음 버전에서 사용자 동의와 활용 범위를 확정한 뒤 AI 분석 또는 개인화 feature로 사용할 수 있도록 보존한다.
@@ -199,6 +202,8 @@ MVP 추천 입력에는 평점·서재 상태·초기 취향만 사용한다. �
 | `reasonText` | `string` | O | 카드에 항상 표시할 요약 이유 |
 
 추천 결과에는 사용자의 서재에 이미 등록된 도서를 포함하지 않는다. 추천 계산 실패 시 마지막 성공 결과 또는 콜드스타트 결과를 사용할 수 있으며, 어느 전략으로 응답했는지는 `modelVersion`과 reason type으로 추적한다.
+
+추천 생성 성공 시에만 `recommendationId` 단위의 결과 스냅샷을 DB에 저장한다. 같은 스냅샷을 반환하는 조회 요청마다 결과를 중복 저장하지 않는다. Redis가 활성화된 경우 최신 응답을 캐시할 수 있지만, 캐시 삭제·만료 후에도 DB의 최신 성공 스냅샷으로 응답할 수 있어야 한다. 화면에만 존재하는 임시 결과는 주 추천 응답으로 사용하지 않는다.
 
 ### 4.5 `UserEvent`
 

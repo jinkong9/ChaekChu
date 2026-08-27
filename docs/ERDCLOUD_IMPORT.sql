@@ -5,8 +5,8 @@
 -- ERDCloud의 가져오기(Import) > DDL 입력창에 이 파일 전체를 붙여 넣는다.
 -- authors, categories, validation_errors는 ERDCloud 호환을 위해 TEXT로 표현했다.
 -- 실제 PostgreSQL 구현에서는 각각 TEXT[]/JSONB 등으로 결정할 수 있다.
--- library_holding_snapshots와 book_demand_features는 대용량 분석 영역의
--- 논리 모델이며, 실제 물리 저장소에서는 Parquet/분석 DB를 우선 사용할 수 있다.
+-- book_demand_features는 대용량 분석 영역의 논리 모델이며,
+-- 실제 물리 저장소에서는 Parquet/분석 DB를 우선 사용할 수 있다.
 
 CREATE TABLE book_works (
     id UUID NOT NULL,
@@ -54,34 +54,6 @@ CREATE TABLE book_source_records (
         FOREIGN KEY (book_id) REFERENCES books (id)
 );
 
-CREATE TABLE libraries (
-    id UUID NOT NULL,
-    source_site_id VARCHAR(100),
-    api_libcode VARCHAR(100) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    type VARCHAR(100),
-    address VARCHAR(500),
-    latitude DECIMAL(10, 7),
-    longitude DECIMAL(10, 7),
-    phone VARCHAR(50),
-    latest_month CHAR(7) NOT NULL,
-    PRIMARY KEY (id),
-    CONSTRAINT uq_libraries_api_libcode UNIQUE (api_libcode)
-);
-
-CREATE TABLE library_holding_snapshots (
-    library_id UUID NOT NULL,
-    isbn13 CHAR(13) NOT NULL,
-    snapshot_month CHAR(7) NOT NULL,
-    cumulative_loan_count BIGINT NOT NULL,
-    copy_count INTEGER NOT NULL,
-    PRIMARY KEY (library_id, isbn13, snapshot_month),
-    CONSTRAINT fk_holding_snapshots_library
-        FOREIGN KEY (library_id) REFERENCES libraries (id),
-    CONSTRAINT fk_holding_snapshots_book
-        FOREIGN KEY (isbn13) REFERENCES books (isbn13)
-);
-
 CREATE TABLE book_demand_features (
     isbn13 CHAR(13) NOT NULL,
     cumulative_loan_count BIGINT NOT NULL,
@@ -98,15 +70,17 @@ CREATE TABLE book_demand_features (
 
 CREATE TABLE users (
     id UUID NOT NULL,
-    email VARCHAR(320) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    oauth_provider VARCHAR(20) NOT NULL,
+    oauth_subject VARCHAR(255) NOT NULL,
+    email VARCHAR(320),
     nickname VARCHAR(100),
     birth_year SMALLINT,
     gender VARCHAR(30),
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
-    CONSTRAINT uq_users_email UNIQUE (email)
+    CONSTRAINT uq_users_oauth UNIQUE (oauth_provider, oauth_subject),
+    CONSTRAINT ck_users_oauth_provider CHECK (oauth_provider IN ('KAKAO', 'GOOGLE'))
 );
 
 CREATE TABLE user_interests (
@@ -122,7 +96,6 @@ CREATE TABLE user_seed_books (
     user_id UUID NOT NULL,
     book_id UUID NOT NULL,
     rating SMALLINT NOT NULL,
-    review_text VARCHAR(300),
     created_at DATETIME NOT NULL,
     PRIMARY KEY (user_id, book_id),
     CONSTRAINT fk_user_seed_books_user
@@ -152,6 +125,7 @@ CREATE TABLE book_ratings (
     user_id UUID NOT NULL,
     book_id UUID NOT NULL,
     rating SMALLINT NOT NULL,
+    review_text VARCHAR(300),
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
