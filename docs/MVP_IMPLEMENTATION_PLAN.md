@@ -210,7 +210,8 @@ data/
 6. 정제 실패 데이터와 실패 이유를 별도 파일로 남긴다.
 7. 외부 대출 원장의 최신·3개월 전·24개월 전 스냅샷을 배치 입력으로 준비한다.
 8. 누적 대출 99% 유지 임계와 신간 트랙으로 추천 후보를 생성한다.
-9. 샘플 100~1,000건으로 정제 결과와 스냅샷 차분을 검증한다.
+9. 책소개·목차·카테고리에서 콘텐츠 feature를 배치 추출하고 `book_content_features`에 저장한다.
+10. 샘플 100~1,000건으로 정제 결과·스냅샷 차분·콘텐츠 feature 품질을 검증한다.
 
 ### 표준 도서 필드
 
@@ -248,12 +249,13 @@ rawPayload, collectedAt
 | `user_interests` | user_id, category | 초기 관심 분야 |
 | `user_seed_books` | user_id, book_id, rating | 초기 취향 입력 |
 | `books` | id, isbn13, title, authors, description, categories 등 | 표준 도서 원천 데이터 |
+| `book_content_features` | isbn13, feature_scores, feature_version, extracted_at | 책소개 기반 콘텐츠 feature |
 | `library_items` | user_id, book_id, status, finished_at | 개인 서재·독서 상태·좋아요 |
 | `book_ratings` | user_id, book_id, rating, review_text | 평점·개인 감상 기록 |
 | `recommendations` | id, user_id, model_version, generated_at | 추천 결과 묶음 |
 | `recommendation_items` | recommendation_id, book_id, rank, score, reason_type, reason_text | 추천 항목 |
 | `user_events` | user_id, recommendation_id, book_id, event_type, rank, created_at | 추천 측정 이벤트 |
-| `book_demand_features` | isbn13, cumulative_loan_count, loan_24m_count, loan_3m_count, rank_score, candidate_type, as_of_month, feature_version | 추천 후보·수요 파생 결과 |
+| `book_demand_features` | isbn13, cumulative_loan_count, loan_24m_count, loan_3m_count, trending_score, steady_score, rank_score, candidate_type, as_of_month, feature_version | 추천 후보·수요 파생 결과 |
 
 ### 저장 규칙
 
@@ -453,8 +455,9 @@ DELETE /api/v1/books/{bookId}/rating
 4. 후보 도서와 사용자 프로필의 코사인 유사도를 계산한다.
 5. `WANT_TO_READ`·평점·독서 상태별 가중치를 적용한다.
 6. 이미 서재에 있는 도서는 제외하고, 텍스트 부족 도서는 사전 필터에서 제거하지 않는다.
-7. `loan_24m + 4 × loan_3m` 수요 랭킹을 보조 신호로 결합한다. 누적 대출량 자체는 랭킹 주신호로 사용하지 않으며, 감상평도 MVP에서는 사용하지 않는다.
-8. 상위 N개를 저장하고 rank·score·추천 이유를 함께 기록한다.
+7. `trending_score`, `steady_score` 등 책 단위 feature와 사용자별 `taste`, `coLoan`, `newField` feature를 모두 0~100 범위로 맞춘다.
+8. `score = Σ(feature_score × weight) / Σ(사용 가능한 feature의 weight)`로 계산한다. 가중치가 바뀌어도 저장된 feature 원점수로 다시 계산할 수 있다.
+9. 상위 N개를 저장하고 rank·score·featureScores·추천 이유·적용 weights를 함께 기록한다.
 
 ### 초기 가중치
 

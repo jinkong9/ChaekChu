@@ -22,6 +22,7 @@ erDiagram
     BOOK_WORKS ||--o{ BOOKS : groups
     BOOKS ||--o{ BOOK_SOURCE_RECORDS : sourced_by
     BOOKS ||--o{ BOOK_DEMAND_FEATURES : scored
+    BOOKS ||--o{ BOOK_CONTENT_FEATURES : analyzed
 
     USERS ||--o{ USER_INTERESTS : has
     USERS ||--o{ USER_SEED_BOOKS : selects
@@ -78,14 +79,23 @@ erDiagram
     }
 
     BOOK_DEMAND_FEATURES {
-        char isbn13 PK
+        char isbn13 PK,FK
+        char as_of_month PK
+        varchar feature_version PK
         bigint cumulative_loan_count
         bigint loan_24m_count
         bigint loan_3m_count
+        decimal trending_score
+        decimal steady_score
         decimal rank_score
         varchar candidate_type
-        char as_of_month
-        varchar feature_version
+    }
+
+    BOOK_CONTENT_FEATURES {
+        char isbn13 PK,FK
+        json feature_scores
+        varchar feature_version PK
+        timestamp extracted_at
     }
 
     USERS {
@@ -137,6 +147,7 @@ erDiagram
         uuid id PK
         uuid user_id FK
         varchar model_version
+        json weights
         timestamp generated_at
     }
 
@@ -145,6 +156,7 @@ erDiagram
         uuid book_id PK,FK
         integer rank
         decimal score
+        json feature_scores
         varchar reason_type
         varchar reason_text
     }
@@ -228,12 +240,29 @@ erDiagram
 | `cumulative_loan_count` | BIGINT | O | L1 임계·prior용 누적 대출량 |
 | `loan_24m_count` | BIGINT | O | 최신과 24개월 전 차분 |
 | `loan_3m_count` | BIGINT | O | 최신과 3개월 전 차분 |
+| `trending_score` | DECIMAL | O | `loan_3m_count`를 정규화한 0~100 점수 |
+| `steady_score` | DECIMAL | O | `loan_24m_count`를 정규화한 0~100 점수 |
 | `rank_score` | DECIMAL | O | `loan_24m_count + 4 * loan_3m_count` |
 | `candidate_type` | VARCHAR | O | `DEMAND`, `NEW`, `DEMAND_AND_NEW` |
 | `as_of_month` | CHAR(7) | O | 산출 기준 월 |
 | `feature_version` | VARCHAR | O | 후보·랭킹 산출 버전 |
 
-`book_demand_features`는 대용량 분석 영역 또는 PostgreSQL의 파생 테이블로 저장할 수 있으며, `books`와의 연결은 정규화된 `isbn13` 논리 키로 관리한다. L1 후보는 `cumulative_loan_count`의 절대값을 고정하지 않고 전체 대출 수요의 99%를 유지하는 임계로 결정한다. 현재 실측값 `72+`는 기준 데이터셋의 결과일 뿐 코드에 영구 상수로 박지 않는다. `NEW`는 국중 2025년 이후 도서 중 대출 데이터에 아직 유입되지 않은 도서로 구성한다.
+`book_demand_features`는 대용량 분석 영역 또는 PostgreSQL의 파생 테이블로 저장할 수 있으며, `books`와의 연결은 정규화된 `isbn13` 논리 키로 관리한다. 원본 대출량을 그대로 가중합에 넣지 않고 배치에서 0~100 범위로 정규화한 `trending_score`와 `steady_score`를 함께 만든다. L1 후보는 `cumulative_loan_count`의 절대값을 고정하지 않고 전체 대출 수요의 99%를 유지하는 임계로 결정한다. 현재 실측값 `72+`는 기준 데이터셋의 결과일 뿐 코드에 영구 상수로 박지 않는다. `NEW`는 국중 2025년 이후 도서 중 대출 데이터에 아직 유입되지 않은 도서로 구성한다.
+
+### `book_content_features`
+
+책소개·목차·카테고리 등 콘텐츠에서 추출한 책 단위 feature를 저장한다. 각 feature는 `score`(0~100)와 `confidence`(0~1)를 함께 가진 JSON 객체로 관리한다. 예를 들어 `time_regression`, `fantasy`, `realistic`, `light_tone`, `emotional_intensity`, `difficulty` 등을 저장할 수 있다.
+
+| 칼럼 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `isbn13` | CHAR(13) | O | `books.isbn13`과 논리적 연결 |
+| `feature_scores` | JSONB | O | 콘텐츠 feature별 점수·신뢰도 |
+| `feature_version` | VARCHAR | O | 추출 규칙·모델 버전 |
+| `extracted_at` | TIMESTAMP | O | feature 추출 시각 |
+
+짧거나 불완전한 책소개에서 판단할 수 없는 feature는 0점이 아니라 `score = null`과 낮은 confidence로 저장한다. feature는 사용자 요청마다 새로 추출하지 않고, 책소개가 변경되거나 추출 버전이 바뀔 때 배치로 갱신한다.
+
+책의 카테고리·저자·텍스트 정보는 `books`와 검색 인덱스에 저장하고, `taste`, `coLoan`, `newField`처럼 사용자별로 달라지는 feature 점수는 추천 계산 시 산출한다. 계산된 후보별 feature 점수는 추천 스냅샷의 `recommendation_items.feature_scores`에 저장해 당시 가중치로 결과를 재현할 수 있게 한다.
 
 ### `users`
 
@@ -316,6 +345,7 @@ erDiagram
 | `id` | UUID | O | 추천 결과 식별자 |
 | `user_id` | UUID | O | 추천 대상 |
 | `model_version` | VARCHAR | O | 계산·폴백 전략 버전 |
+| `weights` | JSON | O | 해당 추천에 적용한 feature별 가중치 |
 | `generated_at` | TIMESTAMP | O | 생성 시각 |
 
 추천 조회는 최신 성공 스냅샷을 기준으로 하며, 결과를 새로 생성한 경우에만 이 테이블과 `recommendation_items`에 기록한다. 보관 기간이 지난 오래된 스냅샷은 정리할 수 있다.
@@ -330,6 +360,7 @@ erDiagram
 | `book_id` | UUID | O | 추천 도서 |
 | `rank` | INTEGER | O | 1부터 시작하는 순위 |
 | `score` | DECIMAL | O | 추천 점수 |
+| `feature_scores` | JSON | O | `taste`, `coLoan`, `trending`, `steady`, `newField`별 0~100 원점수 |
 | `reason_type` | VARCHAR | O | 추천 이유 enum |
 | `reason_text` | VARCHAR | O | 화면에 표시할 이유 |
 
@@ -356,7 +387,7 @@ erDiagram
 ### 필수 제약
 
 - `books.isbn13` UNIQUE, 검증된 13자리 숫자
-- `users.email` UNIQUE
+- `(users.oauth_provider, users.oauth_subject)` UNIQUE
 - `user_interests` 기본키 `(user_id, category)`
 - `user_seed_books` 기본키 `(user_id, book_id)` 및 `rating BETWEEN 1 AND 5`
 - `library_items(user_id, book_id)` UNIQUE
@@ -403,4 +434,4 @@ erDiagram
 3. [ERDCLOUD_IMPORT.sql](ERDCLOUD_IMPORT.sql)의 전체 내용을 붙여 넣는다.
 4. 생성된 관계와 칼럼을 확인한 뒤 레이아웃을 정리한다.
 
-이 파일은 ERDCloud 관계선 생성을 위한 논리 모델이다. `book_demand_features`는 실제 구현에서 Parquet 또는 분석 DB로 분리할 수 있다.
+이 파일은 ERDCloud 관계선 생성을 위한 논리 모델이다. `book_demand_features`와 `book_content_features`는 실제 구현에서 Parquet 또는 분석 DB로 분리할 수 있지만, 추천 서비스가 조회할 현재 버전의 파생 결과는 저장해 둔다.

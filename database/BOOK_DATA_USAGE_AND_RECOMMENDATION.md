@@ -279,7 +279,7 @@ description_embedding_profile
 
 ### 5.3 현재 MVP Ranking
 
-MVP Ranking은 콘텐츠 기반으로 시작한다. 대출 Feature의 Ranking 결합은 5.4에서 확장한다.
+MVP Ranking은 콘텐츠 기반 개인화를 중심으로 시작하고, 5.4의 대출 수요 feature를 보조 신호로 결합한다. 대출량이 개인 취향을 덮어쓰지 않도록 가중치는 별도 설정값으로 관리한다.
 
 ```text
 score_mvp =
@@ -358,6 +358,7 @@ source_book_id: ...
 | 카카오 | 대량 보강 결과는 저장하되 ISBN 검증 후 사용 |
 | 사용자 평점·감상평 | 서비스 이용 시 즉시 저장. 감상평은 MVP 기록 전용 |
 | 임베딩 | 설명·목차 확보 후 Batch |
+| 콘텐츠 feature | 책소개·목차·카테고리에서 해석 가능한 feature를 Batch 추출해 `book_content_features`에 저장 |
 | 대출 원장 | 최신·3개월 전·24개월 전 스냅샷을 Batch 수집. 누적 대출은 후보 필터·prior에만 사용 |
 
 사용자 화면에서 외부 API를 직접 호출하지 않는다. 기본 응답은 DB·Elasticsearch에서 제공하고, 외부 API 호출은 배치 또는 별도 보강 Queue에서 처리한다.

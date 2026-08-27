@@ -3,7 +3,8 @@
 -- 기준: docs/ERD.md
 --
 -- ERDCloud의 가져오기(Import) > DDL 입력창에 이 파일 전체를 붙여 넣는다.
--- authors, categories, validation_errors는 ERDCloud 호환을 위해 TEXT로 표현했다.
+-- authors, categories, weights, feature_scores, validation_errors는
+-- ERDCloud 호환을 위해 TEXT로 표현했다.
 -- 실제 PostgreSQL 구현에서는 각각 TEXT[]/JSONB 등으로 결정할 수 있다.
 -- book_demand_features는 대용량 분석 영역의 논리 모델이며,
 -- 실제 물리 저장소에서는 Parquet/분석 DB를 우선 사용할 수 있다.
@@ -56,15 +57,27 @@ CREATE TABLE book_source_records (
 
 CREATE TABLE book_demand_features (
     isbn13 CHAR(13) NOT NULL,
+    as_of_month CHAR(7) NOT NULL,
+    feature_version VARCHAR(50) NOT NULL,
     cumulative_loan_count BIGINT NOT NULL,
     loan_24m_count BIGINT NOT NULL,
     loan_3m_count BIGINT NOT NULL,
+    trending_score DECIMAL(6, 3) NOT NULL,
+    steady_score DECIMAL(6, 3) NOT NULL,
     rank_score DECIMAL(20, 4) NOT NULL,
     candidate_type VARCHAR(30) NOT NULL,
-    as_of_month CHAR(7) NOT NULL,
-    feature_version VARCHAR(50) NOT NULL,
-    PRIMARY KEY (isbn13),
+    PRIMARY KEY (isbn13, as_of_month, feature_version),
     CONSTRAINT fk_demand_features_book
+        FOREIGN KEY (isbn13) REFERENCES books (isbn13)
+);
+
+CREATE TABLE book_content_features (
+    isbn13 CHAR(13) NOT NULL,
+    feature_scores TEXT NOT NULL,
+    feature_version VARCHAR(50) NOT NULL,
+    extracted_at DATETIME NOT NULL,
+    PRIMARY KEY (isbn13, feature_version),
+    CONSTRAINT fk_content_features_book
         FOREIGN KEY (isbn13) REFERENCES books (isbn13)
 );
 
@@ -140,6 +153,7 @@ CREATE TABLE recommendations (
     id UUID NOT NULL,
     user_id UUID NOT NULL,
     model_version VARCHAR(100) NOT NULL,
+    weights TEXT NOT NULL,
     generated_at DATETIME NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT fk_recommendations_user
@@ -151,6 +165,7 @@ CREATE TABLE recommendation_items (
     book_id UUID NOT NULL,
     rank INTEGER NOT NULL,
     score DECIMAL(20, 6) NOT NULL,
+    feature_scores TEXT NOT NULL,
     reason_type VARCHAR(50) NOT NULL,
     reason_text VARCHAR(500) NOT NULL,
     PRIMARY KEY (recommendation_id, book_id),

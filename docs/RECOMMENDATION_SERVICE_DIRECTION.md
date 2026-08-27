@@ -82,6 +82,14 @@ rank_score = loan_24m + 4 * loan_3m
 - Spring Boot는 저장된 결과 조회, 서재 도서 제외 보정, 추천 이유 응답을 담당한다.
 - 계산 실패 시 마지막 성공 결과 또는 콜드스타트 결과를 반환하며 검색·서재·인증과 장애 격리를 유지한다.
 
+### Feature 점수와 가중치 계산
+
+- 책 단위로 미리 계산할 수 있는 수요 feature는 `book_demand_features`에 원값과 정규화 점수를 함께 저장한다. `trending_score`는 최근 3개월 대출량, `steady_score`는 최근 24개월 대출량을 0~100으로 정규화한 값이다.
+- 책소개·목차·카테고리에서 추출한 `time_regression`, `fantasy`, `realistic`, `light_tone`, `emotional_intensity`, `difficulty` 등의 콘텐츠 feature는 `book_content_features.feature_scores`에 점수(0~100)와 신뢰도(0~1)를 함께 저장한다.
+- `taste`는 사용자 프로필과 후보 도서의 콘텐츠 유사도, `coLoan`은 함께 대출 신호, `newField`는 사용자 취향과의 거리·신규성처럼 사용자마다 달라질 수 있으므로 책 테이블에 고정 점수로 저장하지 않는다.
+- 추천 계산 시 모든 후보에 대해 `featureScores`를 만든 뒤 요청 가중치와 결합한다. 정보가 없는 feature는 가중치 분모에서 제외한다.
+- 최종 추천 스냅샷에는 후보별 `featureScores`와 추천 전체의 `weights`를 함께 저장한다. 따라서 프리셋·가중치가 변경되어도 원점수에서 결과를 재계산할 수 있다.
+
 ### 추천 결과 저장과 캐시 정책
 
 #### DB에 저장하는 것
@@ -134,9 +142,10 @@ rank_score = loan_24m + 4 * loan_3m
 1. L0 국중·정보나루 ISBN13 합집합 정제 및 `books`/`book_source_records` 적재
 2. 외부 대출 원장의 최신·3개월 전·24개월 전 스냅샷 확보 및 차분 검증
 3. 수요 99% 임계와 신간 트랙을 적용한 `book_demand_features` 생성
-4. 제목·저자·책소개 색인 및 L0 검색·온디맨드 등록 구현
-5. 콜드스타트 추천 → 콘텐츠 기반 개인화 추천 → 추천 결과 저장
-6. 추천 이유와 이벤트 측정 연동
+4. 책소개·목차·카테고리 기반 `book_content_features` 추출 및 품질 검증
+5. 제목·저자·책소개 색인 및 L0 검색·온디맨드 등록 구현
+6. 콜드스타트 추천 → 콘텐츠 기반 개인화 추천 → 추천 결과 저장
+7. 추천 이유와 이벤트 측정 연동
 
 ## 8. 아직 확정하지 않는 사항
 
