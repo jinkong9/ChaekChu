@@ -441,3 +441,12 @@ erDiagram
 - `book_source_records.raw_payload_ref`의 파일·오브젝트 저장소 규칙 결정
 - 사용자 이벤트의 `client_event_id` UNIQUE 범위와 보관 기간 결정
 - 추천 결과 보관 기간과 최신 성공 결과 조회 정책 결정
+
+## 7. ERDCloud로 가져오기
+
+1. ERDCloud에서 새 ERD를 만든다.
+2. 하단 `가져오기(Import)`에서 DDL 입력을 선택한다.
+3. [ERDCLOUD_IMPORT.sql](ERDCLOUD_IMPORT.sql)의 전체 내용을 붙여 넣는다.
+4. 생성된 관계와 칼럼을 확인한 뒤 레이아웃을 정리한다.
+
+이 파일은 ERDCloud 관계선 생성을 위한 논리 모델이다. `library_holding_snapshots`와 `book_demand_features`는 실제 구현에서 Parquet 또는 분석 DB로 분리할 수 있다.
