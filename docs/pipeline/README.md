@@ -12,6 +12,7 @@
 | [WORK_STATE.md](WORK_STATE.md) | **재개 지점.** 지금 어디까지 왔고 다음이 뭔지. 먼저 읽을 것 |
 | [RECOMMENDATION_DATA_DECISIONS.md](RECOMMENDATION_DATA_DECISIONS.md) | 아키텍처 결정 기록. 결정 → 실측 근거 → 기각한 대안 |
 | [DATA_INVENTORY.md](DATA_INVENTORY.md) | 파일별 컬럼·타입·실측 채움율·조인 키 주의사항 |
+| [SCRIPTS.md](SCRIPTS.md) | 스크립트 색인. 14개 전부 — 역할·실행 순서·박혀 있는 함정 |
 
 관련 문서 — 저장소 밖 `project_personal/` :
 `DATA_SOURCE_STRATEGY.md` (소스 전략), `COVERAGE_SIMULATION_SPEC.md` (측정 명세)
@@ -26,20 +27,7 @@ database/_pipeline/
 └── reports/     스크립트가 생성한 산출물 (.txt, .csv) — 재생성 가능
 ```
 
-주요 스크립트:
-
-| 스크립트 | 역할 |
-| --- | --- |
-| `convert_nl_to_parquet.py` | 국중 JSONL 2.2GB → Parquet |
-| `isbn_sql.py` | ISBN10/13 정규화 SQL 매크로 (자체 검증 포함) |
-| `measure_baseline.py` | Phase 0 전수 기준선 측정 |
-| `build_holdings_parquet.py` | 정보나루 샤드 → 보유 원장 Parquet 3종 |
-| `recover_nl_url_text.py` | 국중 URL 텍스트 회수 (API 쿼터 무관) |
-| `repair_url_text_csv.py` | 회수 CSV 복구 (손상 행 판별) |
-| `clean_text_for_embedding.py` | 임베딩 입력용 텍스트 정제 |
-| `pilot_kakao_coverage.py` | 카카오 보강 능력 층화 측정 |
-| `pilot_data4library_coverage.py` | 정보나루 보강 능력 측정 |
-| `analyze_nl_uncovered.py` | 대출 필터가 버리는 집합 분석 |
+스크립트별 설명은 [SCRIPTS.md](SCRIPTS.md) 에 있다.
 
 <br/>
 
