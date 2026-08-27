@@ -32,6 +32,7 @@ except Exception:
 csv.field_size_limit(20_000_000)
 TARGET = Path(r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal\nl_url_text.csv")
 MIN_CHARS = 20
+MAX_CHARS = 100_000   # 초과분은 절단 (실측 최대 1,960만 자)
 
 
 def main() -> int:
@@ -48,7 +49,7 @@ def main() -> int:
     reader = csv.DictReader(io.StringIO(text))
 
     best: dict[tuple[str, str], tuple[int, str, str]] = {}
-    stats = {"total": 0, "corrupt": 0, "malformed": 0, "short": 0, "dup": 0}
+    stats = {"total": 0, "corrupt": 0, "malformed": 0, "short": 0, "dup": 0, "truncated": 0}
     for row in reader:
         stats["total"] += 1
         isbn = (row.get("isbn13") or "").strip()
@@ -73,6 +74,9 @@ def main() -> int:
         if len(body) < MIN_CHARS:
             stats["short"] += 1
             continue
+        if len(body) > MAX_CHARS:
+            body = body[:MAX_CHARS]
+            stats["truncated"] = stats.get("truncated", 0) + 1
 
         key = (isbn, field)
         if key in best:
@@ -96,6 +100,7 @@ def main() -> int:
     print(f"  형식 오류 폐기 {stats['malformed']:>9,}")
     print(f"  너무 짧아 폐기 {stats['short']:>9,}")
     print(f"  중복 병합     {stats['dup']:>9,}")
+    print(f"  초장문 절단   {stats['truncated']:>9,}")
     print(f"  최종 보존     {len(best):>9,}건")
     print(f"  파일 {path.stat().st_size/1024/1024:.1f} MB (원본 백업: {backup.name})")
 
