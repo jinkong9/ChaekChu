@@ -46,26 +46,44 @@ NL = Path(r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal\nl_books_deri
 OUT = Path(r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal\nl_url_text.csv")
 WORKERS = 10          # 실측 포화 지점 (분당 ~1,900건). 공공 서버라 더 올리지 않는다.
 MIN_CHARS = 20        # 이 미만은 회수 실패로 간주
+MAX_CHARS = 100_000   # 책소개/목차가 이보다 길면 비정상(전문 스캔 등). 잘라서 저장한다
 FIELDS = {"intro": "intro_url", "toc": "toc_url", "summary": "summary_url"}
 
 lock = threading.Lock()
-csv.field_size_limit(10_000_000)
+csv.field_size_limit(50_000_000)  # 회수 텍스트에 10MB 초과 사례 존재
 
 
 def clean(raw: bytes) -> str:
-    """인코딩 자동 판별 후 공백 정리. 국중 파일은 utf-8/cp949 가 섞여 있다."""
-    for encoding in ("utf-8-sig", "utf-8", "cp949"):
+    """인코딩 자동 판별 후 공백 정리.
+
+    국중 파일은 utf-8/cp949 가 주류지만 UTF-16 등 제3의 인코딩도 섞여 있다.
+    실측: 무판별 fallback 을 쓰면 1.0% 행에 대체문자(U+FFFD)가 박힌다.
+    판별에 실패하면 빈 문자열을 돌려 회수 실패로 처리한다 — 깨진 텍스트를
+    임베딩에 넣는 것보다 없는 편이 낫다.
+    """
+    # BOM 이 있으면 그것을 우선 신뢰한다
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        candidates = ("utf-16", "utf-32")
+    else:
+        candidates = ("utf-8-sig", "utf-8", "cp949", "utf-16")
+    for encoding in candidates:
         try:
             text = raw.decode(encoding)
             break
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, UnicodeError):
             continue
     else:
-        text = raw.decode("utf-8", "replace")
+        return ""
+    # 판별에 성공해도 대체문자가 많으면 잘못 읽은 것이다
+    if text.count("\ufffd") > len(text) * 0.02:
+        return ""
     # HTML 오류 페이지가 돌아오는 경우가 있어 걸러낸다
     if re.search(r"<html|<!DOCTYPE", text[:400], re.I):
         return ""
-    return " ".join(text.split())
+    text = " ".join(text.split())
+    # 실측: 1,960만 자(19MB) 짜리 파일이 존재한다. 책소개가 아니라 본문 전문으로 보인다.
+    # 임베딩 입력으로 쓸 수 없고 CSV 필드 상한도 넘기므로 잘라 둔다.
+    return text[:MAX_CHARS]
 
 
 def fetch(url: str, retries: int = 2) -> str:
