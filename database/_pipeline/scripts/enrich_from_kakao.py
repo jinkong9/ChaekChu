@@ -21,8 +21,9 @@
   thumbnail  표지
 
 실행
-    py scripts/enrich_from_kakao.py                 # 이어서 수집
+    py scripts/enrich_from_kakao.py                 # 이어서 수집 (하루 몫 소진하면 종료)
     py scripts/enrich_from_kakao.py --limit 5000    # 맛보기
+    py scripts/enrich_from_kakao.py --wait          # 자정까지 기다렸다 재개
 """
 
 from __future__ import annotations
@@ -289,8 +290,9 @@ def run(args) -> int:
             wait = seconds_to_kst_midnight()
             print(f"\n*** 상한 도달: \"{state['block_msg']}\"")
             print(f"    이번 실행 누적 {state['calls']:,}호출 / 남은 {len(pending):,}건")
-            if args.no_wait:
-                print("    --no-wait — 종료. 그대로 다시 실행하면 이어진다")
+            if not args.wait:
+                print("    오늘 몫 소진 — 종료한다. 내일 그대로 다시 실행하면 이어진다.")
+                print("       py scripts/" + Path(__file__).name)
                 break
             print(f"    KST 자정까지 {wait/3600:.1f}시간 대기 후 자동 재개", flush=True)
             slept = 0.0
@@ -313,7 +315,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workers", type=int, default=WORKERS)
     parser.add_argument("--limit", type=int, default=0)
-    parser.add_argument("--no-wait", action="store_true")
+    parser.add_argument("--wait", action="store_true",
+                        help="상한에 걸리면 KST 자정까지 대기 후 자동 재개 "
+                             "(기본은 즉시 종료)")
     args = parser.parse_args()
 
     acquire_lock()

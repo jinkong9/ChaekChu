@@ -18,8 +18,10 @@
 
   **상한에 걸리면 JSON 에러가 아니라 연결을 그냥 끊는다.** 그래서
   메시지 감지만으로는 부족하고 연속 실패 누적으로도 판정한다.
-  차단으로 판정하면 전량 정지 -> KST 자정 대기 -> 자동 재개.
-  진행은 파일에 남으므로 손실은 없다.
+  상한으로 판정하면 전량 정지하고 **그 자리에서 종료**한다.
+  진행은 파일에 남으므로 다음 날 같은 명령을 다시 치면 이어서 간다.
+  (`--wait` 를 주면 자정까지 대기했다가 자동 재개하지만, 노트북이
+   상시 켜져 있지 않으므로 기본값은 종료다.)
 
   3만/일 기준 954,776건 완주는 32일. 1단(노출 90%)만이면 10일.
 
@@ -32,9 +34,10 @@
   age/gender   연령대·성별 대출 분포와 순위. 콜드스타트 개인화 신호
 
 실행
-    py scripts/enrich_from_data4library.py                # 이어서 수집
+    py scripts/enrich_from_data4library.py                # 이어서 수집 (하루 몫 소진하면 종료)
     py scripts/enrich_from_data4library.py --limit 5000   # 맛보기
     py scripts/enrich_from_data4library.py --workers 24   # 더 얌전하게
+    py scripts/enrich_from_data4library.py --wait         # 자정까지 기다렸다 재개
 """
 
 from __future__ import annotations
@@ -347,8 +350,9 @@ def run(args) -> int:
             wait = seconds_to_kst_midnight()
             print(f"\n*** 일일 상한 도달: \"{state['block_msg']}\"")
             print(f"    이번 실행 누적 {state['calls']:,}호출 / 남은 대상 {len(pending):,}건")
-            if args.no_wait:
-                print("    --no-wait — 종료한다. 그대로 다시 실행하면 이어진다")
+            if not args.wait:
+                print("    오늘 몫 소진 — 종료한다. 내일 그대로 다시 실행하면 이어진다.")
+                print("       py scripts/" + Path(__file__).name)
                 break
             print(f"    KST 자정까지 {wait/3600:.1f}시간 대기 후 자동 재개", flush=True)
             slept = 0.0
@@ -374,8 +378,9 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=WORKERS)
     parser.add_argument("--limit", type=int, default=0,
                         help="이번 실행에서 처리할 최대 건수")
-    parser.add_argument("--no-wait", action="store_true",
-                        help="차단되면 자정까지 기다리지 않고 즉시 종료")
+    parser.add_argument("--wait", action="store_true",
+                        help="상한에 걸리면 KST 자정까지 대기 후 자동 재개 "
+                             "(기본은 즉시 종료 — 노트북이 상시 켜져 있지 않다)")
     args = parser.parse_args()
 
     acquire_lock()
