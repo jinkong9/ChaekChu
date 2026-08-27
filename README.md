@@ -19,6 +19,8 @@ SSAFY 15기 2학기 관통 프로젝트 · 서울 1캠퍼스 B반 102팀
 - [개발 일정](docs/PROJECT_SCHEDULE.md)
 - [MVP 구현 계획](docs/MVP_IMPLEMENTATION_PLAN.md)
 - [백엔드 데이터 계약](docs/BACKEND_DATA_CONTRACT.md)
+- [백엔드 ERD 초안](docs/ERD.md)
+- [추천 데이터 기반 서비스 방향](docs/RECOMMENDATION_SERVICE_DIRECTION.md)
 - [팀원 소개](#팀원-소개)
 - [협업 규칙](#협업-규칙)
 
@@ -115,9 +117,7 @@ SSAFY 15기 2학기 관통 프로젝트 · 서울 1캠퍼스 B반 102팀
 
 ## ERD
 
-```
-<!-- ERD 이미지 첨부 -->
-```
+초안은 [백엔드 ERD 초안](docs/ERD.md)에서 확인할 수 있습니다.
 
 <br/>
 
