@@ -122,6 +122,7 @@ CREATE TABLE user_seed_books (
     user_id UUID NOT NULL,
     book_id UUID NOT NULL,
     rating SMALLINT NOT NULL,
+    review_text VARCHAR(300),
     created_at DATETIME NOT NULL,
     PRIMARY KEY (user_id, book_id),
     CONSTRAINT fk_user_seed_books_user

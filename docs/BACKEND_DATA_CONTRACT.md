@@ -170,10 +170,13 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 | `userId` | `string` | O | 평점 작성자 |
 | `bookId` | `string` | O | 평가 대상 도서 |
 | `rating` | `integer` | O | 1~5 정수 |
+| `reviewText` | `string \| null` |  | 본인 독서 기록용 한 줄 감상평, 최대 300자 |
 | `createdAt` | `datetime` | O | 생성 시각 |
 | `updatedAt` | `datetime` | O | 수정 시각 |
 
-`(userId, bookId)`는 unique다. 평점은 서재 상태와 별도로 저장하되 추천 입력에서 함께 사용할 수 있다.
+`(userId, bookId)`는 unique다. 평점은 서재 상태와 별도로 저장한다. `reviewText`는 선택값이며 앞뒤 공백을 제거하고 빈 문자열은 `null`로 저장한다. 감상평은 본인 기록용으로만 제공하고 다른 사용자의 응답·검색 색인·추천 계산에는 포함하지 않는다.
+
+MVP 추천 입력에는 평점·서재 상태·초기 취향만 사용한다. 감상평 원문은 다음 버전에서 사용자 동의와 활용 범위를 확정한 뒤 AI 분석 또는 개인화 feature로 사용할 수 있도록 보존한다.
 
 ### 4.4 `Recommendation`과 `RecommendationItem`
 
@@ -314,11 +317,12 @@ L0 카탈로그는 국립중앙도서관과 정보나루의 ISBN13 합집합이�
 ```json
 {
   "libraryStatus": "WANT_TO_READ",
-  "rating": 4
+  "rating": 4,
+  "reviewText": "전개가 빠르고 인물 묘사가 인상적이었다."
 }
 ```
 
-비로그인 사용자의 `libraryStatus`와 `rating`은 null이며, 다른 사용자의 상태는 절대 노출하지 않는다.
+로그인 사용자는 자신의 `reviewText`를 조회·수정할 수 있다. 비로그인 사용자의 `libraryStatus`, `rating`, `reviewText`는 null이며, 다른 사용자의 상태와 감상평은 절대 노출하지 않는다.
 
 ## 7. 완료 체크리스트
 

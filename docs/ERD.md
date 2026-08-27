@@ -150,6 +150,7 @@ erDiagram
         uuid user_id FK
         uuid book_id FK
         smallint rating
+        varchar review_text
         timestamp created_at
         timestamp updated_at
     }
@@ -342,7 +343,7 @@ erDiagram
 
 ### `book_ratings`
 
-사용자별 도서 평점을 저장한다. 서재 상태와 분리하므로 서재 등록 없이도 정책상 평점을 허용할 수 있다.
+사용자별 도서 평점과 개인 감상 기록을 저장한다. 서재 상태와 분리하므로 서재 등록 없이도 정책상 평점을 허용할 수 있다. 감상평은 MVP에서 기록·조회·수정만 하고 추천 계산에는 사용하지 않는다.
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
@@ -350,9 +351,10 @@ erDiagram
 | `user_id` | UUID | O | 작성자 |
 | `book_id` | UUID | O | 평가 대상 |
 | `rating` | SMALLINT | O | 1~5 정수 |
+| `review_text` | VARCHAR(300) |  | 개인 기록용 한 줄 감상평 |
 | `created_at`, `updated_at` | TIMESTAMP | O | 변경 추적 |
 
-`(user_id, book_id)`는 UNIQUE로 한다.
+`(user_id, book_id)`는 UNIQUE로 한다. `review_text`는 선택값이며 앞뒤 공백을 제거한 뒤 저장한다. 빈 문자열은 NULL로 저장하고, MVP에서는 Elasticsearch 색인·추천 feature·AI 분석에 사용하지 않는다.
 
 ### `recommendations`
 
@@ -408,6 +410,7 @@ erDiagram
 - `library_items.status IN ('WANT_TO_READ', 'READING', 'READ')`
 - `library_items`의 `READ` 외 상태는 `finished_at IS NULL`
 - `book_ratings(user_id, book_id)` UNIQUE 및 `rating BETWEEN 1 AND 5`
+- `book_ratings.review_text`는 NULL 허용, 최대 300자
 - `recommendation_items` 기본키 `(recommendation_id, book_id)` 및 `rank >= 1`
 - 추천 결과별 `rank` UNIQUE
 - `user_events.event_type` 허용값 제한
