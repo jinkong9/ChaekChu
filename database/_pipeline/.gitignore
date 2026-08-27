@@ -1,7 +1,31 @@
-# Parquet 등 대용량 파생 결과물은 저장소에 넣지 않는다.
-# 원본(books_all_years.jsonl)과 변환본은 project_personal/ 등 외부 경로에 둔다.
+# _pipeline 은 소스 횡단 분석 코드와 리포트만 저장소에 둔다.
+# 대용량 데이터(원본·Parquet·수집 산출물)는 project_personal/ 등 외부 경로에 보관한다.
+#   nl_books.parquet            275 MB
+#   nl_books_derived.parquet     94 MB
+#   nl_url_text.csv            ~500 MB
+#   data4library/holdings.parquet     673 MB  (1.21억 행)
+#   data4library/loans_by_isbn.parquet 25 MB
+# 위치와 스키마는 reports/data_inventory.md 참조.
+
+# 대용량 데이터 포맷
 *.parquet
+*.jsonl
+*.duckdb
+*.db
+*.corrupt
+
+# 수집 산출물 CSV (리포트용 missing_report_*.csv 는 예외로 추적)
+*.csv
+!reports/missing_report_*.csv
+
+# 작업 로그·임시
+*.log
 data/
 output/
+shards/
+snap_cache/
+tmp_*
+
+# 파이썬
 __pycache__/
 *.py[cod]
