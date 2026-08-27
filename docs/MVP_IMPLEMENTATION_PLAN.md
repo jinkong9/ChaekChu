@@ -9,7 +9,7 @@
 ### 사용자 핵심 흐름
 
 ```text
-회원가입·로그인
+카카오·Google OAuth 로그인
   → 출생연도·성별 입력
   → 초기 취향 설정 또는 건너뛰기
   → 제목·저자 중심 도서 검색
@@ -24,7 +24,7 @@
 
 ### 포함 기능
 
-- 회원가입·로그인·로그아웃
+- 카카오·Google OAuth 로그인·로그아웃
   - 출생연도·성별은 신규 사용자 세그먼트 추천에 사용
   - 해당 정보는 다른 사용자에게 공개하지 않음
 - 초기 취향 설정
@@ -70,7 +70,7 @@
 - Kafka·RabbitMQ
 - 별도 ML 서버
 - 관리자 통계 화면
-- Redis 캐시
+- Redis 추천 응답 캐시 (선택 사항, PostgreSQL fallback 필수)
 - 독서 메모·독서 진행률
 - 도서 조회 기록 기반 추천
 - 장르·출판사별 고급 검색 필터
@@ -97,7 +97,7 @@
 | 1 | 프로젝트 뼈대·실행 환경 | 0단계 | 백엔드·프론트엔드·Docker 실행 |
 | 2 | 도서 데이터 수집·정제 | 0단계 | 표준 JSONL·정제 결과 |
 | 3 | PostgreSQL·Elasticsearch | 0~2단계 | 저장·검색 가능한 도서 데이터 |
-| 4 | 회원·인증·초기 취향 | 1·3단계 | 가입·로그인·취향 저장 |
+| 4 | OAuth 인증·초기 취향 | 1·3단계 | OAuth 로그인·취향 저장 |
 | 5 | 도서 검색·상세 | 3단계 | 제목·저자 검색·상세 조회 |
 | 6 | 서재·독서 상태·좋아요 | 4~5단계 | 사용자별 서재 CRUD |
 | 7 | 평점 | 4~6단계 | 사용자별 평점 저장 |
@@ -108,7 +108,7 @@
 
 좋아요는 별도 단계가 아니라 6단계 서재 상태 API의 `WANT_TO_READ` 동작으로 구현합니다. 평점은 MVP 추천 신호로 사용하고, 감상평은 기록 전용으로 저장합니다.
 
-추천 후보·도서관 원장·월별 수요 계산의 상세 방향은 [추천 데이터 기반 서비스 방향](RECOMMENDATION_SERVICE_DIRECTION.md)과 [백엔드 ERD 초안](ERD.md)을 기준으로 합니다.
+추천 후보·외부 대출 원장·월별 수요 계산의 상세 방향은 [추천 데이터 기반 서비스 방향](RECOMMENDATION_SERVICE_DIRECTION.md)과 [백엔드 ERD 초안](ERD.md)을 기준으로 합니다.
 
 ## 4. 0단계 — MVP·데이터 계약 확정
 
@@ -208,9 +208,10 @@ data/
 4. 제목·저자·출판사·출판일·책소개·카테고리·이미지·ISBN을 표준 필드로 변환한다.
 5. ISBN13을 정규화하고 API별 중복을 통합한다. L0 미등재 ISBN은 카카오 온디맨드 등록 대상으로 둔다.
 6. 정제 실패 데이터와 실패 이유를 별도 파일로 남긴다.
-7. 관별 보유 원장과 도서관 마스터를 보존하고, 최신·3개월 전·24개월 전 스냅샷을 준비한다.
+7. 외부 대출 원장의 최신·3개월 전·24개월 전 스냅샷을 배치 입력으로 준비한다.
 8. 누적 대출 99% 유지 임계와 신간 트랙으로 추천 후보를 생성한다.
-9. 샘플 100~1,000건으로 정제 결과와 스냅샷 차분을 검증한다.
+9. 책소개·목차·카테고리에서 콘텐츠 feature를 배치 추출하고 `book_content_features`에 저장한다.
+10. 샘플 100~1,000건으로 정제 결과·스냅샷 차분·콘텐츠 feature 품질을 검증한다.
 
 ### 표준 도서 필드
 
@@ -244,18 +245,17 @@ rawPayload, collectedAt
 
 | 테이블 | 주요 필드 | 목적 |
 | --- | --- | --- |
-| `users` | id, email, password_hash, nickname, birth_year, gender | 회원·세그먼트 정보 |
+| `users` | id, oauth_provider, oauth_subject, email, nickname, birth_year, gender | 카카오·Google OAuth 회원·세그먼트 정보 |
 | `user_interests` | user_id, category | 초기 관심 분야 |
 | `user_seed_books` | user_id, book_id, rating | 초기 취향 입력 |
 | `books` | id, isbn13, title, authors, description, categories 등 | 표준 도서 원천 데이터 |
+| `book_content_features` | isbn13, feature_scores, feature_version, extracted_at | 책소개 기반 콘텐츠 feature |
 | `library_items` | user_id, book_id, status, finished_at | 개인 서재·독서 상태·좋아요 |
 | `book_ratings` | user_id, book_id, rating, review_text | 평점·개인 감상 기록 |
 | `recommendations` | id, user_id, model_version, generated_at | 추천 결과 묶음 |
 | `recommendation_items` | recommendation_id, book_id, rank, score, reason_type, reason_text | 추천 항목 |
 | `user_events` | user_id, recommendation_id, book_id, event_type, rank, created_at | 추천 측정 이벤트 |
-| `libraries` | id, source_site_id, api_libcode, name, latitude, longitude | 도서관 마스터 |
-| `library_holding_snapshots` | library_id, isbn13, snapshot_month, cumulative_loan_count, copy_count | 관별 보유·대출 원장 |
-| `book_demand_features` | isbn13, loan_24m_count, loan_3m_count, rank_score, candidate_type, as_of_month, feature_version | 추천 후보·수요 파생 결과 |
+| `book_demand_features` | isbn13, cumulative_loan_count, loan_24m_count, loan_3m_count, trending_score, steady_score, rank_score, candidate_type, as_of_month, feature_version | 추천 후보·수요 파생 결과 |
 
 ### 저장 규칙
 
@@ -266,7 +266,8 @@ rawPayload, collectedAt
 - `review_text`는 nullable이며 최대 300자로 제한한다. MVP 추천 입력에는 포함하지 않는다.
 - `WANT_TO_READ`가 좋아요·읽고 싶은 책 등록을 의미한다.
 - PostgreSQL을 원천 데이터로 두고 Flyway로 스키마를 관리한다.
-- 1.2억 건 관별 원장은 PostgreSQL 트랜잭션 테이블에 무조건 적재하지 않고 Parquet/분석 저장소를 우선 사용한다.
+- 대용량 외부 대출 원장은 PostgreSQL 트랜잭션 테이블에 적재하지 않고 Parquet/분석 저장소에서 배치 처리한다.
+- 배치 집계한 도서별 대출량과 추천 수요 feature는 `book_demand_features`에 저장한다.
 - 개인정보는 추천 세그먼트 계산에 필요한 범위만 사용한다.
 
 ### Elasticsearch 기준
@@ -277,7 +278,6 @@ rawPayload, collectedAt
 - exact 검색 필드: isbn13, publisher, categories
 - 검색 결과에는 canonical book ID와 ISBN13을 함께 반환한다.
 - 매핑 변경이 필요하면 기존 인덱스를 바로 수정하지 말고 새 버전을 만든다.
-- 최신 보유 도서·근처 도서관 조회는 `libraries`와 최신 `library_holding_snapshots` 파생 데이터로 제공한다.
 
 ### 완료 조건
 
@@ -286,13 +286,13 @@ rawPayload, collectedAt
 - 제목·저자 검색이 동작한다.
 - 저장 실패·색인 실패 로그를 각각 확인할 수 있다.
 
-## 8. 4단계 — 회원·인증·초기 취향
+## 8. 4단계 — OAuth 인증·초기 취향
 
 ### 작업
 
-- 회원가입 요청 검증을 구현한다.
-- 비밀번호를 해시해서 저장한다.
-- 로그인 성공 시 JWT를 발급한다.
+- 카카오·Google OAuth authorize/callback 흐름을 구현한다.
+- 허용 provider를 `KAKAO`, `GOOGLE`로 제한하고 callback의 state·code·subject를 검증한다.
+- OAuth 최초 로그인 시 사용자를 생성하고 로그인 성공 시 서비스 JWT를 발급한다.
 - 인증 필터와 현재 사용자 조회 기능을 구현한다.
 - 출생연도·성별은 세그먼트 추천에만 사용하고 공개 응답에서 제외한다.
 - 관심 분야와 seed book 평점 저장·조회·수정 API를 구현한다.
@@ -301,8 +301,10 @@ rawPayload, collectedAt
 ### API 예시
 
 ```text
-POST /api/v1/auth/signup
-POST /api/v1/auth/login
+GET  /api/v1/auth/oauth/kakao/authorize
+GET  /api/v1/auth/oauth/kakao/callback
+GET  /api/v1/auth/oauth/google/authorize
+GET  /api/v1/auth/oauth/google/callback
 GET  /api/v1/users/me
 GET  /api/v1/users/me/preferences
 PUT  /api/v1/users/me/preferences
@@ -310,8 +312,9 @@ PUT  /api/v1/users/me/preferences
 
 ### 완료 조건
 
-- 중복 이메일 가입이 거부된다.
-- 잘못된 비밀번호와 만료된 토큰이 거부된다.
+- 허용되지 않은 OAuth provider와 위조·재사용된 state/code가 거부된다.
+- 동일 provider의 동일 subject로 로그인하면 기존 사용자를 재사용한다.
+- OAuth 인증 성공 후 서비스 JWT가 발급된다.
 - 인증이 필요한 API가 비로그인 사용자를 거부한다.
 - 개인정보가 다른 사용자에게 노출되지 않는다.
 - 취향 설정을 건너뛴 사용자도 서비스 이용이 가능하다.
@@ -452,8 +455,9 @@ DELETE /api/v1/books/{bookId}/rating
 4. 후보 도서와 사용자 프로필의 코사인 유사도를 계산한다.
 5. `WANT_TO_READ`·평점·독서 상태별 가중치를 적용한다.
 6. 이미 서재에 있는 도서는 제외하고, 텍스트 부족 도서는 사전 필터에서 제거하지 않는다.
-7. `loan_24m + 4 × loan_3m` 수요 랭킹을 보조 신호로 결합한다. 누적 대출량 자체는 랭킹 주신호로 사용하지 않으며, 감상평도 MVP에서는 사용하지 않는다.
-8. 상위 N개를 저장하고 rank·score·추천 이유를 함께 기록한다.
+7. `trending_score`, `steady_score` 등 책 단위 feature와 사용자별 `taste`, `coLoan`, `newField` feature를 모두 0~100 범위로 맞춘다.
+8. `score = Σ(feature_score × weight) / Σ(사용 가능한 feature의 weight)`로 계산한다. 가중치가 바뀌어도 저장된 feature 원점수로 다시 계산할 수 있다.
+9. 상위 N개를 저장하고 rank·score·featureScores·추천 이유·적용 weights를 함께 기록한다.
 
 ### 초기 가중치
 
@@ -480,9 +484,10 @@ READING: 0.8
 ### 구현 방식
 
 - Python `data/recommendation`에서 추천 계산을 수행한다.
-- 계산 결과는 PostgreSQL `recommendations`에 저장한다.
+- 새로 생성된 성공 추천 결과만 PostgreSQL `recommendations`·`recommendation_items`에 스냅샷으로 저장한다. 같은 결과의 반복 조회마다 중복 저장하지 않는다.
 - Spring Boot는 추천 결과 조회·제외·이유 응답을 담당한다.
 - 추천 계산 실패 시 마지막 성공 결과 또는 콜드스타트 결과를 반환한다.
+- Redis는 선택적 응답 캐시로만 사용한다. 캐시 미스·만료에도 DB의 최신 성공 결과로 응답할 수 있어야 한다.
 - 실시간 학습이나 별도 ML 서버는 만들지 않는다.
 
 ### 완료 조건
@@ -498,7 +503,7 @@ READING: 0.8
 ### 화면 구현 순서
 
 1. 공통 레이아웃·헤더·로그인 상태
-2. 회원가입·로그인
+2. 카카오·Google OAuth 로그인
 3. 초기 취향 설정
 4. 검색 결과
 5. 도서 상세
@@ -527,7 +532,7 @@ READING: 0.8
 ### 테스트 순서
 
 1. 데이터 정제·ISBN 중복 제거 테스트
-2. 회원가입·로그인·권한 테스트
+2. 카카오·Google OAuth 로그인·권한 테스트
 3. 검색·상세 조회 테스트
 4. 서재 상태 전이 테스트
 5. `WANT_TO_READ` 중복·취소, 평점 범위·감상평 길이 테스트
@@ -619,7 +624,7 @@ READING: 0.8
 
 ## 18. 최종 MVP 완료 기준
 
-- 회원가입·로그인·로그아웃이 동작한다.
+- 카카오·Google OAuth 로그인·로그아웃이 동작한다.
 - 출생연도·성별을 이용한 신규 사용자 세그먼트 폴백 추천이 동작한다.
 - 초기 취향 설정을 저장하거나 건너뛸 수 있다.
 - 제목·저자로 도서를 검색하고 상세 정보를 확인할 수 있다.
