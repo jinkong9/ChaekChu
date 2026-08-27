@@ -9,6 +9,7 @@
 
 | 문서 | 내용 |
 | --- | --- |
+| [CATALOG_STATUS_REPORT.md](CATALOG_STATUS_REPORT.md) | **현황 보고서.** 외부 공유용 — 수집 현황·계획·성과·제약 한 장 요약 (HTML 판 동봉) |
 | [WORK_STATE.md](WORK_STATE.md) | **재개 지점.** 지금 어디까지 왔고 다음이 뭔지. 먼저 읽을 것 |
 | [RECOMMENDATION_DATA_DECISIONS.md](RECOMMENDATION_DATA_DECISIONS.md) | 아키텍처 결정 기록. 결정 → 실측 근거 → 기각한 대안 |
 | [DATA_INVENTORY.md](DATA_INVENTORY.md) | 파일별 컬럼·타입·실측 채움율·조인 키 주의사항 |
