@@ -192,7 +192,7 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 | `bookId` | `string` | O | 추천 도서 |
 | `rank` | `integer` | O | 1부터 시작, 추천 내부 unique |
 | `score` | `number` | O | 계산 점수 |
-| `reasonType` | `enum` | O | `SAME_AUTHOR`, `SAME_CATEGORY`, `TEXT_SIMILARITY`, `SEGMENT_POPULAR`, `CO_BORROWED`, `INITIAL_PREFERENCE` |
+| `reasonType` | `enum` | O | `SAME_AUTHOR`, `SAME_CATEGORY`, `TEXT_SIMILARITY`, `SEGMENT_POPULAR`, `DEMAND_POPULAR`, `MOMENTUM`, `NEW_BOOK`, `INITIAL_PREFERENCE` |
 | `reasonText` | `string` | O | 카드에 항상 표시할 요약 이유 |
 
 추천 결과에는 사용자의 서재에 이미 등록된 도서를 포함하지 않는다. 추천 계산 실패 시 마지막 성공 결과 또는 콜드스타트 결과를 사용할 수 있으며, 어느 전략으로 응답했는지는 `modelVersion`과 reason type으로 추적한다.
@@ -215,6 +215,8 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 ## 5. 외부 필드 매핑
 
 ### 5.1 표준 필드별 출처 우선순위
+
+L0 카탈로그는 국립중앙도서관과 정보나루의 ISBN13 합집합이다. 출처별 원본과 온디맨드로 보강된 카카오 레코드는 `BookSourceRecord`로 추적하며, canonical `Book`은 검증된 ISBN13을 기준으로 하나만 만든다.
 
 | canonical 필드 | 우선 출처 | 보강 출처 | 선택 규칙 |
 | --- | --- | --- | --- |

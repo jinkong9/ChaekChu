@@ -103,6 +103,8 @@
 
 좋아요는 별도 단계가 아니라 6단계 서재 상태 API의 `WANT_TO_READ` 동작으로 구현합니다. 평점만 별도 신호로 저장합니다.
 
+추천 후보·도서관 원장·월별 수요 계산의 상세 방향은 [추천 데이터 기반 서비스 방향](RECOMMENDATION_SERVICE_DIRECTION.md)과 [백엔드 ERD 초안](ERD.md)을 기준으로 합니다.
+
 ## 4. 0단계 — MVP·데이터 계약 확정
 
 ### 작업
@@ -195,15 +197,15 @@ data/
 
 ### 작업 순서
 
-1. API별 수집 모듈을 분리한다.
-2. timeout·재시도·요청 제한·실패 로그를 구현한다.
+1. 국중·정보나루의 ISBN13 합집합을 L0 카탈로그 원천으로 구성한다.
+2. API별 수집 모듈을 분리하고 timeout·재시도·요청 제한·실패 로그를 구현한다.
 3. 원본 응답을 API별 JSONL로 보관한다.
 4. 제목·저자·출판사·출판일·책소개·카테고리·이미지·ISBN을 표준 필드로 변환한다.
-5. ISBN13을 정규화하고 API별 중복 데이터를 통합한다.
+5. ISBN13을 정규화하고 API별 중복을 통합한다. L0 미등재 ISBN은 카카오 온디맨드 등록 대상으로 둔다.
 6. 정제 실패 데이터와 실패 이유를 별도 파일로 남긴다.
-7. 정보나루 인기대출 데이터를 연령·성별 세그먼트별 폴백 추천 원천으로 저장한다.
-8. 정보나루 함께대출 데이터를 관련 도서·추천 근거 후보로 저장한다.
-9. 샘플 100~1,000건으로 정제 결과를 검증한다.
+7. 관별 보유 원장과 도서관 마스터를 보존하고, 최신·3개월 전·24개월 전 스냅샷을 준비한다.
+8. 누적 대출 99% 유지 임계와 신간 트랙으로 추천 후보를 생성한다.
+9. 샘플 100~1,000건으로 정제 결과와 스냅샷 차분을 검증한다.
 
 ### 표준 도서 필드
 
@@ -214,12 +216,16 @@ coverImageUrl, language, source, sourceBookId,
 rawPayload, collectedAt
 ```
 
+`keywords`는 보강 가능한 배치 feature이며 초기 PostgreSQL `books` 테이블의 필수 칼럼으로 저장하지 않는다.
+
 ### 완료 조건
 
 - 동일한 ISBN13이 중복 도서로 생성되지 않는다.
 - API 원본과 표준화 결과를 역추적할 수 있다.
 - 누락·오류 데이터가 조용히 사라지지 않는다.
-- 인기대출·함께대출 데이터가 추천 후보와 연결된다.
+- 국중·정보나루 합집합 도서가 중복 없이 L0에 들어간다.
+- 관별 원장에서 최근 3개월·24개월 대출 차분을 재현할 수 있다.
+- 추천 후보와 신간 트랙이 `book_demand_features`로 연결된다.
 
 ### 작업 명령 예시
 
@@ -234,31 +240,38 @@ rawPayload, collectedAt
 | 테이블 | 주요 필드 | 목적 |
 | --- | --- | --- |
 | `users` | id, email, password_hash, nickname, birth_year, gender | 회원·세그먼트 정보 |
-| `user_interests` | user_id, category_id | 초기 관심 분야 |
+| `user_interests` | user_id, category | 초기 관심 분야 |
 | `user_seed_books` | user_id, book_id, rating | 초기 취향 입력 |
 | `books` | id, isbn13, title, authors, description, categories 등 | 표준 도서 원천 데이터 |
 | `library_items` | user_id, book_id, status, finished_at | 개인 서재·독서 상태·좋아요 |
 | `book_ratings` | user_id, book_id, rating | 평점 신호 |
-| `recommendations` | id, user_id, book_id, rank, score, reason_type, reason_text | 추천 결과 |
+| `recommendations` | id, user_id, model_version, generated_at | 추천 결과 묶음 |
+| `recommendation_items` | recommendation_id, book_id, rank, score, reason_type, reason_text | 추천 항목 |
 | `user_events` | user_id, recommendation_id, book_id, event_type, rank, created_at | 추천 측정 이벤트 |
+| `libraries` | id, source_site_id, api_libcode, name, latitude, longitude | 도서관 마스터 |
+| `library_holding_snapshots` | library_id, isbn13, snapshot_month, cumulative_loan_count, copy_count | 관별 보유·대출 원장 |
+| `book_demand_features` | isbn13, loan_24m_count, loan_3m_count, rank_score, candidate_type, as_of_month, feature_version | 추천 후보·수요 파생 결과 |
 
 ### 저장 규칙
 
 - `books.isbn13`은 unique로 관리한다.
+- L0 카탈로그는 국중·정보나루 ISBN13 합집합이며, 카탈로그 출처는 `book_source_records`로 추적한다.
 - `library_items(user_id, book_id)`는 unique로 관리한다.
 - `book_ratings(user_id, book_id)`는 unique로 관리한다.
 - `WANT_TO_READ`가 좋아요·읽고 싶은 책 등록을 의미한다.
 - PostgreSQL을 원천 데이터로 두고 Flyway로 스키마를 관리한다.
+- 1.2억 건 관별 원장은 PostgreSQL 트랜잭션 테이블에 무조건 적재하지 않고 Parquet/분석 저장소를 우선 사용한다.
 - 개인정보는 추천 세그먼트 계산에 필요한 범위만 사용한다.
 
 ### Elasticsearch 기준
 
 - 인덱스 예시: `books_v1`
 - 문서 ID: ISBN13 또는 canonical book ID
-- 검색 대상: title, authors, keywords, description
+- 검색 대상: title, authors, description
 - exact 검색 필드: isbn13, publisher, categories
 - 검색 결과에는 canonical book ID와 ISBN13을 함께 반환한다.
 - 매핑 변경이 필요하면 기존 인덱스를 바로 수정하지 말고 새 버전을 만든다.
+- 최신 보유 도서·근처 도서관 조회는 `libraries`와 최신 `library_holding_snapshots` 파생 데이터로 제공한다.
 
 ### 완료 조건
 
@@ -385,13 +398,13 @@ DELETE /api/v1/books/{bookId}/rating
 
 ### 작업 순서
 
-1. 정보나루 인기대출 데이터를 연령·성별 세그먼트별로 정리한다.
+1. L1 수요 후보와 신간 후보를 준비한다.
 2. 사용자의 출생연도·성별을 추천 세그먼트로 변환한다.
-3. 해당 세그먼트의 인기 도서를 추천 후보로 만든다.
+3. 세그먼트 인기 도서와 신간·수요 후보를 결합한다.
 4. 초기 취향 설정을 했다면 관심 분야와 seed book을 후보 필터에 반영한다.
 5. 이미 서재에 등록한 도서는 제외한다.
-6. `SEGMENT_POPULAR`, `INITIAL_PREFERENCE` 추천 이유를 만든다.
-7. 세그먼트 데이터가 없으면 전체 인기 도서로 폴백한다.
+6. `SEGMENT_POPULAR`, `INITIAL_PREFERENCE`, `NEW_BOOK` 추천 이유를 만든다.
+7. 세그먼트 데이터가 없으면 전체 수요 후보와 신간 후보로 폴백한다.
 
 ### 완료 조건
 
@@ -411,13 +424,13 @@ DELETE /api/v1/books/{bookId}/rating
 
 ### 계산 순서
 
-1. 도서의 제목·저자·주제어·책소개를 하나의 텍스트로 결합한다.
+1. L1 후보와 신간 후보의 제목·저자·책소개를 하나의 텍스트로 결합한다.
 2. 텍스트를 정규화하고 TF-IDF 벡터를 계산한다.
 3. 사용자의 긍정 도서 벡터를 가중 평균해 사용자 프로필 벡터를 만든다.
 4. 후보 도서와 사용자 프로필의 코사인 유사도를 계산한다.
 5. `WANT_TO_READ`·평점·독서 상태별 가중치를 적용한다.
-6. 이미 서재에 있는 도서와 데이터가 부실한 도서를 제외한다.
-7. 세그먼트 인기 점수와 함께대출 정보를 보조 점수·추천 이유에 사용한다.
+6. 이미 서재에 있는 도서는 제외하고, 텍스트 부족 도서는 사전 필터에서 제거하지 않는다.
+7. `loan_24m + 4 × loan_3m` 수요 랭킹을 보조 신호로 결합한다. 누적 대출량 자체는 랭킹 주신호로 사용하지 않는다.
 8. 상위 N개를 저장하고 rank·score·추천 이유를 함께 기록한다.
 
 ### 초기 가중치
@@ -438,7 +451,9 @@ READING: 0.8
 - 같은 카테고리: `관심 있게 본 분야의 도서입니다.`
 - 텍스트 유사: `최근 관심 도서와 책소개가 비슷합니다.`
 - 세그먼트 인기: `비슷한 독자 그룹에서 많이 대출한 도서입니다.`
-- 함께대출: `이 도서를 읽은 이용자가 함께 대출한 도서입니다.`
+- 수요 인기: `최근 2년 동안 도서관에서 많이 대출된 도서입니다.`
+- 최근 상승: `최근 3개월 대출 수요가 높은 도서입니다.`
+- 신간: `최근 출간된 도서입니다.`
 
 ### 구현 방식
 
