@@ -10,9 +10,18 @@
   즉 더 세게 밀어도 얻는 것이 없다. 포화 무릎인 48워커를 쓴다.
   (앞선 '54건/초' 측정은 같은 ISBN 반복이라 서버 캐시를 탄 잘못된 값이었다)
 
-일일 상한
-  등록 후 상한이 공개되어 있지 않다. 차단 응답이 오면 즉시 전량 정지하고
-  KST 자정까지 대기했다가 스스로 재개한다. 진행은 파일에 남으므로 손실 없다.
+일일 상한 — 실측 약 3만 호출 (2026-08-27 확정)
+  공식 문서에는 '미등록 IP 1일 500건' 만 있고 등록 후 상한은 비공개다.
+  실측 경과:  24,000 확보율 100.0%
+              26,000 확보율  97.9%   <- 서버가 조용히 거절하기 시작
+              31,756 연결 강제 종료 (WinError 10054)
+
+  **상한에 걸리면 JSON 에러가 아니라 연결을 그냥 끊는다.** 그래서
+  메시지 감지만으로는 부족하고 연속 실패 누적으로도 판정한다.
+  차단으로 판정하면 전량 정지 -> KST 자정 대기 -> 자동 재개.
+  진행은 파일에 남으므로 손실은 없다.
+
+  3만/일 기준 954,776건 완주는 32일. 1단(노출 90%)만이면 10일.
 
 수집 필드 (응답에 있는 것 중 쓸모 있는 것은 남긴다)
   description  주 목적. 임베딩 입력
@@ -63,9 +72,14 @@ FLUSH_EVERY = 200
 REPORT_EVERY = 2000
 KST = timezone(timedelta(hours=9))
 
-state = {"calls": 0, "hit": 0, "miss": 0, "error": 0,
+state = {"calls": 0, "hit": 0, "miss": 0, "error": 0, "streak": 0,
          "blocked": False, "stop": False, "block_msg": ""}
 lock = threading.Lock()
+
+# 상한에 걸리면 서버가 JSON 에러가 아니라 **연결을 그냥 끊는다**(WinError 10054).
+# 실측: 하루 약 3만 호출 지점에서 먼저 확보율이 떨어지고, 곧이어 리셋이 쏟아진다.
+# 그래서 메시지뿐 아니라 '연속 실패 누적' 으로도 상한을 판정한다.
+FAIL_STREAK_BLOCK = 40
 
 
 # ── 단일 프로세스 강제 ────────────────────────────────────────
@@ -171,6 +185,26 @@ def shape(isbn: str, body: dict) -> dict:
     return {"isbn13": isbn, "ok": True, **slim}
 
 
+def note_failure(reason: str) -> None:
+    """실패를 세고, 연속 실패가 쌓이면 일일 상한으로 판정한다."""
+    with lock:
+        state["error"] += 1
+        state["streak"] += 1
+        if state["streak"] >= FAIL_STREAK_BLOCK and not state["blocked"]:
+            state["blocked"] = True
+            state["block_msg"] = (f"연속 실패 {state['streak']}회 ({reason}) "
+                                  f"— 일일 상한으로 판정")
+            state["stop"] = True
+
+
+def declare_block(message: str) -> None:
+    with lock:
+        if not state["blocked"]:
+            state["blocked"] = True
+            state["block_msg"] = message
+        state["stop"] = True
+
+
 def fetch(key: str, isbn: str) -> dict:
     """성공 시 레코드, 차단·영구실패 시 None."""
     params = {"isbn13": isbn, "loaninfoYN": "Y", "authKey": key, "format": "json"}
@@ -187,29 +221,27 @@ def fetch(key: str, isbn: str) -> dict:
             if error.code in (429, 500, 502, 503, 504) and attempt < 2:
                 time.sleep(2 * (attempt + 1))
                 continue
-            with lock:
-                state["error"] += 1
+            note_failure(f"HTTP {error.code}")
             return None
-        except (URLError, TimeoutError, json.JSONDecodeError):
+        # OSError 를 반드시 포함해야 한다. ConnectionResetError 는 OSError 이지
+        # URLError 가 아니라서, 상한에 걸린 순간 이 예외가 pool.map 밖으로
+        # 튀어나가 실행 전체를 죽인 적이 있다 (2026-08-27, 28,124건 지점).
+        except (URLError, TimeoutError, OSError, json.JSONDecodeError):
             if attempt < 2:
                 time.sleep(2 * (attempt + 1))
                 continue
-            with lock:
-                state["error"] += 1
+            note_failure("연결 끊김")
             return None
 
         body = payload.get("response") or {}
         message = body.get("error") or ""
         if message and ("500건" in message or "IP" in message or "초과" in message):
-            with lock:
-                if not state["blocked"]:
-                    state["blocked"] = True
-                    state["block_msg"] = message
-                state["stop"] = True
+            declare_block(message)
             return None
 
         with lock:
             state["calls"] += 1
+            state["streak"] = 0
         return shape(isbn, body)
     return None
 
@@ -233,10 +265,19 @@ def drain(key: str, pending: list, workers: int) -> int:
     started = time.time()
     total = len(pending)
 
-    def worker(isbn: str) -> None:
+    def run_one(isbn: str):
         if state["stop"]:
+            return None
+        return fetch(key, isbn)
+
+    def worker(isbn: str) -> None:
+        # 워커에서 예외가 새어 나가면 pool.map 이 그 자리에서 다시 던져
+        # 실행 전체가 죽는다. 어떤 예외도 여기서 끝낸다.
+        try:
+            record = run_one(isbn)
+        except Exception as error:                       # noqa: BLE001
+            note_failure(type(error).__name__)
             return
-        record = fetch(key, isbn)
         if record is None:
             return
         line = json.dumps(record, ensure_ascii=False, separators=(",", ":"))
