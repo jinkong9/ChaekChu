@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="SSAFY 15기 B102팀 도서 추천 서비스 데이터 수집 현황 보고">
+<title>추천 카탈로그 구축 현황</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root {
+  --ground:      #FAFAF8;
+  --surface:     #FFFFFF;
+  --surface-2:   #F1F3F1;
+  --line:        #DCE0DD;
+  --line-strong: #BCC4BF;
+  --ink:         #18211E;
+  --ink-2:       #46514C;
+  --ink-3:       #6E7A74;
+  --accent:      #0E5C4B;
+  --accent-2:    #0A4438;
+  --accent-wash: #DCEBE5;
+  --warn:        #8A5A12;
+  --warn-wash:   #F5E9D4;
+  --stop:        #8C3227;
+  --stop-wash:   #F6DFDC;
+
+  --f-display: "Gowun Batang", "Nanum Myeongjo", Georgia, serif;
+  --f-body: "IBM Plex Sans KR", -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  --f-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+
+  --w: 62rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:      #111614;
+    --surface:     #18201D;
+    --surface-2:   #1F2825;
+    --line:        #2C3733;
+    --line-strong: #3E4B46;
+    --ink:         #E4EBE7;
+    --ink-2:       #AEBAB5;
+    --ink-3:       #7E8C86;
+    --accent:      #4FB294;
+    --accent-2:    #7ACBB2;
+    --accent-wash: #16302A;
+    --warn:        #D3A458;
+    --warn-wash:   #33280F;
+    --stop:        #DE8A7E;
+    --stop-wash:   #341A16;
+  }
+}
+:root[data-theme="dark"] {
+  --ground:      #111614;
+  --surface:     #18201D;
+  --surface-2:   #1F2825;
+  --line:        #2C3733;
+  --line-strong: #3E4B46;
+  --ink:         #E4EBE7;
+  --ink-2:       #AEBAB5;
+  --ink-3:       #7E8C86;
+  --accent:      #4FB294;
+  --accent-2:    #7ACBB2;
+  --accent-wash: #16302A;
+  --warn:        #D3A458;
+  --warn-wash:   #33280F;
+  --stop:        #DE8A7E;
+  --stop-wash:   #341A16;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: var(--w);
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 6rem;
+}
+
+/* ── 머리 ─────────────────────────────────────── */
+.masthead {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-bottom: 2rem;
+  border-bottom: 2px solid var(--ink);
+}
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+h1 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: clamp(2rem, 5vw, 2.9rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+.standfirst {
+  font-size: 1.05rem;
+  color: var(--ink-2);
+  max-width: 46rem;
+  margin: 0;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.5rem;
+  font-family: var(--f-mono);
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+/* ── 섹션 ─────────────────────────────────────── */
+section { margin-top: 3.5rem; }
+h2 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 1.45rem;
+  letter-spacing: -0.005em;
+  margin: 0 0 0.35rem;
+  text-wrap: balance;
+}
+h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 2rem 0 0.75rem;
+  color: var(--ink);
+}
+.lede {
+  color: var(--ink-2);
+  margin: 0 0 1.5rem;
+  max-width: 46rem;
+}
+p { margin: 0 0 1rem; max-width: 46rem; }
+p:last-child { margin-bottom: 0; }
+strong { font-weight: 600; }
+
+/* ── 요약 숫자 ─────────────────────────────────── */
+.figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  margin-top: 2.25rem;
+}
+.fig {
+  background: var(--surface);
+  padding: 1.15rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.fig-n {
+  font-family: var(--f-mono);
+  font-size: 1.65rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.fig-l { font-size: 0.8rem; color: var(--ink-2); }
+.fig-s { font-size: 0.72rem; color: var(--ink-3); font-family: var(--f-mono); }
+
+/* ── 표 ───────────────────────────────────────── */
+.scroll { overflow-x: auto; margin: 1.25rem 0; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  min-width: 34rem;
+}
+caption {
+  caption-side: top;
+  text-align: left;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  padding-bottom: 0.5rem;
+}
+th, td {
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+thead th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line-strong);
+  white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: none; }
+.num {
+  text-align: right;
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tot td { border-top: 1px solid var(--line-strong); font-weight: 600; }
+.dim { color: var(--ink-3); }
+.win { color: var(--accent); font-weight: 600; }
+
+/* ── 단계 레일 ─────────────────────────────────── */
+.stages { display: flex; flex-direction: column; gap: 1px; background: var(--line);
+  border: 1px solid var(--line); margin: 1.5rem 0; }
+.stage {
+  background: var(--surface);
+  padding: 1.15rem 1.25rem;
+  display: grid;
+  grid-template-columns: 2.2rem 1fr;
+  gap: 0 1rem;
+  align-items: start;
+}
+.stage-n {
+  font-family: var(--f-mono);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1.5;
+}
+.stage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.85rem;
+}
+.stage-t { font-weight: 600; }
+.stage-c {
+  font-family: var(--f-mono);
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.stage-d { grid-column: 2; font-size: 0.85rem; color: var(--ink-2); margin-top: 0.15rem; }
+.bar {
+  grid-column: 2;
+  margin-top: 0.7rem;
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.bar span { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.bar-l {
+  grid-column: 2;
+  margin-top: 0.35rem;
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 칩 ───────────────────────────────────────── */
+.chip {
+  display: inline-block;
+  font-family: var(--f-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.5rem;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.chip-go   { background: var(--accent-wash); color: var(--accent-2); }
+.chip-wait { background: var(--surface-2);   color: var(--ink-3); }
+.chip-warn { background: var(--warn-wash);   color: var(--warn); }
+.chip-stop { background: var(--stop-wash);   color: var(--stop); }
+
+/* ── 콜아웃 ───────────────────────────────────── */
+.note {
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+}
+.note.warn { border-left-color: var(--warn); }
+.note.stop { border-left-color: var(--stop); }
+.note-t {
+  font-size: 0.72rem;
+  font-family: var(--f-mono);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 0.35rem;
+}
+.note p { font-size: 0.9rem; }
+
+/* ── 2열 ──────────────────────────────────────── */
+.cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  margin: 1.5rem 0;
+}
+.col { background: var(--surface); padding: 1.25rem; }
+.col h4 {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  font-family: var(--f-mono);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.col ul { margin: 0; padding-left: 1.05rem; }
+.col li { margin-bottom: 0.55rem; font-size: 0.88rem; color: var(--ink-2); }
+.col li:last-child { margin-bottom: 0; }
+.col li b { color: var(--ink); font-weight: 600; }
+
+/* ── 레코드 카드 ───────────────────────────────── */
+.record {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 1.1rem 1.25rem;
+  margin: 1.5rem 0;
+  font-family: var(--f-mono);
+  font-size: 0.78rem;
+  line-height: 1.85;
+  overflow-x: auto;
+}
+.record dl { display: grid; grid-template-columns: 7rem 1fr; gap: 0 1rem; margin: 0; }
+.record dt { color: var(--ink-3); }
+.record dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.record dd em { font-style: normal; color: var(--accent); }
+
+footer {
+  margin-top: 4rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  font-family: var(--f-mono);
+  font-size: 0.72rem;
+  color: var(--ink-3);
+}
+footer p { max-width: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="eyebrow">SSAFY 15기 · 대전 1반 102팀 · 설계 미팅 자료</div>
+  <h1>추천 카탈로그 구축 현황</h1>
+  <p class="standfirst">
+    도서 352만 종의 통합 카탈로그를 세우고, 추천 후보 108만 종에 임베딩용 텍스트를 채우는 작업.
+    텍스트 확보율은 착수 전 5.3%에서 <strong>지금 13.9%</strong>까지 왔고, 3단계 중 1단계의 9.3% 지점에 있다.
+    이 문서는 <strong>무엇이 확정됐고 무엇이 아직 아닌지</strong>를 구분한다.
+  </p>
+  <div class="meta">
+    <span>2026-08-27 기준</span>
+    <span>측정 전량 실측 · 추정치는 별도 표기</span>
+  </div>
+</header>
+
+<div class="figures">
+  <div class="fig">
+    <div class="fig-n">3,528,013</div>
+    <div class="fig-l">통합 카탈로그 L0</div>
+    <div class="fig-s">국중 ∪ 정보나루</div>
+  </div>
+  <div class="fig">
+    <div class="fig-n">1,082,390</div>
+    <div class="fig-l">추천 후보 L1</div>
+    <div class="fig-s">대출 72+ ∪ 신간</div>
+  </div>
+  <div class="fig">
+    <div class="fig-n">121,135,896</div>
+    <div class="fig-l">보유 원장</div>
+    <div class="fig-s">1,660개관 전수</div>
+  </div>
+  <div class="fig">
+    <div class="fig-n">150,736</div>
+    <div class="fig-l">L1 텍스트 확보</div>
+    <div class="fig-s">후보의 13.9% · 착수 전 5.3%</div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>1. 지금까지 모은 것</h2>
+  <p class="lede">
+    수집이 끝난 자산이다. 여기까지는 재작업 없이 그대로 쓴다.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <caption>수집 완료 자산 — 전부 저장소 밖 로컬 보관 (Git 제외)</caption>
+    <thead>
+      <tr>
+        <th>자산</th><th>규모</th><th class="num">크기</th><th>비고</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>국립중앙도서관 서지</strong></td>
+        <td>2,047,239행 / 고유 ISBN 2,019,407</td>
+        <td class="num">327 MB</td>
+        <td class="dim">서지 표준. 원본 JSONL 2.2GB를 Parquet으로 압축</td>
+      </tr>
+      <tr>
+        <td><strong>정보나루 보유 원장</strong></td>
+        <td>121,135,896행 / 1,660개관</td>
+        <td class="num">673 MB</td>
+        <td class="dim">관 × ISBN × 대출 × 권수. 표본이 아닌 전수</td>
+      </tr>
+      <tr>
+        <td>ISBN 합산 대출</td>
+        <td>2,791,309 ISBN / 누적 19.7억 건</td>
+        <td class="num">25 MB</td>
+        <td class="dim">필터·랭킹·수집 우선순위의 근거</td>
+      </tr>
+      <tr>
+        <td><strong>국중 URL 텍스트 회수</strong></td>
+        <td>191,122건 → 정제 174,388건</td>
+        <td class="num">595 MB</td>
+        <td class="dim">API 호출 0회. 서지에 URL만 있던 본문을 직접 회수</td>
+      </tr>
+      <tr>
+        <td>정보나루 보강 <span class="chip chip-go">진행 중</span></td>
+        <td>28,124건</td>
+        <td class="num">18 MB</td>
+        <td class="dim">1단계 9.3% 지점</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note">
+    <div class="note-t">이번 회차의 숨은 성과</div>
+    <p>
+      국중 URL 회수로 <strong>추천 후보의 텍스트 보유율이 5.3% → 11.8%로 두 배가 됐다.</strong>
+      서지에 본문 대신 <code>.txt</code> 파일 주소만 들어 있는 경우가 많은데, 그 파일을 직접 받아왔다.
+      외부 API 쿼터를 한 건도 쓰지 않고 얻은 분량이다.
+    </p>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>2. 왜 정보나루가 주 보강원인가</h2>
+  <p class="lede">
+    당초 계획은 카카오를 주 소스로 두는 것이었다. 층화 파일럿 582건이 이를 뒤집었다.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <caption>층별 description 확보율 — 판정 기준 100자 이상</caption>
+    <thead>
+      <tr>
+        <th>층</th><th class="num">모집단</th><th class="num">n</th>
+        <th class="num">카카오만</th><th class="num">정보나루만</th><th class="num">둘 다 없음</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>A · ~2006년</td><td class="num">146,109</td><td class="num">102</td>
+        <td class="num">2.0%</td><td class="num win">44.1%</td><td class="num dim">33.3%</td></tr>
+      <tr><td>B · 2007–14</td><td class="num">225,178</td><td class="num">120</td>
+        <td class="num">2.5%</td><td class="num win">24.2%</td><td class="num dim">13.3%</td></tr>
+      <tr><td>C · 2015년~</td><td class="num">215,668</td><td class="num">120</td>
+        <td class="num win">5.0%</td><td class="num">2.5%</td><td class="num dim">6.7%</td></tr>
+      <tr><td>D · 정보나루 전용</td><td class="num">329,200</td><td class="num">120</td>
+        <td class="num">1.7%</td><td class="num win">26.7%</td><td class="num dim">45.8%</td></tr>
+      <tr class="tot"><td>사후층화 종합</td><td class="num">916,155</td><td class="num">462</td>
+        <td class="num">50.2%</td><td class="num">70.7%</td><td class="num">26.6%</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    비대칭이 결정적이다. <strong>정보나루는 카카오 위에 +23.1%p를 더하는데, 카카오는 정보나루 위에 +2.7%p뿐이다.</strong>
+    카카오가 이기는 층은 C(신간) 하나이고 격차도 2.5%p다.
+  </p>
+  <p>
+    이유는 두 소스의 성격 차이다. 카카오는 <em>현재 유통 중인 상품</em>의 DB라 절판 구간과 서점 유통망 밖에서 급격히 약해진다.
+    정보나루는 도서관 장서 기반이라 절판 여부와 무관하다.
+    <span class="dim">→ 정보나루를 주 보강원으로, 카카오는 신간 잔여분 전용으로 강등.</span>
+  </p>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>3. 수집 계획 — 3단계</h2>
+  <p class="lede">
+    전량을 다 긁기 전에 멈출 수 있다는 전제로 순서를 짰다.
+    <strong>멈춘 시점까지가 가장 값어치 있어야 한다.</strong>
+  </p>
+
+  <div class="stages">
+    <div class="stage">
+      <div class="stage-n">1</div>
+      <div class="stage-head">
+        <span class="stage-t">노출 90% 밴드</span>
+        <span class="stage-c">301,154건</span>
+        <span class="chip chip-go">진행 중</span>
+      </div>
+      <div class="stage-d">
+        누적 대출이 전체의 90%에 닿을 때까지. 대출 1만 건 이상인 책들.
+        여기만 끝내도 <strong>이용자가 실제로 마주치는 책의 90%</strong>를 덮는다.
+      </div>
+      <div class="bar"><span style="width:9.3%"></span></div>
+      <div class="bar-l">28,124 / 301,154 · 9.3% · 남은 9일</div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">2</div>
+      <div class="stage-head">
+        <span class="stage-t">신간 트랙</span>
+        <span class="stage-c">120,877건</span>
+        <span class="chip chip-wait">대기</span>
+      </div>
+      <div class="stage-d">
+        2025년 이후 발행. 대출 이력이 없어 1단에 못 들지만 추천 품질에는 직결되므로 꼬리보다 앞세운다.
+      </div>
+      <div class="bar"><span style="width:0%"></span></div>
+      <div class="bar-l">0 / 120,877 · 0% · 추가 4일</div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">3</div>
+      <div class="stage-head">
+        <span class="stage-t">꼬리</span>
+        <span class="stage-c">532,745건</span>
+        <span class="chip chip-wait">보류</span>
+      </div>
+      <div class="stage-d">
+        추천 후보 중 나머지. 대출 비중 10% 미만 구간이라
+        <strong>온디맨드로 돌리는 편이 합리적</strong>이다 — 이용자가 실제로 조회할 때 채운다.
+      </div>
+      <div class="bar"><span style="width:0%"></span></div>
+      <div class="bar-l">0 / 532,745 · 0% · 전량 시 추가 18일</div>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <div class="note-t">제약 — 일일 3만 호출 (실측 확정)</div>
+    <p>
+      정보나루는 고정 IP 등록 후에도 하루 약 3만 호출이 상한이다. 공식 문서에는 없고 실측으로 확인했다.
+      <strong>24,000건까지 정상 → 26,000건에서 조용히 거절 시작 → 31,756건에서 연결 강제 종료.</strong>
+      수집기는 이 지점에서 자동 정지하고 자정에 스스로 재개한다.
+    </p>
+    <p style="margin-bottom:0">
+      전량 완주는 32일. <strong>1단계에서 끊고 카카오를 병행하는 안(10일)을 권한다.</strong>
+    </p>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>4. 1단계에서 확인된 것</h2>
+  <p class="lede">
+    28,124건은 표본이 아니라 실제 산출물이다. 아래는 그 실측 채움율이다.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <caption>1단계 수집 28,124건의 필드 채움율</caption>
+    <thead>
+      <tr><th>필드</th><th class="num">채움율</th><th>추천에서의 쓸모</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>서지 (제목·저자·출판사)</td><td class="num win">100.0%</td>
+        <td class="dim">헛돈 호출 0건</td></tr>
+      <tr><td>표지 이미지</td><td class="num">96.9%</td><td class="dim">서비스 UI</td></tr>
+      <tr><td>발행연도</td><td class="num">92.6%</td><td class="dim">신선도 부스팅·연도 필터</td></tr>
+      <tr><td><strong>소개문 100자 이상</strong></td><td class="num win">90.3%</td>
+        <td class="dim">임베딩 입력 — 주 목적</td></tr>
+      <tr><td>KDC 분류</td><td class="num">90.0%</td><td class="dim">주제 필터</td></tr>
+      <tr><td>부가기호</td><td class="num">93.7%</td><td class="dim">아동·전자책 판별</td></tr>
+      <tr><td>연령·성별 대출 분포</td><td class="num" style="color:var(--warn)">10.6%</td>
+        <td class="dim">인구통계 prior — 상위 구간 한정</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>국중 결측을 실제로 메웠는가</h3>
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>국중 쪽 결측</th><th class="num">대상</th><th class="num">메운 비율</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>서지 자체가 없던 책</td><td class="num">6,635</td><td class="num win">100.0%</td></tr>
+      <tr><td>텍스트가 없던 책</td><td class="num">19,378</td><td class="num win">90.3%</td></tr>
+      <tr><td>KDC가 없던 책</td><td class="num">6,675</td><td class="num">72.1%</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>조인이 실제로 성립하는가</h3>
+  <p>
+    4개 소스(정보나루 보강 · 국중 서지 · 국중 회수 텍스트 · 보유 원장)를 ISBN13으로 붙여 검증했다.
+    <strong>발간일·주제·내용 세 축을 모두 갖춘 행이 79.8%</strong>다.
+  </p>
+
+  <div class="record">
+    <dl>
+      <dt>isbn13</dt><dd>9788936434120</dd>
+      <dt>title</dt><dd>소년이 온다</dd>
+      <dt>author</dt><dd>지은이: 한강</dd>
+      <dt>pub_year</dt><dd><em>2014</em></dd>
+      <dt>kdc</dt><dd><em>813.62</em> · 문학 &gt; 한국문학 &gt; 소설</dd>
+      <dt>loans</dt><dd>275,515건 · 소장 1,539개관</dd>
+      <dt>body</dt><dd><em>섬세한 감수성과 치밀한 문장으로 인간 존재의 본질을 탐구해온 작가 한강의 여섯번째 장편소설…</em></dd>
+      <dt>age</dt><dd>청소년 751(전국1위) · 20대 1,371(1위) · 30대 1,574(3위)</dd>
+      <dt>gender</dt><dd>20대(여) 513 · 30/40대(여) 1,076 · 20대(남) 216</dd>
+    </dl>
+  </div>
+  <p class="dim" style="font-size:0.85rem">
+    “25세 여성, 한국소설 선호”에 이 책을 올릴 근거가 한 행 안에 전부 들어 있다.
+  </p>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>5. 완료 시 기대치</h2>
+
+  <div class="scroll">
+  <table>
+    <caption>추천 후보 L1 (1,082,390건) 기준 텍스트 커버리지</caption>
+    <thead>
+      <tr><th>시점</th><th class="num">건수</th><th class="num">비율</th><th>근거</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>보강 착수 전</td><td class="num">57,101</td><td class="num">5.3%</td>
+        <td class="dim">국중 원본 서지만 — 실측</td></tr>
+      <tr><td>URL 회수 반영</td><td class="num">127,614</td><td class="num">11.8%</td>
+        <td class="dim">API 호출 0회로 두 배 — 실측</td></tr>
+      <tr><td>현재 (1단계 9.3% 지점)</td><td class="num">150,736</td><td class="num">13.9%</td>
+        <td class="dim">실측</td></tr>
+      <tr><td>1단계 완료 시</td><td class="num">399,556</td><td class="num">36.9%</td>
+        <td class="dim">추정 — 현재 채움율 90.3% 연장</td></tr>
+      <tr class="tot"><td>정보나루 전량 완료 시</td><td class="num">802,640</td><td class="num">74.2%</td>
+        <td class="dim">추정 — 파일럿 사후층화 K=70.7%</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    세 축 동시 충족률은 <strong>낙관 84.3% · 보수 64.8%</strong>다.
+    낙관치는 1단계 실측을 끝까지 연장한 값이고, 보수치는 꼬리 구간에 파일럿 확보율을 적용한 값이다.
+    실제로는 두 값 사이에 떨어진다.
+  </p>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>6. 설계에 반영해야 할 제약</h2>
+  <p class="lede">
+    데이터를 더 모아서 해결되지 않는 것들이다. 아키텍처에서 흡수해야 한다.
+  </p>
+
+  <div class="cols">
+    <div class="col">
+      <h4>이 구조로 되는 것</h4>
+      <ul>
+        <li><b>콘텐츠 기반 추천</b> — 발간일·주제·내용 세 축이 모두 실측으로 확보된다</li>
+        <li><b>주제 필터</b> — KDC 3자리 238종, 엔트로피 기준 유효 28종으로 갈린다</li>
+        <li><b>수요 prior</b> — 전국 누적 대출 19.7억 건. 국내 최대 규모의 실제 이용 신호</li>
+        <li><b>인구통계 prior</b> — 12개 세그먼트, 1위 세그먼트 점유율 중앙 54%로 편중이 뚜렷</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h4>이 구조로 안 되는 것</h4>
+      <ul>
+        <li><b>협업 필터링</b> — 보유 원장이 <em>관 단위 집계</em>라 개인 식별자가 없다.
+          누가 A와 B를 함께 빌렸는지가 없으니 user-item 행렬을 만들 수 없다</li>
+        <li><b>전 카탈로그 인구통계</b> — 연령·성별 분포는 수요 상위 2천위 33.9%에서
+          1만2천위 5.4%로 급락한다. 보조 신호일 뿐이다</li>
+        <li><b>문체·난이도 매칭</b> — 소개문 중앙 147자로는 주제는 잡혀도 문장 결은 안 잡힌다</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note stop">
+    <div class="note-t">가장 중요한 한 가지</div>
+    <p>
+      <strong>사용자 행동 데이터가 0건이므로 취향은 온보딩에서 직접 받아야 한다.</strong>
+      좋아하는 책 3~5권을 고르게 하고 그 임베딩 중심을 취향 벡터로 삼는 방식이다.
+      협업 필터링은 서비스를 운영하며 클릭·찜 로그가 쌓인 뒤에 추가할 수 있다.
+    </p>
+  </div>
+
+  <h3>추천 파이프라인 형태</h3>
+  <div class="record" style="font-size:0.8rem; line-height:2">
+    온보딩&nbsp;&nbsp;&nbsp;&nbsp;좋아하는 책 3~5권 → 임베딩 중심 = <em>취향 벡터</em><br>
+    &nbsp;&nbsp;&nbsp;↓<br>
+    검색&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;취향 벡터 ANN (HNSW)<br>
+    &nbsp;&nbsp;&nbsp;↓<br>
+    필터&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;KDC 메타 필터 + 발간연도 밴드<br>
+    &nbsp;&nbsp;&nbsp;↓<br>
+    랭킹&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;유사도 × 인구통계 prior × 수요 prior × 신선도<br>
+    &nbsp;&nbsp;&nbsp;↓<br>
+    로그 축적 → 운영 3개월 후 협업 필터링 추가
+  </div>
+
+  <div class="note warn">
+    <div class="note-t">인기 편향 주의</div>
+    <p>
+      수요 상위일수록 데이터 품질이 좋다 — 소개문 확보율이 1단계 90.3%인 반면 꼬리 구간 파일럿은 52.5%였다.
+      아무 조치도 안 하면 추천이 자연히 베스트셀러로 쏠린다.
+      <strong>명시적 novelty 페널티가 없으면 “추천”이 아니라 “인기순”이 된다.</strong>
+    </p>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>7. 미팅에서 정할 것</h2>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>안건</th><th>선택지</th><th>권고</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>수집 범위</strong></td>
+        <td>1단계 완주(10일) / 전량(32일)</td>
+        <td class="win">1단계 + 카카오 병행 — 노출 90%를 10일에 덮고 꼬리는 온디맨드</td>
+      </tr>
+      <tr>
+        <td><strong>취향 입력 방식</strong></td>
+        <td>온보딩 도서 선택 / 장르 선택 / 없음</td>
+        <td class="win">도서 선택 — 협업 필터링이 불가하므로 이것이 유일한 취향 신호다</td>
+      </tr>
+      <tr>
+        <td><strong>임베딩 시점</strong></td>
+        <td>전량 사전 / 후보군 한정 / 온디맨드</td>
+        <td class="dim">후보군 한정 — 108만 종 × 768차원이면 GPU 메모리에 들어간다</td>
+      </tr>
+      <tr>
+        <td><strong>인구통계 활용</strong></td>
+        <td>랭킹 반영 / 미사용</td>
+        <td class="dim">상위 구간에만 가중 반영. 10.6%뿐이라 전면 적용은 불가</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer>
+  <p>
+    수치는 전량 실측이다. 추정치는 근거를 함께 표기했다.
+    상세 근거는 저장소 <code>docs/pipeline/</code> — 결정 기록·데이터 인벤토리·스크립트 색인.
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

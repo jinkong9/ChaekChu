@@ -1,0 +1,196 @@
+-- PostgreSQL 스키마 DDL
+-- 프로젝트: S15P21B102
+-- 기준: docs/ERD.md · ERDCloud용 DDL은 docs/ERDCLOUD_IMPORT.sql (동일 모델, DATETIME 표기)
+--
+-- 실제 PostgreSQL에 적용하는 기준 스키마다. 타입은 PostgreSQL 기준(TIMESTAMPTZ)을 사용한다.
+-- authors, categories, weights, feature_scores, validation_errors는
+-- ERDCloud 호환을 위해 TEXT로 표현했다.
+-- 실제 PostgreSQL 구현에서는 각각 TEXT[]/JSONB 등으로 결정할 수 있다.
+-- book_demand_features는 대용량 분석 영역의 논리 모델이며,
+-- 실제 물리 저장소에서는 Parquet/분석 DB를 우선 사용할 수 있다.
+
+CREATE TABLE book_works (
+    id UUID NOT NULL,
+    canonical_title VARCHAR(500) NOT NULL,
+    canonical_author VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE books (
+    id UUID NOT NULL,
+    work_id UUID,
+    isbn13 CHAR(13) NOT NULL,
+    isbn10 CHAR(10),
+    title VARCHAR(500) NOT NULL,
+    subtitle VARCHAR(500),
+    authors TEXT NOT NULL,
+    publisher VARCHAR(255),
+    published_date DATE,
+    description TEXT,
+    categories TEXT,
+    cover_image_url TEXT,
+    page_count INTEGER,
+    publication_form VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uq_books_isbn13 UNIQUE (isbn13),
+    CONSTRAINT fk_books_work
+        FOREIGN KEY (work_id) REFERENCES book_works (id)
+);
+
+CREATE TABLE book_source_records (
+    id UUID NOT NULL,
+    book_id UUID,
+    source VARCHAR(50) NOT NULL,
+    source_book_id VARCHAR(255),
+    isbn_raw VARCHAR(100),
+    raw_payload_ref TEXT NOT NULL,
+    validation_errors TEXT,
+    collected_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_book_source_records_book
+        FOREIGN KEY (book_id) REFERENCES books (id)
+);
+
+CREATE TABLE book_demand_features (
+    isbn13 CHAR(13) NOT NULL,
+    as_of_month CHAR(7) NOT NULL,
+    feature_version VARCHAR(50) NOT NULL,
+    cumulative_loan_count BIGINT NOT NULL,
+    loan_24m_count BIGINT NOT NULL,
+    loan_3m_count BIGINT NOT NULL,
+    trending_score DECIMAL(6, 3) NOT NULL,
+    steady_score DECIMAL(6, 3) NOT NULL,
+    rank_score DECIMAL(20, 4) NOT NULL,
+    candidate_type VARCHAR(30) NOT NULL,
+    PRIMARY KEY (isbn13, as_of_month, feature_version),
+    CONSTRAINT fk_demand_features_book
+        FOREIGN KEY (isbn13) REFERENCES books (isbn13)
+);
+
+CREATE TABLE book_content_features (
+    isbn13 CHAR(13) NOT NULL,
+    feature_scores TEXT NOT NULL,
+    feature_version VARCHAR(50) NOT NULL,
+    extracted_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (isbn13, feature_version),
+    CONSTRAINT fk_content_features_book
+        FOREIGN KEY (isbn13) REFERENCES books (isbn13)
+);
+
+CREATE TABLE users (
+    id UUID NOT NULL,
+    oauth_provider VARCHAR(20) NOT NULL,
+    oauth_subject VARCHAR(255) NOT NULL,
+    email VARCHAR(320),
+    nickname VARCHAR(100),
+    birth_year SMALLINT,
+    gender VARCHAR(30),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uq_users_oauth UNIQUE (oauth_provider, oauth_subject),
+    CONSTRAINT ck_users_oauth_provider CHECK (oauth_provider IN ('KAKAO', 'GOOGLE'))
+);
+
+CREATE TABLE user_interests (
+    user_id UUID NOT NULL,
+    category VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (user_id, category),
+    CONSTRAINT fk_user_interests_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
+);
+
+CREATE TABLE user_seed_books (
+    user_id UUID NOT NULL,
+    book_id UUID NOT NULL,
+    rating SMALLINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (user_id, book_id),
+    CONSTRAINT fk_user_seed_books_user
+        FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_user_seed_books_book
+        FOREIGN KEY (book_id) REFERENCES books (id)
+);
+
+CREATE TABLE library_items (
+    id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    book_id UUID NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    finished_at DATE,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uq_library_items_user_book UNIQUE (user_id, book_id),
+    CONSTRAINT fk_library_items_user
+        FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_library_items_book
+        FOREIGN KEY (book_id) REFERENCES books (id)
+);
+
+CREATE TABLE book_ratings (
+    id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    book_id UUID NOT NULL,
+    rating SMALLINT NOT NULL,
+    review_text VARCHAR(300),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uq_book_ratings_user_book UNIQUE (user_id, book_id),
+    CONSTRAINT fk_book_ratings_user
+        FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_book_ratings_book
+        FOREIGN KEY (book_id) REFERENCES books (id)
+);
+
+CREATE TABLE recommendations (
+    id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    model_version VARCHAR(100) NOT NULL,
+    weights TEXT NOT NULL,
+    generated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_recommendations_user
+        FOREIGN KEY (user_id) REFERENCES users (id)
+);
+
+CREATE TABLE recommendation_items (
+    recommendation_id UUID NOT NULL,
+    book_id UUID NOT NULL,
+    rank INTEGER NOT NULL,
+    score DECIMAL(20, 6) NOT NULL,
+    feature_scores TEXT NOT NULL,
+    reason_type VARCHAR(50) NOT NULL,
+    reason_text VARCHAR(500) NOT NULL,
+    PRIMARY KEY (recommendation_id, book_id),
+    CONSTRAINT uq_recommendation_items_rank UNIQUE (recommendation_id, rank),
+    CONSTRAINT fk_recommendation_items_recommendation
+        FOREIGN KEY (recommendation_id) REFERENCES recommendations (id),
+    CONSTRAINT fk_recommendation_items_book
+        FOREIGN KEY (book_id) REFERENCES books (id)
+);
+
+CREATE TABLE user_events (
+    id UUID NOT NULL,
+    user_id UUID,
+    recommendation_id UUID,
+    book_id UUID,
+    event_type VARCHAR(30) NOT NULL,
+    rank INTEGER,
+    client_event_id VARCHAR(255),
+    occurred_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_user_events_user
+        FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_user_events_recommendation
+        FOREIGN KEY (recommendation_id) REFERENCES recommendations (id),
+    CONSTRAINT fk_user_events_book
+        FOREIGN KEY (book_id) REFERENCES books (id)
+);

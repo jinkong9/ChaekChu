@@ -10,7 +10,7 @@
 - `book_works`는 여러 판본을 묶기 위한 선택적 작품 그룹이다. 제목·저자 유사도만으로 자동 병합하지 않는다.
 - `books`에는 서비스가 검색·상세·추천에 실제 사용하는 정제 값만 둔다.
 - 카탈로그 L0는 국중과 정보나루의 ISBN13 합집합으로 만들고, 미등재 ISBN은 카카오 온디맨드 등록으로 보강한다. 어떤 출처에서 들어왔는지는 `book_source_records`로 추적한다.
-- 도서관별 보유·대출 원장은 대용량 배치/분석 저장소에서 관리하고, 서비스 DB에는 도서관 마스터와 필요한 파생 결과만 둔다.
+- 대출 원장은 대용량 배치/분석 저장소에서 집계하고, 서비스 DB에는 추천에 필요한 도서 단위 파생 결과만 둔다.
 - 좋아요는 별도 테이블 없이 `library_items.status = WANT_TO_READ`로 처리한다.
 - 추천 L1 후보는 누적 대출로 수요 99%를 유지하는 임계와 신간 트랙의 합집합으로 만든다. 누적 대출은 랭킹 주신호로 사용하지 않는다.
 - 추천 결과 본문은 `recommendations`, 추천 도서별 순위·점수·이유는 `recommendation_items`로 분리한다.
@@ -21,9 +21,8 @@
 erDiagram
     BOOK_WORKS ||--o{ BOOKS : groups
     BOOKS ||--o{ BOOK_SOURCE_RECORDS : sourced_by
-    LIBRARIES ||--o{ LIBRARY_HOLDING_SNAPSHOTS : records
-    BOOKS ||--o{ LIBRARY_HOLDING_SNAPSHOTS : matches_by_isbn
     BOOKS ||--o{ BOOK_DEMAND_FEATURES : scored
+    BOOKS ||--o{ BOOK_CONTENT_FEATURES : analyzed
 
     USERS ||--o{ USER_INTERESTS : has
     USERS ||--o{ USER_SEED_BOOKS : selects
@@ -79,42 +78,31 @@ erDiagram
         timestamp collected_at
     }
 
-    LIBRARIES {
-        uuid id PK
-        varchar source_site_id
-        varchar api_libcode UK
-        varchar name
-        varchar type
-        varchar address
-        decimal latitude
-        decimal longitude
-        varchar phone
-        char latest_month
-    }
-
-    LIBRARY_HOLDING_SNAPSHOTS {
-        uuid library_id PK,FK
-        char isbn13 PK
-        char snapshot_month PK
-        bigint cumulative_loan_count
-        integer copy_count
-    }
-
     BOOK_DEMAND_FEATURES {
-        char isbn13 PK
+        char isbn13 PK,FK
+        char as_of_month PK
+        varchar feature_version PK
         bigint cumulative_loan_count
         bigint loan_24m_count
         bigint loan_3m_count
+        decimal trending_score
+        decimal steady_score
         decimal rank_score
         varchar candidate_type
-        char as_of_month
-        varchar feature_version
+    }
+
+    BOOK_CONTENT_FEATURES {
+        char isbn13 PK,FK
+        json feature_scores
+        varchar feature_version PK
+        timestamp extracted_at
     }
 
     USERS {
         uuid id PK
-        varchar email UK
-        varchar password_hash
+        varchar oauth_provider
+        varchar oauth_subject
+        varchar email
         varchar nickname
         smallint birth_year
         varchar gender
@@ -159,6 +147,7 @@ erDiagram
         uuid id PK
         uuid user_id FK
         varchar model_version
+        json weights
         timestamp generated_at
     }
 
@@ -167,6 +156,7 @@ erDiagram
         uuid book_id PK,FK
         integer rank
         decimal score
+        json feature_scores
         varchar reason_type
         varchar reason_text
     }
@@ -240,39 +230,9 @@ erDiagram
 
 국중·정보나루 원본에 연결된 레코드는 L0 카탈로그 진입 후보가 된다. 카카오 레코드는 검색 시 ISBN이 L0에 없을 때 온디맨드로 등록할 수 있으며, 모든 경우 ISBN13 정규화와 중복 검사를 먼저 수행한다.
 
-### `libraries`
-
-근처 도서관 조회에 필요한 마스터다. 정보나루 사이트 내부 ID와 API `libCode`는 서로 다를 수 있으므로 둘 다 보존한다.
-
-| 칼럼 | 타입 | 필수 | 설명 |
-| --- | --- | --- | --- |
-| `id` | UUID | O | 내부 도서관 식별자 |
-| `source_site_id` | VARCHAR |  | 사이트 내부 도서관 ID |
-| `api_libcode` | VARCHAR | O | 정보나루 API용 도서관 코드, UNIQUE |
-| `name` | VARCHAR | O | 도서관명 |
-| `type` | VARCHAR |  | 도서관 유형 |
-| `address` | VARCHAR |  | 주소 |
-| `latitude`, `longitude` | DECIMAL |  | 근처 검색용 좌표 |
-| `phone` | VARCHAR |  | 전화번호 |
-| `latest_month` | CHAR(7) | O | 최신 보유 스냅샷 월(`YYYY-MM`) |
-
-### `library_holding_snapshots`
-
-121백만 건 규모의 관별 원장이다. PostgreSQL 트랜잭션 테이블이 아니라 Parquet/분석 저장소를 우선 사용하며, 최신 월 데이터만 서비스 조회용으로 materialize할 수 있다.
-
-| 칼럼 | 타입 | 필수 | 설명 |
-| --- | --- | --- | --- |
-| `library_id` | UUID | O | `libraries.id` |
-| `isbn13` | CHAR(13) | O | 하이픈 없는 정규화 ISBN13 |
-| `snapshot_month` | CHAR(7) | O | 누적 대출 스냅샷 월 |
-| `cumulative_loan_count` | BIGINT | O | 데이터 제공 개시 이후 누적 대출량 |
-| `copy_count` | INTEGER | O | 도서관 보유 복본 수 |
-
-기본키는 `(library_id, isbn13, snapshot_month)`다. 최근 2년·3개월 대출량은 두 스냅샷의 차분으로 계산하고, 음수 차분은 0으로 보정한다. 최신 보유 도서 조회 시 `latest_month`의 행을 사용한다.
-
 ### `book_demand_features`
 
-배치 작업이 관별 원장에서 월별로 계산한 도서 단위 파생 결과다. 원장 전체를 API 요청마다 재집계하지 않기 위해 별도 산출물로 둔다.
+외부 대출 원장을 월별로 집계해 저장한 도서 단위 파생 결과다. 원장 전체를 API 요청마다 재집계하지 않기 위해 서비스가 조회하는 저장 영역에 둔다.
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
@@ -280,22 +240,40 @@ erDiagram
 | `cumulative_loan_count` | BIGINT | O | L1 임계·prior용 누적 대출량 |
 | `loan_24m_count` | BIGINT | O | 최신과 24개월 전 차분 |
 | `loan_3m_count` | BIGINT | O | 최신과 3개월 전 차분 |
+| `trending_score` | DECIMAL | O | `loan_3m_count`를 정규화한 0~100 점수 |
+| `steady_score` | DECIMAL | O | `loan_24m_count`를 정규화한 0~100 점수 |
 | `rank_score` | DECIMAL | O | `loan_24m_count + 4 * loan_3m_count` |
 | `candidate_type` | VARCHAR | O | `DEMAND`, `NEW`, `DEMAND_AND_NEW` |
 | `as_of_month` | CHAR(7) | O | 산출 기준 월 |
 | `feature_version` | VARCHAR | O | 후보·랭킹 산출 버전 |
 
-`library_holding_snapshots`와 `book_demand_features`는 대용량 분석 영역에 둘 수 있으므로 `books`와의 연결은 물리적 FK가 아니라 정규화된 `isbn13` 논리 키로 관리할 수 있다. L1 후보는 `cumulative_loan_count`의 절대값을 고정하지 않고 전체 대출 수요의 99%를 유지하는 임계로 결정한다. 현재 실측값 `72+`는 기준 데이터셋의 결과일 뿐 코드에 영구 상수로 박지 않는다. `NEW`는 국중 2025년 이후 도서 중 도서관 원장에 아직 유입되지 않은 도서로 구성한다.
+`book_demand_features`는 대용량 분석 영역 또는 PostgreSQL의 파생 테이블로 저장할 수 있으며, `books`와의 연결은 정규화된 `isbn13` 논리 키로 관리한다. 원본 대출량을 그대로 가중합에 넣지 않고 배치에서 0~100 범위로 정규화한 `trending_score`와 `steady_score`를 함께 만든다. L1 후보는 `cumulative_loan_count`의 절대값을 고정하지 않고 전체 대출 수요의 99%를 유지하는 임계로 결정한다. 현재 실측값 `72+`는 기준 데이터셋의 결과일 뿐 코드에 영구 상수로 박지 않는다. `NEW`는 국중 2025년 이후 도서 중 대출 데이터에 아직 유입되지 않은 도서로 구성한다.
+
+### `book_content_features`
+
+책소개·목차·카테고리 등 콘텐츠에서 추출한 책 단위 feature를 저장한다. 각 feature는 `score`(0~100)와 `confidence`(0~1)를 함께 가진 JSON 객체로 관리한다. 예를 들어 `time_regression`, `fantasy`, `realistic`, `light_tone`, `emotional_intensity`, `difficulty` 등을 저장할 수 있다.
+
+| 칼럼 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `isbn13` | CHAR(13) | O | `books.isbn13`과 논리적 연결 |
+| `feature_scores` | JSONB | O | 콘텐츠 feature별 점수·신뢰도 |
+| `feature_version` | VARCHAR | O | 추출 규칙·모델 버전 |
+| `extracted_at` | TIMESTAMP | O | feature 추출 시각 |
+
+짧거나 불완전한 책소개에서 판단할 수 없는 feature는 0점이 아니라 `score = null`과 낮은 confidence로 저장한다. feature는 사용자 요청마다 새로 추출하지 않고, 책소개가 변경되거나 추출 버전이 바뀔 때 배치로 갱신한다.
+
+책의 카테고리·저자·텍스트 정보는 `books`와 검색 인덱스에 저장하고, `taste`, `coLoan`, `newField`처럼 사용자별로 달라지는 feature 점수는 추천 계산 시 산출한다. 계산된 후보별 feature 점수는 추천 스냅샷의 `recommendation_items.feature_scores`에 저장해 당시 가중치로 결과를 재현할 수 있게 한다.
 
 ### `users`
 
-로그인과 콜드스타트 추천 세그먼트에 필요한 정보만 저장한다.
+카카오 또는 Google OAuth(Gmail 계정)로 인증한 사용자와 콜드스타트 추천 세그먼트에 필요한 정보만 저장한다. 자체 이메일·비밀번호 로그인은 제공하지 않는다.
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `id` | UUID | O | 사용자 식별자 |
-| `email` | VARCHAR | O | 로그인 식별자, UNIQUE |
-| `password_hash` | VARCHAR | O | 해시된 비밀번호 |
+| `oauth_provider` | VARCHAR | O | `KAKAO` 또는 `GOOGLE` |
+| `oauth_subject` | VARCHAR | O | OAuth 제공자의 사용자 고유 식별자 |
+| `email` | VARCHAR |  | OAuth에서 제공된 이메일, 로그인 식별자로 사용하지 않음 |
 | `nickname` | VARCHAR |  | 화면 표시명 |
 | `birth_year` | SMALLINT |  | 추천 세그먼트 계산용 |
 | `gender` | VARCHAR |  | 추천 세그먼트 계산용 |
@@ -354,18 +332,23 @@ erDiagram
 | `review_text` | VARCHAR(300) |  | 개인 기록용 한 줄 감상평 |
 | `created_at`, `updated_at` | TIMESTAMP | O | 변경 추적 |
 
+`(oauth_provider, oauth_subject)`를 UNIQUE로 관리한다. 이메일이 같아도 제공자가 다르면 별도 계정으로 취급하며, OAuth access token이나 원 제공자 비밀번호는 저장하지 않는다.
+
 `(user_id, book_id)`는 UNIQUE로 한다. `review_text`는 선택값이며 앞뒤 공백을 제거한 뒤 저장한다. 빈 문자열은 NULL로 저장하고, MVP에서는 Elasticsearch 색인·추천 feature·AI 분석에 사용하지 않는다.
 
 ### `recommendations`
 
-한 번 계산된 추천 결과 묶음의 메타데이터만 저장한다.
+새로 계산된 추천 결과 스냅샷의 메타데이터를 저장한다. 동일한 결과를 조회할 때마다 새 행을 만들지 않으며, Redis 캐시는 이 테이블의 대체 저장소가 아니다.
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `id` | UUID | O | 추천 결과 식별자 |
 | `user_id` | UUID | O | 추천 대상 |
 | `model_version` | VARCHAR | O | 계산·폴백 전략 버전 |
+| `weights` | JSON | O | 해당 추천에 적용한 feature별 가중치 |
 | `generated_at` | TIMESTAMP | O | 생성 시각 |
+
+추천 조회는 최신 성공 스냅샷을 기준으로 하며, 결과를 새로 생성한 경우에만 이 테이블과 `recommendation_items`에 기록한다. 보관 기간이 지난 오래된 스냅샷은 정리할 수 있다.
 
 ### `recommendation_items`
 
@@ -377,6 +360,7 @@ erDiagram
 | `book_id` | UUID | O | 추천 도서 |
 | `rank` | INTEGER | O | 1부터 시작하는 순위 |
 | `score` | DECIMAL | O | 추천 점수 |
+| `feature_scores` | JSON | O | `taste`, `coLoan`, `trending`, `steady`, `newField`별 0~100 원점수 |
 | `reason_type` | VARCHAR | O | 추천 이유 enum |
 | `reason_text` | VARCHAR | O | 화면에 표시할 이유 |
 
@@ -403,7 +387,7 @@ erDiagram
 ### 필수 제약
 
 - `books.isbn13` UNIQUE, 검증된 13자리 숫자
-- `users.email` UNIQUE
+- `(users.oauth_provider, users.oauth_subject)` UNIQUE
 - `user_interests` 기본키 `(user_id, category)`
 - `user_seed_books` 기본키 `(user_id, book_id)` 및 `rating BETWEEN 1 AND 5`
 - `library_items(user_id, book_id)` UNIQUE
@@ -419,8 +403,6 @@ erDiagram
 
 - `books(title)` 또는 검색 엔진 연동을 위한 제목 검색 인덱스
 - `books(isbn13)` UNIQUE 인덱스
-- `library_holding_snapshots(library_id, isbn13, snapshot_month)` 복합 기본키
-- `library_holding_snapshots(isbn13, snapshot_month)`
 - `book_demand_features(as_of_month, candidate_type, rank_score DESC)`
 - `library_items(user_id, status, updated_at)`
 - `book_ratings(book_id)`
@@ -431,7 +413,7 @@ erDiagram
 
 - 별도 `likes`: `WANT_TO_READ`로 대체
 - 별도 `categories`: MVP에서는 관심 분야와 도서 카테고리를 문자열 목록으로 저장
-- 도서관별 보유 원장을 PostgreSQL 트랜잭션 테이블로 강제: 대용량 원장은 Parquet/분석 저장소를 우선 사용
+- 관별 보유 원장과 근처 도서관 조회: MVP에서 제외하고 필요 시 별도 기능으로 추가
 - 도서 통계·평균 평점·인기 점수: 조회 시 계산하거나 추천 데이터 파이프라인에서 관리
 - 세션·리프레시 토큰: 인증 구현 정책 확정 후 추가
 - `raw_payload` 본문: DB가 아니라 외부 원본 저장소에 보관
@@ -452,4 +434,4 @@ erDiagram
 3. [ERDCLOUD_IMPORT.sql](ERDCLOUD_IMPORT.sql)의 전체 내용을 붙여 넣는다.
 4. 생성된 관계와 칼럼을 확인한 뒤 레이아웃을 정리한다.
 
-이 파일은 ERDCloud 관계선 생성을 위한 논리 모델이다. `library_holding_snapshots`와 `book_demand_features`는 실제 구현에서 Parquet 또는 분석 DB로 분리할 수 있다.
+이 파일은 ERDCloud 관계선 생성을 위한 논리 모델이다. `book_demand_features`와 `book_content_features`는 실제 구현에서 Parquet 또는 분석 DB로 분리할 수 있지만, 추천 서비스가 조회할 현재 버전의 파생 결과는 저장해 둔다.

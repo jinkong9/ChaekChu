@@ -52,11 +52,17 @@ const library: LibraryItem[] = [
 
 /** ============ 핸들러 ============ */
 export const handlers = [
-  // 인증 — OAuth만 (8/27). mock 분기: 카카오=신규(온보딩행), 구글=기존 회원(홈행) — 두 흐름 다 시연용
-  http.post('*/auth/oauth/:provider', ({ params }) =>
-    params.provider === 'google'
-      ? HttpResponse.json({ accessToken: 'mock-token', nickname: '가영', onboarded: true })
-      : HttpResponse.json({ accessToken: 'mock-token', nickname: null, onboarded: false })),
+  // 인증 — mock: OAuth authorize 응답으로 callback 이후 상태를 대신한다 (dev 이어진님 구조 채택).
+  // 시연 분기: 카카오=신규(온보딩행, 닉네임은 Step 0에서 입력), 구글=기존 회원(홈 직행)
+  http.get('*/auth/oauth/:provider/authorize', ({ params }) => {
+    const provider = String(params.provider).toUpperCase()
+    if (provider !== 'KAKAO' && provider !== 'GOOGLE') {
+      return HttpResponse.json({ message: '지원하지 않는 OAuth provider입니다.' }, { status: 400 })
+    }
+    return provider === 'GOOGLE'
+      ? HttpResponse.json({ accessToken: 'mock-token', nickname: 'Google 독자', onboarded: true })
+      : HttpResponse.json({ accessToken: 'mock-token', nickname: null, onboarded: false })
+  }),
 
   // 온보딩 — Step 0 프로필(닉네임·생년월일·성별), Step 1~2 취향
   http.post('*/users/me/profile', () => new HttpResponse(null, { status: 204 })),

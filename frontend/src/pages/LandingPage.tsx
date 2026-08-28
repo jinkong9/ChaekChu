@@ -56,12 +56,17 @@ export default function LandingPage() {
   const login = useAuthStore((s) => s.login)
   const ulRef = useRef<HTMLUListElement>(null)
 
-  /** OAuth — 응답의 onboarded로 신규/기존 자동 분기 (mock: kakao=신규, google=기존) */
+  /** OAuth — 응답의 onboarded로 신규/기존 자동 분기 (mock: kakao=신규, google=기존).
+   *  실 서버 모드에서는 authorize URL로 리다이렉트 — LoginPage(이어진님)의 startOAuth 패턴과 동일 */
   const oauth = async (provider: 'kakao' | 'google') => {
-    // 실 구현: window.location.href = `${API}/oauth2/authorization/${provider}` 후 콜백에서 처리
-    const res = await api.post(`/auth/oauth/${provider}`)
-    login(res.data.accessToken, res.data.nickname, res.data.onboarded)
-    navigate(res.data.onboarded ? '/home' : '/onboarding')
+    if (import.meta.env.VITE_ENABLE_MSW === 'true') {
+      const res = await api.get(`/auth/oauth/${provider}/authorize`)
+      login(res.data.accessToken, res.data.nickname, res.data.onboarded)
+      navigate(res.data.onboarded ? '/home' : '/onboarding')
+      return
+    }
+    const baseUrl = (api.defaults.baseURL ?? '/api/v1').replace(/\/$/, '')
+    window.location.assign(`${baseUrl}/auth/oauth/${provider}/authorize`)
   }
 
   // 먼지 입자 — 위치·크기는 마운트 시 1회만 생성
