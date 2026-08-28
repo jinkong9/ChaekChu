@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams, useSearchParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { api } from '../api/client'
-import type { BookDetail } from '../api/types'
+import type { BookDetail, ShelfStatus } from '../api/types'
 import { trackEvent } from '../lib/events'
 
-/** BOOK-001 도서 상세 — 통합 서지 + 출처별 지표 + 이유 카드(추천 경유 시) + 연령 분포 */
+/** BOOK-001 도서 상세 — 통합 서지 + 출처별 지표 + 이유 카드(추천 경유 시) + 연령 분포 + 내 기록.
+ *  '다음에 읽을 책'(BOOK-002)은 별도 페이지 대신 하단 비슷한 책/함께 대출 섹션으로 흡수 */
 export default function BookDetailPage() {
   const { bookId } = useParams()
   const [params] = useSearchParams()
@@ -18,9 +19,11 @@ export default function BookDetailPage() {
 
   if (isPending || !book) return <main className="p-8 text-gray-400">불러오는 중…</main>
 
-  const save = (status: 'WISH' | 'READING' | 'READ') => {
-    trackEvent('book_save', { bookId: book.bookId, status })
-    api.post('/library', { bookId: book.bookId, status }).then(() => qc.invalidateQueries({ queryKey: ['library'] })).catch(() => {})
+  const save = (status: ShelfStatus) => {
+    if (status === 'WISH') trackEvent('WISH', { bookId: book.bookId })
+    api.post('/library', { bookId: book.bookId, status })
+      .then(() => { qc.invalidateQueries({ queryKey: ['library'] }); qc.invalidateQueries({ queryKey: ['book', bookId] }) })
+      .catch(() => {})
   }
 
   return (
@@ -32,6 +35,19 @@ export default function BookDetailPage() {
           <button className="border-2 border-primary rounded-lg py-2.5" onClick={() => save('READING')}>읽는 중으로 담기</button>
           <button className="border-2 border-primary rounded-lg py-2.5" onClick={() => save('READ')}>완독 표시</button>
         </div>
+
+        {/* 내 기록 — 계약 §6: 본인 것만, 비로그인·타인은 null */}
+        {book.myLibraryStatus && (
+          <div className="mt-4 border-2 border-primary rounded-lg p-3 text-sm bg-white">
+            <p className="font-bold">내 기록</p>
+            <p className="mt-1 text-gray-500">
+              {{ WISH: '찜', READING: '읽는 중', READ: '읽음' }[book.myLibraryStatus]}
+              {book.myRating != null && ` · ★ ${book.myRating}`}
+            </p>
+            {book.myReviewText && <p className="mt-1 text-gray-600">💬 {book.myReviewText}</p>}
+            <Link to="/library" className="text-xs text-gray-400 underline">서재에서 수정 ›</Link>
+          </div>
+        )}
       </div>
 
       <div className="flex-1">
@@ -56,7 +72,7 @@ export default function BookDetailPage() {
 
         {book.description && (
           <section className="mt-5 border-2 border-primary rounded-xl bg-white p-5">
-            <h2 className="font-bold">책 소개 <span className="text-xs font-normal text-gray-400">카카오 / YES24</span></h2>
+            <h2 className="font-bold">책 소개 <span className="text-xs font-normal text-gray-400">카카오 / YES24 — 추천 임베딩의 원천 텍스트</span></h2>
             <p className="mt-2 text-sm leading-relaxed">{book.description}</p>
           </section>
         )}
@@ -83,7 +99,7 @@ export default function BookDetailPage() {
 
         <div className="mt-3 grid grid-cols-2 gap-3">
           <section className="border-2 border-primary rounded-xl bg-white p-5">
-            <h2 className="font-bold text-sm">이 책과 비슷한 책 <span className="text-xs font-normal text-gray-400">내용 기반</span></h2>
+            <h2 className="font-bold text-sm">이 책과 비슷한 책 <span className="text-xs font-normal text-gray-400">책 소개 임베딩 유사도</span></h2>
             <div className="mt-2 flex gap-2">{[1, 2, 3, 4].map((i) => <div key={i} className="w-14 h-20 bg-gray-200 rounded" />)}</div>
           </section>
           <section className="border-2 border-primary rounded-xl bg-white p-5">
