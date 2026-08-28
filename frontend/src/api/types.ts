@@ -36,13 +36,15 @@ export interface FeatureScore {
   rawScore: number | null // 0~100
 }
 
-export type ReasonType = 'SUBJECT_MATCH' | 'AUTHOR_MATCH' | 'TEXT_SIMILAR' | 'CO_LOAN' | 'SEGMENT_POPULAR'
+export type ReasonType = 'SAME_AUTHOR' | 'SAME_CATEGORY' | 'TEXT_SIMILARITY' | 'SEGMENT_POPULAR' | 'DEMAND_POPULAR' | 'MOMENTUM' | 'NEW_BOOK' | 'INITIAL_PREFERENCE'
+
+export type RecommendationMode = 'ANONYMOUS_TAG' | 'COLD_START' | 'PERSONALIZED'
 
 /** 추천 항목 — 해시태그는 설명용, featureScores는 랭킹 재현용 */
 export interface RecommendationItem {
   book: BookSummary
   rank: number
-  fitScore: number // 최종 가중 점수 0~100
+  score: number // 최종 가중 점수 0~100
   featureScores: FeatureScore[]
   /** 이 책이 추천된 이유를 사람이 이해할 수 있게 표시하는 태그 */
   tags: string[]
@@ -54,6 +56,8 @@ export interface RecommendationItem {
 export interface RecommendationResponse {
   recommendationId: string
   generatedAt: string
+  mode: RecommendationMode
+  sessionId: string | null
   fallback: boolean // true = 콜드스타트 폴백(세그먼트 인기)
   basedOnCount: number // "최근 기록한 N권을 반영했어요"
   /** 이번 추천 결과에 적용한 최종 랭킹 가중치. 합계는 서버가 정규화한다. */
@@ -83,7 +87,7 @@ export const SUGGESTED_TAGS = [
   '#짧은호흡',   // page_count 하위 구간 — 가볍게 읽는 책
 ]
 
-export type ShelfStatus = 'WISH' | 'READING' | 'READ' // 찜 / 읽는 중 / 읽음 (계약 표기는 WANT_TO_READ — rename MR에서 통일)
+export type ShelfStatus = 'WISH' | 'READING' | 'READ' // 찜 / 읽는 중 / 읽음
 
 export interface LibraryItem {
   libraryItemId: number

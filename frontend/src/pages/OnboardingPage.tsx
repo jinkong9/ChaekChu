@@ -24,10 +24,15 @@ export default function OnboardingPage() {
   })
 
   const canProfile = profile.nickname.trim().length >= 2 && profile.birthDate !== ''
+  const canFinishBooks = [...picked.values()].every((rating) => rating != null)
 
   const submitProfile = async () => {
     // 성별은 응답 안 함 허용 — 빈 값이면 null 전송
-    await api.post('/users/me/profile', { ...profile, gender: profile.gender || null })
+    await api.post('/users/me/profile', {
+      nickname: profile.nickname.trim(),
+      birthYear: Number(profile.birthDate.slice(0, 4)),
+      gender: profile.gender || null,
+    })
     setNickname(profile.nickname.trim())
     setStep(1)
   }
@@ -43,9 +48,10 @@ export default function OnboardingPage() {
   const rate = (id: number, rating: number) => setPicked(new Map(picked).set(id, rating))
 
   const finish = async () => {
+    if (!canFinishBooks) return
     await api.post('/users/me/preferences', {
       genres,
-      books: [...picked.entries()].map(([bookId, rating]) => ({ bookId, rating })),
+      books: [...picked.entries()].map(([bookId, rating]) => ({ bookId, rating: rating as number })),
     })
     completeOnboarding()
     navigate('/home')
@@ -130,7 +136,7 @@ export default function OnboardingPage() {
             </div>
             <div className="mt-8 flex justify-between items-center">
               <button className="text-gray-400 underline" onClick={finish}>건너뛰기</button>
-              <button className="bg-primary text-white rounded-lg px-10 py-3 font-bold" onClick={finish}>
+              <button className="bg-primary text-white rounded-lg px-10 py-3 font-bold disabled:opacity-40" disabled={!canFinishBooks} onClick={finish}>
                 추천 받기{picked.size > 0 && ` (${picked.size}권 선택)`}
               </button>
             </div>

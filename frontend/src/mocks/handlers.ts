@@ -32,25 +32,47 @@ const fs = (taste: number | null, coLoan: number | null, trending: number | null
 const recommendations: RecommendationResponse = {
   recommendationId: 'rec-mock-001',
   generatedAt: new Date().toISOString(),
+  mode: 'PERSONALIZED',
+  sessionId: null,
   fallback: false,
   basedOnCount: 4,
   weights: { taste: 60, coLoan: 0, trending: 15, steady: 10, newField: 15 },
   appliedTags: [],
   items: [
-    { rank: 1, book: CATALOG[0], fitScore: 91.2, featureScores: fs(94, null, 72, 61, 25), tags: ['#내취향근접', '#함께대출'], reasonType: 'TEXT_SIMILAR',
+    { rank: 1, book: CATALOG[0], score: 91.2, featureScores: fs(94, null, 72, 61, 25), tags: ['#내취향근접', '#함께대출'], reasonType: 'TEXT_SIMILARITY',
       reasonText: '최근 높은 별점을 준 3권과 주제가 가까우면서, 그 책들을 빌린 사람들이 함께 많이 빌린 책입니다.' },
-    { rank: 2, book: CATALOG[1], fitScore: 87.6, featureScores: fs(88, null, 43, 91, 20), tags: ['#같은작가', '#스테디셀러'], reasonType: 'AUTHOR_MATCH',
+    { rank: 2, book: CATALOG[1], score: 87.6, featureScores: fs(88, null, 43, 91, 20), tags: ['#같은작가', '#스테디셀러'], reasonType: 'SAME_AUTHOR',
       reasonText: '선호하는 작가의 다른 작품이에요.' },
-    { rank: 3, book: CATALOG[2], fitScore: 82.4, featureScores: fs(80, 76, 38, 89, 15), tags: ['#함께대출', '#스테디셀러'], reasonType: 'CO_LOAN',
+    { rank: 3, book: CATALOG[2], score: 82.4, featureScores: fs(80, 76, 38, 89, 15), tags: ['#함께대출', '#스테디셀러'], reasonType: 'DEMAND_POPULAR',
       reasonText: '『데미안』을 빌린 사람들이 함께 많이 빌린 책이에요.' },
-    { rank: 4, book: CATALOG[3], fitScore: 79.8, featureScores: fs(81, null, 30, 68, 35), tags: ['#내취향근접', '#짧은호흡'], reasonType: 'TEXT_SIMILAR',
+    { rank: 4, book: CATALOG[3], score: 79.8, featureScores: fs(81, null, 30, 68, 35), tags: ['#내취향근접', '#짧은호흡'], reasonType: 'TEXT_SIMILARITY',
       reasonText: '최근 읽은 책들과 서사 결이 비슷해요.' },
-    { rank: 5, book: CATALOG[4], fitScore: 76.1, featureScores: fs(76, null, 35, 86, 10), tags: ['#스테디셀러', '#베스트셀러'], reasonType: 'TEXT_SIMILAR',
+    { rank: 5, book: CATALOG[4], score: 76.1, featureScores: fs(76, null, 35, 86, 10), tags: ['#스테디셀러', '#베스트셀러'], reasonType: 'TEXT_SIMILARITY',
       reasonText: '완독한 책들과 주제 키워드가 겹쳐요.' },
-    { rank: 6, book: CATALOG[5], fitScore: 72.3, featureScores: fs(68, 42, 88, 55, 45), tags: ['#지금뜨는', '#내또래인기'], reasonType: 'CO_LOAN',
+    { rank: 6, book: CATALOG[5], score: 72.3, featureScores: fs(68, 42, 88, 55, 45), tags: ['#지금뜨는', '#내또래인기'], reasonType: 'MOMENTUM',
       reasonText: '내 또래가 이 책과 함께 많이 빌렸어요.' },
   ],
 }
+
+const anonymousRecommendations = (tags: string[]): RecommendationResponse => ({
+  ...recommendations,
+  recommendationId: `anonymous-rec-${tags.join('-') || 'default'}`,
+  mode: 'ANONYMOUS_TAG',
+  fallback: false,
+  basedOnCount: 0,
+  weights: { taste: 100, coLoan: 0, trending: 0, steady: 0, newField: 0 },
+  appliedTags: tags,
+  items: recommendations.items.map((item, index) => ({
+    ...item,
+    rank: index + 1,
+    featureScores: fs(item.score, null, null, null, null),
+    tags: tags.length > 0 ? tags.slice(0, 2) : item.tags.filter((tag) => !tag.includes('내취향') && !tag.includes('같은작가')),
+    reasonType: 'SAME_CATEGORY',
+    reasonText: tags.length > 0
+      ? `${tags.join('·')} 태그와 책의 콘텐츠 태그가 잘 맞아요.`
+      : '책의 콘텐츠 태그가 고르게 어울리는 도서예요.',
+  })),
+})
 
 /** ============ 서재 (in-memory — 세션 동안 상태 유지) ============ */
 let nextLibraryId = 3
@@ -85,7 +107,13 @@ export const handlers = [
     return HttpResponse.json({ total: items.length, page: 1, items } satisfies SearchResponse)
   }),
 
-  // 추천·상세
+  // 비회원 추천 — 태그 적합도만 사용하며 개인 데이터는 참조하지 않는다.
+  http.get('*/recommendations/anonymous', ({ request }) => {
+    const tags = new URL(request.url).searchParams.getAll('tags').slice(0, 5)
+    return HttpResponse.json(anonymousRecommendations(tags))
+  }),
+
+  // 로그인 사용자 추천·상세
   http.get('*/recommendations', () => HttpResponse.json(recommendations)),
   http.get('*/books/:id', ({ params }) => {
     const found = CATALOG.find((bk) => bk.bookId === Number(params.id)) ?? CATALOG[0]
@@ -131,6 +159,6 @@ export const handlers = [
     return HttpResponse.json(item)
   }),
 
-  // 이벤트 수집 — enum: IMPRESSION / CLICK / WISH (축소안)
+  // 이벤트 수집 — 로그인 상세 조회는 BOOK_VIEW, 찜은 WISH로 기록한다.
   http.post('*/events', () => new HttpResponse(null, { status: 202 })),
 ]

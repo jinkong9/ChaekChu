@@ -1,8 +1,7 @@
 import { api } from '../api/client'
 
-/** 계약 event_type enum 축소판 — IMPRESSION/CLICK + WISH(찜) 추가 제안 (팀 확정 대기).
- *  폐기로 확정되면 이 파일과 호출부만 지우면 된다. */
-export type EventType = 'IMPRESSION' | 'CLICK' | 'WISH'
+/** 추천·도서 행동 이벤트 — WISH는 서재 찜 등록을 뜻한다. */
+export type EventType = 'IMPRESSION' | 'CLICK' | 'WISH' | 'BOOK_VIEW'
 
 interface EventPayload {
   bookId?: number

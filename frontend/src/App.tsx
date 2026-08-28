@@ -10,6 +10,7 @@ import SearchPage from './pages/SearchPage'
 import BookDetailPage from './pages/BookDetailPage'
 import LibraryPage from './pages/LibraryPage'
 import DnaPage from './pages/DnaPage'
+import AnonymousRecommendationPage from './pages/AnonymousRecommendationPage'
 
 /** 비로그인 `/` = 랜딩, 로그인 상태면 홈으로 */
 function RootRoute() {
@@ -24,6 +25,7 @@ export default function App() {
       {/* OAuth 버튼이 랜딩에 직접 있어 별도 로그인 페이지 없음 — 옛 링크 호환용 리다이렉트 */}
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/onboarding" element={<OnboardingPage />} />
+      <Route path="/explore" element={<AnonymousRecommendationPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="home" element={<HomePage />} />

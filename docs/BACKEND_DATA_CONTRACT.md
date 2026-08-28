@@ -28,7 +28,7 @@
 
 | 구분 | 계약 | 비고 |
 | --- | --- | --- |
-| 내부 식별자 | `string` 형태의 opaque `bookId`/`userId`/`recommendationId` | DB PK의 구체 타입은 Database Model 작업에서 결정. API는 구현 타입에 의존하지 않음 |
+| 내부 식별자 | `string` 형태의 opaque `bookId`/`userId`/`recommendationId` | 운영 DB에서는 UUID를 사용하고 API는 구현 타입을 노출하지 않음 |
 | 표준 도서 식별자 | `isbn13: string` | 하이픈 없는 13자리 숫자, 외부 JOIN·중복 제거의 기준 |
 | 보조 도서 식별자 | `isbn10: string \| null` | 하이픈 없는 10자리, 마지막 `X` 허용 |
 | 외부 식별자 | `sourceBookId: string \| null` | `itemId`, `volumeId` 등 출처별 값. ISBN으로 대체하지 않음 |
@@ -76,16 +76,10 @@ ISBN은 판본 식별자이므로 서비스의 `Book`은 기본적으로 **판�
 | `publisher` | `string \| null` |  | canonical 출판사 |
 | `publishedDate` | `date \| null` |  | 실제 출간일. 예정일은 별도 source 필드 |
 | `categories` | `string[]` |  | 세부 주제·카테고리. 출처별 원래 경로도 source record에 보존 |
-| `keywords` | `string[]` |  | 검색·추천 feature. 임의 키워드 생성 금지 |
 | `description` | `string \| null` |  | 책소개·요약을 정제한 본문 |
 | `coverImageUrl` | `string \| null` |  | 접근 가능한 표지 URL 후보 중 선택된 값 |
-| `language` | `string \| null` |  | BCP-47에 가까운 값. 확인 불가하면 `null` |
 | `pageCount` | `integer \| null` |  | 숫자로 검증된 쪽수만 저장 |
-| `pageRaw` | `string \| null` |  | 자유 형식 원문. 파싱 실패 시에도 보존 |
 | `publicationForm` | `string \| null` |  | 종이책·전자책 등 표준화된 형태 |
-| `seriesTitle` | `string \| null` |  | 총서·시리즈명 |
-| `volume` | `string \| null` |  | 권차. 숫자로 단정하지 않음 |
-| `quality` | `object` | O | 결측·검증·충돌 상태 요약 |
 | `createdAt` | `datetime` | O | canonical 레코드 생성 시각 |
 | `updatedAt` | `datetime` | O | canonical 레코드 수정 시각 |
 
@@ -101,7 +95,6 @@ ISBN은 판본 식별자이므로 서비스의 `Book`은 기본적으로 **판�
 | --- | --- | ---: | --- |
 | `bookId` | `string` | O | 대상 도서 |
 | `featureScores` | `Record<string, { score: number \| null, confidence: number }>` | O | 장르·소재·분위기 feature. 각 점수는 0~100, confidence는 0~1 |
-| `tags` | `TagScore[]` | O | 통제된 검색·추천 태그와 점수·신뢰도 |
 | `featureVersion` | `string` | O | 추출 규칙·모델 버전 |
 | `extractedAt` | `datetime` | O | 추출 시각 |
 
@@ -118,7 +111,25 @@ TagScore {
 }
 ```
 
-외부 API의 임의 키워드를 그대로 공개 태그로 사용하지 않는다. 원본 카테고리·책소개·목차를 통제된 태그로 변환하고, 태그 버전과 출처를 `featureVersion` 및 내부 provenance로 추적한다.
+외부 API의 임의 키워드를 그대로 공개 태그로 사용하지 않는다. 원본 카테고리·책소개·목차를 통제된 태그로 변환하고, 태그 버전과 출처를 `BookTag`에서 추적한다.
+
+### 3.1.2 `Tag`와 `BookTag`
+
+`Tag`는 서비스가 허용하는 해시태그 사전이고, `BookTag`는 도서별 태그 적합도다.
+
+| 모델 | 필드 | 타입 | 필수 | 규칙 |
+| --- | --- | --- | ---: | --- |
+| `Tag` | `code` | `string` | O | 불변 태그 코드. 예: `FANTASY` |
+| `Tag` | `label` | `string` | O | `#판타지` 형태의 표시명. unique |
+| `Tag` | `tagType` | `enum` | O | `GENRE`, `THEME`, `TONE`, `SIGNAL` |
+| `BookTag` | `bookId` | `string` | O | 도서 |
+| `BookTag` | `tagCode` | `string` | O | 태그 |
+| `BookTag` | `featureVersion` | `string` | O | 태그 추출 버전 |
+| `BookTag` | `score` | `number \| null` |  | 0~100. 판단 불가 시 null |
+| `BookTag` | `confidence` | `number` | O | 0~1 |
+| `BookTag` | `source` | `string` | O | `KDC`, `DATA4LIBRARY`, `MODEL` 등 |
+
+`BookTag`의 unique 키는 `(bookId, tagCode, featureVersion)`다.
 
 ### 3.2 `BookWork`
 
@@ -127,11 +138,10 @@ TagScore {
 | `workId` | `string` | O | 작품 그룹 opaque 식별자 |
 | `canonicalTitle` | `string` | O | 작품 그룹 표시용 대표 제목 |
 | `canonicalAuthor` | `string \| null` |  | 작품 그룹 대표 저자 |
-| `workGroupConfidence` | `number \| null` |  | 자동 그룹핑 후보의 신뢰도. 확정 병합과 구분 |
 | `createdAt` | `datetime` | O | 생성 시각 |
 | `updatedAt` | `datetime` | O | 수정 시각 |
 
-한 `BookWork`에 여러 ISBN 판본이 연결될 수 있지만, 같은 제목·저자라는 이유만으로 자동 확정하지 않는다. 세트·다권본은 `setIsbn13`, `volume`, `seriesTitle`과 별도 관계로 추적한다.
+한 `BookWork`에 여러 ISBN 판본이 연결될 수 있지만, 같은 제목·저자라는 이유만으로 자동 확정하지 않는다. 세트·다권본과 시리즈 메타데이터는 MVP 이후 별도 모델로 추가한다.
 
 ### 3.3 `BookSourceRecord`
 
@@ -141,14 +151,13 @@ TagScore {
 | `bookId` | `string \| null` |  | canonical 도서로 확정되기 전에는 null 가능 |
 | `source` | `enum` | O | `NATIONAL_LIBRARY`, `YES24`, `ALADIN`, `KAKAO`, `GOOGLE_BOOKS`, `DATA4LIBRARY` |
 | `sourceBookId` | `string \| null` |  | API별 상품·volume·내부 ID |
+| `sourceRecordKey` | `string` | O | 출처와 조합해 중복 수집을 막는 안정 키 |
 | `isbnRaw` | `string \| null` |  | 정규화 전 원문 |
 | `rawPayloadRef` | `string` | O | Git에 넣지 않는 원본 파일 또는 object storage 참조 |
-| `fieldSourceUpdatedAt` | `datetime \| null` |  | 출처가 제공한 수정 시각 |
 | `collectedAt` | `datetime` | O | 우리 수집 시각 |
-| `fieldConfidence` | `object` |  | 필드별 품질·선택 근거 |
 | `validationErrors` | `string[]` |  | ISBN·날짜·필드 검증 실패 사유 |
 
-canonical 필드에 출처가 다른 값을 병합하더라도 source record는 덮어쓰지 않는다. `fieldSource`, `fieldSourceUpdatedAt`, `fieldConfidence`를 기준으로 최종 선택값을 추적한다.
+canonical 필드에 출처가 다른 값을 병합하더라도 source record는 덮어쓰지 않는다. 출처별 원문과 검증 실패는 `BookSourceRecord`로 추적하고, canonical 선택 규칙은 수집 파이프라인에서 관리한다.
 
 ## 4. 사용자·행동 모델
 
@@ -163,10 +172,38 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 | `nickname` | `string \| null` |  | 화면 표시용 |
 | `birthYear` | `integer \| null` |  | 세그먼트 계산 전용, 다른 사용자에게 공개하지 않음 |
 | `gender` | `enum \| null` |  | 세그먼트 계산 전용 |
+| `onboardingStatus` | `enum` | O | `PENDING`, `COMPLETED`, `SKIPPED` |
 | `createdAt` | `datetime` | O | 생성 시각 |
 | `updatedAt` | `datetime` | O | 수정 시각 |
 
-초기 관심 분야와 seed book 평점은 `UserPreference`/`UserSeedBook` 관계로 저장한다. 사용자가 건너뛴 경우 빈 목록과 `skipped = true`를 구분할 수 있어야 한다.
+초기 관심 분야와 seed book 평점은 `UserInterest`/`UserSeedBook` 관계로 저장한다. 온보딩을 건너뛴 경우에도 `onboardingStatus = SKIPPED`로 빈 목록과 구분한다.
+
+상태의 의미는 다음과 같다.
+
+- `PENDING`: OAuth 최초 로그인 후 프로필·취향 입력을 아직 확정하지 않은 상태. 기본 추천 또는 온보딩 화면으로 보낸다.
+- `COMPLETED`: 사용자가 온보딩 저장을 완료한 상태. 관심 태그와 seed book이 비어 있어도 명시적으로 완료했다면 이 상태를 사용한다.
+- `SKIPPED`: 사용자가 온보딩을 명시적으로 건너뛴 상태. 로그인은 허용하고 `COLD_START` 추천을 제공하며, 설정에서 온보딩을 다시 시작할 수 있다.
+
+### 4.1.1 `UserInterest`
+
+| 필드 | 타입 | 필수 | 규칙 |
+| --- | --- | ---: | --- |
+| `userId` | `string` | O | 사용자 |
+| `tagCode` | `string` | O | `Tag.code` |
+| `createdAt` | `datetime` | O | 등록 시각 |
+
+기본키는 `(userId, tagCode)`이며, 존재하지 않는 태그 코드는 저장하지 않는다.
+
+### 4.1.2 `UserSeedBook`
+
+| 필드 | 타입 | 필수 | 규칙 |
+| --- | --- | ---: | --- |
+| `userId` | `string` | O | 사용자 |
+| `bookId` | `string` | O | 온보딩에서 선택한 canonical 도서 |
+| `rating` | `integer` | O | 1~5 정수. 선택한 책마다 반드시 입력 |
+| `createdAt` | `datetime` | O | 등록 시각 |
+
+기본키는 `(userId, bookId)`다. 이 평점은 온보딩 당시의 초기 취향 스냅샷이며, 이후 동일 도서의 최신 평가는 `BookRating`에 저장한다. 추천 계산에서는 최신 평점을 우선하고 seed 평점은 콜드스타트 prior로 활용한다.
 
 ### 4.2 `LibraryItem`
 
@@ -175,7 +212,7 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 | `libraryItemId` | `string` | O | 서재 항목 식별자 |
 | `userId` | `string` | O | 소유 사용자 |
 | `bookId` | `string` | O | canonical 도서 |
-| `status` | `enum` | O | `WANT_TO_READ`, `READING`, `READ` |
+| `status` | `enum` | O | `WISH`, `READING`, `READ` |
 | `finishedAt` | `date \| null` |  | `READ`일 때만 저장 |
 | `createdAt` | `datetime` | O | 생성 시각 |
 | `updatedAt` | `datetime` | O | 수정 시각 |
@@ -183,12 +220,12 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 규칙:
 
 - `(userId, bookId)`는 unique다.
-- `WANT_TO_READ`는 좋아요·읽고 싶은 책 등록을 함께 의미한다. 별도 Like 모델을 만들지 않는다.
-- 상태의 기본 흐름은 `WANT_TO_READ → READING → READ`다.
+- `WISH`는 좋아요·읽고 싶은 책 등록을 함께 의미한다. 별도 Like 모델을 만들지 않는다.
+- 상태의 기본 흐름은 `WISH → READING → READ`다.
 - 사용자는 상태를 직접 변경할 수 있다.
 - `READ`로 변경할 때 `finishedAt`이 없으면 서버 기준 오늘 날짜를 저장한다.
 - `READ`가 아닌 상태로 변경하면 `finishedAt`을 null로 만든다.
-- `READING` 또는 `READ`인 항목은 WANT_TO_READ 취소만으로 삭제하지 않는다.
+- `READING` 또는 `READ`인 항목은 WISH 취소만으로 삭제하지 않는다.
 
 ### 4.3 `BookRating`
 
@@ -197,7 +234,7 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 | `ratingId` | `string` | O | 평점 식별자 |
 | `userId` | `string` | O | 평점 작성자 |
 | `bookId` | `string` | O | 평가 대상 도서 |
-| `rating` | `integer` | O | 1~5 정수 |
+| `rating` | `integer` | O | 1~5 정수. 온보딩에서 반드시 입력 |
 | `reviewText` | `string \| null` |  | 본인 독서 기록용 한 줄 감상평, 최대 300자 |
 | `createdAt` | `datetime` | O | 생성 시각 |
 | `updatedAt` | `datetime` | O | 수정 시각 |
@@ -206,17 +243,20 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 
 `(userId, bookId)`는 unique다. 평점은 서재 상태와 별도로 저장한다. `reviewText`는 선택값이며 앞뒤 공백을 제거하고 빈 문자열은 `null`로 저장한다. 감상평은 본인 기록용으로만 제공하고 다른 사용자의 응답·검색 색인·추천 계산에는 포함하지 않는다.
 
-MVP 추천 입력에는 평점·서재 상태·초기 취향만 사용한다. 감상평 원문은 다음 버전에서 사용자 동의와 활용 범위를 확정한 뒤 AI 분석 또는 개인화 feature로 사용할 수 있도록 보존한다.
+MVP 추천 입력에는 평점·서재 상태·초기 취향·로그인 사용자의 `BOOK_VIEW`를 사용한다. 감상평 원문은 다음 버전에서 사용자 동의와 활용 범위를 확정한 뒤 AI 분석 또는 개인화 feature로 사용할 수 있도록 보존한다.
 
 ### 4.4 `Recommendation`과 `RecommendationItem`
 
 | 필드 | 타입 | 필수 | 규칙 |
 | --- | --- | ---: | --- |
 | `recommendationId` | `string` | O | 추천 생성 단위 |
-| `userId` | `string` | O | 추천 대상 사용자 |
+| `userId` | `string \| null` |  | 로그인 추천 대상. 비회원 응답은 null |
+| `sessionId` | `string \| null` |  | 비회원 응답의 일시적 추적 키. PostgreSQL 스냅샷에는 저장하지 않음 |
+| `mode` | `enum` | O | `ANONYMOUS_TAG`, `COLD_START`, `PERSONALIZED` |
 | `modelVersion` | `string` | O | 계산·규칙 버전 |
 | `weights` | `Record<FeatureKey, number>` | O | 해시태그로 계산한 `taste`를 포함한 최종 랭킹 가중치. 합계는 서버에서 정규화 |
 | `generatedAt` | `datetime` | O | 생성 시각 |
+| `fallback` | `boolean` | O | 폴백 결과 여부. `ANONYMOUS_TAG`는 개인화 폴백과 구분 |
 | `appliedTags` | `string[]` | O | 이번 추천 결과에 적용한 관심 태그. 없으면 빈 배열 |
 | `items` | `RecommendationItem[]` | O | rank 순서로 반환 |
 
@@ -226,7 +266,7 @@ MVP 추천 입력에는 평점·서재 상태·초기 취향만 사용한다. �
 | --- | --- | ---: | --- |
 | `bookId` | `string` | O | 추천 도서 |
 | `rank` | `integer` | O | 1부터 시작, 추천 내부 unique |
-| `score` | `number` | O | 계산 점수 |
+| `score` | `number` | O | 최종 계산 점수, 0~100 |
 | `featureScores` | `FeatureScore[]` | O | 후보별 최종 랭킹 feature 원점수. 각 점수는 0~100, 정보가 없으면 null |
 | `tags` | `string[]` | O | 화면에 표시할 추천 이유·책 콘텐츠 태그. 예: `#판타지`, `#내취향근접` |
 | `reasonType` | `enum` | O | `SAME_AUTHOR`, `SAME_CATEGORY`, `TEXT_SIMILARITY`, `SEGMENT_POPULAR`, `DEMAND_POPULAR`, `MOMENTUM`, `NEW_BOOK`, `INITIAL_PREFERENCE` |
@@ -236,22 +276,40 @@ MVP 추천 입력에는 평점·서재 상태·초기 취향만 사용한다. �
 
 해시태그는 검색·설명에 사용하고, 태그 단순 일치 개수만으로 최종 순위를 결정하지 않는다. 책 태그와 사용자의 별점·서재·seed book에서 만든 취향 태그를 비교해 `taste`를 계산한 뒤, `weights`로 수요·신간성 등 다른 feature와 결합한다.
 
-추천 생성 성공 시에만 `recommendationId` 단위의 결과 스냅샷을 DB에 저장한다. 같은 스냅샷을 반환하는 조회 요청마다 결과를 중복 저장하지 않는다. Redis가 활성화된 경우 최신 응답을 캐시할 수 있지만, 캐시 삭제·만료 후에도 DB의 최신 성공 스냅샷으로 응답할 수 있어야 한다. 화면에만 존재하는 임시 결과는 주 추천 응답으로 사용하지 않는다.
+로그인 추천 생성 성공 시에만 `recommendationId` 단위의 결과 스냅샷을 DB에 저장한다. 같은 스냅샷을 반환하는 조회 요청마다 결과를 중복 저장하지 않는다. 비회원 결과는 PostgreSQL에 저장하지 않고 화면 응답 또는 선택적 단기 캐시로 처리한다. Redis가 활성화된 경우 로그인 최신 응답을 캐시할 수 있지만, 캐시 삭제·만료 후에도 DB의 최신 성공 스냅샷으로 응답할 수 있어야 한다.
 
 ### 4.5 `UserEvent`
 
 | 필드 | 타입 | 필수 | 규칙 |
 | --- | --- | ---: | --- |
 | `eventId` | `string` | O | 이벤트 식별자 |
-| `userId` | `string \| null` |  | 비로그인 노출을 허용할 경우 null 가능 |
+| `userId` | `string` | O | 로그인 사용자 이벤트. 비회원 이벤트는 MVP에서 저장하지 않음 |
 | `recommendationId` | `string \| null` |  | 추천 결과와 연결 |
 | `bookId` | `string \| null` |  | 이벤트 대상 도서 |
-| `eventType` | `enum` | O | `IMPRESSION`, `CLICK`, `REASON_VIEW` |
+| `eventType` | `enum` | O | `IMPRESSION`, `CLICK`, `REASON_VIEW`, `BOOK_VIEW`, `WISH` |
 | `rank` | `integer \| null` |  | 노출 당시 추천 순위 |
+| `clientEventId` | `string \| null` |  | 클라이언트 재전송 중복 방지 키. 사용자별 unique |
 | `occurredAt` | `datetime` | O | 클라이언트 발생 시각 |
 | `createdAt` | `datetime` | O | 서버 수신 시각 |
 
-이벤트 수집 실패는 검색·서재·추천 화면을 차단하지 않는다. 중복 전송 방지 키가 필요한 경우 `recommendationId + bookId + eventType + clientEventId`를 확장 필드로 사용하되, MVP에서는 저장 API 계약을 먼저 고정한다.
+이벤트 수집 실패는 검색·서재·추천 화면을 차단하지 않는다. `BOOK_VIEW`는 도서 상세 화면을 본 기록이며, 개인화 계산에서는 낮은 가중치와 최근성·중복 감쇠를 적용한다. `WISH`는 서재의 WISH 등록을 측정하는 이벤트이며 개인화의 원천 데이터는 `library_items`다. 비회원 화면에서는 이벤트를 저장하지 않는다. 중복 전송 방지 키가 필요한 경우 `userId + clientEventId`를 unique로 둔다.
+
+### 4.6 추천 모드별 API
+
+```text
+GET /api/v1/recommendations
+Authorization: Bearer <token>
+```
+
+로그인 사용자는 서버가 `BOOK_VIEW`, `WISH`, `READING`, `READ`, 평점, seed book을 읽어 `PERSONALIZED` 또는 `COLD_START` 결과를 생성한다. 한 번의 도서 상세 조회만으로 취향을 크게 바꾸지 않도록 `BOOK_VIEW`는 평점·좋아요보다 낮은 영향으로 처리한다.
+
+```text
+GET /api/v1/recommendations/anonymous?tags=%23판타지&tags=%23성장
+```
+
+비회원 API는 인증 헤더 없이 호출할 수 있다. 요청 태그는 1~5개로 제한하고, 사용자 ID·조회 기록·서재·평점·연령·성별을 사용하지 않는다. 후보 도서 태그와 요청 태그의 적합도 및 서버 기본 `weights`만으로 순위를 계산하며, 응답의 `mode`는 `ANONYMOUS_TAG`, `basedOnCount`는 0으로 한다. 비회원 결과는 PostgreSQL 추천 스냅샷에 저장하지 않으며, 필요하면 단기 캐시만 사용한다. 화면에서 요청을 구분할 일시적 `sessionId`는 DB 사용자 데이터로 승격하지 않는다.
+
+비회원 추천의 `taste`는 사용자 프로필과의 유사도가 아니라 요청 태그와 후보 태그의 적합도다. 로그인 후에는 비회원 결과를 개인 취향 데이터로 자동 병합하지 않고, 로그인 사용자의 데이터로 새 추천을 생성한다.
 
 ## 5. 외부 필드 매핑
 
@@ -269,7 +327,7 @@ L0 카탈로그는 국립중앙도서관과 정보나루의 ISBN13 합집합이�
 | `publishedDate` | 정확한 외부 출간일 | 국중도 REAL_PUBLISH_DATE | 국중도 PUBLISH_PREDATE는 예정일로 분리 |
 | `description` | YES24·정보나루·알라딘·카카오 | Google Books | Google description은 품질 확인 전 주 출처로 채택하지 않음 |
 | `coverImageUrl` | 접근성과 품질이 확인된 YES24·알라딘 | 카카오·Google·정보나루 | 깨진 URL은 선택하지 않고 후보로 남김 |
-| `pageCount` | 숫자로 검증된 YES24·알라딘 | 국중도 PAGE 파싱값 | 파싱 실패 시 `pageRaw`만 보존 |
+| `pageCount` | 숫자로 검증된 YES24·알라딘 | 국중도 PAGE 파싱값 | 파싱 실패 시 canonical에는 저장하지 않고 source record에 원문 보존 |
 | 대출 인기도 | 정보나루 | 없음 | 국중도·판매 API 지표와 혼용하지 않음 |
 
 ### 5.2 API별 필드 매핑
@@ -280,11 +338,11 @@ L0 카탈로그는 국립중앙도서관과 정보나루의 ISBN13 합집합이�
 | 국립중앙도서관 | `TITLE` | `title` | 원문 보존 |
 | 국립중앙도서관 | `AUTHOR` | `authors` | 역할 문자열을 보존하고 저자명 토큰을 별도 생성 |
 | 국립중앙도서관 | `PUBLISHER` | `publisher` | 앞뒤 공백 정리 |
-| 국립중앙도서관 | `SERIES_TITLE`, `SERIES_NO`, `VOL` | `seriesTitle`, `volume` | 권차를 문자열로 보존 |
+| 국립중앙도서관 | `SERIES_TITLE`, `SERIES_NO`, `VOL` | source/pipeline metadata | MVP canonical `Book`에는 넣지 않고 source record 또는 수집 산출물에 보존 |
 | 국립중앙도서관 | `SUBJECT`, `KDC`, `DDC` | `categories` | 코드와 표시명 모두 source record에 보존 |
 | 국립중앙도서관 | `PUBLISH_PREDATE` | `plannedPublicationDate` | 실제 출간일과 혼동하지 않음 |
 | 국립중앙도서관 | `REAL_PUBLISH_DATE` | `publishedDate` 후보 | 날짜 형식·달력·미래일 검증 |
-| 국립중앙도서관 | `PAGE` | `pageRaw`, `pageCount` 후보 | 숫자 파싱 성공 시에만 pageCount 저장 |
+| 국립중앙도서관 | `PAGE` | `pageCount` 후보 | 숫자 파싱 성공 시에만 canonical `pageCount`에 저장하고 원문은 source record에 보존 |
 | 국립중앙도서관 | `TITLE_URL`/`cover_url` | `coverImageUrl` 후보 | 접근성 확인 후 선택 |
 | 정보나루 | `book.isbn13` | `isbn13` | 국중도와의 JOIN 키 |
 | 정보나루 | `book.bookname` | `title` | 국중도 결측 보강용 |
@@ -350,11 +408,11 @@ L0 카탈로그는 국립중앙도서관과 정보나루의 ISBN13 합집합이�
 
 ### 6.2 도서 상세 응답
 
-상세에는 검색 요약 필드에 더해 `subtitle`, `description`, `categories`, `pageCount`, `seriesTitle`, `volume`, `publicationForm`을 제공한다. 로그인 사용자의 경우에만 다음 사용자별 상태를 추가한다.
+상세에는 검색 요약 필드에 더해 `subtitle`, `description`, `categories`, `pageCount`, `publicationForm`을 제공한다. 로그인 사용자의 경우에만 다음 사용자별 상태를 추가한다.
 
 ```json
 {
-  "libraryStatus": "WANT_TO_READ",
+  "libraryStatus": "WISH",
   "rating": 4,
   "reviewText": "전개가 빠르고 인물 묘사가 인상적이었다."
 }
@@ -367,8 +425,8 @@ L0 카탈로그는 국립중앙도서관과 정보나루의 ISBN13 합집합이�
 - [x] ISBN13을 표준 JOIN·중복 제거 키로 확정
 - [x] Book을 판본 단위로 정의하고 BookWork와 분리
 - [x] Book/User/LibraryItem/BookRating/Recommendation/UserEvent 필드와 타입 확정
-- [x] 좋아요를 `WANT_TO_READ`로 통합하고 별도 Like 모델을 배제
-- [x] `WANT_TO_READ → READING → READ`, `finishedAt` 규칙 확정
+- [x] 좋아요를 `WISH`로 통합하고 별도 Like 모델을 배제
+- [x] `WISH → READING → READ`, `finishedAt` 규칙 확정
 - [x] 외부 API별 canonical 필드 매핑과 출처 우선순위 확정
 - [x] 결측·중복·ISBN·날짜·원문 보존 규칙 확정
 - [x] 검색·상세 응답에서 공개할 필드와 제외할 필드 확정
