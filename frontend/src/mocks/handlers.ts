@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import type { BookSummary, FeatureScore, LibraryItem, RecommendationResponse, SearchResponse, ShelfStatus } from '../api/types'
+import type { BookSummary, LibraryItem, RecommendationResponse, SearchResponse, ShelfStatus } from '../api/types'
 
 /** ============ mock 카탈로그 ============ */
 const b = (bookId: number, title: string, author: string, publisher: string, pageCount: number, publicationYear: number): BookSummary =>
@@ -20,31 +20,25 @@ const CATALOG: BookSummary[] = [
   b(12, '불편한 편의점', '김호연', '나무옆의자', 268, 2021),
 ]
 
-/** ============ 추천 ============ */
-const fs = (taste: number | null, coLoan: number | null, trending: number | null, steady: number | null, newField: number | null): FeatureScore[] => [
-  { key: 'taste', rawScore: taste }, { key: 'coLoan', rawScore: coLoan }, { key: 'trending', rawScore: trending },
-  { key: 'steady', rawScore: steady }, { key: 'newField', rawScore: newField },
-]
-
+/** ============ 추천 — 해시태그 + 한 문장 (8/27) ============ */
 const recommendations: RecommendationResponse = {
   recommendationId: 'rec-mock-001',
   generatedAt: new Date().toISOString(),
   fallback: false,
   basedOnCount: 4,
-  preset: 'balanced',
-  weights: { taste: 35, coLoan: 25, trending: 15, steady: 10, newField: 15 },
+  appliedTags: [],
   items: [
-    { rank: 1, book: CATALOG[0], fitScore: 87, featureScores: fs(87, 77, null, 68, 73), reasonType: 'TEXT_SIMILAR',
+    { rank: 1, book: CATALOG[0], tags: ['#내취향근접', '#함께대출'], reasonType: 'TEXT_SIMILAR',
       reasonText: '최근 높은 별점을 준 3권과 주제가 가까우면서, 그 책들을 빌린 사람들이 함께 많이 빌린 책입니다.' },
-    { rank: 2, book: CATALOG[1], fitScore: 81, featureScores: fs(84, 70, null, 74, 60), reasonType: 'AUTHOR_MATCH',
+    { rank: 2, book: CATALOG[1], tags: ['#같은작가', '#스테디셀러'], reasonType: 'AUTHOR_MATCH',
       reasonText: '선호하는 작가의 다른 작품이에요.' },
-    { rank: 3, book: CATALOG[2], fitScore: 79, featureScores: fs(72, 85, 40, 80, 55), reasonType: 'CO_LOAN',
+    { rank: 3, book: CATALOG[2], tags: ['#함께대출', '#스테디셀러'], reasonType: 'CO_LOAN',
       reasonText: '『데미안』을 빌린 사람들이 함께 많이 빌린 책이에요.' },
-    { rank: 4, book: CATALOG[3], fitScore: 76, featureScores: fs(70, 66, 55, 78, 62), reasonType: 'TEXT_SIMILAR',
+    { rank: 4, book: CATALOG[3], tags: ['#내취향근접', '#짧은호흡'], reasonType: 'TEXT_SIMILAR',
       reasonText: '최근 읽은 책들과 서사 결이 비슷해요.' },
-    { rank: 5, book: CATALOG[4], fitScore: 74, featureScores: fs(68, 64, 48, 82, 50), reasonType: 'TEXT_SIMILAR',
+    { rank: 5, book: CATALOG[4], tags: ['#스테디셀러', '#베스트셀러'], reasonType: 'TEXT_SIMILAR',
       reasonText: '완독한 책들과 주제 키워드가 겹쳐요.' },
-    { rank: 6, book: CATALOG[5], fitScore: 71, featureScores: fs(60, 74, 66, 58, 70), reasonType: 'CO_LOAN',
+    { rank: 6, book: CATALOG[5], tags: ['#지금뜨는', '#내또래인기'], reasonType: 'CO_LOAN',
       reasonText: '내 또래가 이 책과 함께 많이 빌렸어요.' },
   ],
 }
@@ -52,20 +46,20 @@ const recommendations: RecommendationResponse = {
 /** ============ 서재 (in-memory — 세션 동안 상태 유지) ============ */
 let nextLibraryId = 3
 const library: LibraryItem[] = [
-  { libraryItemId: 1, book: CATALOG[6], status: 'READ', rating: 4.5, finishedDate: '2026-08-20', progressPage: null },
-  { libraryItemId: 2, book: CATALOG[9], status: 'READING', rating: null, finishedDate: null, progressPage: 142 },
+  { libraryItemId: 1, book: CATALOG[6], status: 'READ', rating: 4, reviewText: '어른이 되기 전에 읽었어야 했다.', finishedDate: '2026-08-20', progressPage: null },
+  { libraryItemId: 2, book: CATALOG[9], status: 'READING', rating: null, reviewText: null, finishedDate: null, progressPage: 142 },
 ]
 
 /** ============ 핸들러 ============ */
 export const handlers = [
-  // 인증 — mock: 어떤 입력이든 통과
-  http.post('*/auth/signup', async ({ request }) => {
-    const body = (await request.json()) as { nickname?: string }
-    return HttpResponse.json({ accessToken: 'mock-token', nickname: body.nickname ?? '독자', onboarded: false })
-  }),
-  http.post('*/auth/login', () => HttpResponse.json({ accessToken: 'mock-token', nickname: '가영', onboarded: true })),
+  // 인증 — OAuth만 (8/27). mock 분기: 카카오=신규(온보딩행), 구글=기존 회원(홈행) — 두 흐름 다 시연용
+  http.post('*/auth/oauth/:provider', ({ params }) =>
+    params.provider === 'google'
+      ? HttpResponse.json({ accessToken: 'mock-token', nickname: '가영', onboarded: true })
+      : HttpResponse.json({ accessToken: 'mock-token', nickname: null, onboarded: false })),
 
-  // 온보딩
+  // 온보딩 — Step 0 프로필(닉네임·생년월일·성별), Step 1~2 취향
+  http.post('*/users/me/profile', () => new HttpResponse(null, { status: 204 })),
   http.get('*/books/popular', () => HttpResponse.json({ items: CATALOG.slice(4, 12) })), // 세그먼트 인기 (온보딩 그리드용)
   http.post('*/users/me/preferences', () => new HttpResponse(null, { status: 204 })),
 
@@ -80,6 +74,7 @@ export const handlers = [
   http.get('*/recommendations', () => HttpResponse.json(recommendations)),
   http.get('*/books/:id', ({ params }) => {
     const found = CATALOG.find((bk) => bk.bookId === Number(params.id)) ?? CATALOG[0]
+    const mine = library.find((li) => li.book.bookId === found.bookId) // 계약 §6: 본인 상태 join
     return HttpResponse.json({
       ...found, isbn13: '9791100000000',
       description: '자기 자신을 잃어버린 채 어른들의 기대 속에서 소진되어 가는 한 소년의 이야기. 성장과 자아 탐색이라는 주제를 정면으로 다룬다.',
@@ -92,6 +87,9 @@ export const handlers = [
         { ageGroup: '10대', ratio: 8 }, { ageGroup: '20대', ratio: 34 }, { ageGroup: '30대', ratio: 38 },
         { ageGroup: '40대', ratio: 14 }, { ageGroup: '50대+', ratio: 6 },
       ],
+      myLibraryStatus: mine?.status ?? null,
+      myRating: mine?.rating ?? null,
+      myReviewText: mine?.reviewText ?? null,
     })
   }),
 
@@ -103,20 +101,21 @@ export const handlers = [
     if (!book) return new HttpResponse(null, { status: 404 })
     const existing = library.find((li) => li.book.bookId === body.bookId)
     if (existing) { existing.status = body.status } else {
-      library.unshift({ libraryItemId: nextLibraryId++, book, status: body.status, rating: null,
+      library.unshift({ libraryItemId: nextLibraryId++, book, status: body.status, rating: null, reviewText: null,
         finishedDate: body.status === 'READ' ? new Date().toISOString().slice(0, 10) : null, progressPage: null })
     }
     return new HttpResponse(null, { status: 201 })
   }),
   http.patch('*/library/:id', async ({ params, request }) => {
-    const body = (await request.json()) as Partial<Pick<LibraryItem, 'status' | 'rating'>>
+    const body = (await request.json()) as Partial<Pick<LibraryItem, 'status' | 'rating' | 'reviewText'>>
     const item = library.find((li) => li.libraryItemId === Number(params.id))
     if (!item) return new HttpResponse(null, { status: 404 })
     if (body.status) { item.status = body.status; item.finishedDate = body.status === 'READ' ? new Date().toISOString().slice(0, 10) : item.finishedDate }
     if (body.rating !== undefined) item.rating = body.rating
+    if (body.reviewText !== undefined) item.reviewText = body.reviewText // 계약 §4.3: 빈 값 null 처리는 클라이언트에서 선반영
     return HttpResponse.json(item)
   }),
 
-  // 이벤트 수집
+  // 이벤트 수집 — enum: IMPRESSION / CLICK / WISH (축소안)
   http.post('*/events', () => new HttpResponse(null, { status: 202 })),
 ]
