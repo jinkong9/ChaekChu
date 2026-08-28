@@ -474,7 +474,309 @@ footer p { max-width:none; }
 
 <!-- ───────────────────────────────── -->
 <section>
-  <h2>6. 권고 구조</h2>
+  <h2>6. 무엇을 썼는가 — 모델과 방식</h2>
+  <p class="lede">
+    이 보고서의 모든 수치는 아래 구성으로 낸 것이다.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>요소</th><th>선택</th><th>이유</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>임베딩 모델</strong></td>
+        <td><code>jhgan/ko-sroberta-multitask</code></td>
+        <td class="dim">한국어 문장 임베딩. KorNLI·KorSTS 학습, 768차원, 약 1.1억 파라미터.
+            RTX 4070 6GB에 여유 있게 들어간다</td>
+      </tr>
+      <tr>
+        <td>입력 구성</td>
+        <td>제목 + 정보나루 소개문 + 카카오 소개문</td>
+        <td class="dim">실험에서 이 순서(D+K)가 1위. 중앙 202자 ≈ 91토큰으로
+            512토큰 창에 여유</td>
+      </tr>
+      <tr>
+        <td>유사도</td>
+        <td>코사인 (정규화 후 내적)</td>
+        <td class="dim">문장 임베딩의 표준. 길이 차이에 영향받지 않는다</td>
+      </tr>
+      <tr>
+        <td>탐색</td>
+        <td>현재 전수 내적 / 운영은 HNSW</td>
+        <td class="dim">2.2만 권은 전수로 충분. 95만 권에서는 근사 최근접(ANN)이 필요</td>
+      </tr>
+      <tr>
+        <td><strong>추천 방식</strong></td>
+        <td>콘텐츠 기반 + 협업필터링 혼합</td>
+        <td class="dim">임베딩은 내용 유사, 정보나루 함께대출은 이용 패턴.
+            서로 다른 축이라 보완된다</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note warn">
+    <div class="note-t">밝혀둘 한계 — 모델을 비교하지 않았다</div>
+    <p>
+      사전 등록 프로토콜에 <strong>"모델은 하나만 쓴다"</strong>고 못박았다.
+      여러 모델을 돌려 좋은 결과를 고르면 그것은 실험이 아니기 때문이다.
+      따라서 <code>ko-sroberta-multitask</code>가 최선이라는 근거는 <strong>없다.</strong>
+      다른 모델(<code>KoSimCSE</code>, <code>multilingual-e5</code>, <code>BGE-m3</code>)로
+      결과가 달라지는지는 <strong>별도로 확인해야 할 항목</strong>이다.
+      다만 <em>텍스트 구성 간 비교</em>는 모델을 고정했으므로 유효하다.
+    </p>
+  </div>
+</section>
+
+<!-- ───────────────────────────────── -->
+<section>
+  <h2>7. 핵심 기능 검증 — 취향 여러 권으로 추천하기</h2>
+  <p class="lede">
+    온보딩에서 책 3~5권을 받아 추천하는 것이 서비스의 주 동작이다.
+    <strong>여러 권을 어떻게 하나로 합칠지</strong>가 문제이고, 여기서 갈렸다.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <caption>합치기 방식별 결과 · 취향책이 흩어질수록 차이가 벌어진다</caption>
+    <thead>
+      <tr><th>취향 조합</th><th class="num">흩어짐</th>
+          <th class="num">중심(평균)</th><th class="num">최대</th>
+          <th class="num">합산</th><th class="num">교대</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>한 작가에 몰림</td><td class="num">0.72</td>
+        <td class="num">100%</td><td class="num">100%</td>
+        <td class="num">100%</td><td class="num">100%</td></tr>
+      <tr><td>한 장르 안에서 흩어짐</td><td class="num">0.47</td>
+        <td class="num">83%</td><td class="num">83%</td>
+        <td class="num">83%</td><td class="num">83%</td></tr>
+      <tr><td>장르를 가로지름</td><td class="num">0.30</td>
+        <td class="num">67%</td><td class="num">83%</td>
+        <td class="num">67%</td><td class="num">67%</td></tr>
+      <tr class="tot"><td>완전히 흩어짐</td><td class="num">0.41</td>
+        <td class="num" style="color:var(--stop)">17%</td><td class="num">83%</td>
+        <td class="num" style="color:var(--stop)">17%</td><td class="num">67%</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note stop">
+    <div class="note-t">가장 흔한 방식(벡터 평균)이 가장 먼저 무너진다</div>
+    <p>
+      취향이 흩어지면 평균 벡터가 <strong>아무것도 아닌 지점</strong>에 떨어진다.
+      <code>미드나잇 라이브러리 + 수학도둑 + 미움받을 용기 + 그리스 로마 신화</code>로
+      추천했더니 <em>고전의 숲 · 전지적 독자 시점 · 셰익스피어 비밀 찾기</em>가 나왔다.
+      네 취향 중 <strong>어느 것과도 관계없다.</strong>
+    </p>
+  </div>
+
+  <div class="note warn">
+    <div class="note-t">최대(max-sim)는 무너지진 않지만 한 권이 독점한다</div>
+    <p>
+      같은 입력에서 <strong>추천 6칸을 수학도둑 시리즈가 전부 차지했다</strong>(유사도 0.94).
+      이웃이 촘촘한 책 하나가 나머지 취향을 눌러버린다.
+      지표(83%)만 보면 좋아 보이지만 실제로는 못 쓴다.
+    </p>
+  </div>
+
+  <div class="note good">
+    <div class="note-t">해법 — 취향책마다 따로 뽑아 번갈아 채운다</div>
+    <p>
+      하나의 점수로 접지 않는 것이 요점이다. 접는 순간 무너지거나 독점된다.
+      취향별로 이웃을 뽑아 번갈아 배치하면 <strong>취향 하나당 최소 한 칸이 보장</strong>된다.
+    </p>
+  </div>
+
+  <div class="rec">
+    <div class="rec-h">
+      <span class="rec-q">소년이 온다 + 부의 추월차선 + 총, 균, 쇠</span>
+      <span class="rec-m">교대 방식 · 흩어짐 0.30</span>
+      <span class="tag tag-good">2칸씩 균등 배분</span>
+    </div>
+    <div class="rec-l"><ol>
+      <li class="ok"><span>1 ◎</span><span>여우야 여우야 뭐하니</span><span class="who">← 소년이 온다</span></li>
+      <li class="ok"><span>2 ○</span><span>부의 추월차선 <span class="dim">(동명이서)</span></span><span class="who">← 부의 추월차선</span></li>
+      <li class="ok"><span>3</span><span>문명의 붕괴</span><span class="who">← 총, 균, 쇠 · 같은 저자</span></li>
+      <li class="ok"><span>4 ◎</span><span>소년이로</span><span class="who">← 소년이 온다</span></li>
+      <li class="ok"><span>5</span><span>레버리지</span><span class="who">← 부의 추월차선</span></li>
+      <li class="ok"><span>6 ◎</span><span>총, 균, 쇠</span><span class="who">← 총, 균, 쇠</span></li>
+    </ol></div>
+  </div>
+
+  <p>
+    같은 입력에서 중심(평균)은 <em>광인 · 열국지 · 토정비결</em>을 냈다. 관계없는 목록이다.
+  </p>
+
+  <div class="note">
+    <div class="note-t">이 표의 숫자를 그대로 믿지 말 것</div>
+    <p>
+      "교대 67% &lt; 최대 83%"로 보이지만 <strong>지표가 이 경우를 잘못 평가한다.</strong>
+      지표는 "취향책과 KDC가 같은 비율"을 세는데, 세 장르를 골고루 덮으면
+      각 장르가 1/3씩이라 점수가 낮게 나온다. 한 시리즈로 도배해도 점수는 높다.
+      <strong>목록을 봐야 판단이 된다.</strong>
+    </p>
+  </div>
+</section>
+
+<!-- ───────────────────────────────── -->
+<section>
+  <h2>8. 키워드 — 태그로는 못 쓰지만 임베딩에는 값어치가 있다</h2>
+  <p class="lede">
+    정보나루가 책당 키워드 50개를 준다(보유율 94%). 두 용도를 나눠 판정해야 한다.
+  </p>
+
+  <h3>태그 UI로는 못 쓴다</h3>
+
+  <div class="scroll">
+  <table>
+    <caption>수집분 6,047권의 키워드 45,369개 분포</caption>
+    <thead><tr><th>구간</th><th class="num">개수</th><th>실제 내용</th></tr></thead>
+    <tbody>
+      <tr><td>최빈 30개</td><td class="num">30</td>
+        <td class="dim">사람 · 아이들 · 어린이 · 시리즈 · 세계 · 사랑 · 그림 · 다양 · 독자 · 마음</td></tr>
+      <tr><td>100권 이상 등장</td><td class="num">386</td>
+        <td class="dim">비밀 · 미국 · 내용 · 구성 · 생활 · 누구 · 공부 · 방법 · 등장 · 소개</td></tr>
+      <tr class="tot"><td>1회만 등장</td><td class="num">26,285</td>
+        <td class="dim">전체의 58%. 등장인물 이름(영혜 · 인혜 · 윌리)과 작품 제목</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    <strong>본문 빈도 기반 추출어이지 큐레이션된 태그가 아니다.</strong>
+    "힐링" "반전" "몰입감" 같은 취향 태그는 없고,
+    걸러내도 <code>가족 · 여행 · 모험 · 과학 · 학교</code> 정도만 건진다.
+    사용자가 고를 태그는 <strong>KDC와 부가기호로 직접 만들어야 한다.</strong>
+  </p>
+
+  <h3>그러나 임베딩 입력으로는 소개문보다 낫다</h3>
+
+  <p>
+    보여줄 라벨로 부적합한 것과, 벡터를 만드는 재료로 부적합한 것은 다르다.
+    키워드에는 소개문 145자가 놓친 등장인물·설정·소재가 들어 있다
+    (<code>영혜 · 몽고반점 · 욕망 · 육식</code>). 실제로 재봤다.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <caption>KDC 세부분류 적중률@10 · 표본 8,734권 · 잡음 폭 2.45%p</caption>
+    <thead>
+      <tr><th>입력 구성</th><th class="num">적중률</th>
+          <th class="num">소개문 대비</th><th class="num">평균 길이</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>키워드 원본만</td><td class="num">62.6%</td>
+        <td class="num dim">+7.8%p</td><td class="num">200자</td></tr>
+      <tr><td><strong>소개문 + 키워드 원본</strong></td><td class="num win">60.4%</td>
+        <td class="num">+5.6%p</td><td class="num">358자</td></tr>
+      <tr><td><strong>소개문 + 키워드(정제)</strong></td><td class="num win">60.0%</td>
+        <td class="num">+5.2%p</td><td class="num">334자</td></tr>
+      <tr><td>키워드만 (정제)</td><td class="num">58.7%</td>
+        <td class="num">+3.9%p</td><td class="num">176자</td></tr>
+      <tr class="tot"><td>소개문만 <span class="dim">(기준)</span></td><td class="num">54.8%</td>
+        <td class="num">—</td><td class="num">157자</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note warn">
+    <div class="note-t">처음 본 +7.8%p의 절반은 착시였다</div>
+    <p>
+      키워드에 <strong>출판사명이 75.3%, 저자명이 89.9%, 자기 제목이 86.1%</strong> 섞여 있다.
+      출판사는 분야가 편중돼 있어(비룡소=아동, 창비=문학) 같은 출판사끼리 뭉치고,
+      그것이 KDC 적중률을 부풀린다. <strong>주제를 맞힌 것이 아니라 출판사를 맞힌 것이다.</strong>
+    </p>
+    <p style="margin-bottom:0">
+      서지어를 걷어내니 순증이 <strong>+7.8%p → +3.9%p</strong>로 줄었다.
+      그래도 잡음 폭 2.45%p를 넘으므로 <strong>진짜 신호가 남아 있다.</strong>
+      실서비스에는 <code>소개문 + 정제 키워드</code>를 쓰는 것이 안전하다.
+    </p>
+  </div>
+
+  <div class="note">
+    <div class="note-t">다만 이것은 "주제"이지 "느낌"이 아니다</div>
+    <p>
+      KDC 적중률이 오른 것은 <strong>주제 판별력</strong>이지 분위기 판별력이 아니다.
+      실제로 <code>미드나잇 라이브러리</code>를 키워드로 추천하면
+      <em>그레이의 50가지 그림자 · 호스트 · 천사가 된 비키</em>가 나온다 —
+      영미소설이라는 주제는 맞지만 '힐링 판타지'라는 결은 아니다.
+      <strong>분위기 축은 여전히 재료가 없다.</strong>
+    </p>
+  </div>
+</section>
+
+<!-- ───────────────────────────────── -->
+<section>
+  <h2>9. 랭킹 feature 5종 — 지금 데이터로 되는가</h2>
+  <p class="lede">
+    기획된 개인화 축 다섯 개를 실제 데이터로 계산해 봤다.
+    <strong>재료는 다 있는데 두 개는 그대로 쓰면 작동하지 않는다.</strong>
+  </p>
+
+  <div class="scroll">
+  <table>
+    <caption>수요 상위 구간 6,886권 기준. 신간·꼬리에서는 coLoan이 19~46%로 급락</caption>
+    <thead>
+      <tr><th>Feature</th><th>재료</th><th class="num">보유율</th><th>판정</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>taste</code></td><td class="dim">소개문 + 키워드 → 임베딩</td>
+        <td class="num">95.0%</td><td class="win">작동</td></tr>
+      <tr><td><code>coLoan</code></td><td class="dim">함께 대출된 도서 10건</td>
+        <td class="num">99.5%</td><td class="win">작동</td></tr>
+      <tr><td><code>trending</code></td><td class="dim">월별 대출 12개월</td>
+        <td class="num">98.4%</td><td style="color:var(--warn)">보정 필수</td></tr>
+      <tr><td><code>steady</code></td><td class="dim">월별 대출 12개월</td>
+        <td class="num">98.4%</td><td style="color:var(--warn)">재설계 필요</td></tr>
+      <tr><td><code>newField</code></td><td class="dim">KDC — 난이도 재료 없음</td>
+        <td class="num">93.8%</td><td style="color:var(--stop)">부분 불가</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note stop">
+    <div class="note-t">trending — 원시값으로 쓰면 98.8%가 "하락"으로 찍힌다</div>
+    <p>
+      뚜렷한 상승은 <strong>1.2%뿐</strong>이다. 원인은 명확하다 —
+      <strong>전체 대출량 자체가 12.3% 감소 중</strong>이다
+      (권당 월평균 318 → 244). 절대 증감은 의미가 없으므로
+      <strong>동시기 전체 대비로 상대화하거나 백분위로 변환</strong>해야 한다.
+    </p>
+    <p style="margin-bottom:0">
+      더 고약한 것은 계절성이다. 하락 상위 4권이 전부 계절 도서였다 —
+      <em>가을을 만났어요 · 크리스마스 선물 · 분홍 토끼의 추석 · 메리 크리스마스, 늑대 아저씨!</em>
+      수집 시점이 8월이라 겨울·가을 책이 전부 하락으로 잡혔다.
+      <strong>전년 동월 대비로 계산해야 한다.</strong>
+    </p>
+  </div>
+
+  <div class="note warn">
+    <div class="note-t">steady — 변별력이 없다</div>
+    <p>
+      <strong>95%가 "꾸준함" 이상</strong>이고 표준편차가 0.064다. 순위를 못 바꾼다.
+      12개월 월별 대출은 원래 안정적이기 때문이다.
+      <strong>"오랫동안"을 12개월로 재려 한 것이 문제다.</strong>
+      발행연도(중앙 2011년)와 누적대출(보유율 100%)을 함께 써서
+      <em>연식 대비 여전히 빌려지는가</em>로 재야 한다.
+    </p>
+  </div>
+
+  <div class="note warn">
+    <div class="note-t">newField — "도전해볼 만한가"의 재료가 없다</div>
+    <p>
+      "새로운 분야인가"는 KDC로 된다. 그러나 <strong>난이도 신호가 없다.</strong>
+      가장 가까운 부가기호 독자대상은
+      <code>아동 64.9% · 교양(일반) 24.0% · 학습참고 4.7% · 전문 0.2%</code>인데,
+      이것은 <strong>대상 연령이지 난이도가 아니다.</strong>
+      같은 "교양(일반)" 안에서 <em>지대넓얕</em>과 <em>총, 균, 쇠</em>를 못 가른다.
+    </p>
+  </div>
+</section>
+
+<!-- ───────────────────────────────── -->
+<section>
+  <h2>10. 권고 구조</h2>
 
   <pre class="flow">온보딩     좋아하는 책 3~5권 → 취향 벡터
    ↓
@@ -519,7 +821,7 @@ footer p { max-width:none; }
 
 <!-- ───────────────────────────────── -->
 <section>
-  <h2>7. 미팅에서 정할 것</h2>
+  <h2>11. 미팅에서 정할 것</h2>
   <div class="scroll">
   <table>
     <thead><tr><th>안건</th><th>권고</th></tr></thead>
@@ -530,6 +832,20 @@ footer p { max-width:none; }
         <td class="win">필수 적용 — 없으면 아동 도서가 한 시리즈로 도배된다</td></tr>
       <tr><td>임베딩 입력 구성</td>
         <td class="dim">제목 + 정보나루 소개문 + 카카오 소개문 (이 순서)</td></tr>
+      <tr><td><strong>취향 합치기 방식</strong></td>
+        <td class="win">교대(취향별 번갈아) — 벡터 평균은 흩어진 취향에서 무너진다</td></tr>
+      <tr><td><strong>태그 기능</strong></td>
+        <td class="win">KDC + 부가기호로 직접 만들 것 — 정보나루 키워드는 라벨로 못 쓴다</td></tr>
+      <tr><td><strong>임베딩 입력에 키워드 추가</strong></td>
+        <td class="win">소개문 + 정제 키워드 — 적중률 54.8% → 60.0%</td></tr>
+      <tr><td><strong>trending 정의</strong></td>
+        <td class="win">동시기 상대화 + 전년 동월 대비 — 원시 증감은 98.8%가 하락</td></tr>
+      <tr><td><strong>steady 정의</strong></td>
+        <td class="win">12개월 대신 발행연도 + 누적대출 — 현재 정의는 변별력 없음</td></tr>
+      <tr><td>newField 의 난이도 축</td>
+        <td class="dim">재료 없음. 빼거나 LLM 분류 공정을 별도로 세울 것</td></tr>
+      <tr><td>임베딩 모델 비교</td>
+        <td class="dim">미실시. 다른 모델로 결과가 달라지는지 별도 확인 필요</td></tr>
       <tr><td>판형 설명형 소개문</td>
         <td class="dim">앞머리 패턴 필터링 여부 — 3.1%, 우선순위는 낮음</td></tr>
     </tbody>
