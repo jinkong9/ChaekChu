@@ -178,9 +178,18 @@ def fetch(key: str, isbn: str) -> dict:
             with urllib.request.urlopen(request, timeout=30) as response:
                 payload = json.loads(response.read().decode("utf-8", "replace"))
         except HTTPError as error:
-            # 429 는 쿼터 소진이다. 재시도해도 소용없으니 즉시 상한 판정한다.
-            if error.code == 429:
-                declare_block("HTTP 429 — 일일 쿼터 소진")
+            # 카카오는 쿼터 소진을 429 가 아니라 **400** 으로 준다 (실측 2026-08-28).
+            #   {"errorType":"BadRequest","message":"API limit has been exceeded.", ...}
+            # 400 을 일반 오류로 처리하면 연속 실패만 1,400회 쌓이고 원인을 못 짚는다.
+            if error.code in (400, 429):
+                try:
+                    detail = error.read().decode("utf-8", "replace")[:200]
+                except Exception:                        # noqa: BLE001
+                    detail = ""
+                if error.code == 429 or "limit has been exceeded" in detail:
+                    declare_block(f"HTTP {error.code} — 일일 쿼터 소진 ({detail[:80]})")
+                    return None
+                note_failure(f"HTTP 400 {detail[:40]}")
                 return None
             if error.code in (500, 502, 503, 504) and attempt < 2:
                 time.sleep(2 * (attempt + 1))
