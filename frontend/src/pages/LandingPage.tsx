@@ -47,6 +47,10 @@ const CSS = `
   .land-google { background: #ffffff; color: #22224a; border: 1.5px solid #e8e1cf;
                  box-shadow: 0 10px 26px rgba(34,34,74,0.10); }
   .land-google:hover { box-shadow: 0 15px 34px rgba(34,34,74,0.16); }
+  .land-guest { background: transparent; color: #22224a; border: 1.5px solid #22224a; min-width: 220px;
+                padding: 13px 24px; border-radius: 14px; cursor: pointer; font: inherit; font-weight: 600;
+                font-size: 14px; transition: transform 0.18s ease, background 0.18s ease; }
+  .land-guest:hover { transform: translateY(-2px); background: rgba(255,255,255,0.62); }
   .land-hint { color: #8a84a8; font-size: 13px; letter-spacing: -0.2px; }
   @media (prefers-reduced-motion: reduce) { .land-blob, .land-dust { animation: none; } .land-roll ul { transition: none; } }
 `
@@ -132,6 +136,9 @@ export default function LandingPage() {
               <span aria-hidden>G</span> Google로 시작하기
             </button>
           </div>
+          <button className="land-guest" onClick={() => navigate('/explore')}>
+            로그인 없이 태그로 추천받기
+          </button>
           <span className="land-hint">가입과 로그인이 하나예요 — 3초면 충분해요</span>
         </div>
       </div>

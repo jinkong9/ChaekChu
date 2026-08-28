@@ -22,6 +22,8 @@
   → 추천 이유 확인
 ```
 
+비회원은 로그인 없이 `/explore`에서 해시태그를 선택해 태그·서버 기본 가중치만으로 추천을 먼저 확인할 수 있다.
+
 ### 포함 기능
 
 - 카카오·Google OAuth 로그인·로그아웃
@@ -37,12 +39,12 @@
   - 페이지네이션 지원
   - 상세 화면에서 서재 상태·평점 확인 및 변경
 - 개인 서재
-  - 독서 상태: `WANT_TO_READ`, `READING`, `READ`
+  - 독서 상태: `WISH`, `READING`, `READ`
   - `READ` 상태일 때만 완독일(`finishedAt`) 저장
 - 좋아요와 읽고 싶은 책
   - 같은 기능으로 취급
-  - 좋아요 버튼은 `WANT_TO_READ` 상태 서재 등록으로 처리
-  - 좋아요 취소는 `WANT_TO_READ` 상태의 서재 등록 취소로 처리
+  - 좋아요 버튼은 `WISH` 상태 서재 등록으로 처리
+  - 좋아요 취소는 `WISH` 상태의 서재 등록 취소로 처리
   - 별도의 좋아요 테이블·API·버튼을 만들지 않음
 - 평점
   - 1~5점
@@ -52,8 +54,10 @@
   - 본인 독서 기록으로만 저장·조회·수정
   - MVP 추천·검색·AI 분석에는 사용하지 않음
 - 추천
-  - 행동 데이터가 없는 사용자는 정보나루 인기대출 기반 세그먼트 인기 도서로 폴백
-  - 행동 데이터가 있는 사용자는 TF-IDF·코사인 유사도 기반 콘텐츠 추천
+  - 비회원은 선택한 해시태그와 서버 기본 가중치만으로 추천
+  - 로그인 사용자는 조회·좋아요·평점·서재·초기 취향을 추가로 반영한 개인 추천
+  - 행동 데이터가 없는 로그인 사용자는 정보나루 인기대출 기반 세그먼트 인기 도서로 폴백
+  - 로그인 사용자의 `BOOK_VIEW`는 평점·좋아요보다 낮은 가중치와 최근성·중복 감쇠로 반영
   - 이미 서재에 등록한 도서는 추천 결과에서 제외
 - 추천 이유
   - 카드에 요약 이유 항상 표시
@@ -72,7 +76,6 @@
 - 관리자 통계 화면
 - Redis 추천 응답 캐시 (선택 사항, PostgreSQL fallback 필수)
 - 독서 메모·독서 진행률
-- 도서 조회 기록 기반 추천
 - 장르·출판사별 고급 검색 필터
 - 사용자가 추천 가중치를 직접 조절하는 기능
 
@@ -101,12 +104,12 @@
 | 5 | 도서 검색·상세 | 3단계 | 제목·저자 검색·상세 조회 |
 | 6 | 서재·독서 상태·좋아요 | 4~5단계 | 사용자별 서재 CRUD |
 | 7 | 평점 | 4~6단계 | 사용자별 평점 저장 |
-| 8 | 콜드스타트 추천 | 2~3단계 | 행동 없는 사용자도 추천 수신 |
+| 8 | 비회원·콜드스타트 추천 | 2~3단계 | 비회원 태그 추천과 행동 없는 로그인 사용자 추천 |
 | 9 | 개인화 추천 | 6~8단계 | 행동 기반 콘텐츠 추천 |
 | 10 | 프론트엔드 통합·이벤트 | API 계약 | 전체 사용자 흐름 연결 |
 | 11 | 테스트·베타·배포 | 1~10단계 | 배포 가능한 MVP |
 
-좋아요는 별도 단계가 아니라 6단계 서재 상태 API의 `WANT_TO_READ` 동작으로 구현합니다. 평점은 MVP 추천 신호로 사용하고, 감상평은 기록 전용으로 저장합니다.
+좋아요는 별도 단계가 아니라 6단계 서재 상태 API의 `WISH` 동작으로 구현합니다. 평점은 MVP 추천 신호로 사용하고, 감상평은 기록 전용으로 저장합니다.
 
 추천 후보·외부 대출 원장·월별 수요 계산의 상세 방향은 [추천 데이터 기반 서비스 방향](RECOMMENDATION_SERVICE_DIRECTION.md)과 [백엔드 ERD 초안](ERD.md)을 기준으로 합니다.
 
@@ -116,25 +119,26 @@
 
 - 화면 목록과 API 목록을 확정한다.
 - `Book`, `User`, `LibraryItem`, `BookRating`, `Recommendation`, `UserEvent` 모델을 정의한다.
-- 좋아요를 `LibraryItem.status = WANT_TO_READ`로 처리한다.
-- 독서 상태를 `WANT_TO_READ`, `READING`, `READ`로 고정한다.
+- 좋아요를 `LibraryItem.status = WISH`로 처리한다.
+- 독서 상태를 `WISH`, `READING`, `READ`로 고정한다.
 - `READ`일 때만 `finishedAt`을 저장한다.
 - 외부 API 필드와 내부 필드의 매핑표를 만든다.
 - ISBN13 정규화·중복 제거 규칙을 정한다.
-- 추천 응답의 `recommendationId`, `rank`, `tags`, `featureScores`, `weights`, `reasonType`, `reasonText`를 확정한다.
+- 추천 응답의 `recommendationId`, `mode`, `rank`, `tags`, `featureScores`, `weights`, `reasonType`, `reasonText`를 확정한다.
+- 비회원 추천 API(`/recommendations/anonymous`)는 인증 없이 태그 1~5개와 서버 기본 가중치만 받도록 확정한다.
 - API 에러 응답·페이지네이션·인증 실패 형식을 확정한다.
 
 ### 상태 규칙
 
 ```text
-WANT_TO_READ → READING → READ
+WISH → READING → READ
 ```
 
 - 사용자는 상태를 직접 변경할 수 있다.
 - `READ`로 변경할 때 완독일을 입력하지 않으면 서버 기준 오늘 날짜를 저장한다.
 - `READ`가 아닌 상태에서는 `finishedAt`을 비운다.
 - 사용자와 도서 조합의 서재 항목은 하나만 존재한다.
-- `READING` 또는 `READ` 상태인 책을 `WANT_TO_READ` 취소만으로 삭제하지 않는다.
+- `READING` 또는 `READ` 상태인 책을 `WISH` 취소만으로 삭제하지 않는다.
 
 ### 완료 조건
 
@@ -145,7 +149,7 @@ WANT_TO_READ → READING → READ
 ### 작업 명령 예시
 
 ```text
-0단계 진행해줘. 현재 저장소와 database 문서를 읽고 Book 공통 모델, ERD 초안, API 응답 규칙을 문서로 작성해줘. 좋아요는 WANT_TO_READ 서재 등록으로 처리하고 별도 Like 모델은 만들지 마.
+0단계 진행해줘. 현재 저장소와 database 문서를 읽고 Book 공통 모델, ERD 초안, API 응답 규칙을 문서로 작성해줘. 좋아요는 WISH 서재 등록으로 처리하고 별도 Like 모델은 만들지 마.
 ```
 
 ## 5. 1단계 — 프로젝트 뼈대·실행 환경
@@ -245,17 +249,19 @@ rawPayload, collectedAt
 
 | 테이블 | 주요 필드 | 목적 |
 | --- | --- | --- |
-| `users` | id, oauth_provider, oauth_subject, email, nickname, birth_year, gender | 카카오·Google OAuth 회원·세그먼트 정보 |
-| `user_interests` | user_id, category | 초기 관심 분야 |
+| `users` | id, oauth_provider, oauth_subject, email, nickname, birth_year, gender, onboarding_status | 카카오·Google OAuth 회원·세그먼트·온보딩 상태 |
+| `user_interests` | user_id, tag_code | 초기 관심 해시태그 |
 | `user_seed_books` | user_id, book_id, rating | 초기 취향 입력 |
 | `books` | id, isbn13, title, authors, description, categories 등 | 표준 도서 원천 데이터 |
-| `book_content_features` | isbn13, feature_scores, tags, feature_version, extracted_at | 책소개·목차·카테고리 기반 콘텐츠 feature와 통제 태그 |
+| `tags` | code, label, tag_type | 통제된 해시태그 사전 |
+| `book_tags` | book_id, tag_code, feature_version, score, confidence, source | 도서별 태그 적합도 |
+| `book_content_features` | book_id, feature_scores, feature_version, extracted_at | 책소개·목차·카테고리 기반 콘텐츠 feature |
 | `library_items` | user_id, book_id, status, finished_at | 개인 서재·독서 상태·좋아요 |
 | `book_ratings` | user_id, book_id, rating, review_text | 평점·개인 감상 기록 |
-| `recommendations` | id, user_id, model_version, weights, applied_tags, generated_at | 추천 결과 묶음·적용 기준 |
+| `recommendations` | id, user_id, mode, model_version, weights, applied_tags, fallback, generated_at | 로그인 추천 결과 묶음·적용 기준 |
 | `recommendation_items` | recommendation_id, book_id, rank, score, feature_scores, tags, reason_type, reason_text | 추천 항목·계산 근거·화면 태그 |
 | `user_events` | user_id, recommendation_id, book_id, event_type, rank, created_at | 추천 측정 이벤트 |
-| `book_demand_features` | isbn13, cumulative_loan_count, loan_24m_count, loan_3m_count, trending_score, steady_score, rank_score, candidate_type, as_of_month, feature_version | 추천 후보·수요 파생 결과 |
+| `book_demand_features` | book_id, as_of_month, feature_version, cumulative_loan_count, loan_24m_count, loan_3m_count, observed_months, trending_score, steady_score, rank_score, candidate_type | 추천 후보·수요 파생 결과 |
 
 ### 저장 규칙
 
@@ -264,7 +270,7 @@ rawPayload, collectedAt
 - `library_items(user_id, book_id)`는 unique로 관리한다.
 - `book_ratings(user_id, book_id)`는 unique로 관리한다.
 - `review_text`는 nullable이며 최대 300자로 제한한다. MVP 추천 입력에는 포함하지 않는다.
-- `WANT_TO_READ`가 좋아요·읽고 싶은 책 등록을 의미한다.
+- `WISH`가 좋아요·읽고 싶은 책 등록을 의미한다.
 - PostgreSQL을 원천 데이터로 두고 Flyway로 스키마를 관리한다.
 - 대용량 외부 대출 원장은 PostgreSQL 트랜잭션 테이블에 적재하지 않고 Parquet/분석 저장소에서 배치 처리한다.
 - 배치 집계한 도서별 대출량과 추천 수요 feature는 `book_demand_features`에 저장한다.
@@ -328,7 +334,7 @@ PUT  /api/v1/users/me/preferences
 - 검색 결과에는 요약 필드만 반환한다.
 - 상세 조회는 canonical book ID 또는 ISBN13으로 제공한다.
 - 상세 응답에는 로그인 사용자의 서재 상태·평점 상태를 포함한다.
-- `WANT_TO_READ` 상태이면 프론트엔드에서 좋아요 버튼을 활성화 상태로 표시한다.
+- `WISH` 상태이면 프론트엔드에서 좋아요 버튼을 활성화 상태로 표시한다.
 
 ### API 예시
 
@@ -350,8 +356,8 @@ GET /api/v1/books/{bookId}
 ### 작업
 
 - 서재 등록 API를 구현한다.
-- 좋아요 버튼으로 `WANT_TO_READ` 상태 등록을 처리한다.
-- 좋아요 취소로 `WANT_TO_READ` 서재 등록 취소를 처리한다.
+- 좋아요 버튼으로 `WISH` 상태 등록을 처리한다.
+- 좋아요 취소로 `WISH` 서재 등록 취소를 처리한다.
 - 독서 상태 변경 API를 구현한다.
 - 상태별 목록 조회와 페이지네이션을 구현한다.
 - `READ` 전환 시 완독일을 저장한다.
@@ -361,7 +367,7 @@ GET /api/v1/books/{bookId}
 ### API 예시
 
 ```text
-GET    /api/v1/library?status=WANT_TO_READ&page=0&size=20
+GET    /api/v1/library?status=WISH&page=0&size=20
 POST   /api/v1/library/books/{bookId}
 PATCH  /api/v1/library/books/{bookId}/status
 DELETE /api/v1/library/books/{bookId}
@@ -371,7 +377,7 @@ DELETE /api/v1/library/books/{bookId}
 
 - 같은 사용자가 같은 책을 중복 등록할 수 없다.
 - 세 가지 독서 상태가 저장되고 조회된다.
-- 좋아요 버튼과 `WANT_TO_READ` 상태가 항상 같은 값을 나타낸다.
+- 좋아요 버튼과 `WISH` 상태가 항상 같은 값을 나타낸다.
 - `READ`가 아닌 상태에는 완독일이 남지 않는다.
 - 다른 사용자의 서재를 조회·수정·삭제할 수 없다.
 
@@ -415,9 +421,19 @@ DELETE /api/v1/books/{bookId}/rating
 
 ## 12. 8단계 — 콜드스타트 추천
 
+### 비회원 태그 추천
+
+인증 없이도 추천을 체험할 수 있도록 `GET /api/v1/recommendations/anonymous`를 제공한다. 요청 태그와 후보 도서 태그의 적합도만 `taste`로 계산하고, 개인 사용자 데이터나 연령·성별을 사용하지 않는다. 가중치는 서버 기본값만 적용하며, 비회원 결과를 로그인 후 개인 프로필에 자동 병합하지 않는다.
+
+완료 조건:
+
+- 로그인하지 않은 사용자가 태그를 선택해 추천 결과를 받는다.
+- 비회원 응답의 `mode`가 `ANONYMOUS_TAG`이고 `userId`가 없다.
+- 비회원 추천에서 조회·서재·평점·연령·성별이 사용되지 않는다.
+
 ### 목적
 
-아직 `WANT_TO_READ`, `READING`, `READ`, 평점, 초기 취향 데이터가 없는 신규 사용자도 추천을 받을 수 있게 한다.
+아직 `WISH`, `READING`, `READ`, 평점, 초기 취향 데이터가 없는 신규 사용자도 추천을 받을 수 있게 한다.
 
 ### 작업 순서
 
@@ -440,10 +456,11 @@ DELETE /api/v1/books/{bookId}/rating
 
 ### 추천 입력
 
-- `WANT_TO_READ` 상태 도서
+- `WISH` 상태 도서
 - 평점 4점 이상 도서
 - `READING` 또는 `READ` 상태 도서
 - 초기 취향 설정에서 선택·평가한 seed book
+- `BOOK_VIEW` 이벤트로 상세를 본 도서. 낮은 가중치와 최근성·중복 감쇠를 적용한다.
 
 > `reviewText`는 기록용으로만 저장하며 MVP의 추천 입력에서 제외한다.
 
@@ -454,11 +471,13 @@ DELETE /api/v1/books/{bookId}/rating
 3. 책소개·목차·카테고리에서 통제된 태그와 콘텐츠 feature 점수·confidence를 배치 생성한다.
 4. 사용자의 긍정 도서 태그·벡터를 가중 평균해 사용자 취향 프로필을 만든다.
 5. 후보 도서와 사용자 프로필의 태그 일치도·코사인 유사도로 `taste`를 계산한다.
-6. `WANT_TO_READ`·평점·독서 상태별 가중치를 적용하고 관심 태그를 `appliedTags`로 기록한다.
+6. `WISH`·평점·독서 상태별 가중치를 적용하고 관심 태그를 `appliedTags`로 기록한다.
 7. `trending_score`, `steady_score`, `newField`, `coLoan` 등 보조 feature를 0~100 범위로 맞춘다. `coLoan`은 사용자별 협업 필터링이 아니므로 기본값을 낮게 둔다.
 8. `score = Σ(feature_score × weight) / Σ(사용 가능한 feature의 weight)`로 최종 순위를 계산한다. 해시태그 단순 일치 개수만으로 순위를 확정하지 않는다.
 9. 이미 서재에 있는 도서는 제외하고, 텍스트 부족 도서는 사전 필터에서 제거하지 않는다.
-10. 상위 N개를 저장하고 rank·score·featureScores·추천 tags·적용 weights를 함께 기록한다.
+10. 로그인 추천의 상위 N개만 저장하고 rank·score·featureScores·추천 tags·적용 weights를 함께 기록한다. 비회원 추천은 응답만 반환한다.
+
+비회원 추천은 위 개인화 계산을 사용하지 않고, 요청 해시태그와 책 태그 적합도 및 서버 기본 가중치만으로 별도 계산한다.
 
 ### 초기 가중치
 
@@ -467,7 +486,7 @@ DELETE /api/v1/books/{bookId}/rating
 ```text
 평점 5점: 1.0
 평점 4점: 0.8
-WANT_TO_READ(좋아요): 0.6
+WISH(좋아요): 0.6
 READ: 0.9
 READING: 0.8
 ```
@@ -526,7 +545,7 @@ READING: 0.8
 
 - 목업 데이터로 화면을 먼저 확인한 뒤 실제 API를 연결한다.
 - 로딩·빈 결과·오류 상태가 모두 표시된다.
-- 좋아요 버튼 상태와 `WANT_TO_READ` 상태가 일치한다.
+- 좋아요 버튼 상태와 `WISH` 상태가 일치한다.
 - 추천 이유 요약과 상세 내용이 같은 추천 결과를 가리킨다.
 - 이벤트가 중복 전송되지 않는다.
 
@@ -538,7 +557,7 @@ READING: 0.8
 2. 카카오·Google OAuth 로그인·권한 테스트
 3. 검색·상세 조회 테스트
 4. 서재 상태 전이 테스트
-5. `WANT_TO_READ` 중복·취소, 평점 범위·감상평 길이 테스트
+5. `WISH` 중복·취소, 평점 범위·감상평 길이 테스트
 6. 콜드스타트 추천 테스트
 7. 콘텐츠 추천·추천 이유 테스트
 8. 추천 계산 실패 폴백 테스트
@@ -576,7 +595,7 @@ READING: 0.8
 
 ```text
 [단계] 6단계 서재·독서 상태·좋아요 구현
-[범위] WANT_TO_READ 등록·취소, READING·READ 상태 변경, finishedAt 처리
+[범위] WISH 등록·취소, READING·READ 상태 변경, finishedAt 처리
 [선행] 3단계 저장소와 5단계 도서 상세 API가 준비되어 있다고 가정
 [제외] 별도 Like 테이블·Like API·추천 알고리즘은 구현하지 않음
 [완료] 문서의 6단계 완료 조건을 만족하고 테스트 결과 보고
@@ -595,11 +614,11 @@ READING: 0.8
 ### 명령 예시
 
 ```text
-0단계 진행해줘. 현재 저장소와 database 문서를 읽고 Book 공통 모델과 API 계약 초안을 작성해줘. 좋아요는 WANT_TO_READ 서재 등록으로 처리하고 별도 Like 모델은 만들지 마.
+0단계 진행해줘. 현재 저장소와 database 문서를 읽고 Book 공통 모델과 API 계약 초안을 작성해줘. 좋아요는 WISH 서재 등록으로 처리하고 별도 Like 모델은 만들지 마.
 
 3단계 진행해줘. PostgreSQL Flyway 마이그레이션과 Elasticsearch books_v1 매핑을 구현해줘. 샘플 도서 저장·검색 테스트까지 포함해줘.
 
-6단계 진행해줘. 인증된 사용자의 서재 등록·삭제·독서 상태 변경 API를 구현해줘. 좋아요는 WANT_TO_READ 등록으로 처리하고 READ 상태의 finishedAt 규칙을 지켜줘.
+6단계 진행해줘. 인증된 사용자의 서재 등록·삭제·독서 상태 변경 API를 구현해줘. 좋아요는 WISH 등록으로 처리하고 READ 상태의 finishedAt 규칙을 지켜줘.
 
 13단계 진행해줘. Python에서 TF-IDF·코사인 유사도 기반 개인화 추천을 구현하고 recommendations 테이블에 저장해줘. 이미 서재에 있는 책은 제외하고 추천 이유도 반환해줘.
 ```
@@ -631,7 +650,7 @@ READING: 0.8
 - 출생연도·성별을 이용한 신규 사용자 세그먼트 폴백 추천이 동작한다.
 - 초기 취향 설정을 저장하거나 건너뛸 수 있다.
 - 제목·저자로 도서를 검색하고 상세 정보를 확인할 수 있다.
-- 좋아요 버튼으로 도서를 `WANT_TO_READ` 상태로 서재에 등록할 수 있다.
+- 좋아요 버튼으로 도서를 `WISH` 상태로 서재에 등록할 수 있다.
 - `READING`, `READ` 상태를 변경할 수 있다.
 - 평점을 등록·수정·취소할 수 있다.
 - 한 줄 감상평을 선택적으로 기록·수정·삭제할 수 있다.

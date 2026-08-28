@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api } from '../api/client'
@@ -16,6 +17,15 @@ export default function BookDetailPage() {
     queryKey: ['book', bookId],
     queryFn: async () => (await api.get<BookDetail>(`/books/${bookId}`)).data,
   })
+
+  // 로그인 사용자의 개인화 입력 — 같은 도서를 반복 조회해도 세션당 한 번만 전송한다.
+  const viewedBookId = useRef<number | null>(null)
+  useEffect(() => {
+    if (book && viewedBookId.current !== book.bookId) {
+      viewedBookId.current = book.bookId
+      trackEvent('BOOK_VIEW', { bookId: book.bookId })
+    }
+  }, [book])
 
   if (isPending || !book) return <main className="p-8 text-gray-400">불러오는 중…</main>
 
