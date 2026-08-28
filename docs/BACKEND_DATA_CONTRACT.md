@@ -95,16 +95,30 @@ ISBN은 판본 식별자이므로 서비스의 `Book`은 기본적으로 **판�
 
 ### 3.1.1 `BookContentFeatures`
 
-책소개·목차·카테고리에서 배치로 추출한 책 단위 콘텐츠 feature다. API의 공개 도서 기본 정보에 항상 노출할 필요는 없으며, 추천 계산 내부 입력으로 사용한다.
+책소개·목차·카테고리에서 배치로 추출한 책 단위 콘텐츠 feature와 통제 태그다. API의 공개 도서 기본 정보에 항상 노출할 필요는 없으며, 추천 계산·태그 검색의 내부 입력으로 사용한다.
 
 | 필드 | 타입 | 필수 | 규칙 |
 | --- | --- | ---: | --- |
 | `bookId` | `string` | O | 대상 도서 |
-| `featureScores` | `Record<string, { score: number \| null, confidence: number }>` | O | 각 점수는 0~100, confidence는 0~1 |
+| `featureScores` | `Record<string, { score: number \| null, confidence: number }>` | O | 장르·소재·분위기 feature. 각 점수는 0~100, confidence는 0~1 |
+| `tags` | `TagScore[]` | O | 통제된 검색·추천 태그와 점수·신뢰도 |
 | `featureVersion` | `string` | O | 추출 규칙·모델 버전 |
 | `extractedAt` | `datetime` | O | 추출 시각 |
 
-초기 feature taxonomy는 `timeRegression`, `fantasy`, `realistic`, `lightTone`, `emotionalIntensity`, `difficulty`처럼 해석 가능한 항목으로 시작한다. 콘텐츠에서 판단할 수 없는 값은 0으로 채우지 않고 `score = null`로 둔다.
+초기 feature taxonomy는 `timeRegression`, `fantasy`, `realistic`, `lightTone`, `emotionalIntensity`, `difficulty`처럼 해석 가능한 항목으로 시작한다. 태그 taxonomy는 `genre`(소설·에세이·과학), `theme`(성장·가족·회귀물), `tone`(가벼운분위기 등), `signal`(신간·지금뜨는 등) 그룹으로 관리한다. 콘텐츠에서 판단할 수 없는 값은 0으로 채우지 않고 `score = null`로 둔다.
+
+```text
+TagScore {
+  code: string             // 예: FANTASY, TIME_REGRESSION
+  label: string            // 예: "#판타지", "#회귀물"
+  type: "GENRE" | "THEME" | "TONE" | "SIGNAL"
+  score: number | null     // 0~100
+  confidence: number       // 0~1
+  source: string           // KDC, DATA4LIBRARY, KAKAO, MODEL 등
+}
+```
+
+외부 API의 임의 키워드를 그대로 공개 태그로 사용하지 않는다. 원본 카테고리·책소개·목차를 통제된 태그로 변환하고, 태그 버전과 출처를 `featureVersion` 및 내부 provenance로 추적한다.
 
 ### 3.2 `BookWork`
 
@@ -201,8 +215,9 @@ MVP 추천 입력에는 평점·서재 상태·초기 취향만 사용한다. �
 | `recommendationId` | `string` | O | 추천 생성 단위 |
 | `userId` | `string` | O | 추천 대상 사용자 |
 | `modelVersion` | `string` | O | 계산·규칙 버전 |
-| `weights` | `Record<FeatureKey, number>` | O | 해당 추천에 적용한 feature 가중치. 합계는 서버에서 정규화 |
+| `weights` | `Record<FeatureKey, number>` | O | 해시태그로 계산한 `taste`를 포함한 최종 랭킹 가중치. 합계는 서버에서 정규화 |
 | `generatedAt` | `datetime` | O | 생성 시각 |
+| `appliedTags` | `string[]` | O | 이번 추천 결과에 적용한 관심 태그. 없으면 빈 배열 |
 | `items` | `RecommendationItem[]` | O | rank 순서로 반환 |
 
 `RecommendationItem`은 다음 필드를 가진다.
@@ -212,11 +227,14 @@ MVP 추천 입력에는 평점·서재 상태·초기 취향만 사용한다. �
 | `bookId` | `string` | O | 추천 도서 |
 | `rank` | `integer` | O | 1부터 시작, 추천 내부 unique |
 | `score` | `number` | O | 계산 점수 |
-| `featureScores` | `FeatureScore[]` | O | 후보별 feature 원점수. 각 점수는 0~100, 정보가 없으면 null |
+| `featureScores` | `FeatureScore[]` | O | 후보별 최종 랭킹 feature 원점수. 각 점수는 0~100, 정보가 없으면 null |
+| `tags` | `string[]` | O | 화면에 표시할 추천 이유·책 콘텐츠 태그. 예: `#판타지`, `#내취향근접` |
 | `reasonType` | `enum` | O | `SAME_AUTHOR`, `SAME_CATEGORY`, `TEXT_SIMILARITY`, `SEGMENT_POPULAR`, `DEMAND_POPULAR`, `MOMENTUM`, `NEW_BOOK`, `INITIAL_PREFERENCE` |
 | `reasonText` | `string` | O | 카드에 항상 표시할 요약 이유 |
 
 추천 결과에는 사용자의 서재에 이미 등록된 도서를 포함하지 않는다. 추천 계산 실패 시 마지막 성공 결과 또는 콜드스타트 결과를 사용할 수 있으며, 어느 전략으로 응답했는지는 `modelVersion`과 reason type으로 추적한다.
+
+해시태그는 검색·설명에 사용하고, 태그 단순 일치 개수만으로 최종 순위를 결정하지 않는다. 책 태그와 사용자의 별점·서재·seed book에서 만든 취향 태그를 비교해 `taste`를 계산한 뒤, `weights`로 수요·신간성 등 다른 feature와 결합한다.
 
 추천 생성 성공 시에만 `recommendationId` 단위의 결과 스냅샷을 DB에 저장한다. 같은 스냅샷을 반환하는 조회 요청마다 결과를 중복 저장하지 않는다. Redis가 활성화된 경우 최신 응답을 캐시할 수 있지만, 캐시 삭제·만료 후에도 DB의 최신 성공 스냅샷으로 응답할 수 있어야 한다. 화면에만 존재하는 임시 결과는 주 추천 응답으로 사용하지 않는다.
 

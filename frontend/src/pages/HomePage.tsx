@@ -7,8 +7,8 @@ import { useRecommendations } from '../lib/useRecommendations'
 import { useTuneStore } from '../stores/tuneStore'
 import { trackEvent } from '../lib/events'
 
-/** REC-001 추천 홈 — 8/27 결정 반영: 적합도 수치·기여도 분해 제거,
- *  이유 = 해시태그 칩 + 한 문장. 태그 조절 시 덱 재정렬(재계산 아님) */
+/** REC-001 추천 홈 — 해시태그로 이유를 설명하고, 서버가 계산한 feature 점수·가중치로 순위를 만든다.
+ *  태그 조절 시 현재 덱을 재정렬하며 후보 재생성은 하지 않는다. */
 export default function HomePage() {
   const qc = useQueryClient()
   const { data, isPending, isError } = useRecommendations()
@@ -50,7 +50,7 @@ export default function HomePage() {
         {data.fallback ? '아직 취향을 몰라서 인기 도서로 시작해요 — 찜하면 더 정확해져요.' : `최근 기록한 ${data.basedOnCount}권을 반영했어요`}
       </p>
 
-      {/* 적용 중인 관심 태그 — 수치 가중치 대신 해시태그 (8/27) */}
+      {/* 적용 중인 관심 태그 — 최종 점수의 근거를 사람이 이해할 수 있게 표시 */}
       <div className="mt-4 flex items-center gap-2 border-2 border-primary rounded-lg bg-white px-4 py-2 text-sm flex-wrap">
         <span className="font-bold">관심 태그</span>
         {appliedTags.length === 0

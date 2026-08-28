@@ -13,7 +13,8 @@
 - 대출 원장은 대용량 배치/분석 저장소에서 집계하고, 서비스 DB에는 추천에 필요한 도서 단위 파생 결과만 둔다.
 - 좋아요는 별도 테이블 없이 `library_items.status = WANT_TO_READ`로 처리한다.
 - 추천 L1 후보는 누적 대출로 수요 99%를 유지하는 임계와 신간 트랙의 합집합으로 만든다. 누적 대출은 랭킹 주신호로 사용하지 않는다.
-- 추천 결과 본문은 `recommendations`, 추천 도서별 순위·점수·이유는 `recommendation_items`로 분리한다.
+- 해시태그는 책 분류·콘텐츠·추천 이유를 표현하고, 태그 기반 `taste`를 포함한 최종 점수는 feature 가중치로 계산한다.
+- 추천 결과 본문은 `recommendations`, 추천 도서별 순위·점수·태그·이유는 `recommendation_items`로 분리한다.
 
 ## 2. 관계도
 
@@ -94,6 +95,7 @@ erDiagram
     BOOK_CONTENT_FEATURES {
         char isbn13 PK,FK
         json feature_scores
+        json tags
         varchar feature_version PK
         timestamp extracted_at
     }
@@ -148,6 +150,7 @@ erDiagram
         uuid user_id FK
         varchar model_version
         json weights
+        json applied_tags
         timestamp generated_at
     }
 
@@ -157,6 +160,7 @@ erDiagram
         integer rank
         decimal score
         json feature_scores
+        json tags
         varchar reason_type
         varchar reason_text
     }
@@ -257,12 +261,13 @@ erDiagram
 | --- | --- | --- | --- |
 | `isbn13` | CHAR(13) | O | `books.isbn13`과 논리적 연결 |
 | `feature_scores` | JSONB | O | 콘텐츠 feature별 점수·신뢰도 |
+| `tags` | JSONB | O | 통제된 태그별 code·label·type·점수·신뢰도·출처 |
 | `feature_version` | VARCHAR | O | 추출 규칙·모델 버전 |
 | `extracted_at` | TIMESTAMP | O | feature 추출 시각 |
 
 짧거나 불완전한 책소개에서 판단할 수 없는 feature는 0점이 아니라 `score = null`과 낮은 confidence로 저장한다. feature는 사용자 요청마다 새로 추출하지 않고, 책소개가 변경되거나 추출 버전이 바뀔 때 배치로 갱신한다.
 
-책의 카테고리·저자·텍스트 정보는 `books`와 검색 인덱스에 저장하고, `taste`, `coLoan`, `newField`처럼 사용자별로 달라지는 feature 점수는 추천 계산 시 산출한다. 계산된 후보별 feature 점수는 추천 스냅샷의 `recommendation_items.feature_scores`에 저장해 당시 가중치로 결과를 재현할 수 있게 한다.
+책의 카테고리·저자·텍스트 정보는 `books`와 검색 인덱스에 저장하고, 통제된 태그는 `book_content_features.tags`에서 Elasticsearch의 `tag_code`·`tag_label`로 색인한다. `taste`, `coLoan`, `newField`처럼 사용자별로 달라지는 feature 점수는 추천 계산 시 산출한다. 계산된 후보별 feature 점수와 화면용 태그는 추천 스냅샷의 `recommendation_items`에 저장해 당시 가중치와 추천 근거를 재현할 수 있게 한다.
 
 ### `users`
 
@@ -346,6 +351,7 @@ erDiagram
 | `user_id` | UUID | O | 추천 대상 |
 | `model_version` | VARCHAR | O | 계산·폴백 전략 버전 |
 | `weights` | JSON | O | 해당 추천에 적용한 feature별 가중치 |
+| `applied_tags` | JSON | O | 해당 추천에 적용한 관심 태그 |
 | `generated_at` | TIMESTAMP | O | 생성 시각 |
 
 추천 조회는 최신 성공 스냅샷을 기준으로 하며, 결과를 새로 생성한 경우에만 이 테이블과 `recommendation_items`에 기록한다. 보관 기간이 지난 오래된 스냅샷은 정리할 수 있다.
@@ -361,6 +367,7 @@ erDiagram
 | `rank` | INTEGER | O | 1부터 시작하는 순위 |
 | `score` | DECIMAL | O | 추천 점수 |
 | `feature_scores` | JSON | O | `taste`, `coLoan`, `trending`, `steady`, `newField`별 0~100 원점수 |
+| `tags` | JSON | O | `#판타지`, `#내취향근접` 등 화면 표시용 태그 |
 | `reason_type` | VARCHAR | O | 추천 이유 enum |
 | `reason_text` | VARCHAR | O | 화면에 표시할 이유 |
 

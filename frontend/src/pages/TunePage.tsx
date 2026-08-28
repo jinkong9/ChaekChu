@@ -6,8 +6,9 @@ import { useTuneStore } from '../stores/tuneStore'
 
 const MAX_TAGS = 5
 
-/** REC-002 추천 기준 조절 — 8/27 결정: 가중치 슬라이더 폐기, 해시태그 선택으로 전환.
- *  태그 선택 = 캐시된 덱을 태그 겹침 순으로 재정렬 (후보 재생성·서버 재계산 없음) */
+/** REC-002 추천 기준 조절 — 해시태그를 선택해 사용자에게 원하는 기준을 표현한다.
+ *  태그 선택 = 캐시된 덱을 태그 겹침 순으로 재정렬 (후보 재생성·서버 재계산 없음).
+ *  서버의 최종 추천은 태그 기반 taste와 feature 가중치를 함께 사용한다. */
 export default function TunePage() {
   const { data } = useRecommendations()
   const navigate = useNavigate()

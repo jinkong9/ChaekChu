@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import type { BookSummary, LibraryItem, RecommendationResponse, SearchResponse, ShelfStatus } from '../api/types'
+import type { BookSummary, FeatureScore, LibraryItem, RecommendationResponse, SearchResponse, ShelfStatus } from '../api/types'
 
 /** ============ mock 카탈로그 ============ */
 const b = (bookId: number, title: string, author: string, publisher: string, pageCount: number, publicationYear: number): BookSummary =>
@@ -20,25 +20,34 @@ const CATALOG: BookSummary[] = [
   b(12, '불편한 편의점', '김호연', '나무옆의자', 268, 2021),
 ]
 
-/** ============ 추천 — 해시태그 + 한 문장 (8/27) ============ */
+const fs = (taste: number | null, coLoan: number | null, trending: number | null, steady: number | null, newField: number | null): FeatureScore[] => [
+  { key: 'taste', rawScore: taste },
+  { key: 'coLoan', rawScore: coLoan },
+  { key: 'trending', rawScore: trending },
+  { key: 'steady', rawScore: steady },
+  { key: 'newField', rawScore: newField },
+]
+
+/** ============ 추천 — 해시태그 설명 + feature 가중치 (하이브리드) ============ */
 const recommendations: RecommendationResponse = {
   recommendationId: 'rec-mock-001',
   generatedAt: new Date().toISOString(),
   fallback: false,
   basedOnCount: 4,
+  weights: { taste: 60, coLoan: 0, trending: 15, steady: 10, newField: 15 },
   appliedTags: [],
   items: [
-    { rank: 1, book: CATALOG[0], tags: ['#내취향근접', '#함께대출'], reasonType: 'TEXT_SIMILAR',
+    { rank: 1, book: CATALOG[0], fitScore: 91.2, featureScores: fs(94, null, 72, 61, 25), tags: ['#내취향근접', '#함께대출'], reasonType: 'TEXT_SIMILAR',
       reasonText: '최근 높은 별점을 준 3권과 주제가 가까우면서, 그 책들을 빌린 사람들이 함께 많이 빌린 책입니다.' },
-    { rank: 2, book: CATALOG[1], tags: ['#같은작가', '#스테디셀러'], reasonType: 'AUTHOR_MATCH',
+    { rank: 2, book: CATALOG[1], fitScore: 87.6, featureScores: fs(88, null, 43, 91, 20), tags: ['#같은작가', '#스테디셀러'], reasonType: 'AUTHOR_MATCH',
       reasonText: '선호하는 작가의 다른 작품이에요.' },
-    { rank: 3, book: CATALOG[2], tags: ['#함께대출', '#스테디셀러'], reasonType: 'CO_LOAN',
+    { rank: 3, book: CATALOG[2], fitScore: 82.4, featureScores: fs(80, 76, 38, 89, 15), tags: ['#함께대출', '#스테디셀러'], reasonType: 'CO_LOAN',
       reasonText: '『데미안』을 빌린 사람들이 함께 많이 빌린 책이에요.' },
-    { rank: 4, book: CATALOG[3], tags: ['#내취향근접', '#짧은호흡'], reasonType: 'TEXT_SIMILAR',
+    { rank: 4, book: CATALOG[3], fitScore: 79.8, featureScores: fs(81, null, 30, 68, 35), tags: ['#내취향근접', '#짧은호흡'], reasonType: 'TEXT_SIMILAR',
       reasonText: '최근 읽은 책들과 서사 결이 비슷해요.' },
-    { rank: 5, book: CATALOG[4], tags: ['#스테디셀러', '#베스트셀러'], reasonType: 'TEXT_SIMILAR',
+    { rank: 5, book: CATALOG[4], fitScore: 76.1, featureScores: fs(76, null, 35, 86, 10), tags: ['#스테디셀러', '#베스트셀러'], reasonType: 'TEXT_SIMILAR',
       reasonText: '완독한 책들과 주제 키워드가 겹쳐요.' },
-    { rank: 6, book: CATALOG[5], tags: ['#지금뜨는', '#내또래인기'], reasonType: 'CO_LOAN',
+    { rank: 6, book: CATALOG[5], fitScore: 72.3, featureScores: fs(68, 42, 88, 55, 45), tags: ['#지금뜨는', '#내또래인기'], reasonType: 'CO_LOAN',
       reasonText: '내 또래가 이 책과 함께 많이 빌렸어요.' },
   ],
 }
