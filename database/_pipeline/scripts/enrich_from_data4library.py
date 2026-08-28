@@ -85,13 +85,20 @@ REPORT_EVERY = 2000
 KST = timezone(timedelta(hours=9))
 
 state = {"calls": 0, "hit": 0, "miss": 0, "error": 0, "streak": 0,
-         "blocked": False, "stop": False, "block_msg": ""}
+         "miss_streak": 0, "blocked": False, "stop": False, "block_msg": ""}
 lock = threading.Lock()
 
 # 상한에 걸리면 서버가 JSON 에러가 아니라 **연결을 그냥 끊는다**(WinError 10054).
 # 실측: 하루 약 3만 호출 지점에서 먼저 확보율이 떨어지고, 곧이어 리셋이 쏟아진다.
 # 그래서 메시지뿐 아니라 '연속 실패 누적' 으로도 상한을 판정한다.
 FAIL_STREAK_BLOCK = 40
+
+# 더 고약한 경우가 있다. **쿼터를 넘기면 에러도 연결 끊김도 없이 빈 응답이 온다.**
+# 수집기는 그것을 "이 ISBN 은 정보나루에 없다" 로 기록하고, 재개 로직은
+# 그것도 '처리 완료' 로 보므로 다시 시도되지 않는 영구 결측이 된다.
+#   실측 2026-08-28: 29,000건 지점부터 확보율 100% -> 0%. 19,472건이 오염됐다.
+# 진짜 미수록은 흩어져 나오고 쿼터 차단은 연속으로 나온다. 그래서 구분한다.
+MISS_STREAK_BLOCK = 50
 
 
 # ── 단일 프로세스 강제 ────────────────────────────────────────
@@ -176,11 +183,18 @@ def shape(isbn: str, body: dict) -> dict:
     if not book:
         with lock:
             state["miss"] += 1
+            state["miss_streak"] += 1
+            n = state["miss_streak"]
+        if n >= MISS_STREAK_BLOCK:
+            declare_block(f"연속 미수록 {n}건 — 쿼터 소진으로 판정 "
+                          f"(빈 응답을 미수록으로 오기록하는 것을 막는다)")
+            return None
         return {"isbn13": isbn, "ok": False}
 
     description = html.unescape((book.get("description") or "").strip())
     with lock:
         state["hit"] += 1
+        state["miss_streak"] = 0
 
     record = {
         # ── 서지 (srchDtlList 와 채움율까지 동일) ──
@@ -349,6 +363,38 @@ def drain(key: str, pending: list, workers: int) -> int:
     return counter["n"]
 
 
+def trim_trailing_misses() -> int:
+    """쿼터 차단으로 끝났을 때, 파일 끝의 연속 미수록을 잘라낸다.
+
+    차단은 연속 미수록 MISS_STREAK_BLOCK 건째에 판정되므로 그 직전까지의
+    미수록은 이미 파일에 들어가 있다. 그것들은 진짜 미수록이 아니라
+    쿼터 소진의 산물이므로 남겨 두면 **다시 시도되지 않는 영구 결측**이 된다.
+    """
+    if not OUT.exists():
+        return 0
+    lines = OUT.read_text(encoding="utf-8", errors="replace").splitlines()
+    cut = len(lines)
+    while cut > 0:
+        line = lines[cut - 1].strip()
+        if not line:
+            cut -= 1
+            continue
+        try:
+            if json.loads(line).get("ok"):
+                break
+        except json.JSONDecodeError:
+            cut -= 1
+            continue
+        cut -= 1
+    removed = len(lines) - cut
+    if removed:
+        with OUT.open("w", encoding="utf-8") as sink:
+            for line in lines[:cut]:
+                if line.strip():
+                    sink.write(line + "\n")
+    return removed
+
+
 def summary() -> None:
     print("\n=== 이번 실행 결과 ===")
     print(f"  호출        {state['calls']:>9,}")
@@ -384,6 +430,11 @@ def run(args) -> int:
 
     while pending:
         written = drain(key, pending, args.workers)
+        if state["blocked"]:
+            trimmed = trim_trailing_misses()
+            if trimmed:
+                print(f"\n    끝부분 미수록 {trimmed:,}건 제거 — "
+                      f"쿼터 소진의 산물이라 다음 실행에서 다시 시도된다")
         pending = [i for i in pending[written:]] if written else pending
         if state["blocked"]:
             wait = seconds_to_kst_midnight()
