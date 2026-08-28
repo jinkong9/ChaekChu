@@ -3,7 +3,7 @@
 -- 기준: docs/ERD.md · ERDCloud용 DDL은 docs/ERDCLOUD_IMPORT.sql (동일 모델, DATETIME 표기)
 --
 -- 실제 PostgreSQL에 적용하는 기준 스키마다. 타입은 PostgreSQL 기준(TIMESTAMPTZ)을 사용한다.
--- authors, categories, weights, feature_scores, validation_errors는
+-- authors, categories, weights, feature_scores, tags, applied_tags, validation_errors는
 -- ERDCloud 호환을 위해 TEXT로 표현했다.
 -- 실제 PostgreSQL 구현에서는 각각 TEXT[]/JSONB 등으로 결정할 수 있다.
 -- book_demand_features는 대용량 분석 영역의 논리 모델이며,
@@ -74,6 +74,7 @@ CREATE TABLE book_demand_features (
 CREATE TABLE book_content_features (
     isbn13 CHAR(13) NOT NULL,
     feature_scores TEXT NOT NULL,
+    tags TEXT NOT NULL,
     feature_version VARCHAR(50) NOT NULL,
     extracted_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (isbn13, feature_version),
@@ -154,6 +155,7 @@ CREATE TABLE recommendations (
     user_id UUID NOT NULL,
     model_version VARCHAR(100) NOT NULL,
     weights TEXT NOT NULL,
+    applied_tags TEXT NOT NULL,
     generated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT fk_recommendations_user
@@ -166,6 +168,7 @@ CREATE TABLE recommendation_items (
     rank INTEGER NOT NULL,
     score DECIMAL(20, 6) NOT NULL,
     feature_scores TEXT NOT NULL,
+    tags TEXT NOT NULL,
     reason_type VARCHAR(50) NOT NULL,
     reason_text VARCHAR(500) NOT NULL,
     PRIMARY KEY (recommendation_id, book_id),
