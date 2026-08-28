@@ -1,35 +1,47 @@
 #!/usr/bin/env python3
-"""정보나루 srchDtlList 로 도서 텍스트·메타데이터를 보강한다.
+"""정보나루 usageAnalysisList 로 도서 텍스트·메타데이터·이용분석을 보강한다.
 
 우선순위 큐(build_enrich_queue.py 산출) 순서대로 ISBN 당 1호출.
 언제 중단되어도 그 시점까지가 가장 값어치 있도록 수요 상위부터 훑는다.
 
-실측 파라미터 (2026-08-27, IP 등록 후)
-  서버가 7.5건/초에서 포화한다. 워커를 24 -> 160 으로 늘려도
-  스루풋은 5.0 -> 7.4 로만 오르고 지연이 4.9초 -> 19.7초로 늘 뿐이다.
-  즉 더 세게 밀어도 얻는 것이 없다. 포화 무릎인 48워커를 쓴다.
-  (앞선 '54건/초' 측정은 같은 ISBN 반복이라 서버 캐시를 탄 잘못된 값이었다)
+왜 srchDtlList 가 아니라 usageAnalysisList 인가 (2026-08-28 전수 확인)
+  정보나루 공식 API 12개를 매뉴얼과 실호출로 전부 대조했다.
+  두 엔드포인트는 **서지와 책소개를 채움율까지 똑같이** 준다.
+  차이는 부가 블록뿐이고, 지연도 둘 다 중앙 14.8초로 같다.
 
-일일 상한 — 실측 약 3만 호출 (2026-08-27 확정)
-  공식 문서에는 '미등록 IP 1일 500건' 만 있고 등록 후 상한은 비공개다.
-  실측 경과:  24,000 확보율 100.0%
-              26,000 확보율  97.9%   <- 서버가 조용히 거절하기 시작
-              31,756 연결 강제 종료 (WinError 10054)
+    srchDtlList 에만    isbn(ISBN10) · publication_date · 지역/연령/성별 대출
+    usageAnalysis 에만  keywords · coLoanBooks · maniaRec · readerRec
+                        loanHistory(월별 12개월+전국순위) · loanGrps(연령x성별 교차)
 
-  **상한에 걸리면 JSON 에러가 아니라 연결을 그냥 끊는다.** 그래서
-  메시지 감지만으로는 부족하고 연속 실패 누적으로도 판정한다.
-  차단으로 판정하면 전량 정지 -> KST 자정 대기 -> 자동 재개.
-  진행은 파일에 남으므로 손실은 없다.
+  잃는 것은 실질이 없다 — ISBN10 은 ISBN13 에서 유도되고, 발행일은 연도로 충분하며,
+  지역별 대출은 근처 도서관 기능을 배제해 쓸 데가 없다. 연령/성별은 loanGrps 의
+  교차 분포가 오히려 정보량이 많고 채움율도 높다 (63~64% -> 74%).
 
-  3만/일 기준 954,776건 완주는 32일. 1단(노출 90%)만이면 10일.
+  얻는 것은 크다. **coLoanBooks 는 이미 계산된 item-item 협업필터링 결과다.**
+  보유 원장에는 개인 식별자가 없어 우리가 직접 만들 수 없는 신호인데,
+  정보나루가 계산해서 준다. loanHistory 는 별도 스냅샷 수집 없이 랭킹 신호를 준다.
 
-수집 필드 (응답에 있는 것 중 쓸모 있는 것은 남긴다)
-  description  주 목적. 임베딩 입력
-  class_no/nm  KDC. 국중에 없는 정보나루 전용 33만 건의 분류를 메운다
-  add_symbol   부가기호 (독자대상·발행형태 -> 아동/전자책 판별)
-  bookImageURL 표지. 서비스 UI 에 필요
-  서지 4종      제목·저자·출판사·발행연도. 국중 미수록 건의 유일한 서지
-  age/gender   연령대·성별 대출 분포와 순위. 콜드스타트 개인화 신호
+주의 — 이 API 로도 못 채우는 것
+  **목차와 긴 요약은 정보나루 12개 API 어디에도 없다.** 매뉴얼 전문(41,016자)에
+  '목차' 0회, '요약' 0회다. 그것은 국중 URL 회수분에서만 나온다
+  (recover_nl_url_text.py -> 목차 79,720건, 요약 19,974건).
+
+실측 파라미터 (2026-08-27~28)
+  서버가 7.5건/초에서 포화한다. 워커를 24 -> 160 으로 늘려도 지연만 는다.
+  포화 무릎인 48워커를 쓴다.
+
+일일 상한 — 실측 약 3만 호출
+  상한에 걸리면 JSON 에러가 아니라 **연결을 그냥 끊는다**(WinError 10054).
+  그래서 메시지뿐 아니라 연속 실패 누적으로도 판정한다.
+  상한으로 판정하면 전량 정지하고 그 자리에서 종료한다. 진행은 파일에 남는다.
+  (`--wait` 를 주면 자정까지 대기했다가 재개하지만, 노트북이 상시 켜져 있지 않다.)
+
+  3만/일 기준 954,776건 완주는 32일. 1단(노출 90%, 301,154건)만이면 10일.
+
+출력
+  d4l_usage.jsonl — 이 스크립트의 산출물
+  d4l_enriched.jsonl 는 srchDtlList 시절 수집분(28,124건)이다. 대체되지만
+  재수집이 검증될 때까지 지우지 않는다.
 
 실행
     py scripts/enrich_from_data4library.py                # 이어서 수집
@@ -63,9 +75,9 @@ BASE = Path(r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal")
 ENV = BASE / ".env"
 DATA = BASE / "data4library"
 QUEUE = DATA / "enrich_queue.csv"
-OUT = DATA / "d4l_enriched.jsonl"
+OUT = DATA / "d4l_usage.jsonl"
 LOCK = DATA / "d4l_enrich.lock"
-API = "http://data4library.kr/api/srchDtlList"
+API = "http://data4library.kr/api/usageAnalysisList"
 
 WORKERS = 48          # 포화 무릎. 이 이상은 지연만 늘어난다
 FLUSH_EVERY = 200
@@ -73,13 +85,20 @@ REPORT_EVERY = 2000
 KST = timezone(timedelta(hours=9))
 
 state = {"calls": 0, "hit": 0, "miss": 0, "error": 0, "streak": 0,
-         "blocked": False, "stop": False, "block_msg": ""}
+         "miss_streak": 0, "blocked": False, "stop": False, "block_msg": ""}
 lock = threading.Lock()
 
 # 상한에 걸리면 서버가 JSON 에러가 아니라 **연결을 그냥 끊는다**(WinError 10054).
 # 실측: 하루 약 3만 호출 지점에서 먼저 확보율이 떨어지고, 곧이어 리셋이 쏟아진다.
 # 그래서 메시지뿐 아니라 '연속 실패 누적' 으로도 상한을 판정한다.
 FAIL_STREAK_BLOCK = 40
+
+# 더 고약한 경우가 있다. **쿼터를 넘기면 에러도 연결 끊김도 없이 빈 응답이 온다.**
+# 수집기는 그것을 "이 ISBN 은 정보나루에 없다" 로 기록하고, 재개 로직은
+# 그것도 '처리 완료' 로 보므로 다시 시도되지 않는 영구 결측이 된다.
+#   실측 2026-08-28: 29,000건 지점부터 확보율 100% -> 0%. 19,472건이 오염됐다.
+# 진짜 미수록은 흩어져 나오고 쿼터 차단은 연속으로 나온다. 그래서 구분한다.
+MISS_STREAK_BLOCK = 50
 
 
 # ── 단일 프로세스 강제 ────────────────────────────────────────
@@ -143,44 +162,81 @@ def load_done() -> set:
     return done
 
 
-def demographic(body: dict, block_name: str, item_key: str) -> list:
-    for block in body.get("loanInfo") or []:
-        rows = block.get(block_name)
-        if isinstance(rows, list):
-            return [[r[item_key].get("name"), r[item_key].get("loanCnt"),
-                     r[item_key].get("ranking")]
-                    for r in rows if isinstance(r.get(item_key), dict)]
-    return []
+def books_of(body: dict, key: str, cap: int = 10) -> list:
+    """coLoanBooks / maniaRecBooks / readerRecBooks 를 [ISBN, 제목] 로 접는다.
+
+    추천 대상은 ISBN 만 있으면 우리 카탈로그로 되짚을 수 있다. 제목은
+    조인이 깨졌을 때 눈으로 확인하려고 남긴다. 서지 전체를 넣으면
+    95만 행에서 파일이 몇 배로 불어난다.
+    """
+    out = []
+    for item in (body.get(key) or [])[:cap]:
+        book = item.get("book") or {}
+        isbn = (book.get("isbn13") or "").strip()
+        if isbn:
+            out.append([isbn, (book.get("bookname") or "").strip()[:60]])
+    return out
 
 
 def shape(isbn: str, body: dict) -> dict:
-    detail = body.get("detail") or []
-    book = (detail[0].get("book") or {}) if detail else {}
+    book = body.get("book") or {}
     if not book:
         with lock:
             state["miss"] += 1
+            state["miss_streak"] += 1
+            n = state["miss_streak"]
+        if n >= MISS_STREAK_BLOCK:
+            declare_block(f"연속 미수록 {n}건 — 쿼터 소진으로 판정 "
+                          f"(빈 응답을 미수록으로 오기록하는 것을 막는다)")
+            return None
         return {"isbn13": isbn, "ok": False}
 
     description = html.unescape((book.get("description") or "").strip())
     with lock:
         state["hit"] += 1
+        state["miss_streak"] = 0
+
     record = {
+        # ── 서지 (srchDtlList 와 채움율까지 동일) ──
         "bookname": (book.get("bookname") or "").strip(),
         "authors": (book.get("authors") or "").strip(),
         "publisher": (book.get("publisher") or "").strip(),
         "pub_year": (book.get("publication_year") or "").strip(),
         "vol": (book.get("vol") or "").strip(),
-        "isbn10": (book.get("isbn") or "").strip(),
         "class_no": (book.get("class_no") or "").strip(),
         "class_nm": (book.get("class_nm") or "").strip(),
         "add_symbol": (book.get("addition_symbol") or "").strip(),
+        "img": (book.get("bookImageURL") or "").strip(),
         "desc": description,
         "desc_len": len(description),
-        "img": (book.get("bookImageURL") or "").strip(),
-        "age": demographic(body, "ageResult", "age"),
-        "gender": demographic(body, "genderResult", "gender"),
+        "loan_total": book.get("loanCnt") or 0,
+
+        # ── 키워드: [단어, 가중치] ──
+        "keywords": [[k.get("keyword", {}).get("word", ""),
+                      k.get("keyword", {}).get("weight", "")]
+                     for k in (body.get("keywords") or [])[:50]
+                     if (k.get("keyword") or {}).get("word")],
+
+        # ── 협업필터링 신호 ──
+        # 보유 원장에는 개인 식별자가 없어 우리가 못 만드는 신호다.
+        "co_loan": books_of(body, "coLoanBooks"),
+        "mania_rec": books_of(body, "maniaRecBooks"),
+        "reader_rec": books_of(body, "readerRecBooks"),
+
+        # ── 랭킹 신호: [연월, 대출수, 전국순위] 12개월 ──
+        "loan_history": [[h.get("loan", {}).get("month", ""),
+                          h.get("loan", {}).get("loanCnt", 0),
+                          h.get("loan", {}).get("ranking", 0)]
+                         for h in (body.get("loanHistory") or [])],
+
+        # ── 인구통계: [연령, 성별, 대출수, 순위] 교차 분포 ──
+        "loan_grps": [[g.get("loanGrp", {}).get("age", ""),
+                       g.get("loanGrp", {}).get("gender", ""),
+                       g.get("loanGrp", {}).get("loanCnt", 0),
+                       g.get("loanGrp", {}).get("ranking", 0)]
+                      for g in (body.get("loanGrps") or [])],
     }
-    # 빈 값은 버려 파일 크기를 줄인다 (85만 행이면 차이가 크다)
+    # 빈 값은 버려 파일 크기를 줄인다 (95만 행이면 차이가 크다)
     slim = {k: v for k, v in record.items() if v not in ("", [], None, 0)}
     return {"isbn13": isbn, "ok": True, **slim}
 
@@ -207,7 +263,7 @@ def declare_block(message: str) -> None:
 
 def fetch(key: str, isbn: str) -> dict:
     """성공 시 레코드, 차단·영구실패 시 None."""
-    params = {"isbn13": isbn, "loaninfoYN": "Y", "authKey": key, "format": "json"}
+    params = {"isbn13": isbn, "authKey": key, "format": "json"}
     url = API + "?" + urllib.parse.urlencode(params)
     request = urllib.request.Request(url, headers={"User-Agent": "b102-enrich/1.0"})
 
@@ -307,6 +363,38 @@ def drain(key: str, pending: list, workers: int) -> int:
     return counter["n"]
 
 
+def trim_trailing_misses() -> int:
+    """쿼터 차단으로 끝났을 때, 파일 끝의 연속 미수록을 잘라낸다.
+
+    차단은 연속 미수록 MISS_STREAK_BLOCK 건째에 판정되므로 그 직전까지의
+    미수록은 이미 파일에 들어가 있다. 그것들은 진짜 미수록이 아니라
+    쿼터 소진의 산물이므로 남겨 두면 **다시 시도되지 않는 영구 결측**이 된다.
+    """
+    if not OUT.exists():
+        return 0
+    lines = OUT.read_text(encoding="utf-8", errors="replace").splitlines()
+    cut = len(lines)
+    while cut > 0:
+        line = lines[cut - 1].strip()
+        if not line:
+            cut -= 1
+            continue
+        try:
+            if json.loads(line).get("ok"):
+                break
+        except json.JSONDecodeError:
+            cut -= 1
+            continue
+        cut -= 1
+    removed = len(lines) - cut
+    if removed:
+        with OUT.open("w", encoding="utf-8") as sink:
+            for line in lines[:cut]:
+                if line.strip():
+                    sink.write(line + "\n")
+    return removed
+
+
 def summary() -> None:
     print("\n=== 이번 실행 결과 ===")
     print(f"  호출        {state['calls']:>9,}")
@@ -342,13 +430,19 @@ def run(args) -> int:
 
     while pending:
         written = drain(key, pending, args.workers)
+        if state["blocked"]:
+            trimmed = trim_trailing_misses()
+            if trimmed:
+                print(f"\n    끝부분 미수록 {trimmed:,}건 제거 — "
+                      f"쿼터 소진의 산물이라 다음 실행에서 다시 시도된다")
         pending = [i for i in pending[written:]] if written else pending
         if state["blocked"]:
             wait = seconds_to_kst_midnight()
             print(f"\n*** 일일 상한 도달: \"{state['block_msg']}\"")
             print(f"    이번 실행 누적 {state['calls']:,}호출 / 남은 대상 {len(pending):,}건")
-            if args.no_wait:
-                print("    --no-wait — 종료한다. 그대로 다시 실행하면 이어진다")
+            if not args.wait:
+                print("    오늘 몫 소진 — 종료한다. 내일 그대로 다시 실행하면 이어진다.")
+                print("       py scripts/" + Path(__file__).name)
                 break
             print(f"    KST 자정까지 {wait/3600:.1f}시간 대기 후 자동 재개", flush=True)
             slept = 0.0
@@ -374,8 +468,9 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=WORKERS)
     parser.add_argument("--limit", type=int, default=0,
                         help="이번 실행에서 처리할 최대 건수")
-    parser.add_argument("--no-wait", action="store_true",
-                        help="차단되면 자정까지 기다리지 않고 즉시 종료")
+    parser.add_argument("--wait", action="store_true",
+                        help="상한에 걸리면 KST 자정까지 대기 후 자동 재개 "
+                             "(기본은 즉시 종료 — 노트북이 상시 켜져 있지 않다)")
     args = parser.parse_args()
 
     acquire_lock()

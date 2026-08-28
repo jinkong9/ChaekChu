@@ -17,8 +17,8 @@ L1 추천 후보     누적 대출 "수요 99% 유지" 임계 (현재 72+, 948,5
 누적 대출        필터·prior 전용. 랭킹 주신호 금지
 보유 원장        holdings.parquet 1.21억 행 (lib × ISBN × 대출 × 권수)
                 + libraries.parquet (API libCode·위경도) ← 근처 도서관 기능
-텍스트 보강      ① 국중 URL 회수(API 0회) ② 정보나루 srchDtlList(주 보강원)
-                ③ 카카오(잔여분 전용, +2.7%p)
+텍스트 보강      ① 국중 URL 회수(API 0회) ② 정보나루 usageAnalysisList(주 보강원)
+                ③ 카카오(잔여분 전용, 커버리지 +2.7%p / 내용은 65.9%가 비중복)
 ```
 
 <br/>
