@@ -27,9 +27,9 @@ export default function AnonymousRecommendationPage() {
         </div>
 
         <section className="mt-12 max-w-3xl">
-          <p className="text-sm font-bold text-accent">로그인 없이 먼저 만나보기</p>
+          <p className="text-sm font-bold text-accent">로그인 후 추천 탐색</p>
           <h1 className="mt-2 text-4xl font-bold">어떤 결의 책을 찾고 있나요?</h1>
-          <p className="mt-3 text-gray-500">선택한 해시태그와 책의 콘텐츠 태그만 비교해 추천해요. 로그인하면 나의 조회·좋아요·평점·서재 기록까지 더해 개인화할 수 있어요.</p>
+          <p className="mt-3 text-gray-500">선택한 해시태그와 책의 콘텐츠 태그를 바탕으로 추천해요. 나의 조회·좋아요·평점·서재 기록까지 함께 반영할 수 있어요.</p>
         </section>
 
         <section className="mt-8 rounded-xl border-2 border-primary bg-white p-5">
@@ -59,7 +59,7 @@ export default function AnonymousRecommendationPage() {
           <div className="flex items-end justify-between">
             <div>
               <h2 className="text-2xl font-bold">이런 책을 골라봤어요</h2>
-              <p className="mt-1 text-sm text-gray-500">개인 기록은 사용하지 않은 비회원 추천이에요.</p>
+              <p className="mt-1 text-sm text-gray-500">로그인한 사용자의 추천 기준을 태그로 조절할 수 있어요.</p>
             </div>
             {data && <span className="text-sm text-gray-400">기준: {data.appliedTags.join(' · ') || '전체 태그'}</span>}
           </div>
@@ -85,7 +85,7 @@ export default function AnonymousRecommendationPage() {
         </section>
 
         <p className="mt-12 text-center text-sm text-gray-500">
-          나만의 기록까지 반영한 추천을 받고 싶다면 <Link to="/" className="font-bold text-accent underline">카카오 또는 Google로 시작해 보세요.</Link>
+          추천 기준을 더 조절하고 싶다면 <Link to="/home" className="font-bold text-accent underline">추천 홈으로 돌아가세요.</Link>
         </p>
       </div>
     </main>

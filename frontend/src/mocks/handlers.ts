@@ -95,6 +95,11 @@ const library: LibraryItem[] = [
 ]
 
 /** ============ 핸들러 ============ */
+const requireAuth = (request: Request) =>
+  request.headers.get('authorization')?.startsWith('Bearer ')
+    ? null
+    : HttpResponse.json({ message: '로그인이 필요합니다.' }, { status: 401 })
+
 export const handlers = [
   // 인증 — mock: OAuth authorize 응답으로 callback 이후 상태를 대신한다 (dev 이어진님 구조 채택).
   // 시연 분기: 카카오=신규(온보딩행, 닉네임은 Step 0에서 입력), 구글=기존 회원(홈 직행)
@@ -122,12 +127,14 @@ export const handlers = [
 
   // 비회원 추천 — 태그 적합도만 사용하며 개인 데이터는 참조하지 않는다.
   http.get('*/recommendations/anonymous', ({ request }) => {
+    const authError = requireAuth(request)
+    if (authError) return authError
     const tags = new URL(request.url).searchParams.getAll('tags').slice(0, 5)
     return HttpResponse.json(anonymousRecommendations(tags))
   }),
 
   // 로그인 사용자 추천·상세
-  http.get('*/recommendations', () => HttpResponse.json(recommendations)),
+  http.get('*/recommendations', ({ request }) => requireAuth(request) ?? HttpResponse.json(recommendations)),
   http.get('*/books/:id', ({ params }) => {
     const found = CATALOG.find((bk) => bk.bookId === Number(params.id)) ?? CATALOG[0]
     const mine = library.find((li) => li.book.bookId === found.bookId) // 계약 §6: 본인 상태 join

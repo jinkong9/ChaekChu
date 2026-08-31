@@ -136,8 +136,8 @@ export default function LandingPage() {
               <span aria-hidden>G</span> Google로 시작하기
             </button>
           </div>
-          <button className="land-guest" onClick={() => navigate('/explore')}>
-            로그인 없이 태그로 추천받기
+          <button className="land-guest" onClick={() => navigate('/search')}>
+            로그인 없이 도서 검색하기
           </button>
           <span className="land-hint">가입과 로그인이 하나예요 — 3초면 충분해요</span>
         </div>
