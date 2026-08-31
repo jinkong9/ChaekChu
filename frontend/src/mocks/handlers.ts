@@ -33,7 +33,6 @@ const recommendations: RecommendationResponse = {
   recommendationId: 'rec-mock-001',
   generatedAt: new Date().toISOString(),
   mode: 'PERSONALIZED',
-  sessionId: null,
   fallback: false,
   basedOnCount: 4,
   weights: { taste: 60, coLoan: 0, trending: 15, steady: 10, newField: 15 },

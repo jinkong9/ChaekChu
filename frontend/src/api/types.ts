@@ -60,7 +60,6 @@ export interface RecommendationResponse {
   recommendationId: string
   generatedAt: string
   mode: RecommendationMode
-  sessionId: string | null
   fallback: boolean // true = 콜드스타트 폴백(세그먼트 인기)
   basedOnCount: number // "최근 기록한 N권을 반영했어요"
   /** 이번 추천 결과에 적용한 최종 랭킹 가중치. 합계는 서버가 정규화한다. */
