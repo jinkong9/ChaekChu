@@ -91,9 +91,24 @@ REPORT_EVERY = 2000
 KST = timezone(timedelta(hours=9))
 NL = chr(10)
 
-state = {"calls": 0, "hit": 0, "miss": 0, "error": 0, "streak": 0,
-         "miss_streak": 0, "blocked": False, "stop": False, "block_msg": "",
-         "keys": [], "per_key": {}, "dead": set(), "rr": 0}
+state = {
+    "calls": 0, "hit": 0, "miss": 0, "error": 0,
+    "blocked": False, "stop": False, "block_msg": "",
+    "keys": [], "per_key": {}, "dead": set(), "rr": 0,
+
+    # 연속 실패는 **키별로** 센다. 전역으로 세면 한 키가 쏟아낸 실패가
+    # 다른 키를 죽인다 — IP 미등록 키의 실패가 40에 닿는 순간 사용 중이던
+    # 정상 키가 소진 처리돼 1,080건에서 멈춘 적이 있다 (2026-08-31).
+    "streak": {}, "miss_streak": {},
+
+    # 서버 장애 추적. 키 쿼터와 무관하다
+    "gw_streak": 0, "gw_total": 0, "paused": False, "pauses": 0,
+
+    # 장애 시 **모든 워커**를 세우는 게이트.
+    # 한 스레드만 재우면 나머지가 계속 두드려 예산이 순식간에 증발한다 —
+    # 47개 워커가 계속 던져 2분 만에 87,000 을 태운 적이 있다.
+    "hold": threading.Event(),
+}
 lock = threading.Lock()
 
 # 상한에 걸리면 서버가 JSON 에러가 아니라 **연결을 그냥 끊는다**(WinError 10054).
@@ -360,6 +375,7 @@ def wait_for_server() -> bool:
             return True
         state["paused"] = True
         state["pauses"] += 1
+    state["hold"].set()          # 모든 워커 정지
     print(NL + f"  *** 서버 장애 — 게이트웨이 오류 누적 {state['gw_total']:,}",
           flush=True)
     try:
@@ -388,6 +404,7 @@ def wait_for_server() -> bool:
             state["stop"] = True
         return False
     finally:
+        state["hold"].clear()    # 모든 워커 재개
         with lock:
             state["paused"] = False
 
@@ -504,10 +521,11 @@ def fetch(_unused: str, isbn: str) -> dict:
     for attempt in range(3):
         if state["stop"]:
             return None
-        # 쿼터는 실패한 호출도 센다. 성공만 세면 예산이 과소 계상돼
-        # 실제 상한을 넘긴다. 그래서 **시도할 때마다** 올린다.
-        with lock:
-            state["per_key"][key_name] = state["per_key"].get(key_name, 0) + 1
+        # 장애 중이면 여기서 모두 멈춘다 (게이트가 열릴 때까지)
+        if state["hold"].is_set():
+            state["hold"].wait(timeout=SERVER_WAIT + 60)
+            if state["stop"]:
+                return None
         timeout = GATEWAY_TIMEOUT if state["gw_streak"] else 60
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -523,7 +541,7 @@ def fetch(_unused: str, isbn: str) -> dict:
                     continue
                 return None
             if error.code in (429, 500) and attempt < 2:
-                time.sleep(2 * (attempt + 1))
+                time.sleep(3 * (attempt + 1) ** 2)
                 continue
             note_failure(f"HTTP {error.code}", key_idx)
             return None
@@ -532,10 +550,16 @@ def fetch(_unused: str, isbn: str) -> dict:
         # 튀어나가 실행 전체를 죽인 적이 있다 (2026-08-27, 28,124건 지점).
         except (URLError, TimeoutError, OSError, json.JSONDecodeError):
             if attempt < 2:
-                time.sleep(2 * (attempt + 1))
+                time.sleep(3 * (attempt + 1) ** 2)   # 3s -> 12s. 폭주를 막는다
                 continue
             note_failure("연결 끊김", key_idx)
             return None
+
+        # **서버가 응답을 준 호출만** 예산으로 센다.
+        # 연결 단계에서 실패한 요청은 서버에 닿지도 않아 쿼터를 안 쓴다.
+        # 그것까지 세면 장애 때 쓰지도 않은 예산이 증발한다.
+        with lock:
+            state["per_key"][key_name] = state["per_key"].get(key_name, 0) + 1
 
         body = payload.get("response") or {}
         message = body.get("error") or ""
