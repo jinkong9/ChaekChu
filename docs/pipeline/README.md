@@ -14,8 +14,10 @@
 | [EMBEDDING_EXPERIMENT_PROTOCOL.md](EMBEDDING_EXPERIMENT_PROTOCOL.md) | 위 실험의 사전 등록 프로토콜. 결과 보기 전 확정한 판정 규칙 |
 | [WORK_STATE.md](WORK_STATE.md) | **재개 지점.** 지금 어디까지 왔고 다음이 뭔지. 먼저 읽을 것 |
 | [RECOMMENDATION_DATA_DECISIONS.md](RECOMMENDATION_DATA_DECISIONS.md) | 아키텍처 결정 기록. 결정 → 실측 근거 → 기각한 대안 |
+| [DATA_LOCATIONS.md](DATA_LOCATIONS.md) | **데이터 위치.** 파일별 경로·크기·용도·정리 가능 여부 |
 | [DATA_INVENTORY.md](DATA_INVENTORY.md) | 파일별 컬럼·타입·실측 채움율·조인 키 주의사항 |
-| [SCRIPTS.md](SCRIPTS.md) | 스크립트 색인. 14개 전부 — 역할·실행 순서·박혀 있는 함정 |
+| [COLLECTED_SOURCE_FIELD_GUIDE.md](COLLECTED_SOURCE_FIELD_GUIDE.md) | **원본 필드 사전.** 국중 39컬럼·정보나루 수집 필드의 의미·정제 방침·결측률 |
+| [SCRIPTS.md](SCRIPTS.md) | 스크립트 색인. 22개 전부 — 역할·실행 순서·박혀 있는 함정 |
 
 관련 문서 — 저장소 밖 `project_personal/` :
 `DATA_SOURCE_STRATEGY.md` (소스 전략), `COVERAGE_SIMULATION_SPEC.md` (측정 명세)
