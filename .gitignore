@@ -2,3 +2,6 @@
 .env
 .env.*
 !.env.example
+
+# 렌더 산출물 (보고서 PNG 등) — 재생성 가능
+tmp/
