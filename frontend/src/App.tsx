@@ -5,6 +5,7 @@ import { useAuthStore } from './stores/authStore'
 import LandingPage from './pages/LandingPage'
 import OnboardingPage from './pages/OnboardingPage'
 import HomePage from './pages/HomePage'
+import RecommendPage from './pages/RecommendPage'
 import TunePage from './pages/TunePage'
 import SearchPage from './pages/SearchPage'
 import BookDetailPage from './pages/BookDetailPage'
@@ -27,6 +28,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="home" element={<HomePage />} />
+          <Route path="recommend" element={<RecommendPage />} />
           <Route path="tune" element={<TunePage />} />
           <Route path="search" element={<SearchPage />} />
           <Route path="books/:bookId" element={<BookDetailPage />} />

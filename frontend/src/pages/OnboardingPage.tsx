@@ -54,7 +54,7 @@ export default function OnboardingPage() {
       books: [...picked.entries()].map(([bookId, rating]) => ({ bookId, rating: rating as number })),
     })
     completeOnboarding()
-    navigate('/home')
+    navigate('/recommend')
   }
 
   const inp = 'w-full border-2 border-primary rounded-lg px-3 py-2.5'

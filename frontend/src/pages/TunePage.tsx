@@ -31,7 +31,7 @@ export default function TunePage() {
 
   const apply = () => {
     setTags(selected)
-    navigate('/home')
+    navigate('/recommend')
   }
 
   return (

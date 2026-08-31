@@ -227,7 +227,7 @@ export default function LibraryPage() {
           <div className="border-2 border-dashed border-primary/30 rounded-xl p-10 text-center">
             <p className="text-gray-500">이 선반은 아직 비어 있어요</p>
             <div className="mt-3 flex gap-2 justify-center">
-              <Link to="/home" className="border-2 border-primary rounded-lg px-4 py-1.5 font-bold bg-white">추천 보러 가기</Link>
+              <Link to="/recommend" className="border-2 border-primary rounded-lg px-4 py-1.5 font-bold bg-white">추천 보러 가기</Link>
               <Link to="/search" className="border-2 border-primary rounded-lg px-4 py-1.5 bg-white">검색하기</Link>
             </div>
           </div>
