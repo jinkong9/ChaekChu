@@ -10,6 +10,8 @@ export interface BookSummary {
   coverUrl: string | null
   pageCount: number | null
   publicationYear: number | null
+  /** 분류 경로 (예: "문학 > 한국소설"). 서재 선반 구성용 — 선반 키는 2단계까지만 사용 */
+  category?: string | null
 }
 
 export interface BookDetail extends BookSummary {
