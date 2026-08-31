@@ -4,6 +4,9 @@
 >
 > 이 문서는 외부 도서 데이터, PostgreSQL 원천 모델, Elasticsearch 읽기 모델,
 > Spring Boot API가 공유하는 필드명과 값 규칙을 정의한다.
+>
+> ERD 표현은 발표와 MVP 구현을 위해 `docs/ERD.md`의 5개 핵심 테이블로 단순화했으며,
+> 외부 원본·배치 feature·분석 이벤트의 상세 계약은 이 문서에서만 참고한다.
 
 ## 1. 계약의 범위
 
@@ -250,13 +253,12 @@ MVP 추천 입력에는 평점·서재 상태·초기 취향·로그인 사용�
 | 필드 | 타입 | 필수 | 규칙 |
 | --- | --- | ---: | --- |
 | `recommendationId` | `string` | O | 추천 생성 단위 |
-| `userId` | `string \| null` |  | 로그인 추천 대상. 비회원 응답은 null |
-| `sessionId` | `string \| null` |  | 비회원 응답의 일시적 추적 키. PostgreSQL 스냅샷에는 저장하지 않음 |
-| `mode` | `enum` | O | `ANONYMOUS_TAG`, `COLD_START`, `PERSONALIZED` |
+| `userId` | `string` | O | 로그인 추천 대상 |
+| `mode` | `enum` | O | `COLD_START`, `PERSONALIZED` |
 | `modelVersion` | `string` | O | 계산·규칙 버전 |
 | `weights` | `Record<FeatureKey, number>` | O | 해시태그로 계산한 `taste`를 포함한 최종 랭킹 가중치. 합계는 서버에서 정규화 |
 | `generatedAt` | `datetime` | O | 생성 시각 |
-| `fallback` | `boolean` | O | 폴백 결과 여부. `ANONYMOUS_TAG`는 개인화 폴백과 구분 |
+| `fallback` | `boolean` | O | 폴백 결과 여부 |
 | `appliedTags` | `string[]` | O | 이번 추천 결과에 적용한 관심 태그. 없으면 빈 배열 |
 | `items` | `RecommendationItem[]` | O | rank 순서로 반환 |
 
@@ -276,14 +278,14 @@ MVP 추천 입력에는 평점·서재 상태·초기 취향·로그인 사용�
 
 해시태그는 검색·설명에 사용하고, 태그 단순 일치 개수만으로 최종 순위를 결정하지 않는다. 책 태그와 사용자의 별점·서재·seed book에서 만든 취향 태그를 비교해 `taste`를 계산한 뒤, `weights`로 수요·신간성 등 다른 feature와 결합한다.
 
-로그인 추천 생성 성공 시에만 `recommendationId` 단위의 결과 스냅샷을 DB에 저장한다. 같은 스냅샷을 반환하는 조회 요청마다 결과를 중복 저장하지 않는다. 비회원 결과는 PostgreSQL에 저장하지 않고 화면 응답 또는 선택적 단기 캐시로 처리한다. Redis가 활성화된 경우 로그인 최신 응답을 캐시할 수 있지만, 캐시 삭제·만료 후에도 DB의 최신 성공 스냅샷으로 응답할 수 있어야 한다.
+로그인 추천 생성 성공 시에만 `recommendationId` 단위의 결과 스냅샷을 DB에 저장한다. 같은 스냅샷을 반환하는 조회 요청마다 결과를 중복 저장하지 않는다. Redis가 활성화된 경우 로그인 최신 응답을 캐시할 수 있지만, 캐시 삭제·만료 후에도 DB의 최신 성공 스냅샷으로 응답할 수 있어야 한다.
 
 ### 4.5 `UserEvent`
 
 | 필드 | 타입 | 필수 | 규칙 |
 | --- | --- | ---: | --- |
 | `eventId` | `string` | O | 이벤트 식별자 |
-| `userId` | `string` | O | 로그인 사용자 이벤트. 비회원 이벤트는 MVP에서 저장하지 않음 |
+| `userId` | `string` | O | 로그인 사용자 이벤트 |
 | `recommendationId` | `string \| null` |  | 추천 결과와 연결 |
 | `bookId` | `string \| null` |  | 이벤트 대상 도서 |
 | `eventType` | `enum` | O | `IMPRESSION`, `CLICK`, `REASON_VIEW`, `BOOK_VIEW`, `WISH` |
@@ -292,7 +294,7 @@ MVP 추천 입력에는 평점·서재 상태·초기 취향·로그인 사용�
 | `occurredAt` | `datetime` | O | 클라이언트 발생 시각 |
 | `createdAt` | `datetime` | O | 서버 수신 시각 |
 
-이벤트 수집 실패는 검색·서재·추천 화면을 차단하지 않는다. `BOOK_VIEW`는 도서 상세 화면을 본 기록이며, 개인화 계산에서는 낮은 가중치와 최근성·중복 감쇠를 적용한다. `WISH`는 서재의 WISH 등록을 측정하는 이벤트이며 개인화의 원천 데이터는 `library_items`다. 비회원 화면에서는 이벤트를 저장하지 않는다. 중복 전송 방지 키가 필요한 경우 `userId + clientEventId`를 unique로 둔다.
+이벤트 수집 실패는 검색·서재·추천 화면을 차단하지 않는다. `BOOK_VIEW`는 도서 상세 화면을 본 기록이며, 개인화 계산에서는 낮은 가중치와 최근성·중복 감쇠를 적용한다. `WISH`는 서재의 WISH 등록을 측정하는 이벤트이며 개인화의 원천 데이터는 `library_items`다. 중복 전송 방지 키가 필요한 경우 `userId + clientEventId`를 unique로 둔다.
 
 ### 4.6 추천 모드별 API
 
@@ -303,13 +305,7 @@ Authorization: Bearer <token>
 
 로그인 사용자는 서버가 `BOOK_VIEW`, `WISH`, `READING`, `READ`, 평점, seed book을 읽어 `PERSONALIZED` 또는 `COLD_START` 결과를 생성한다. 한 번의 도서 상세 조회만으로 취향을 크게 바꾸지 않도록 `BOOK_VIEW`는 평점·좋아요보다 낮은 영향으로 처리한다.
 
-```text
-GET /api/v1/recommendations/anonymous?tags=%23판타지&tags=%23성장
-```
-
-비회원 API는 인증 헤더 없이 호출할 수 있다. 요청 태그는 1~5개로 제한하고, 사용자 ID·조회 기록·서재·평점·연령·성별을 사용하지 않는다. 후보 도서 태그와 요청 태그의 적합도 및 서버 기본 `weights`만으로 순위를 계산하며, 응답의 `mode`는 `ANONYMOUS_TAG`, `basedOnCount`는 0으로 한다. 비회원 결과는 PostgreSQL 추천 스냅샷에 저장하지 않으며, 필요하면 단기 캐시만 사용한다. 화면에서 요청을 구분할 일시적 `sessionId`는 DB 사용자 데이터로 승격하지 않는다.
-
-비회원 추천의 `taste`는 사용자 프로필과의 유사도가 아니라 요청 태그와 후보 태그의 적합도다. 로그인 후에는 비회원 결과를 개인 취향 데이터로 자동 병합하지 않고, 로그인 사용자의 데이터로 새 추천을 생성한다.
+추천 API는 인증 헤더가 없는 요청을 거부한다. 로그인 사용자의 초기 취향이 부족하면 `COLD_START`, 행동 데이터가 쌓이면 `PERSONALIZED` 모드로 응답한다.
 
 ## 5. 외부 필드 매핑
 
