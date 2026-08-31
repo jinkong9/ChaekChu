@@ -54,26 +54,6 @@ const recommendations: RecommendationResponse = {
   ],
 }
 
-const anonymousRecommendations = (tags: string[]): RecommendationResponse => ({
-  ...recommendations,
-  recommendationId: `anonymous-rec-${tags.join('-') || 'default'}`,
-  mode: 'ANONYMOUS_TAG',
-  fallback: false,
-  basedOnCount: 0,
-  weights: { taste: 100, coLoan: 0, trending: 0, steady: 0, newField: 0 },
-  appliedTags: tags,
-  items: recommendations.items.map((item, index) => ({
-    ...item,
-    rank: index + 1,
-    featureScores: fs(item.score, null, null, null, null),
-    tags: tags.length > 0 ? tags.slice(0, 2) : item.tags.filter((tag) => !tag.includes('내취향') && !tag.includes('같은작가')),
-    reasonType: 'SAME_CATEGORY',
-    reasonText: tags.length > 0
-      ? `${tags.join('·')} 태그와 책의 콘텐츠 태그가 잘 맞아요.`
-      : '책의 콘텐츠 태그가 고르게 어울리는 도서예요.',
-  })),
-})
-
 /** ============ 분류 (국중 KDC 2단계 기준) — books.categories 정제 결과의 mock ============ */
 const CATEGORY: Record<number, string> = {
   1: '문학 > 독일문학', 2: '문학 > 독일문학', 3: '문학 > 영미문학', 4: '문학 > 독일문학',
@@ -123,14 +103,6 @@ export const handlers = [
     const q = new URL(request.url).searchParams.get('q')?.trim() ?? ''
     const items = q.length < 1 ? [] : CATALOG.filter((bk) => bk.title.includes(q) || (bk.author ?? '').includes(q))
     return HttpResponse.json({ total: items.length, page: 1, items } satisfies SearchResponse)
-  }),
-
-  // 비회원 추천 — 태그 적합도만 사용하며 개인 데이터는 참조하지 않는다.
-  http.get('*/recommendations/anonymous', ({ request }) => {
-    const authError = requireAuth(request)
-    if (authError) return authError
-    const tags = new URL(request.url).searchParams.getAll('tags').slice(0, 5)
-    return HttpResponse.json(anonymousRecommendations(tags))
   }),
 
   // 로그인 사용자 추천·상세
