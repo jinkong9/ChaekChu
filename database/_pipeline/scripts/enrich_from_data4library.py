@@ -85,7 +85,8 @@ REPORT_EVERY = 2000
 KST = timezone(timedelta(hours=9))
 
 state = {"calls": 0, "hit": 0, "miss": 0, "error": 0, "streak": 0,
-         "miss_streak": 0, "blocked": False, "stop": False, "block_msg": ""}
+         "miss_streak": 0, "blocked": False, "stop": False, "block_msg": "",
+         "keys": [], "per_key": {}, "dead": set(), "rr": 0}
 lock = threading.Lock()
 
 # 상한에 걸리면 서버가 JSON 에러가 아니라 **연결을 그냥 끊는다**(WinError 10054).
@@ -132,17 +133,33 @@ def release_lock() -> None:
         pass
 
 
-def load_key() -> str:
+def load_keys() -> list:
+    """`.env` 의 정보나루* 키를 전부 읽는다 (정보나루, 정보나루2, 정보나루3 …).
+
+    쿼터가 **키 단위인지 IP 단위인지 확인되지 않았다.**
+    공지의 "마이페이지 내 서버IP 기재 시 1일 30,000건" 은 계정에게 하는 안내라
+    카운터의 집계 단위를 못 박지 않는다.
+
+    그래서 로테이션을 낙관적으로 돌린다 — 한 키가 막히면 다음 키로 넘어가고,
+    **모든 키가 막혀야 종료**한다. IP 단위였다면 두 번째 키가 즉시 막히므로
+    그 자체가 답이 된다. 키별 호출 수를 남겨 나중에 확인할 수 있게 한다.
+    """
     raw = ENV.read_bytes()
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
         text = raw.decode("cp949", "replace")
+    found = []
     for line in text.splitlines():
         line = line.strip()
         if line.startswith("정보나루") and "=" in line:
-            return line.split("=", 1)[1].strip().strip("\"'")
-    raise SystemExit("`.env` 에 정보나루 키가 없다")
+            name, value = line.split("=", 1)
+            value = value.strip().strip("\"'")
+            if value:
+                found.append((name.strip(), value))
+    if not found:
+        raise SystemExit("`.env` 에 정보나루 키가 없다")
+    return found
 
 
 def load_done() -> set:
@@ -186,9 +203,7 @@ def shape(isbn: str, body: dict) -> dict:
             state["miss_streak"] += 1
             n = state["miss_streak"]
         if n >= MISS_STREAK_BLOCK:
-            declare_block(f"연속 미수록 {n}건 — 쿼터 소진으로 판정 "
-                          f"(빈 응답을 미수록으로 오기록하는 것을 막는다)")
-            return None
+            return {"isbn13": isbn, "ok": False, "__misstreak__": n}
         return {"isbn13": isbn, "ok": False}
 
     description = html.unescape((book.get("description") or "").strip())
@@ -241,28 +256,66 @@ def shape(isbn: str, body: dict) -> dict:
     return {"isbn13": isbn, "ok": True, **slim}
 
 
-def note_failure(reason: str) -> None:
-    """실패를 세고, 연속 실패가 쌓이면 일일 상한으로 판정한다."""
+def retire_key(idx: int, message: str) -> None:
+    """지정한 키를 소진 처리한다. 남은 키가 없으면 전량 정지."""
+    with lock:
+        if idx < 0 or idx in state["dead"]:
+            return
+        state["dead"].add(idx)
+        name = state["keys"][idx][0]
+        used = state["per_key"].get(name, 0)
+        left = [state["keys"][i][0] for i in range(len(state["keys"]))
+                if i not in state["dead"]]
+        print(f"\n  [{name}] 소진 — {used:,}호출  ({message[:44]})", flush=True)
+        if not left:
+            state["blocked"] = True
+            state["block_msg"] = f"키 {len(state['keys'])}개 전부 소진 — {message}"
+            state["stop"] = True
+            print("  남은 키 없음 — 종료", flush=True)
+            return
+        state["streak"] = 0
+        state["miss_streak"] = 0
+        print(f"  남은 키: {', '.join(left)}", flush=True)
+
+
+def note_failure(reason: str, key_idx: int = -1) -> None:
+    """실패를 센다. 연속 실패가 쌓이면 그 키의 상한으로 본다."""
     with lock:
         state["error"] += 1
         state["streak"] += 1
-        if state["streak"] >= FAIL_STREAK_BLOCK and not state["blocked"]:
-            state["blocked"] = True
-            state["block_msg"] = (f"연속 실패 {state['streak']}회 ({reason}) "
-                                  f"— 일일 상한으로 판정")
-            state["stop"] = True
+        hit = state["streak"] >= FAIL_STREAK_BLOCK
+    if hit and key_idx >= 0:
+        retire_key(key_idx, f"연속 실패 {FAIL_STREAK_BLOCK}회 ({reason})")
 
 
-def declare_block(message: str) -> None:
+def pick_key() -> tuple:
+    """살아 있는 키를 호출마다 번갈아 고른다 (라운드로빈).
+
+    **한 키를 다 쓰고 다음으로 넘기는 것이 아니라 처음부터 분산한다.**
+    서버가 키별로 스로틀을 걸기 때문이다 — 실측(2026-08-31, 24워커 96건):
+      키 1개        1.17건/초   지연 중앙 10.0초
+      키 3개 분산   2.78건/초   지연 중앙  6.0초
+    같은 워커 수로 2.4배다.
+
+    정합성은 키가 아니라 프로세스 수에 달렸다. **단일 프로세스 안에서**
+    도는 한 쓰기 락도 완료 ISBN 집합도 하나뿐이라 안전하다.
+    프로세스를 3개 띄워 같은 파일에 쓰면 행이 찢어지고 중복 수집이 난다.
+    """
     with lock:
-        if not state["blocked"]:
-            state["blocked"] = True
-            state["block_msg"] = message
-        state["stop"] = True
+        alive = [i for i in range(len(state["keys"])) if i not in state["dead"]]
+        if not alive:
+            return None, None, -1
+        idx = alive[state["rr"] % len(alive)]
+        state["rr"] += 1
+        name, value = state["keys"][idx]
+    return name, value, idx
 
 
-def fetch(key: str, isbn: str) -> dict:
-    """성공 시 레코드, 차단·영구실패 시 None."""
+def fetch(_unused: str, isbn: str) -> dict:
+    """성공 시 레코드, 차단·영구실패 시 None. 키는 호출마다 번갈아 쓴다."""
+    key_name, key, key_idx = pick_key()
+    if key is None:
+        return None
     params = {"isbn13": isbn, "authKey": key, "format": "json"}
     url = API + "?" + urllib.parse.urlencode(params)
     request = urllib.request.Request(url, headers={"User-Agent": "b102-enrich/1.0"})
@@ -277,7 +330,7 @@ def fetch(key: str, isbn: str) -> dict:
             if error.code in (429, 500, 502, 503, 504) and attempt < 2:
                 time.sleep(2 * (attempt + 1))
                 continue
-            note_failure(f"HTTP {error.code}")
+            note_failure(f"HTTP {error.code}", key_idx)
             return None
         # OSError 를 반드시 포함해야 한다. ConnectionResetError 는 OSError 이지
         # URLError 가 아니라서, 상한에 걸린 순간 이 예외가 pool.map 밖으로
@@ -286,19 +339,24 @@ def fetch(key: str, isbn: str) -> dict:
             if attempt < 2:
                 time.sleep(2 * (attempt + 1))
                 continue
-            note_failure("연결 끊김")
+            note_failure("연결 끊김", key_idx)
             return None
 
         body = payload.get("response") or {}
         message = body.get("error") or ""
         if message and ("500건" in message or "IP" in message or "초과" in message):
-            declare_block(message)
+            retire_key(key_idx, message)
             return None
 
         with lock:
             state["calls"] += 1
             state["streak"] = 0
-        return shape(isbn, body)
+            state["per_key"][key_name] = state["per_key"].get(key_name, 0) + 1
+        record = shape(isbn, body)
+        if record and record.pop("__misstreak__", 0):
+            retire_key(key_idx, "연속 미수록 — 쿼터 소진 (빈 응답 위장)")
+            return None
+        return record
     return None
 
 
@@ -401,12 +459,20 @@ def summary() -> None:
     print(f"  서지 확보   {state['hit']:>9,}")
     print(f"  미수록      {state['miss']:>9,}")
     print(f"  오류        {state['error']:>9,}")
+    if state.get("keys"):
+        print("  키별 호출:")
+        for i, (name, _) in enumerate(state["keys"]):
+            n = state["per_key"].get(name, 0)
+            mark = " (소진)" if i in state["dead"] else ""
+            print(f"    {name:<12}{n:>9,}{mark}")
     if OUT.exists():
         print(f"  누적 파일   {OUT.stat().st_size/1024/1024:>8.1f} MB")
 
 
 def run(args) -> int:
-    key = load_key()
+    keys = load_keys()
+    state["keys"] = keys
+    key = ""          # 실제 키는 pick_key() 가 호출마다 고른다
     lines = QUEUE.read_text(encoding="utf-8").splitlines()[1:]
     targets = [line.split(",")[0] for line in lines]
     done = load_done()
@@ -415,6 +481,9 @@ def run(args) -> int:
         pending = pending[:args.limit]
 
     print(f"큐 {len(targets):,}건 · 완료 {len(done):,}건 · 이번 대상 {len(pending):,}건")
+    print(f"키 {len(keys)}개 로테이션: {', '.join(n for n, _ in keys)}")
+    print(f"  호출마다 번갈아 쓴다 — 서버가 키별 스로틀을 걸어 실측 2.4배 빠르다")
+    print(f"  (키1개 1.17건/초 -> 키3개 2.78건/초). 막힌 키는 로테이션에서 빠진다.")
     print(f"워커 {args.workers} (서버 포화 7.5건/초 — 더 늘려도 지연만 는다)")
     print(f"출력 {OUT}\n", flush=True)
     if not pending:
