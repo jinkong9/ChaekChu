@@ -524,8 +524,14 @@ def retire_key(idx: int, message: str) -> None:
             state["stop"] = True
             print("  남은 키 없음 — 종료", flush=True)
             return
-        state["streak"] = 0
-        state["miss_streak"] = 0
+        # **dict 를 통째로 덮으면 안 된다.** 예전에 전역 카운터였던 흔적이라
+        # `state["streak"] = 0` 으로 남아 있었는데, 키별 dict 로 바꾼 뒤에도
+        # 이 두 줄이 그대로여서 첫 은퇴 순간 두 추적기가 정수가 됐다.
+        # 그 뒤 모든 shape() 가 `0.get(...)` -> AttributeError 로 죽고,
+        # 워커의 포괄 예외 처리에 먹혀 **조용히** 레코드가 버려졌다.
+        # 실측: 다음 키가 1,947회 호출에 0건 기록, 은퇴도 안 됨.
+        state["streak"].pop(idx, None)
+        state["miss_streak"].pop(idx, None)
         print(f"  남은 키: {', '.join(left)}", flush=True)
 
 
@@ -668,6 +674,26 @@ def pick_key() -> tuple:
             if state["per_key"].get(name, 0) >= KEY_BUDGET:
                 continue
             return name, value, idx
+
+        # 쓸 수 있는 키가 하나도 없다. **여기서 상한 도달을 선언해야 한다.**
+        #
+        # 키는 두 가지 경로로 빠진다 — 은퇴(빈 응답으로 판정, dead 에 들어감)와
+        # 예산 소진(우리 카운터가 KEY_BUDGET 도달, dead 에 안 들어감).
+        # retire_key 는 **전부 dead 일 때만** blocked 를 세우므로, 섞여 있으면
+        # (예: 3개는 은퇴, 2개는 예산 소진) 아무도 blocked 를 세우지 않는다.
+        #
+        # 그러면 fetch 가 계속 None 을 돌려주고 drain 이 0건으로 끝나
+        # run 루프가 `if not written: break` 로 그냥 종료한다.
+        # **--wait 의 자정 재개가 작동하지 않는다.** systemd 가 재시작하면
+        # 투입 전 키 확인 5호출만 태우고 또 즉시 종료하기를 반복한다.
+        if not state["blocked"]:
+            live = [state["keys"][i][0] for i in range(len(state["keys"]))
+                    if i not in state["dead"]]
+            state["blocked"] = True
+            state["stop"] = True
+            state["block_msg"] = (
+                f"쓸 수 있는 키 없음 — 은퇴 {len(state['dead'])}개"
+                + (f" · 예산 소진 {len(live)}개" if live else ""))
     return None, None, -1
 
 
