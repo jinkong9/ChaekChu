@@ -76,7 +76,11 @@ try:
 except Exception:
     pass
 
-BASE = Path(r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal")
+# 데이터 뿌리. 다른 머신(EC2 등)에서는 PIPELINE_DATA 로 덮어쓴다.
+#   윈도우: 기본값 그대로
+#   리눅스: PIPELINE_DATA=/home/ubuntu/pipeline_data python3 scripts/...
+BASE = Path(os.environ.get("PIPELINE_DATA")
+            or r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal").expanduser()
 ENV = BASE / ".env"
 DATA = BASE / "data4library"
 QUEUE = DATA / "enrich_queue.csv"
@@ -649,30 +653,68 @@ def trim_trailing_misses() -> int:
     차단은 연속 미수록 MISS_STREAK_BLOCK 건째에 판정되므로 그 직전까지의
     미수록은 이미 파일에 들어가 있다. 그것들은 진짜 미수록이 아니라
     쿼터 소진의 산물이므로 남겨 두면 **다시 시도되지 않는 영구 결측**이 된다.
+
+    **파일을 통째로 읽으면 안 된다.** 예전 구현은
+    `OUT.read_text().splitlines()` 였는데, L1 전량이면 출력이 3.7GB 라
+    디코딩된 문자열과 줄 리스트로 **피크 5GB** 를 먹는다. 메모리 16GB 인
+    서버에서 PostgreSQL·Qdrant 와 같이 뜨면 그대로 OOM 이다.
+
+    잘라낼 구간은 항상 파일 **끝의 수십 줄**이다. 그래서 뒤에서 1MB 만
+    읽어 자를 바이트 위치를 구하고 `truncate()` 한다. 창 안이 전부
+    미수록이면 창을 4배씩 넓힌다. 전체를 다시 쓰지 않으므로 파일이
+    아무리 커도 순식간에 끝난다.
     """
     if not OUT.exists():
         return 0
-    lines = OUT.read_text(encoding="utf-8", errors="replace").splitlines()
-    cut = len(lines)
-    while cut > 0:
-        line = lines[cut - 1].strip()
-        if not line:
-            cut -= 1
-            continue
-        try:
-            if json.loads(line).get("ok"):
-                break
-        except json.JSONDecodeError:
-            cut -= 1
-            continue
-        cut -= 1
-    removed = len(lines) - cut
-    if removed:
-        with OUT.open("w", encoding="utf-8") as sink:
-            for line in lines[:cut]:
-                if line.strip():
-                    sink.write(line + "\n")
-    return removed
+    size = OUT.stat().st_size
+    if not size:
+        return 0
+
+    window = 1 << 20                       # 1MB. 레코드가 3.4KB 이니 약 300줄
+    while True:
+        start = max(0, size - window)
+        with OUT.open("rb") as fh:
+            fh.seek(start)
+            blob = fh.read()
+
+        if start > 0:                      # 앞이 잘렸으면 첫 줄은 버린다
+            nl = blob.find(b"\n")
+            if nl < 0:                     # 창 안에 개행이 없다 -> 넓힌다
+                if window >= size:
+                    return 0
+                window = min(window * 4, size)
+                continue
+            start += nl + 1
+            blob = blob[nl + 1:]
+
+        lines = blob.split(b"\n")
+        offsets, pos = [], start
+        for line in lines:
+            offsets.append(pos)
+            pos += len(line) + 1
+
+        cut, removed, found_ok = size, 0, False
+        for i in range(len(lines) - 1, -1, -1):
+            line = lines[i].strip()
+            if not line:
+                cut = offsets[i]
+                continue
+            try:
+                if json.loads(line.decode("utf-8", "replace")).get("ok"):
+                    found_ok = True
+                    break
+            except (json.JSONDecodeError, ValueError):
+                pass                       # 깨진 줄도 잘라낸다
+            cut = offsets[i]
+            removed += 1
+
+        if found_ok or start == 0:         # 판정 끝 (또는 파일 전체를 봤다)
+            if removed and cut < size:
+                with OUT.open("rb+") as fh:
+                    fh.truncate(cut)
+            return removed
+
+        window = min(window * 4, size)     # 창이 전부 미수록 -> 더 넓게
 
 
 def summary() -> None:
