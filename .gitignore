@@ -10,3 +10,6 @@ tmp/
 .claude/
 .agents/
 skills-lock.json
+
+# 로컬 전용 유틸 스크립트 (개인 API 키로 외부 API를 호출하는 것들) — 공유하지 않음
+frontend/scripts/
