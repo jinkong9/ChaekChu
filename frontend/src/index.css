@@ -2,6 +2,15 @@
 @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
 @import "tailwindcss";
 
+/* 그리운 푸하체 — 추천 편지(엽서) 손글씨 전용. 본문 폰트로는 쓰지 않는다. */
+@font-face {
+  font-family: 'YearningPuha';
+  src: url('https://cdn.jsdelivr.net/gh/Project-Noonnu/2607151654@griun-puhafont-rg/griun-puhafont-rg/Griun_PuhaFont-Rg.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+
 /* ==== 테마 C · 팝 책추책책추 ====
    팀 확정 전 가영 선택 반영 — 방향이 바뀌면 이 파일의 토큰만 교체.
    시안: https://claude.ai/code/artifact/09675040-b086-4460-b24a-6b8784621cee */
@@ -11,6 +20,10 @@
   --color-cream: #fff8ec;     /* 배경 */
   --color-sunny: #ffd166;     /* 보조 포인트 (그림자·하이라이트) */
   --font-display: 'Jua', 'Apple SD Gothic Neo', sans-serif;
+  --font-hand: 'YearningPuha', 'Jua', 'Apple SD Gothic Neo', cursive;  /* 엽서 손글씨 */
+  --color-paper: #f6f1e3;     /* 엽서 종이 */
+  --color-kraft: #e6d9be;     /* 편지 봉투 */
+  --color-ink-pen: #2b3a86;   /* 만년필 잉크 — 손글씨 전용 */
 }
 
 body {
