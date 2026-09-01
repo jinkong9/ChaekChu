@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
 import { api } from '../api/client'
@@ -11,17 +11,10 @@ import BookCover from '../components/BookCover'
 
 /** 홈 C안 — 궤도 허브. 추천 덱이 흰 무대 위를 공전하고, 가운데에는 서비스 이름만 남는다.
  *  레퍼런스(CLOU Architects)의 구조 그대로: 링은 목록, 가운데는 고정 워드마크,
- *  링 바깥 라벨이 섹터(우리는 추천 태그) 필터.
+ *  링 바깥 라벨이 섹터(우리는 추천 태그) 필터. 화면 안 메뉴는 두지 않는다 — GNB와 중복이다.
  *
  *  움직이는 것은 궤도 하나뿐이다 — 랜딩의 오로라·먼지를 여기 겹치지 않는 것도 설계 결정.
  *  배경까지 같이 움직이면 궤도가 눈에 안 들어온다. */
-
-const MENU = [
-  { to: '/recommend', label: '추천' },
-  { to: '/library', label: '내 서재' },
-  { to: '/dna', label: 'BOOK DNA' },
-  { to: '/search', label: '검색' },
-]
 
 const GNB_H = 62
 const PERSPECTIVE = 1300   // BookOrbit 과 같은 값 — 라벨·워드마크 위치를 여기서 역산한다
@@ -210,7 +203,7 @@ export default function HomePageOrbit() {
       </p>
 
       {/* ===== 하단 — 정면 책의 이름·이유·행동 ===== */}
-      <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 px-8 pb-6">
+      <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 px-8 pb-10">
         <AnimatePresence mode="wait">
           {current && hovered == null && (
             <motion.div key={current.book.bookId}
@@ -241,14 +234,6 @@ export default function HomePageOrbit() {
             {current && wished.includes(current.book.bookId) ? '찜했어요' : '찜하기'}
           </button>
         </div>
-
-        <nav className="flex items-center gap-5 text-xs tracking-wide text-gray-400">
-          {MENU.map((m) => (
-            <Link key={m.to} to={m.to} className="transition-colors hover:text-accent">{m.label}</Link>
-          ))}
-          <span className="text-gray-300">·</span>
-          <span className="text-[11px] text-gray-300">드래그해서 돌려보세요 · ← →</span>
-        </nav>
       </div>
     </main>
   )
