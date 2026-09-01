@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useReducedMotion } from 'motion/react'
 import { api } from '../api/client'
 import type { RecommendationItem } from '../api/types'
-import { useRecommendations } from '../lib/useRecommendations'
+import { useRecommendations, RECOMMEND_DECK_SIZE } from '../lib/useRecommendations'
 import { useTuneStore } from '../stores/tuneStore'
 import { useAuthStore } from '../stores/authStore'
 import { trackEvent } from '../lib/events'
@@ -60,7 +60,9 @@ export default function RecommendPageArchive() {
 
   // 태그 선택 시 캐시된 덱을 겹치는 태그 수로 재정렬 — 후보 재생성 없음 (덱 구조 원칙)
   const overlap = (item: RecommendationItem) => item.tags.filter((t) => myTags.includes(t)).length
-  const items = myTags.length === 0 ? data.items : [...data.items].sort((a, b) => overlap(b) - overlap(a) || a.rank - b.rank)
+  // 태그로 재정렬한 뒤 상위 RECOMMEND_DECK_SIZE권까지만 편다
+  const items = (myTags.length === 0 ? data.items : [...data.items].sort((a, b) => overlap(b) - overlap(a) || a.rank - b.rank))
+    .slice(0, RECOMMEND_DECK_SIZE)
   // 꺼내 둔 책이 곧 히어로. 나머지는 순위 그대로 아래에 남는다 (원래 1순위도 여기로 내려온다)
   const featured = items.find((i) => i.book.bookId === featuredId) ?? items[0]
   const rest = items.filter((i) => i !== featured)
