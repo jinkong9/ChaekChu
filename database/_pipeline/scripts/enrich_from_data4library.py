@@ -695,7 +695,9 @@ def fetch(_unused: str, isbn: str) -> dict:
                     return None
         if state["stop"]:
             return None
-        timeout = GATEWAY_TIMEOUT if state["gw_streak"] else 60
+        # 서버가 63초에 504 를 준다. 60초로 끊으면 응답을 못 보고
+        # 타임아웃으로 처리돼 원인 판별이 흐려진다. 넉넉히 둔다.
+        timeout = GATEWAY_TIMEOUT if state["gw_streak"] else 75
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 payload = json.loads(response.read().decode("utf-8", "replace"))
@@ -718,7 +720,17 @@ def fetch(_unused: str, isbn: str) -> dict:
         # URLError 가 아니라서, 상한에 걸린 순간 이 예외가 pool.map 밖으로
         # 튀어나가 실행 전체를 죽인 적이 있다 (2026-08-27, 28,124건 지점).
         except (URLError, TimeoutError, OSError, json.JSONDecodeError):
-            if attempt < 2:
+            # **타임아웃도 게이트웨이 장애 신호로 센다.**
+            # 실측 2026-09-01: 서버가 63초에 504 를 주는데 우리 타임아웃이
+            # 60초라 대부분 504 를 받기 전에 TimeoutError 로 끝난다. 그러면
+            # 게이트웨이 카운터가 안 올라 전역 정지가 걸리지 않고, 워커 24개가
+            # 죽은 서버에 연결을 계속 유지한다 (실측 동시 연결 19~23개).
+            # 504 로 끝난 호출도 정보나루 쪽 쿼터에서는 빠져나가므로
+            # 그대로 두면 얻는 것 없이 하루치가 샌다.
+            if note_gateway():
+                if not wait_for_server():
+                    return None
+            elif attempt < 2:
                 time.sleep(3 * (attempt + 1) ** 2)   # 3s -> 12s. 폭주를 막는다
                 continue
             note_failure("연결 끊김", key_idx)
