@@ -1,10 +1,9 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuthStore } from '../stores/authStore'
 
-/** 공통 GNB 레이아웃 — 메뉴: 홈 / 추천 / 내 서재 / BOOK DNA / 검색 */
+/** 공통 GNB 레이아웃 — 메뉴: 홈 / 내 서재 / BOOK DNA / 검색 */
 const MENU = [
   { to: '/home', label: '홈' },
-  { to: '/recommend', label: '추천' },
   { to: '/library', label: '내 서재' },
   { to: '/dna', label: 'BOOK DNA' },
   { to: '/search', label: '검색' },
