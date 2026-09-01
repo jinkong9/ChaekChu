@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
@@ -19,9 +19,10 @@ import LibraryList from '../components/LibraryList'
  *    읽는 중 → 책갈피가 내려온 표지 (리본 길이 = 진행률)
  *    찜     → 유산지 봉투에 든 표지 (추천 B·C안과 같은 재질)
  *
- *  책은 표제지에서 시작한다: 왼쪽이 「닉네임의 책」 표지, 오른쪽이 목차.
- *  히어로의 주인공을 배경 워터마크가 아니라 표지가 맡는다 —
- *  워터마크는 닉네임이 길어지면(예: "Google 독자") 화면을 넘어가 잘렸다.
+ *  책은 덮인 채로 시작한다. 장 구성:
+ *    0 표지(닫힘) → 1 속표지 + 목차 → 2.. 완독한 책 한 권씩
+ *  표지를 넘기면 앞표지가 제본선을 축으로 왼쪽으로 열리고,
+ *  같은 시간에 책 전체가 왼쪽으로 밀려 펼친 자리를 잡는다.
  *
  *  시안: https://claude.ai/code/artifact/24acbc94-9fe0-4215-a953-d6c9c55a6ec8
  *  레퍼런스: recent.design "Personal Site Hero" (스케치북 캐러셀) */
@@ -30,28 +31,19 @@ import LibraryList from '../components/LibraryList'
 const PAGE_W = 382
 const PAGE_H = 544
 const FLIP_MS = 940
+const EASE = 'cubic-bezier(.44,.06,.24,1)'
 /** 목차에 넣을 수 있는 줄 수 — 한 면(544px)에 들어가는 한계 */
 const TOC_MAX = 10
 
-const NTH = ['첫', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열']
-
-/** 종이 결 — index.css의 --paper-noise를 그대로 쓴다 (이미지 파일 없이 질감) */
-const paperFace: CSSProperties = {
-  backgroundColor: 'var(--color-paper)',
-  backgroundImage: 'var(--paper-noise)',
-  backgroundSize: '180px 180px',
-  backgroundBlendMode: 'multiply',
+/** 나의 책의 재질 — 수채화지(냉압). 표지도 본문도 같은 종이다.
+ *  결이 두 겹이라야 종이로 읽힌다: 촘촘한 알갱이 + 구름처럼 번지는 얼룩 (index.css 토큰). */
+const bookFace: CSSProperties = {
+  backgroundColor: 'var(--color-book)',
+  backgroundImage: 'var(--book-grain), var(--book-mottle)',
+  backgroundSize: '160px 160px, 420px 420px',
+  backgroundBlendMode: 'multiply, multiply',
 }
 
-/** 표지는 종이가 아니라 천이다 — 잉크색 위에 같은 결을 soft-light로 얹어 감촉만 남긴다 */
-const clothFace: CSSProperties = {
-  backgroundColor: 'var(--color-primary)',
-  backgroundImage: 'var(--paper-noise)',
-  backgroundSize: '180px 180px',
-  backgroundBlendMode: 'soft-light',
-}
-
-const nth = (i: number) => NTH[i] ?? `${i + 1}`
 const ordinal = (i: number) => String(i + 1).padStart(2, '0')
 const categoryKey = (li: LibraryItem) => {
   const parts = (li.book.category ?? '').split(' > ').filter(Boolean)
@@ -62,38 +54,49 @@ const ymd = (d: string | null) => {
   const [y, m, day] = d.split('-')
   return `${y}년 ${Number(m)}월 ${Number(day)}일`
 }
+/** 닉네임이 길어도 표지가 깨지지 않게 — 글자를 줄이고 세 줄까지 접는다 */
+const titleSize = (t: string) => (t.length > 10 ? 'text-[28px]' : t.length > 7 ? 'text-[34px]' : 'text-[42px]')
 
-/** 표제지 왼쪽 — 「닉네임의 책」 표지.
- *  닉네임 길이를 방어한다: 길면 글자를 줄이고 최대 세 줄까지 접는다
- *  (워터마크와 달리 표지는 잘리지 않고 얌전히 접힌다). */
-function CoverPlate({ title, year, count, pages }: {
-  title: string; year: number; count: number; pages: number
-}) {
-  const size = title.length > 10 ? 'text-[28px]' : title.length > 7 ? 'text-[34px]' : 'text-[42px]'
+type BookMeta = { title: string; year: number; count: number; pages: number }
+
+/** 앞표지 — 덮여 있을 때 보이는 면. 눌러도 펼쳐진다. */
+function CoverArt({ meta, onOpen }: { meta: BookMeta; onOpen: () => void }) {
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center px-9 text-cream" style={clothFace}>
-      {/* 전집 표지의 이중 괘선 — 이 판이 '안에 든 책 한 권'이 아니라 '이 책 전체'라는 신호 */}
-      <div className="absolute inset-[22px] border border-cream/35" />
-      <div className="absolute inset-[28px] border border-cream/15" />
-
-      <span className="absolute top-[52px] text-[11px] tracking-[.3em] text-cream/45">{year}</span>
-
-      <p className="text-[11px] tracking-[.24em] text-cream/50">완독으로 엮은</p>
-      <h2 className={`mt-4 font-display ${size} leading-[1.3] text-center break-keep line-clamp-3 text-cream`}>
-        {title}
-      </h2>
-      <div className="mt-5 h-[2px] w-11 bg-accent" />
-
-      <span className="absolute bottom-[52px] text-[11px] tracking-[.1em] text-cream/55">
-        {count > 0 ? `완독 ${count}권${pages > 0 ? ` · ${pages.toLocaleString()}쪽` : ''}` : '아직 비어 있음'}
+    <button onClick={onOpen} aria-label="책 펼치기"
+      className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center px-9 text-center">
+      {/* 전집 표지의 이중 괘선 — 같은 종이인데도 '표지'로 읽히게 하는 장치 */}
+      <span className="absolute inset-[22px] border border-primary/25" />
+      <span className="absolute inset-[28px] border border-primary/15" />
+      <span className="absolute top-[52px] text-[11px] tracking-[.3em] text-primary/45">{meta.year}</span>
+      <span className="text-[11px] tracking-[.24em] text-primary/50">완독으로 엮은</span>
+      <span className={`mt-4 font-display ${titleSize(meta.title)} leading-[1.3] break-keep line-clamp-3`}>
+        {meta.title}
       </span>
+      <span className="mt-5 h-[2px] w-11 bg-accent" />
+      <span className="absolute bottom-[52px] text-[11px] tracking-[.1em] text-primary/55">
+        {meta.count > 0
+          ? `완독 ${meta.count}권${meta.pages > 0 ? ` · ${meta.pages.toLocaleString()}쪽` : ''}`
+          : '아직 비어 있음'}
+      </span>
+    </button>
+  )
+}
+
+/** 속표지 — 표지를 넘기면 왼쪽에 내려앉는 면. 조용해야 오른쪽 목차가 읽힌다. */
+function TitlePage({ meta }: { meta: BookMeta }) {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center px-9 pt-[148px] text-center">
+      <span className="text-[10px] tracking-[.24em] text-primary/40">완독으로 엮은</span>
+      <span className="mt-3.5 font-display text-2xl leading-snug break-keep line-clamp-3">{meta.title}</span>
+      <span className="mt-4 h-px w-8 bg-primary/25" />
+      <span className="mt-auto mb-[52px] text-[11px] text-primary/40">완독 {meta.count}권 · {meta.year}</span>
     </div>
   )
 }
 
-/** 표제지 오른쪽 — 목차. 줄을 누르면 그 장으로 넘어간다.
+/** 목차 — 줄을 누르면 그 장으로 넘어간다.
  *  아래 완독 연표가 '한 해의 흐름' 쪽 목차라면, 이쪽은 '순서' 쪽 목차다. */
-function TocFace({ read, onPick }: { read: LibraryItem[]; onPick: (sheet: number) => void }) {
+function TocFace({ read, onPick }: { read: LibraryItem[]; onPick: (bookIndex: number) => void }) {
   const shown = read.slice(0, TOC_MAX)
   const rest = read.length - shown.length
   const rated = read.filter((li) => li.rating != null)
@@ -117,7 +120,7 @@ function TocFace({ read, onPick }: { read: LibraryItem[]; onPick: (sheet: number
           <ul className="mt-5">
             {shown.map((li, i) => (
               <li key={li.libraryItemId}>
-                <button onClick={() => onPick(i + 1)}
+                <button onClick={() => onPick(i)}
                   className="group flex w-full items-baseline gap-2.5 py-[7px] text-left">
                   <span className="w-6 shrink-0 font-display text-[11px] tracking-[.1em] text-primary/40">{ordinal(i)}</span>
                   <span className="shrink-0 max-w-[190px] truncate text-[13px] transition-colors group-hover:text-accent">{li.book.title}</span>
@@ -148,7 +151,7 @@ function CoverFace({ li }: { li: LibraryItem }) {
         <div className="w-[314px] h-[462px] overflow-hidden rounded-l-sm rounded-r"
           style={{
             background: c.bg, color: c.fg,
-            boxShadow: '5px 9px 24px rgba(34,34,74,.34), 0 0 0 1px rgba(34,34,74,.10)',
+            boxShadow: '5px 9px 24px rgba(34,34,74,.30), 0 0 0 1px rgba(34,34,74,.10)',
           }}>
           {url ? (
             <img src={url} alt={li.book.title} referrerPolicy="no-referrer" onError={() => setBroken(true)}
@@ -226,9 +229,10 @@ function RecordFace({ li, no }: { li: LibraryItem; no: string }) {
   )
 }
 
-/** 스프레드 한 장. 0번은 표제지, 그 다음부터 완독한 책 한 권씩. */
+/** 장 한 개. 0 = 표지(닫힘), 1 = 속표지 + 목차, 2.. = 완독한 책. */
 type Sheet =
-  | { kind: 'cover'; title: string; year: number; count: number; pages: number }
+  | { kind: 'cover' }
+  | { kind: 'title' }
   | { kind: 'book'; li: LibraryItem; no: string }
 
 type Leaf = { dir: 'next' | 'prev'; i: number; j: number }
@@ -238,9 +242,13 @@ type Leaf = { dir: 'next' | 'prev'; i: number; j: number }
  *  돌아가는 종이 한 장의 앞면은 A의 오른쪽 면, 뒷면은 B의 왼쪽 면이다.
  *  그래서 -180도까지 돌면 왼쪽에 B의 왼쪽 면이 내려앉고,
  *  그 아래 미리 깔아 둔 B의 오른쪽 면이 드러난다 — 끊김 없이 다음 장이 된다.
- *  (두 면을 동시에 움직이면 책이 아니라 슬라이드로 보인다) */
-function MyBook({ sheets, read, index, onIndex }: {
-  sheets: Sheet[]; read: LibraryItem[]; index: number; onIndex: (i: number) => void
+ *  (두 면을 동시에 움직이면 책이 아니라 슬라이드로 보인다)
+ *
+ *  덮인 상태(0번 장)는 같은 장치를 그대로 쓴다: 앞표지가 오른쪽 면에 놓여 있고
+ *  왼쪽 면이 없는 상태. 그래서 넘기면 앞표지가 그대로 왼쪽으로 열린다.
+ *  다만 덮여 있을 때는 책이 반쪽뿐이라, 가운데로 보이도록 책 전체를 반 면만큼 밀어 둔다. */
+function MyBook({ sheets, read, meta, index, onIndex }: {
+  sheets: Sheet[]; read: LibraryItem[]; meta: BookMeta; index: number; onIndex: (i: number) => void
 }) {
   const [leaf, setLeaf] = useState<Leaf | null>(null)
   const [angle, setAngle] = useState(0)
@@ -266,44 +274,64 @@ function MyBook({ sheets, read, index, onIndex }: {
   const b = sheets[iB]
   if (!a || !b) return null
 
-  const left = (s: Sheet) => s.kind === 'cover'
-    ? <CoverPlate title={s.title} year={s.year} count={s.count} pages={s.pages} />
-    : <CoverFace li={s.li} />
-  const right = (s: Sheet) => s.kind === 'cover'
-    ? <TocFace read={read} onPick={onIndex} />
-    : <RecordFace li={s.li} no={s.no} />
-  // 표지 면은 종이가 아니라 천이라 결·색이 다르다
-  const skin = (s: Sheet) => (s.kind === 'cover' ? clothFace : paperFace)
+  // 이 넘김이 끝나면 덮여 있는가 — 밀기·왼쪽 면·제본선이 다 이 값을 따라 같이 움직인다
+  const closed = leaf ? leaf.j === 0 : index === 0
 
+  const leftOf = (s: Sheet): ReactNode =>
+    s.kind === 'cover' ? null : s.kind === 'title' ? <TitlePage meta={meta} /> : <CoverFace li={s.li} />
+  const rightOf = (s: Sheet): ReactNode =>
+    s.kind === 'cover' ? <CoverArt meta={meta} onOpen={() => turn('next')} />
+      : s.kind === 'title' ? <TocFace read={read} onPick={(i) => onIndex(i + 2)} />
+        : <RecordFace li={s.li} no={s.no} />
+
+  // 표지는 왼쪽 면이 없다. 넘김 중에 그 자리가 비어 보이지 않게 다음 장의 왼쪽 면을 미리 깔아 둔다.
+  const underLeft = leftOf(a) ?? leftOf(b)
   const faceBase = 'absolute inset-0 overflow-hidden isolate'
   const arrow = 'absolute top-1/2 -translate-y-1/2 w-[52px] h-[52px] flex items-center justify-center text-primary/40 hover:text-primary transition-colors'
-  const many = sheets.length > 1
 
   return (
     <div className="relative mx-auto flex items-center justify-center w-[1100px] max-w-full h-[544px]"
       style={{ perspective: '2600px' }}>
-      {many && (
+      {/* 표지에서는 뒤로 갈 곳이 없다 */}
+      {!closed && (
         <button onClick={() => turn('prev')} aria-label="이전 장" className={`${arrow} left-0`}>
           <svg width="26" height="44" viewBox="0 0 26 44" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M18 4 L6 22 L18 40" /></svg>
         </button>
       )}
 
-      <div className="relative" style={{ width: PAGE_W * 2, height: PAGE_H, transformStyle: 'preserve-3d' }}>
-        {/* 책배 — 아래 깔린 종이 뭉치와 책 전체 그림자 */}
-        <div className="absolute -left-[5px] -right-[5px] top-[5px] -bottom-[7px] rounded-lg"
+      <div className="relative"
+        style={{
+          width: PAGE_W * 2, height: PAGE_H, transformStyle: 'preserve-3d',
+          transform: `translateX(${closed ? PAGE_W / 2 : 0}px)`,
+          transition: `transform ${FLIP_MS}ms ${EASE}`,
+        }}>
+        {/* 책배 — 펼쳐지면 두 면 아래로 깔리고, 덮이면 앞표지 오른쪽의 단면만 남는다 */}
+        <div className="absolute rounded-lg"
           style={{
-            background: 'linear-gradient(90deg,#d6cbb2,#fffdf6 3%,#fffdf6 97%,#d6cbb2)',
-            boxShadow: '0 30px 56px -20px rgba(34,34,74,.44), 0 8px 18px rgba(34,34,74,.13)',
+            left: closed ? PAGE_W - 3 : -5, right: -5, top: 5, bottom: -7,
+            background: 'linear-gradient(90deg,var(--color-book-edge),#fffdf7 4%,#fffdf7 96%,var(--color-book-edge))',
+            boxShadow: '0 30px 56px -20px rgba(34,34,74,.34), 0 8px 18px rgba(34,34,74,.11)',
+            transition: `left ${FLIP_MS}ms ${EASE}`,
           }} />
 
-        {/* 아래 깔린 두 면 */}
+        {/* 왼쪽 면 — 덮여 있을 때는 없다 */}
         <div className="absolute top-0 left-0 overflow-hidden isolate rounded-l rounded-r-sm"
-          style={{ width: PAGE_W, height: PAGE_H, ...skin(a), boxShadow: 'inset -16px 0 24px -16px rgba(34,34,74,.36)' }}>
-          {left(a)}
+          style={{
+            width: PAGE_W, height: PAGE_H, ...bookFace,
+            boxShadow: 'inset -16px 0 24px -16px rgba(34,34,74,.28)',
+            opacity: closed ? 0 : 1,
+            transition: `opacity ${closed ? FLIP_MS : 220}ms ${EASE}`,
+          }}>
+          {underLeft}
         </div>
+
+        {/* 오른쪽 면 — 덮여 있으면 이 자리가 앞표지다 */}
         <div className="absolute top-0 overflow-hidden isolate rounded-r rounded-l-sm"
-          style={{ left: PAGE_W, width: PAGE_W, height: PAGE_H, ...paperFace, boxShadow: 'inset 16px 0 24px -16px rgba(34,34,74,.36)' }}>
-          {right(b)}
+          style={{
+            left: PAGE_W, width: PAGE_W, height: PAGE_H, ...bookFace,
+            boxShadow: 'inset 16px 0 24px -16px rgba(34,34,74,.28)',
+          }}>
+          {rightOf(b)}
         </div>
 
         {/* 넘어가는 한 장 */}
@@ -313,37 +341,50 @@ function MyBook({ sheets, read, index, onIndex }: {
               left: PAGE_W, width: PAGE_W, height: PAGE_H,
               transformOrigin: '0% 50%', transformStyle: 'preserve-3d',
               transform: `rotateY(${angle}deg)`,
-              transition: `transform ${FLIP_MS}ms cubic-bezier(.44,.06,.24,1)`,
+              transition: `transform ${FLIP_MS}ms ${EASE}`,
             }}>
             <div className={`${faceBase} rounded-r rounded-l-sm`}
               style={{
-                ...paperFace, backfaceVisibility: 'hidden',
-                boxShadow: 'inset 16px 0 24px -16px rgba(34,34,74,.36), -10px 0 26px rgba(34,34,74,.12)',
+                ...bookFace, backfaceVisibility: 'hidden',
+                boxShadow: 'inset 16px 0 24px -16px rgba(34,34,74,.28), -10px 0 26px rgba(34,34,74,.12)',
               }}>
-              {right(a)}
+              {rightOf(a)}
             </div>
             <div className={`${faceBase} rounded-l rounded-r-sm`}
               style={{
-                ...skin(b), backfaceVisibility: 'hidden', transform: 'rotateY(180deg)',
-                boxShadow: 'inset -16px 0 24px -16px rgba(34,34,74,.36), 10px 0 26px rgba(34,34,74,.12)',
+                ...bookFace, backfaceVisibility: 'hidden', transform: 'rotateY(180deg)',
+                boxShadow: 'inset -16px 0 24px -16px rgba(34,34,74,.28), 10px 0 26px rgba(34,34,74,.12)',
               }}>
-              {left(b)}
+              {leftOf(b) ?? leftOf(a)}
             </div>
           </div>
         )}
 
-        {/* 제본선 */}
-        <div className="absolute top-0 z-[7]" style={{
-          left: PAGE_W - 1, width: 2, height: PAGE_H,
-          background: 'linear-gradient(180deg,rgba(34,34,74,.10),rgba(34,34,74,.26) 20%,rgba(34,34,74,.26) 80%,rgba(34,34,74,.10))',
-        }} />
+        {/* 책등 — 덮여 있을 때만. 넘김의 축이 여기라는 표시가 된다. */}
+        <div className="absolute top-0 z-[6]"
+          style={{
+            left: PAGE_W - 9, width: 10, height: PAGE_H, borderRadius: '3px 0 0 3px',
+            background: 'linear-gradient(90deg,#d6cdba,var(--color-book) 60%,#e2dbc9)',
+            opacity: closed ? 1 : 0,
+            transition: `opacity ${closed ? 260 : 180}ms ${EASE}`,
+          }}>
+          <i className="absolute left-0 right-0" style={{ top: 34, height: 1, background: 'rgba(34,34,74,.14)' }} />
+          <i className="absolute left-0 right-0" style={{ bottom: 34, height: 1, background: 'rgba(34,34,74,.14)' }} />
+        </div>
+
+        {/* 제본선 — 펼쳐져 있을 때만 */}
+        <div className="absolute top-0 z-[7]"
+          style={{
+            left: PAGE_W - 1, width: 2, height: PAGE_H,
+            background: 'linear-gradient(180deg,rgba(34,34,74,.10),rgba(34,34,74,.26) 20%,rgba(34,34,74,.26) 80%,rgba(34,34,74,.10))',
+            opacity: closed ? 0 : 1,
+            transition: `opacity ${closed ? 180 : 300}ms ${EASE}`,
+          }} />
       </div>
 
-      {many && (
-        <button onClick={() => turn('next')} aria-label="다음 장" className={`${arrow} right-0`}>
-          <svg width="26" height="44" viewBox="0 0 26 44" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M8 4 L20 22 L8 40" /></svg>
-        </button>
-      )}
+      <button onClick={() => turn('next')} aria-label="다음 장" className={`${arrow} right-0`}>
+        <svg width="26" height="44" viewBox="0 0 26 44" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M8 4 L20 22 L8 40" /></svg>
+      </button>
     </div>
   )
 }
@@ -468,7 +509,7 @@ function WishSleeve({ li }: { li: LibraryItem }) {
 export default function LibraryPageB() {
   const nickname = useAuthStore((s) => s.nickname)
   const [view, setView] = useState<'book' | 'list'>('book')
-  // 0 = 표제지. 책은 표지에서 시작한다.
+  // 0 = 표지(닫힘). 책은 덮인 채로 시작한다.
   const [index, setIndex] = useState(0)
   const qc = useQueryClient()
 
@@ -482,7 +523,7 @@ export default function LibraryPageB() {
   })
 
   const all = data ?? []
-  // 완독은 오래된 순 — 인덱스가 곧 나의 책의 장 번호가 된다
+  // 완독은 오래된 순 — 인덱스가 곧 나의 책의 장 순서가 된다
   const read = all.filter((li) => li.status === 'READ')
     .sort((x, y) => (x.finishedDate ?? '').localeCompare(y.finishedDate ?? ''))
   const reading = all.filter((li) => li.status === 'READING')
@@ -494,43 +535,25 @@ export default function LibraryPageB() {
   const avg = rated.length ? (rated.reduce((s, li) => s + (li.rating ?? 0), 0) / rated.length).toFixed(1) : null
   const pages = read.reduce((s, li) => s + (li.book.pageCount ?? 0), 0)
 
+  const meta: BookMeta = { title: `${nickname ?? '나'}의 책`, year, count: read.length, pages }
   const sheets: Sheet[] = [
-    { kind: 'cover', title: `${nickname ?? '나'}의 책`, year, count: read.length, pages },
+    { kind: 'cover' },
+    { kind: 'title' },
     ...read.map((li, i) => ({ kind: 'book' as const, li, no: ordinal(i) })),
   ]
   // 완독한 책이 지워지면 인덱스가 목록 밖으로 나갈 수 있다
   const cursor = Math.min(index, sheets.length - 1)
-  const cur = sheets[cursor]
 
   return (
     <main className="flex-1 bg-white">
       {/* ===== 히어로 · 나의 책 ===== */}
-      <div className="relative overflow-hidden pt-12">
+      <div className="relative overflow-hidden pt-12 pb-16">
         <p className="text-center text-[11px] tracking-[.22em] text-primary/45">
           완독 {read.length}권 · 읽는 중 {reading.length}권 · 찜 {wish.length}권 · {year}년의 기록
         </p>
 
         <div className="mt-12">
-          <MyBook sheets={sheets} read={read} index={cursor} onIndex={setIndex} />
-        </div>
-
-        <p className="text-center mt-[30px] text-[13px] text-primary/50">
-          {cur.kind === 'cover' ? (
-            read.length > 0
-              ? <><b className="font-display font-normal text-primary">표지</b> · 오른쪽 목차나 화살표로 첫 장을 펼쳐 보세요</>
-              : <><b className="font-display font-normal text-primary">표지</b> · 첫 완독이 이 책의 첫 장이 됩니다</>
-          ) : (
-            <>
-              <b className="font-display font-normal text-primary">{nth(cursor - 1)}번째 완독</b>
-              {cur.li.finishedDate ? ` · ${ymd(cur.li.finishedDate)}` : ''}
-              {` · ${read.length}권 중 ${ordinal(cursor - 1)}`}
-            </>
-          )}
-        </p>
-
-        <div className="mt-10 pb-11 flex flex-col items-center gap-1.5 text-[10px] tracking-[.2em] text-primary/30">
-          <span>아래로 · 지금 읽는 책</span>
-          <svg width="18" height="10" viewBox="0 0 18 10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M1 1 L9 8 L17 1" /></svg>
+          <MyBook sheets={sheets} read={read} meta={meta} index={cursor} onIndex={setIndex} />
         </div>
       </div>
 
@@ -542,8 +565,8 @@ export default function LibraryPageB() {
             <p className="text-xs text-primary/45">달에 꽂힌 책등을 누르면 그 장으로 넘어가요 — 이 띠가 나의 책 목차입니다</p>
             {otherYears > 0 && <p className="ml-auto text-xs text-primary/40">그 밖의 해 {otherYears}권</p>}
           </div>
-          <Timeline read={read} year={year} current={cursor - 1} readingCount={reading.length}
-            onJump={(i) => setIndex(i + 1)} />
+          <Timeline read={read} year={year} current={cursor - 2} readingCount={reading.length}
+            onJump={(i) => setIndex(i + 2)} />
           <div className="mt-2.5 flex gap-5 text-[11px] text-primary/45">
             <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm bg-primary inline-block" />완독 — 책등 높이는 쪽수</span>
             <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm border-[1.5px] border-dashed border-primary/40 bg-primary/5 inline-block" />읽는 중 — 아직 실리지 않은 자리</span>
