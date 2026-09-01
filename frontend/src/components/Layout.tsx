@@ -29,7 +29,6 @@ export default function Layout() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
-          <div className="w-64 border-2 border-primary rounded-full px-4 py-1.5 text-sm text-gray-400">제목·저자 검색</div>
           <span className="text-sm text-gray-500">{nickname ?? '독자'}</span>
           <button className="text-sm text-gray-400 underline" onClick={() => { logout(); navigate('/') }}>로그아웃</button>
         </div>
