@@ -278,7 +278,7 @@ const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
                 position: 'absolute', left: -bookW / 2, top: -bookH, width: bookW, height: bookH,
                 transformStyle: 'preserve-3d', transformOrigin: '50% 100%', cursor: 'pointer',
               }}>
-              <Book3D book={book} w={bookW} h={bookH} t={thickness} />
+              <Book3D book={book} w={bookW} h={bookH} t={thickness} imgW={Math.round(bookW * 1.7)} />
             </div>
           </div>
         ))}

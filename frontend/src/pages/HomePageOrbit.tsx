@@ -138,7 +138,9 @@ export default function HomePageOrbit() {
            레퍼런스의 'central preview image' 자리다. 링은 목록, 가운데는 지금 보는 것 하나 ===== */}
       {/* 워드마크와 미리보기를 같은 그리드 칸에 겹쳐 둔다 — mode="wait"로 순차 전환하면
           hover 반응이 한 박자 늦어 손이 느리게 느껴진다. 겹쳐서 교차 페이드 */}
-      <div className="pointer-events-none absolute left-1/2 z-10 grid -translate-x-1/2 -translate-y-1/2 place-items-center px-8"
+      {/* inset-x-0 로 화면 폭을 다 쓴다 — left-1/2 로 두면 절대배치 요소가 오른쪽 절반만
+          쓸 수 있어 좁은 화면에서 미리보기 카드의 글줄이 한 글자씩 끊긴다 */}
+      <div className="pointer-events-none absolute inset-x-0 z-10 grid -translate-y-1/2 place-items-center px-8"
         style={{ top: holeCenter }}>
         <AnimatePresence>
           {hovered == null || !current ? (
@@ -154,11 +156,11 @@ export default function HomePageOrbit() {
               initial={{ opacity: 0, y: 10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
               transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-              className="col-start-1 row-start-1 flex max-w-[620px] items-center gap-6 rounded-2xl bg-white/95 px-7 py-6 shadow-[0_20px_60px_rgba(34,34,74,0.13)]">
+              className="col-start-1 row-start-1 flex w-full max-w-[620px] items-center gap-6 rounded-2xl bg-white/95 px-7 py-6 shadow-[0_20px_60px_rgba(34,34,74,0.13)]">
               <div className="shrink-0">
                 <BookCover book={current.book} size={holeHeight > 250 ? 'lg' : 'md'} />
               </div>
-              <div className="min-w-0 text-left">
+              <div className="min-w-0 flex-1 text-left">
                 <p className="text-[11px] font-bold tracking-wider text-accent">TOP {current.rank}</p>
                 <h2 className="mt-1 text-2xl font-extrabold leading-tight tracking-tight text-primary">{current.book.title}</h2>
                 <p className="mt-1 text-xs text-gray-400">

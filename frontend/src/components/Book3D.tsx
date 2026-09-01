@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { BookSummary } from '../api/types'
 import { coverPalette } from '../lib/coverPalette'
+import { coverAtWidth } from '../lib/coverUrl'
 
 /** 두께가 있는 3D 책 — 앞표지 + 책등 + 책배(종이 단면) + 스펙큘러 하이라이트.
  *
@@ -22,7 +23,9 @@ const Veil = () => (
   <i style={{ position: 'absolute', inset: 0, background: 'var(--veil-color, #fff8ec)', opacity: 'var(--veil, 0)', pointerEvents: 'none' }} />
 )
 
-export default function Book3D({ book, w, h, t = 7 }: { book: BookSummary; w: number; h: number; t?: number }) {
+/** imgW: 이 책이 화면에서 커질 수 있는 최대 CSS 폭. 궤도에서는 정면에 왔을 때가 가장 크다.
+ *  링 전체가 같은 URL을 써야 회전 중 이미지가 다시 로드되지 않는다. */
+export default function Book3D({ book, w, h, t = 7, imgW }: { book: BookSummary; w: number; h: number; t?: number; imgW?: number }) {
   const [broken, setBroken] = useState(false)
   const c = coverPalette(book.bookId)
   const hasImg = Boolean(book.coverUrl) && !broken
@@ -60,7 +63,7 @@ export default function Book3D({ book, w, h, t = 7 }: { book: BookSummary; w: nu
         boxShadow: `inset 0 0 0 1px rgba(34,34,74,0.10), ${w * 0.03}px ${w * 0.05}px ${w * 0.14}px rgba(34,34,74,0.28)`,
       }}>
         {hasImg ? (
-          <img src={book.coverUrl!} alt="" referrerPolicy="no-referrer" loading="lazy" draggable={false}
+          <img src={coverAtWidth(book.coverUrl, imgW ?? w)!} alt="" referrerPolicy="no-referrer" loading="lazy" draggable={false}
             onError={() => setBroken(true)}
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         ) : (
