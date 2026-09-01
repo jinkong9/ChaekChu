@@ -3,11 +3,12 @@ import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, useReducedMotion } from 'motion/react'
 import { api } from '../api/client'
-import type { RecommendationItem } from '../api/types'
+import type { RecommendationItem, ShelfStatus } from '../api/types'
 import { useRecommendations, RECOMMEND_DECK_SIZE } from '../lib/useRecommendations'
 import { useTuneStore } from '../stores/tuneStore'
 import { useAuthStore } from '../stores/authStore'
 import { trackEvent } from '../lib/events'
+import { SHELF_ACTIONS } from '../lib/shelf'
 import Postcard from '../components/Postcard'
 import Envelope from '../components/Envelope'
 import { glassine, GLASS_LINE } from '../lib/glassine'
@@ -51,7 +52,7 @@ export default function RecommendPageLetter() {
   const appliedTags = myTags.length > 0 ? myTags : data.appliedTags
   const postmark = new Date(data.generatedAt).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
 
-  const save = (bookId: number, rank: number, status: 'WISH' | 'READING') => {
+  const save = (bookId: number, rank: number, status: ShelfStatus) => {
     if (status === 'WISH') trackEvent('WISH', { bookId, recommendationId: data.recommendationId, rank })
     api.post('/library', { bookId, status }).then(() => qc.invalidateQueries({ queryKey: ['library'] })).catch(() => {})
   }
@@ -121,8 +122,14 @@ export default function RecommendPageLetter() {
             {top.book.author && <span> · {top.book.author}</span>}
           </p>
           <div className="flex gap-2">
-            <button className="bg-primary text-white rounded-lg px-5 py-2 font-bold" onClick={() => save(top.book.bookId, top.rank, 'WISH')}>찜하기</button>
-            <button className="border-2 border-primary rounded-lg px-5 py-2" onClick={() => save(top.book.bookId, top.rank, 'READING')}>서재에 담기</button>
+            {SHELF_ACTIONS.map((a, i) => (
+              <button key={a.status} onClick={() => save(top.book.bookId, top.rank, a.status)}
+                className={i === 0
+                  ? 'bg-primary text-white rounded-lg px-5 py-2 font-bold'
+                  : 'border-2 border-primary rounded-lg px-5 py-2'}>
+                {a.label}
+              </button>
+            ))}
           </div>
         </div>
 

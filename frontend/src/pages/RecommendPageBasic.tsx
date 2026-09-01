@@ -2,10 +2,11 @@ import { useEffect, useRef } from 'react'
 import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { RecommendationItem } from '../api/types'
+import type { RecommendationItem, ShelfStatus } from '../api/types'
 import { useRecommendations, RECOMMEND_DECK_SIZE } from '../lib/useRecommendations'
 import { useTuneStore } from '../stores/tuneStore'
 import { trackEvent } from '../lib/events'
+import { SHELF_ACTIONS } from '../lib/shelf'
 
 /** REC-001 추천 A안 · 기본 — 해시태그로 이유를 설명하고, 서버가 계산한 feature 점수·가중치로 순위를 만든다.
  *  태그 조절 시 현재 덱을 재정렬하며 후보 재생성은 하지 않는다. */
@@ -34,7 +35,7 @@ export default function RecommendPageBasic() {
   const [top, ...rest] = items
   const appliedTags = myTags.length > 0 ? myTags : data.appliedTags
 
-  const save = (bookId: number, rank: number, status: 'WISH' | 'READING') => {
+  const save = (bookId: number, rank: number, status: ShelfStatus) => {
     if (status === 'WISH') trackEvent('WISH', { bookId, recommendationId: data.recommendationId, rank })
     api.post('/library', { bookId, status }).then(() => qc.invalidateQueries({ queryKey: ['library'] })).catch(() => {})
   }
@@ -81,8 +82,14 @@ export default function RecommendPageBasic() {
               <p>{top.reasonText}</p>
             </div>
             <div className="mt-4 flex gap-2">
-              <button className="bg-primary text-white rounded-lg px-5 py-2 font-bold" onClick={() => save(top.book.bookId, top.rank, 'WISH')}>찜하기</button>
-              <button className="border-2 border-primary rounded-lg px-5 py-2" onClick={() => save(top.book.bookId, top.rank, 'READING')}>서재에 담기</button>
+              {SHELF_ACTIONS.map((a, i) => (
+                <button key={a.status} onClick={() => save(top.book.bookId, top.rank, a.status)}
+                  className={i === 0
+                    ? 'bg-primary text-white rounded-lg px-5 py-2 font-bold'
+                    : 'border-2 border-primary rounded-lg px-5 py-2'}>
+                  {a.label}
+                </button>
+              ))}
               {/* '관심 없어요'는 이벤트 축소로 보류 — not_interested 부활 시 여기 복원 */}
             </div>
           </div>
