@@ -111,7 +111,10 @@ state = {
     # 장애 시 **모든 워커**를 세우는 게이트.
     # 한 스레드만 재우면 나머지가 계속 두드려 예산이 순식간에 증발한다 —
     # 47개 워커가 계속 던져 2분 만에 87,000 을 태운 적이 있다.
-    "hold": threading.Event(),
+    # **평상시 set(통과), 장애 때 clear(대기).**
+    # 반대로 두면 안 된다. Event.wait() 는 set 이면 즉시 반환하므로
+    # "정지" 를 set 으로 표현하면 게이트가 아무것도 막지 못한다.
+    "go": threading.Event(),
     "pending_miss": [],               # 아직 확정 안 된 미수록 행
     "probed": set(),                  # 투입 전 검증을 마친 키
     "dropped_miss": 0,                # 은퇴와 함께 버린 미수록 수
@@ -209,6 +212,9 @@ def release_lock() -> None:
             LOCK.unlink()
     except OSError:
         pass
+
+
+state["go"].set()                     # 평상시는 통과
 
 
 def load_keys() -> list:
@@ -428,7 +434,7 @@ def wait_for_server() -> bool:
             return True
         state["paused"] = True
         state["pauses"] += 1
-    state["hold"].set()          # 모든 워커 정지
+    state["go"].clear()          # 모든 워커 정지 (통과 신호를 내린다)
     print(NL + f"  *** 서버 장애 — 게이트웨이 오류 누적 {state['gw_total']:,}",
           flush=True)
     try:
@@ -457,7 +463,7 @@ def wait_for_server() -> bool:
             state["stop"] = True
         return False
     finally:
-        state["hold"].clear()    # 모든 워커 재개
+        state["go"].set()        # 모든 워커 재개
         with lock:
             state["paused"] = False
 
@@ -528,6 +534,14 @@ def note_failure(reason: str, key_idx: int = -1) -> None:
         hit = n >= FAIL_STREAK_BLOCK
         key_name, key = state["keys"][key_idx]
     if not hit:
+        return
+
+    # 이미 장애로 판정해 정지 중이면 또 찌르지 않는다.
+    # 예전에는 임계를 넘긴 실패마다 diagnose 가 서버를 한 번 더 찔러서
+    # 장애 한 번에 24회를 호출했다. 그것도 전부 쿼터에서 빠진다.
+    if state["paused"]:
+        with lock:
+            state["streak"][key_idx] = 0
         return
 
     verdict = diagnose(key)
@@ -652,10 +666,17 @@ def fetch(_unused: str, isbn: str) -> dict:
         if state["stop"]:
             return None
         # 장애 중이면 여기서 모두 멈춘다 (게이트가 열릴 때까지)
-        if state["hold"].is_set():
-            state["hold"].wait(timeout=SERVER_WAIT + 60)
-            if state["stop"]:
-                return None
+        if not state["go"].is_set():
+            # 통과 신호가 올 때까지 **실제로 막는다.**
+            # 타임아웃은 교착 방지용 상한일 뿐이라 루프로 다시 기다린다.
+            waited = 0
+            limit = SERVER_WAIT * SERVER_WAIT_MAX + 120
+            while not state["go"].wait(timeout=30):
+                waited += 30
+                if state["stop"] or waited >= limit:
+                    return None
+        if state["stop"]:
+            return None
         timeout = GATEWAY_TIMEOUT if state["gw_streak"] else 60
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
