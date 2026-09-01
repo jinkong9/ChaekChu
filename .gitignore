@@ -7,3 +7,11 @@
 *.ppk
 # 렌더 산출물 (보고서 PNG 등) — 재생성 가능
 tmp/
+
+# AI 코딩 에이전트 로컬 설정 (디자인 스킬 등) — 개인 환경이라 공유하지 않음
+.claude/
+.agents/
+skills-lock.json
+
+# 로컬 전용 유틸 스크립트 (개인 API 키로 외부 API를 호출하는 것들) — 공유하지 않음
+frontend/scripts/
