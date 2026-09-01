@@ -397,7 +397,7 @@ export default function LibraryPageB() {
   const cur = read[cursor]
 
   return (
-    <main className="flex-1">
+    <main className="flex-1 bg-white">
       {/* ===== 히어로 · 나의 책 ===== */}
       <div className="relative overflow-hidden pt-12">
         <p className="relative z-[2] text-center text-[11px] tracking-[.22em] text-primary/45">
@@ -419,7 +419,7 @@ export default function LibraryPageB() {
           </>
         ) : (
           <div className="relative z-[2] mt-16 mx-auto w-[764px] max-w-full h-[544px] rounded-lg border-2 border-dashed border-primary/30
-            flex flex-col items-center justify-center gap-4 bg-white/40">
+            flex flex-col items-center justify-center gap-4 bg-cream/60">
             <p className="font-display text-2xl">나의 책은 아직 한 장도 없어요</p>
             <p className="text-sm text-primary/50">완독한 책 한 권이 이 책의 한 장이 됩니다</p>
             <div className="flex gap-2 mt-2">
