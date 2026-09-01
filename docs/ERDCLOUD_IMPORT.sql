@@ -2,9 +2,10 @@
 -- 프로젝트: S15P21B102
 -- 기준: docs/ERD.md
 -- PostgreSQL의 JSONB·TIMESTAMPTZ는 ERDCloud 호환을 위해 TEXT·DATETIME으로 표현한다.
+-- PK는 BIGINT 자동 증가다. ERDCloud 호환을 위해 AUTO_INCREMENT로 표현한다.
 
 CREATE TABLE users (
-    id UUID NOT NULL,
+    id BIGINT NOT NULL AUTO_INCREMENT,
     oauth_provider VARCHAR(20) NOT NULL,
     oauth_subject VARCHAR(255) NOT NULL,
     nickname VARCHAR(100),
@@ -21,7 +22,7 @@ CREATE TABLE users (
 );
 
 CREATE TABLE books (
-    id UUID NOT NULL,
+    id BIGINT NOT NULL AUTO_INCREMENT,
     isbn13 CHAR(13) NOT NULL,
     title VARCHAR(500) NOT NULL,
     authors TEXT NOT NULL,
@@ -41,9 +42,9 @@ CREATE TABLE books (
 );
 
 CREATE TABLE library_items (
-    id UUID NOT NULL,
-    user_id UUID NOT NULL,
-    book_id UUID NOT NULL,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    book_id BIGINT NOT NULL,
     status VARCHAR(30) NOT NULL,
     rating SMALLINT,
     review_text VARCHAR(300),
@@ -60,8 +61,8 @@ CREATE TABLE library_items (
 );
 
 CREATE TABLE recommendations (
-    id UUID NOT NULL,
-    user_id UUID NOT NULL,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
     mode VARCHAR(30) NOT NULL,
     model_version VARCHAR(100) NOT NULL,
     weights TEXT NOT NULL,
@@ -74,8 +75,8 @@ CREATE TABLE recommendations (
 );
 
 CREATE TABLE recommendation_items (
-    recommendation_id UUID NOT NULL,
-    book_id UUID NOT NULL,
+    recommendation_id BIGINT NOT NULL,
+    book_id BIGINT NOT NULL,
     rank INTEGER NOT NULL,
     score DECIMAL(6, 2) NOT NULL,
     feature_scores TEXT NOT NULL,

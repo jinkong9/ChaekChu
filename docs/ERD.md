@@ -2,7 +2,7 @@
 
 > 프로젝트: S15P21B102
 >
-> MVP 서비스에 실제로 필요한 핵심 도메인만 남긴 단순화 버전이다. 비회원 추천은 제공하지 않으며, 모든 추천과 개인 데이터는 로그인한 사용자 기준으로 처리한다.
+> MVP 서비스에 실제로 필요한 핵심 도메인만 남긴 단순화 버전이다. 비회원 추천은 제공하지 않으며, 모든 추천과 개인 데이터는 로그인한 사용자 기준으로 처리한다. 내부 PK는 BIGINT 자동 증가, FK는 BIGINT를 사용한다.
 
 ## 설계 원칙
 
@@ -23,7 +23,7 @@ erDiagram
     BOOKS ||--o{ RECOMMENDATION_ITEMS : recommended
 
     USERS {
-        uuid id PK
+        bigint id PK
         varchar oauth_provider
         varchar oauth_subject UK
         varchar nickname
@@ -36,7 +36,7 @@ erDiagram
     }
 
     BOOKS {
-        uuid id PK
+        bigint id PK
         char isbn13 UK
         varchar title
         jsonb authors
@@ -52,9 +52,9 @@ erDiagram
     }
 
     LIBRARY_ITEMS {
-        uuid id PK
-        uuid user_id FK
-        uuid book_id FK
+        bigint id PK
+        bigint user_id FK
+        bigint book_id FK
         varchar status
         smallint rating
         varchar review_text
@@ -64,8 +64,8 @@ erDiagram
     }
 
     RECOMMENDATIONS {
-        uuid id PK
-        uuid user_id FK
+        bigint id PK
+        bigint user_id FK
         varchar mode
         varchar model_version
         jsonb weights
@@ -75,8 +75,8 @@ erDiagram
     }
 
     RECOMMENDATION_ITEMS {
-        uuid recommendation_id PK,FK
-        uuid book_id PK,FK
+        bigint recommendation_id PK,FK
+        bigint book_id PK,FK
         integer rank
         decimal score
         jsonb feature_scores
