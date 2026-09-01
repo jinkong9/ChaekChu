@@ -1,9 +1,17 @@
-/** 홈 — 로그인 후 첫 화면. 구성은 별도 작업에서 채운다(현재는 자리만 잡아둔 골격). */
+import { useState } from 'react'
+import HomePageSimple from './HomePageSimple'
+import HomePageMax from './HomePageMax'
+
+/** 홈 시안 토글 (팀 비교용 — 확정되면 한쪽만 남기고 이 파일 정리) */
 export default function HomePage() {
+  const [variant, setVariant] = useState<'simple' | 'max'>('simple')
   return (
-    <main className="p-8 max-w-5xl">
-      <h1 className="text-3xl">홈</h1>
-      <p className="mt-2 text-sm text-gray-500">홈 화면은 준비 중이에요 — 아래 메뉴로 이동해 주세요.</p>
-    </main>
+    <div className="relative">
+      <div className="absolute right-6 top-4 z-30 flex border-2 border-primary rounded-full overflow-hidden text-xs bg-white">
+        <button className={`px-3 py-1 font-bold ${variant === 'simple' ? 'bg-primary text-white' : 'text-gray-400'}`} onClick={() => setVariant('simple')}>A 심플</button>
+        <button className={`px-3 py-1 font-bold ${variant === 'max' ? 'bg-primary text-white' : 'text-gray-400'}`} onClick={() => setVariant('max')}>B 맥스</button>
+      </div>
+      {variant === 'simple' ? <HomePageSimple /> : <HomePageMax />}
+    </div>
   )
 }
