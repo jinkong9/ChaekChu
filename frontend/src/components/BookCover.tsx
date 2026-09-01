@@ -1,21 +1,14 @@
 import { useState } from 'react'
 import type { BookSummary } from '../api/types'
+import { coverPalette } from '../lib/coverPalette'
 
 /** 공용 표지 카드 — coverUrl 있으면 이미지(핫링크), 없거나 깨지면 색 커버 폴백.
  *  서재·홈·추천이 공유. (LibraryPage의 내장 Cover는 추후 이걸로 통합) */
-const COLORS = [
-  { bg: '#22224a', fg: '#fff8ec' }, { bg: '#ff6b4a', fg: '#fff8ec' }, { bg: '#ffd166', fg: '#22224a' },
-  { bg: '#b7d9c8', fg: '#22224a' }, { bg: '#8a84a8', fg: '#fff8ec' }, { bg: '#e8e1cf', fg: '#22224a' },
-]
-
 const SIZES = {
   lg: 'w-[150px] h-[214px]',
   md: 'w-[92px] h-[132px]',
   sm: 'w-12 h-[68px]',
 } as const
-
-/** 표지 이미지가 없을 때 쓰는 bookId 고정 배정 색 — Book3D(책등·3D 표지)와 공유 */
-export const coverPalette = (bookId: number) => COLORS[bookId % COLORS.length]
 
 export default function BookCover({ book, size = 'md' }: { book: BookSummary; size?: keyof typeof SIZES }) {
   const [broken, setBroken] = useState(false)

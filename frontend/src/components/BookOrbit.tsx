@@ -47,11 +47,13 @@ interface Props {
   /** true인 책은 흐려진다 — 태그 필터용 */
   dimmed?: boolean[]
   onFocusChange?: (index: number) => void
+  /** 마우스가 올라간 책 (없으면 null) — 화면 가운데 미리보기를 이걸로 바꾼다 */
+  onHoverChange?: (index: number | null) => void
   onOpen?: (index: number) => void
 }
 
 const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
-  { books, radiusX, radiusY, depth, bookW = 62, bookH = 90, thickness = 7, planeY = '50%', dimmed, onFocusChange, onOpen }, ref,
+  { books, radiusX, radiusY, depth, bookW = 62, bookH = 90, thickness = 7, planeY = '50%', dimmed, onFocusChange, onHoverChange, onOpen }, ref,
 ) {
   const n = books.length
   const step = n > 0 ? 360 / n : 0
@@ -79,6 +81,9 @@ const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
   focusCb.current = onFocusChange
   const openCb = useRef(onOpen)
   openCb.current = onOpen
+  const hoverCb = useRef(onHoverChange)
+  hoverCb.current = onHoverChange
+  const hoverIdx = useRef<number | null>(null)
 
   /** 현재 각도로 전 항목의 transform을 계산해 DOM에 직접 쓴다 (setState 없음) */
   const paint = useCallback(() => {
@@ -94,16 +99,17 @@ const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
       const z = Math.cos(a) * depth
       const t = (z / depth + 1) / 2                  // 0 = 맨 뒤, 1 = 맨 앞
       const dim = dimRef.current?.[i] ? 1 : 0
+      const hot = hoverIdx.current === i             // 마우스가 올라간 책
 
       el.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, ${z.toFixed(2)}px)`
       // perspective가 크기는 알아서 줄여준다. z-index만 정확히 — 뒷책이 앞책 위로 새는 걸 막는다
-      el.style.zIndex = String(Math.round(t * 1000))
-      el.style.setProperty('--veil', clamp(0.74 * (1 - t) ** 1.3 + dim * 0.5, 0, 0.92).toFixed(3))
+      el.style.zIndex = String(hot ? 2000 : Math.round(t * 1000))
+      el.style.setProperty('--veil', hot ? '0' : clamp(0.74 * (1 - t) ** 1.3 + dim * 0.5, 0, 0.92).toFixed(3))
       el.style.setProperty('--sheen', (0.5 + 0.5 * Math.sin(a)).toFixed(3))
 
       // 링에 접하도록 살짝 틀어 책등·책배를 노출 — 두께가 보이는 순간 '물체'가 된다
       const turn = (x / radiusX) * 26
-      const k = (1 + 0.24 * t ** 5) * (dim ? 0.9 : 1)   // 맨 앞 한 권만 확실히 커진다
+      const k = (1 + 0.24 * t ** 5) * (dim ? 0.9 : 1) * (hot ? 1.22 : 1)   // 맨 앞 한 권만 확실히 커진다
       bk.style.transform = `rotateY(${turn.toFixed(2)}deg) scale(${k.toFixed(3)})`
       sh.style.opacity = (0.42 * t ** 2.5 * (dim ? 0.35 : 1)).toFixed(3)
     }
@@ -163,7 +169,8 @@ const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
         }
       } else if (!drag.current) {
         // 지수 감쇠 — v *= 0.95 와 달리 프레임레이트에 결과가 좌우되지 않는다
-        const target = now < dwellUntil.current ? 0 : hovering.current ? AMBIENT_HOVER : AMBIENT
+        const target = now < dwellUntil.current || hoverIdx.current !== null ? 0
+          : hovering.current ? AMBIENT_HOVER : AMBIENT
         vel.current += (target - vel.current) * (1 - Math.exp(-FRICTION * dt))
         rot.current += vel.current * dt
       }
@@ -182,6 +189,7 @@ const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
     e.currentTarget.setPointerCapture(e.pointerId)
     drag.current = { id: e.pointerId, lastX: e.clientX, lastT: performance.now(), v: 0, moved: 0 }
     snap.current = null
+    setHover(null)
   }
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current
@@ -209,6 +217,13 @@ const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
     }
   }
 
+  /** hover 변경은 드물어서 setState 대신 ref + 콜백으로 처리 — 매 프레임 리렌더를 막는다 */
+  const setHover = (i: number | null) => {
+    if (hoverIdx.current === i) return
+    hoverIdx.current = i
+    hoverCb.current?.(i)
+  }
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight') { e.preventDefault(); snapTo((focus.current + 1) % n) }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); snapTo((focus.current - 1 + n) % n) }
@@ -228,7 +243,7 @@ const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
       onMouseEnter={() => { hovering.current = true }}
-      onMouseLeave={() => { hovering.current = false }}
+      onMouseLeave={() => { hovering.current = false; setHover(null) }}
       onWheel={(e) => { snap.current = null; vel.current = clamp(vel.current - e.deltaY * 0.14, -FLING_MAX, FLING_MAX) }}
       onKeyDown={onKeyDown}
     >
@@ -252,6 +267,8 @@ const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
               role="option"
               aria-selected={false}
               aria-label={`${book.title}${book.author ? ` · ${book.author}` : ''}`}
+              onPointerEnter={() => { if (!drag.current) setHover(i) }}
+              onPointerLeave={() => { if (hoverIdx.current === i) setHover(null) }}
               onClick={() => {
                 if (suppressClick.current) return
                 if (focus.current === i) openCb.current?.(i)

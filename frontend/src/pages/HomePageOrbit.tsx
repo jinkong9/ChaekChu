@@ -7,6 +7,7 @@ import { useRecommendations } from '../lib/useRecommendations'
 import { trackEvent } from '../lib/events'
 import { useAuthStore } from '../stores/authStore'
 import BookOrbit, { type OrbitHandle } from '../components/BookOrbit'
+import BookCover from '../components/BookCover'
 
 /** 홈 C안 — 궤도 허브. 추천 덱이 흰 무대 위를 공전하고, 가운데에는 서비스 이름만 남는다.
  *  레퍼런스(CLOU Architects)의 구조 그대로: 링은 목록, 가운데는 고정 워드마크,
@@ -52,7 +53,8 @@ function useOrbitGeometry() {
   const backBase = plane - radiusY * far                          // 뒷줄 책 밑변
   return {
     w, h, radiusX, radiusY, depth, bookW, bookH, plane, near, far,
-    holeCenter: (backBase + frontTop) / 2,   // 워드마크가 들어갈 자리
+    holeCenter: (backBase + frontTop) / 2,   // 워드마크·미리보기가 들어갈 자리
+    holeHeight: frontTop - backBase,
   }
 }
 
@@ -62,9 +64,10 @@ export default function HomePageOrbit() {
   const qc = useQueryClient()
   const { data, isPending } = useRecommendations()
   const orbit = useRef<OrbitHandle>(null)
-  const { w, radiusX, radiusY, depth, bookW, bookH, plane, holeCenter } = useOrbitGeometry()
+  const { w, radiusX, radiusY, depth, bookW, bookH, plane, holeCenter, holeHeight } = useOrbitGeometry()
 
   const [focus, setFocus] = useState(0)
+  const [hovered, setHovered] = useState<number | null>(null)
   const [tag, setTag] = useState<string | null>(null)
   const [wished, setWished] = useState<number[]>([])
 
@@ -79,7 +82,9 @@ export default function HomePageOrbit() {
   // 태그를 고르면 안 맞는 책이 안개 속으로 물러난다 — 레퍼런스의 sector 정렬을 필터로 옮긴 것
   const dimmed = useMemo(() => (tag ? items.map((it) => !it.tags.includes(tag)) : undefined), [items, tag])
 
-  const current = items[focus]
+  // 마우스를 올린 책이 있으면 그 책이 주인공, 없으면 정면에 온 책
+  const activeIdx = hovered ?? focus
+  const current = items[activeIdx]
 
   // 태그를 고르면 해당하는 첫 책을 정면으로 돌려 준다 (필터 결과를 바로 보여 주기)
   useEffect(() => {
@@ -134,13 +139,52 @@ export default function HomePageOrbit() {
         radiusX={radiusX} radiusY={radiusY} depth={depth}
         bookW={bookW} bookH={bookH} thickness={Math.max(4, Math.round(bookW * 0.11))}
         planeY={`${PLANE_Y * 100}%`} dimmed={dimmed}
-        onFocusChange={setFocus} onOpen={open} />
+        onFocusChange={setFocus} onHoverChange={setHovered} onOpen={open} />
 
-      {/* ===== 가운데 — 고정 워드마크. 지금 보고 있는 책 이름은 아래로 내렸다 ===== */}
-      <p className="pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap font-extrabold text-primary"
-        style={{ top: holeCenter, fontSize: 'clamp(40px, 6.2vw, 92px)', letterSpacing: '-0.045em' }}>
-        책추책책추.
-      </p>
+      {/* ===== 가운데 — 평소엔 워드마크, 책에 마우스를 올리면 그 책의 미리보기.
+           레퍼런스의 'central preview image' 자리다. 링은 목록, 가운데는 지금 보는 것 하나 ===== */}
+      {/* 워드마크와 미리보기를 같은 그리드 칸에 겹쳐 둔다 — mode="wait"로 순차 전환하면
+          hover 반응이 한 박자 늦어 손이 느리게 느껴진다. 겹쳐서 교차 페이드 */}
+      <div className="pointer-events-none absolute left-1/2 z-10 grid -translate-x-1/2 -translate-y-1/2 place-items-center px-8"
+        style={{ top: holeCenter }}>
+        <AnimatePresence>
+          {hovered == null || !current ? (
+            <motion.p key="wordmark"
+              initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.16 }}
+              className="col-start-1 row-start-1 whitespace-nowrap font-extrabold text-primary"
+              style={{ fontSize: 'clamp(40px, 6.2vw, 92px)', letterSpacing: '-0.045em' }}>
+              책추책책추
+            </motion.p>
+          ) : (
+            <motion.div key={`preview-${current.book.bookId}`}
+              initial={{ opacity: 0, y: 10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              className="col-start-1 row-start-1 flex max-w-[620px] items-center gap-6 rounded-2xl bg-white/95 px-7 py-6 shadow-[0_20px_60px_rgba(34,34,74,0.13)]">
+              <div className="shrink-0">
+                <BookCover book={current.book} size={holeHeight > 250 ? 'lg' : 'md'} />
+              </div>
+              <div className="min-w-0 text-left">
+                <p className="text-[11px] font-bold tracking-wider text-accent">TOP {current.rank}</p>
+                <h2 className="mt-1 text-2xl font-extrabold leading-tight tracking-tight text-primary">{current.book.title}</h2>
+                <p className="mt-1 text-xs text-gray-400">
+                  {current.book.author}
+                  {current.book.publisher ? ` · ${current.book.publisher}` : ''}
+                  {current.book.publicationYear ? ` · ${current.book.publicationYear}` : ''}
+                  {current.book.pageCount ? ` · ${current.book.pageCount}쪽` : ''}
+                </p>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {current.tags.map((t) => (
+                    <span key={t} className="rounded-full border border-accent/45 px-2 py-0.5 text-[11px] text-accent">{t}</span>
+                  ))}
+                </div>
+                <p className="mt-2.5 line-clamp-3 text-[13px] leading-relaxed text-gray-600">{current.reasonText}</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* ===== 섹터 라벨 — 링 바깥. 고른 태그는 강조, 정면 책이 가진 태그는 잉크색 ===== */}
       {sectors.map(([t, n], k) => {
@@ -168,7 +212,7 @@ export default function HomePageOrbit() {
       {/* ===== 하단 — 정면 책의 이름·이유·행동 ===== */}
       <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 px-8 pb-6">
         <AnimatePresence mode="wait">
-          {current && (
+          {current && hovered == null && (
             <motion.div key={current.book.bookId}
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
@@ -188,7 +232,7 @@ export default function HomePageOrbit() {
         </AnimatePresence>
 
         <div className="flex items-center gap-2">
-          <button onClick={() => open(focus)}
+          <button onClick={() => open(activeIdx)}
             className="rounded-full bg-primary px-6 py-2.5 text-sm font-bold text-white transition-transform hover:-translate-y-0.5">
             상세 보기
           </button>

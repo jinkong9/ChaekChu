@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { BookSummary } from '../api/types'
-import { coverPalette } from './BookCover'
+import { coverPalette } from '../lib/coverPalette'
 
 /** 두께가 있는 3D 책 — 앞표지 + 책등 + 책배(종이 단면) + 스펙큘러 하이라이트.
  *
