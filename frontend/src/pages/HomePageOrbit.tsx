@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
-import { api } from '../api/client'
 import { useRecommendations } from '../lib/useRecommendations'
 import { trackEvent } from '../lib/events'
 import { useAuthStore } from '../stores/authStore'
@@ -44,7 +42,6 @@ function orbitGeometry(w: number, h: number) {
 export default function HomePageOrbit() {
   const nickname = useAuthStore((s) => s.nickname)
   const navigate = useNavigate()
-  const qc = useQueryClient()
   const { data, isPending } = useRecommendations()
   const orbit = useRef<OrbitHandle>(null)
 
@@ -66,7 +63,6 @@ export default function HomePageOrbit() {
   const [focus, setFocus] = useState(0)
   const [hovered, setHovered] = useState<number | null>(null)
   const [tag, setTag] = useState<string | null>(null)
-  const [wished, setWished] = useState<number[]>([])
 
   const items = useMemo(() => data?.items ?? [], [data])
   const books = useMemo(() => items.map((it) => it.book), [items])
@@ -95,15 +91,6 @@ export default function HomePageOrbit() {
     if (!it || !data) return
     trackEvent('CLICK', { bookId: it.book.bookId, recommendationId: data.recommendationId, rank: it.rank })
     navigate(`/books/${it.book.bookId}?from=home`)
-  }
-
-  const wish = () => {
-    if (!current || !data) return
-    trackEvent('WISH', { bookId: current.book.bookId, recommendationId: data.recommendationId, rank: current.rank })
-    setWished((list) => [...list, current.book.bookId])
-    api.post('/library', { bookId: current.book.bookId, status: 'WISH' })
-      .then(() => qc.invalidateQueries({ queryKey: ['library'] }))
-      .catch(() => setWished((list) => list.filter((id) => id !== current.book.bookId)))
   }
 
   // 남은 높이를 그대로 채운다 (Layout 이 세로 플렉스). 100vh 를 직접 쓰지 않는 이유는 위 주석 참고
@@ -232,16 +219,12 @@ export default function HomePageOrbit() {
           )}
         </AnimatePresence>
 
-        <div className="flex items-center gap-2">
-          <button onClick={() => open(activeIdx)}
-            className="rounded-full bg-primary px-6 py-2.5 text-sm font-bold text-white transition-transform hover:-translate-y-0.5">
-            상세 보기
-          </button>
-          <button onClick={wish} disabled={!current || wished.includes(current.book.bookId)}
-            className="rounded-full border-2 border-primary bg-white px-6 py-2.5 text-sm font-bold transition-transform hover:-translate-y-0.5 disabled:border-primary/25 disabled:text-gray-400 disabled:hover:translate-y-0">
-            {current && wished.includes(current.book.bookId) ? '찜했어요' : '찜하기'}
-          </button>
-        </div>
+        {/* 하단에는 화면 전체의 다음 걸음 하나만 둔다.
+            책 한 권에 대한 행동(상세·찜)은 상세 화면이 갖고 있다 */}
+        <button onClick={() => navigate('/recommend')}
+          className="rounded-full bg-primary px-8 py-3 text-sm font-bold text-white transition-transform hover:-translate-y-0.5">
+          추천받기
+        </button>
       </div>
     </main>
   )
