@@ -1,0 +1,24 @@
+import type { CSSProperties } from 'react'
+
+/** 유산지(글라신) 봉투 — 안에 든 것이 흐릿하게 비쳐 보이는 반투명 종이.
+ *  추천 B안(편지)·C안(우표첩)이 같은 재질을 써야 해서 여기 한 곳에 둔다.
+ *
+ *  반투명만으로는 부족하다 — 뒤에 깔린 표지가 선명하게 겹쳐 보이면 종이가 아니라 유리로 읽힌다.
+ *  그래서 반드시 뒤엣것을 흐려야 하는데, 흐리는 방법은 두 가지다:
+ *  뒤를 통째로 흐리는 backdrop-filter(blur 인자)와, 안에 든 것만 직접 흐리는 방법.
+ *  전자는 레이어마다 비싸므로 목록에서는 후자를 쓴다 (Envelope·StampFolder 참고). */
+
+export const GLASS_LINE = 'rgba(34,34,74,0.18)'  // 유산지 위에 인쇄한 접힘선·테두리
+
+/** @param tint 종이의 불투명도 — 높을수록 안이 덜 비친다 (0.45~0.75 사이가 적당)
+ *  @param blur backdrop-filter 흐림(px). 0이면 붙이지 않는다 —
+ *    backdrop-filter는 레이어마다 비싸서, 목록처럼 수십 개가 깔리는 자리에서는
+ *    봉투에 걸지 말고 안에 든 표지 자체를 blur해 같은 그림을 훨씬 싸게 만든다. */
+export function glassine(tint = 0.62, blur = 0): CSSProperties {
+  return {
+    background:
+      `linear-gradient(118deg, rgba(255,255,255,${(tint + 0.12).toFixed(2)}) 0%, ` +
+      `rgba(234,236,239,${tint.toFixed(2)}) 55%, rgba(214,219,225,${(tint - 0.04).toFixed(2)}) 100%)`,
+    ...(blur > 0 ? { backdropFilter: `blur(${blur}px) saturate(0.8)`, WebkitBackdropFilter: `blur(${blur}px) saturate(0.8)` } : {}),
+  }
+}

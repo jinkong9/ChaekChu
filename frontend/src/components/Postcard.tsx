@@ -42,12 +42,13 @@ export function Perforated({ width, notch = PAPER, frame = '#fffdf6', children, 
   )
 }
 
-/** 책 표지를 붙인 우표 — 표지가 곧 '어디서 온 편지인지'다 */
-export function Stamp({ book, width, notch = PAPER }: { book: BookSummary; width: number; notch?: string }) {
+/** 책 표지를 붙인 우표 — 표지가 곧 '어디서 온 편지인지'다.
+ *  frame(테 색)과 notch(바탕색)가 비슷하면 톱니가 안 보인다 — 흰 배경에 놓을 땐 테를 종이색으로 준다. */
+export function Stamp({ book, width, notch = PAPER, frame }: { book: BookSummary; width: number; notch?: string; frame?: string }) {
   const [broken, setBroken] = useState(false)
   const c = coverPalette(book.bookId)
   return (
-    <Perforated width={width} notch={notch}>
+    <Perforated width={width} notch={notch} frame={frame}>
       {book.coverUrl && !broken ? (
         <img src={coverAtWidth(book.coverUrl, width)!} alt={book.title} referrerPolicy="no-referrer" loading="lazy"
           onError={() => setBroken(true)} className="block w-full object-cover" style={{ aspectRatio: '5 / 7' }} />

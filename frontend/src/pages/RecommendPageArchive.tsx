@@ -13,11 +13,12 @@ import LetterStamp from '../components/LetterStamp'
 import StampFolder from '../components/StampFolder'
 
 /** REC-001 추천 C안 · 우표첩 — 추천을 '모아 둔 우표첩에서 오늘 치를 꺼내는' 동작으로 건넨다.
- *  폴더 앞판이 왼쪽 모서리를 축으로 열리고, 안에서 표지 우표와 사연 우표가 오른쪽으로 계단식으로 나온다.
+ *  유산지 폴더 앞판이 왼쪽 모서리를 축으로 열리고, 안에서 표지 우표와 사연 우표가 오른쪽으로 계단식으로 나온다.
  *  2위 아래도 같은 우표첩을 작게 줄여 세우고, 손을 올리면 그 한 통만 열린다.
  *  데이터·이벤트 계약은 A·B안과 동일 — 덱 재정렬만 하고 후보 재생성은 하지 않는다. */
 
-const CREAM = '#fff8ec'   // 톱니를 파낼 배경색 = 페이지 바탕
+const PAGE_BG = '#ffffff'   // 톱니를 파낼 배경색 = 페이지 바탕
+const STAMP_PAPER = '#f6f1e3'  // 우표 테 — 흰 바탕에서 톱니가 보이려면 바탕색과 달라야 한다
 
 /** 히어로 무대 치수 — 폴더에서 나온 두 장이 오른쪽으로 늘어설 자리까지 포함한 폭 */
 const HERO = { w: 748, h: 344, folderW: 240, folderH: 336 }
@@ -48,8 +49,8 @@ export default function RecommendPageArchive() {
     }
   }, [data])
 
-  if (isPending) return <main className="p-8 text-gray-400">우표첩을 여는 중…</main>
-  if (isError || !data) return <main className="p-8 text-gray-400">오늘 꽂아 둔 우표가 없어요.</main>
+  if (isPending) return <main className="p-8 text-gray-400 bg-white" style={{ minHeight: 'calc(100vh - 62px)' }}>우표첩을 여는 중…</main>
+  if (isError || !data) return <main className="p-8 text-gray-400 bg-white" style={{ minHeight: 'calc(100vh - 62px)' }}>오늘 꽂아 둔 우표가 없어요.</main>
 
   // 태그 선택 시 캐시된 덱을 겹치는 태그 수로 재정렬 — 후보 재생성 없음 (덱 구조 원칙)
   const overlap = (item: RecommendationItem) => item.tags.filter((t) => myTags.includes(t)).length
@@ -70,62 +71,64 @@ export default function RecommendPageArchive() {
   )
 
   return (
-    <main className="px-8 pb-16 pt-8 max-w-5xl mx-auto">
-      <h1 className="text-3xl">오늘 치 우표를 꺼냈어요</h1>
-      <p className="text-sm text-gray-500 mt-1">
-        {data.fallback ? '아직 취향을 몰라서 인기 도서로 첫 장을 채웠어요 — 찜하면 더 정확해져요.' : `최근 기록한 ${data.basedOnCount}권을 보고 골랐어요`}
-      </p>
-
-      {/* 적용 중인 관심 태그 — 최종 점수의 근거를 사람이 이해할 수 있게 표시 */}
-      <div className="mt-4 flex items-center gap-2 border-2 border-primary rounded-lg bg-white px-4 py-2 text-sm flex-wrap">
-        <span className="font-bold">관심 태그</span>
-        {appliedTags.length === 0
-          ? <span className="text-gray-400">아직 없어요 — 태그를 고르면 그 결이 먼저 올라와요</span>
-          : appliedTags.map((t) => <Tag key={t} t={t} />)}
-        <Link to="/tune" className="ml-auto font-bold underline">기준 조절하기 ›</Link>
-      </div>
-
-      {/* ===== 1위 — 우표첩에서 표지 우표와 사연 우표가 차례로 나온다 ===== */}
-      <section className="mt-8 flex justify-center">
-        <div className="relative" style={{ width: HERO.w, height: HERO.h }}>
-          <Link to={`/books/${top.book.bookId}?from=rec`} onClick={() => click(top)} className="block">
-            <StampFolder
-              open={heroOpen} width={HERO.folderW} height={HERO.folderH}
-              label="오늘의 편지" sub={`${postmark} 소인 · TOP 1`}
-              slots={[
-                {
-                  key: 'cover', out: 250, tilt: -2, top: 28, left: 20,
-                  node: <Stamp book={top.book} width={200} notch={CREAM} />,
-                },
-                {
-                  key: 'letter', out: 505, tilt: 1.6, top: 7, left: 5,
-                  node: <LetterStamp reason={top.reasonText} to={nickname} postmark={postmark} rank={top.rank} width={230} notch={CREAM} />,
-                },
-              ]}
-            />
-          </Link>
-        </div>
-      </section>
-
-      {/* 1위 태그 + 행동 — 우표 면을 깨지 않도록 밖에 둔다 */}
-      <div className="mt-6 flex flex-col items-center gap-3">
-        <div className="flex gap-1.5 flex-wrap justify-center">{top.tags.map((t) => <Tag key={t} t={t} />)}</div>
-        <p className="text-sm text-gray-500">
-          <span className="font-bold text-primary">{top.book.title}</span>
-          {top.book.author && <span> · {top.book.author}</span>}
+    <div className="bg-white" style={{ minHeight: 'calc(100vh - 62px)' }}>
+      <main className="px-8 pb-16 pt-8 max-w-5xl mx-auto">
+        <h1 className="text-3xl">오늘 치 우표를 꺼냈어요</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          {data.fallback ? '아직 취향을 몰라서 인기 도서로 첫 장을 채웠어요 — 찜하면 더 정확해져요.' : `최근 기록한 ${data.basedOnCount}권을 보고 골랐어요`}
         </p>
-        <div className="flex gap-2">
-          <button className="bg-primary text-white rounded-lg px-5 py-2 font-bold" onClick={() => save(top.book.bookId, top.rank, 'WISH')}>찜하기</button>
-          <button className="border-2 border-primary rounded-lg px-5 py-2" onClick={() => save(top.book.bookId, top.rank, 'READING')}>서재에 담기</button>
-        </div>
-      </div>
 
-      {/* ===== 2위 이하 — 같은 우표첩을 작게. 손을 올린 한 통만 열린다 ===== */}
-      <h3 className="text-xl mt-12">우표첩의 다음 장 <span className="text-sm text-gray-400 font-sans">폴더에 손을 올리면 안에 든 표지가 나와요</span></h3>
-      <div className="mt-4 grid grid-cols-4 gap-4">
-        {rest.map((item) => <MiniFolder key={item.book.bookId} item={item} onClick={() => click(item)} />)}
-      </div>
-    </main>
+        {/* 적용 중인 관심 태그 — 최종 점수의 근거를 사람이 이해할 수 있게 표시 */}
+        <div className="mt-4 flex items-center gap-2 border-2 border-primary rounded-lg bg-white px-4 py-2 text-sm flex-wrap">
+          <span className="font-bold">관심 태그</span>
+          {appliedTags.length === 0
+            ? <span className="text-gray-400">아직 없어요 — 태그를 고르면 그 결이 먼저 올라와요</span>
+            : appliedTags.map((t) => <Tag key={t} t={t} />)}
+          <Link to="/tune" className="ml-auto font-bold underline">기준 조절하기 ›</Link>
+        </div>
+
+        {/* ===== 1위 — 우표첩에서 표지 우표와 사연 우표가 차례로 나온다 ===== */}
+        <section className="mt-8 flex justify-center">
+          <div className="relative" style={{ width: HERO.w, height: HERO.h }}>
+            <Link to={`/books/${top.book.bookId}?from=rec`} onClick={() => click(top)} className="block">
+              <StampFolder
+                open={heroOpen} width={HERO.folderW} height={HERO.folderH}
+                label="오늘의 편지" sub={`${postmark} 소인 · TOP 1`}
+                slots={[
+                  {
+                    key: 'cover', out: 250, tilt: -2, top: 28, left: 20,
+                    node: <Stamp book={top.book} width={200} notch={PAGE_BG} frame={STAMP_PAPER} />,
+                  },
+                  {
+                    key: 'letter', out: 505, tilt: 1.6, top: 7, left: 5,
+                    node: <LetterStamp reason={top.reasonText} to={nickname} postmark={postmark} rank={top.rank} width={230} notch={PAGE_BG} />,
+                  },
+                ]}
+              />
+            </Link>
+          </div>
+        </section>
+
+        {/* 1위 태그 + 행동 — 우표 면을 깨지 않도록 밖에 둔다 */}
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <div className="flex gap-1.5 flex-wrap justify-center">{top.tags.map((t) => <Tag key={t} t={t} />)}</div>
+          <p className="text-sm text-gray-500">
+            <span className="font-bold text-primary">{top.book.title}</span>
+            {top.book.author && <span> · {top.book.author}</span>}
+          </p>
+          <div className="flex gap-2">
+            <button className="bg-primary text-white rounded-lg px-5 py-2 font-bold" onClick={() => save(top.book.bookId, top.rank, 'WISH')}>찜하기</button>
+            <button className="border-2 border-primary rounded-lg px-5 py-2" onClick={() => save(top.book.bookId, top.rank, 'READING')}>서재에 담기</button>
+          </div>
+        </div>
+
+        {/* ===== 2위 이하 — 같은 우표첩을 작게. 손을 올린 한 통만 열린다 ===== */}
+        <h3 className="text-xl mt-12">우표첩의 다음 장 <span className="text-sm text-gray-400 font-sans">폴더에 손을 올리면 안에 든 표지가 나와요</span></h3>
+        <div className="mt-4 grid grid-cols-4 gap-4">
+          {rest.map((item) => <MiniFolder key={item.book.bookId} item={item} onClick={() => click(item)} />)}
+        </div>
+      </main>
+    </div>
   )
 }
 
@@ -143,7 +146,7 @@ function MiniFolder({ item, onClick }: { item: RecommendationItem; onClick?: () 
         label={`No.${item.rank}`}
         slots={[{
           key: 'cover', out: MINI.out, tilt: -2, top: 17, left: 12,
-          node: <Stamp book={item.book} width={MINI.stampW} notch={CREAM} />,
+          node: <Stamp book={item.book} width={MINI.stampW} notch={PAGE_BG} frame={STAMP_PAPER} />,
         }]}
       />
       <p className="mt-2.5 font-bold text-sm leading-snug line-clamp-2" style={{ width: MINI.folderW + 24 }}>{item.book.title}</p>
