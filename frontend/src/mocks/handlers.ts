@@ -18,7 +18,36 @@ const CATALOG: BookSummary[] = [
   b(10, '노르웨이의 숲', '무라카미 하루키', '민음사', 480, 2013),
   b(11, '채식주의자', '한강', '창비', 247, 2007),
   b(12, '불편한 편의점', '김호연', '나무옆의자', 268, 2021),
+  b(13, '연금술사', '파울로 코엘료', '문학동네', 272, 2001),
+  b(14, '모순', '양귀자', '쓰다', 300, 2013),
+  b(15, '사피엔스', '유발 하라리', '김영사', 636, 2015),
+  b(16, '코스모스', '칼 세이건', '사이언스북스', 719, 2006),
 ]
+
+/** ============ 분류 (국중 KDC 2단계 기준) — books.categories 정제 결과의 mock ============ */
+const CATEGORY: Record<number, string> = {
+  1: '문학 > 독일문학', 2: '문학 > 독일문학', 3: '문학 > 영미문학', 4: '문학 > 독일문학',
+  5: '문학 > 프랑스문학', 6: '문학 > 한국소설', 7: '문학 > 독일문학', 8: '문학 > 프랑스문학',
+  9: '문학 > 영미문학', 10: '문학 > 일본문학', 11: '문학 > 한국소설', 12: '문학 > 한국소설',
+  13: '문학 > 브라질문학', 14: '문학 > 한국소설', 15: '역사 > 인류사', 16: '과학 > 천문학',
+}
+/** 표지 URL — 카카오 책 검색 API로 확보한 실제 썸네일 (핫링크, 실 데이터 합류 시 books.coverImageUrl로 교체) */
+const COVER: Record<number, string> = {
+  1: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540816%3Ftimestamp%3D20241113114441',
+  2: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540824%3Ftimestamp%3D20260826111024',
+  3: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540813%3Ftimestamp%3D20260826111032',
+  4: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540770%3Ftimestamp%3D20250919110253',
+  5: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F5132886%3Ftimestamp%3D20260829114422',
+  6: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F6381497%3Ftimestamp%3D20260829121716',
+  7: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540810%3Ftimestamp%3D20260826111023',
+  8: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F507587%3Ftimestamp%3D20251119111036',
+  9: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540843%3Ftimestamp%3D20260826111033',
+  10: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540378%3Ftimestamp%3D20241101113739',
+  11: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F6042324%3Ftimestamp%3D20260520123045',
+  12: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F5643183%3Ftimestamp%3D20260716120249',
+}
+const withCategory = (bk: BookSummary): BookSummary =>
+  ({ ...bk, category: CATEGORY[bk.bookId] ?? null, coverUrl: COVER[bk.bookId] ?? null })
 
 const fs = (taste: number | null, coLoan: number | null, trending: number | null, steady: number | null, newField: number | null): FeatureScore[] => [
   { key: 'taste', rawScore: taste },
@@ -38,44 +67,28 @@ const recommendations: RecommendationResponse = {
   weights: { taste: 60, coLoan: 0, trending: 15, steady: 10, newField: 15 },
   appliedTags: [],
   items: [
-    { rank: 1, book: CATALOG[0], score: 91.2, featureScores: fs(94, null, 72, 61, 25), tags: ['#내취향근접', '#함께대출'], reasonType: 'TEXT_SIMILARITY',
+    { rank: 1, book: withCategory(CATALOG[0]), score: 91.2, featureScores: fs(94, null, 72, 61, 25), tags: ['#내취향근접', '#함께대출'], reasonType: 'TEXT_SIMILARITY',
       reasonText: '최근 높은 별점을 준 3권과 주제가 가까우면서, 그 책들을 빌린 사람들이 함께 많이 빌린 책입니다.' },
-    { rank: 2, book: CATALOG[1], score: 87.6, featureScores: fs(88, null, 43, 91, 20), tags: ['#같은작가', '#스테디셀러'], reasonType: 'SAME_AUTHOR',
+    { rank: 2, book: withCategory(CATALOG[1]), score: 87.6, featureScores: fs(88, null, 43, 91, 20), tags: ['#같은작가', '#스테디셀러'], reasonType: 'SAME_AUTHOR',
       reasonText: '선호하는 작가의 다른 작품이에요.' },
-    { rank: 3, book: CATALOG[2], score: 82.4, featureScores: fs(80, 76, 38, 89, 15), tags: ['#함께대출', '#스테디셀러'], reasonType: 'DEMAND_POPULAR',
+    { rank: 3, book: withCategory(CATALOG[2]), score: 82.4, featureScores: fs(80, 76, 38, 89, 15), tags: ['#함께대출', '#스테디셀러'], reasonType: 'DEMAND_POPULAR',
       reasonText: '『데미안』을 빌린 사람들이 함께 많이 빌린 책이에요.' },
-    { rank: 4, book: CATALOG[3], score: 79.8, featureScores: fs(81, null, 30, 68, 35), tags: ['#내취향근접', '#짧은호흡'], reasonType: 'TEXT_SIMILARITY',
+    { rank: 4, book: withCategory(CATALOG[3]), score: 79.8, featureScores: fs(81, null, 30, 68, 35), tags: ['#내취향근접', '#짧은호흡'], reasonType: 'TEXT_SIMILARITY',
       reasonText: '최근 읽은 책들과 서사 결이 비슷해요.' },
-    { rank: 5, book: CATALOG[4], score: 76.1, featureScores: fs(76, null, 35, 86, 10), tags: ['#스테디셀러', '#베스트셀러'], reasonType: 'TEXT_SIMILARITY',
+    { rank: 5, book: withCategory(CATALOG[4]), score: 76.1, featureScores: fs(76, null, 35, 86, 10), tags: ['#스테디셀러', '#베스트셀러'], reasonType: 'TEXT_SIMILARITY',
       reasonText: '완독한 책들과 주제 키워드가 겹쳐요.' },
-    { rank: 6, book: CATALOG[5], score: 72.3, featureScores: fs(68, 42, 88, 55, 45), tags: ['#지금뜨는', '#내또래인기'], reasonType: 'MOMENTUM',
+    { rank: 6, book: withCategory(CATALOG[5]), score: 72.3, featureScores: fs(68, 42, 88, 55, 45), tags: ['#지금뜨는', '#내또래인기'], reasonType: 'MOMENTUM',
       reasonText: '내 또래가 이 책과 함께 많이 빌렸어요.' },
+    { rank: 7, book: withCategory(CATALOG[12]), score: 70.5, featureScores: fs(72, null, 41, 84, 22), tags: ['#스테디셀러', '#짧은호흡'], reasonType: 'TEXT_SIMILARITY',
+      reasonText: '『데미안』에 5점을 준 취향과 성장 서사가 겹쳐요.' },
+    { rank: 8, book: withCategory(CATALOG[13]), score: 68.9, featureScores: fs(70, 55, 33, 77, 28), tags: ['#소설', '#내취향근접'], reasonType: 'TEXT_SIMILARITY',
+      reasonText: '완독한 한국소설 2권과 화자의 목소리가 비슷해요.' },
+    { rank: 9, book: withCategory(CATALOG[14]), score: 64.2, featureScores: fs(38, null, 66, 80, 92), tags: ['#새로운분야', '#베스트셀러'], reasonType: 'NEW_BOOK',
+      reasonText: '서재가 문학에 몰려 있어, 한 발 밖의 책을 하나 얹었어요.' },
+    { rank: 10, book: withCategory(CATALOG[15]), score: 61.7, featureScores: fs(35, null, 29, 95, 88), tags: ['#새로운분야', '#스테디셀러'], reasonType: 'NEW_BOOK',
+      reasonText: '『코스모스』는 문학 독자가 가장 많이 넘어가는 과학책이에요.' },
   ],
 }
-
-/** ============ 분류 (국중 KDC 2단계 기준) — books.categories 정제 결과의 mock ============ */
-const CATEGORY: Record<number, string> = {
-  1: '문학 > 독일문학', 2: '문학 > 독일문학', 3: '문학 > 영미문학', 4: '문학 > 독일문학',
-  5: '문학 > 프랑스문학', 6: '문학 > 한국소설', 7: '문학 > 독일문학', 8: '문학 > 프랑스문학',
-  9: '문학 > 영미문학', 10: '문학 > 일본문학', 11: '문학 > 한국소설', 12: '문학 > 한국소설',
-}
-/** 표지 URL — 카카오 책 검색 API로 확보한 실제 썸네일 (핫링크, 실 데이터 합류 시 books.coverImageUrl로 교체) */
-const COVER: Record<number, string> = {
-  1: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540816%3Ftimestamp%3D20241113114441',
-  2: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540824%3Ftimestamp%3D20260826111024',
-  3: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540813%3Ftimestamp%3D20260826111032',
-  4: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540770%3Ftimestamp%3D20250919110253',
-  5: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F5132886%3Ftimestamp%3D20260829114422',
-  6: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F6381497%3Ftimestamp%3D20260829121716',
-  7: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540810%3Ftimestamp%3D20260826111023',
-  8: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F507587%3Ftimestamp%3D20251119111036',
-  9: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540843%3Ftimestamp%3D20260826111033',
-  10: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F540378%3Ftimestamp%3D20241101113739',
-  11: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F6042324%3Ftimestamp%3D20260520123045',
-  12: 'https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Flbook%2Fimage%2F5643183%3Ftimestamp%3D20260716120249',
-}
-const withCategory = (bk: BookSummary): BookSummary =>
-  ({ ...bk, category: CATEGORY[bk.bookId] ?? null, coverUrl: COVER[bk.bookId] ?? null })
 
 /** ============ 서재 (in-memory — 세션 동안 상태 유지) ============ */
 let nextLibraryId = 9

@@ -14,9 +14,12 @@ const SIZES = {
   sm: 'w-12 h-[68px]',
 } as const
 
+/** 표지 이미지가 없을 때 쓰는 bookId 고정 배정 색 — Book3D(책등·3D 표지)와 공유 */
+export const coverPalette = (bookId: number) => COLORS[bookId % COLORS.length]
+
 export default function BookCover({ book, size = 'md' }: { book: BookSummary; size?: keyof typeof SIZES }) {
   const [broken, setBroken] = useState(false)
-  const c = COLORS[book.bookId % COLORS.length]
+  const c = coverPalette(book.bookId)
   const shadow = 'shadow-[3px_5px_14px_rgba(34,34,74,0.3)]'
   if (book.coverUrl && !broken) {
     return <img src={book.coverUrl} alt={book.title} referrerPolicy="no-referrer" loading="lazy"
