@@ -30,9 +30,14 @@
   서버가 7.5건/초에서 포화한다. 워커를 24 -> 160 으로 늘려도 지연만 는다.
   포화 무릎인 48워커를 쓴다.
 
-일일 상한 — 실측 약 3만 호출
-  상한에 걸리면 JSON 에러가 아니라 **연결을 그냥 끊는다**(WinError 10054).
-  그래서 메시지뿐 아니라 연속 실패 누적으로도 판정한다.
+일일 상한 — 키당 3만 호출 (계정 단위. IP 단위가 아니다)
+  실측 2026-08-31: 같은 IP 에서 미등록 키 둘이 각각 465·466건씩 따로 500 상한을
+  받았다. IP 단위였다면 둘이 500 하나를 나눠 썼어야 한다.
+  마이페이지에 **요청이 실제로 나가는 공인 IP** 를 등록해야 3만이 된다.
+
+  상한 도달은 세 가지 얼굴로 온다 — 명시적 JSON 에러 / 연결 강제 종료 /
+  **에러도 끊김도 없는 빈 응답**. 마지막 것이 가장 고약하다.
+  그래서 증상 추론에 기대지 않고 **키별 사용량을 직접 센다**(KEY_BUDGET).
   상한으로 판정하면 전량 정지하고 그 자리에서 종료한다. 진행은 파일에 남는다.
   (`--wait` 를 주면 자정까지 대기했다가 재개하지만, 노트북이 상시 켜져 있지 않다.)
 
@@ -71,21 +76,50 @@ try:
 except Exception:
     pass
 
-BASE = Path(r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal")
+# 데이터 뿌리. 다른 머신(EC2 등)에서는 PIPELINE_DATA 로 덮어쓴다.
+#   윈도우: 기본값 그대로
+#   리눅스: PIPELINE_DATA=/home/ubuntu/pipeline_data python3 scripts/...
+BASE = Path(os.environ.get("PIPELINE_DATA")
+            or r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal").expanduser()
 ENV = BASE / ".env"
 DATA = BASE / "data4library"
 QUEUE = DATA / "enrich_queue.csv"
 OUT = DATA / "d4l_usage.jsonl"
 LOCK = DATA / "d4l_enrich.lock"
+USAGE = DATA / "d4l_key_usage.json"   # 키별 오늘 사용량 (재시작해도 이어진다)
 API = "http://data4library.kr/api/usageAnalysisList"
 
 WORKERS = 48          # 포화 무릎. 이 이상은 지연만 늘어난다
 FLUSH_EVERY = 200
 REPORT_EVERY = 2000
 KST = timezone(timedelta(hours=9))
+NL = chr(10)
 
-state = {"calls": 0, "hit": 0, "miss": 0, "error": 0, "streak": 0,
-         "miss_streak": 0, "blocked": False, "stop": False, "block_msg": ""}
+state = {
+    "calls": 0, "hit": 0, "miss": 0, "error": 0,
+    "blocked": False, "stop": False, "block_msg": "",
+    "keys": [], "per_key": {}, "dead": set(), "rr": 0,
+
+    # 연속 실패는 **키별로** 센다. 전역으로 세면 한 키가 쏟아낸 실패가
+    # 다른 키를 죽인다 — IP 미등록 키의 실패가 40에 닿는 순간 사용 중이던
+    # 정상 키가 소진 처리돼 1,080건에서 멈춘 적이 있다 (2026-08-31).
+    "streak": {}, "miss_streak": {},
+
+    # 서버 장애 추적. 키 쿼터와 무관하다
+    "gw_streak": 0, "gw_total": 0, "paused": False, "pauses": 0,
+    "last_diagnose": 0.0, "diagnoses": 0, "diag_skipped": 0,
+
+    # 장애 시 **모든 워커**를 세우는 게이트.
+    # 한 스레드만 재우면 나머지가 계속 두드려 예산이 순식간에 증발한다 —
+    # 47개 워커가 계속 던져 2분 만에 87,000 을 태운 적이 있다.
+    # **평상시 set(통과), 장애 때 clear(대기).**
+    # 반대로 두면 안 된다. Event.wait() 는 set 이면 즉시 반환하므로
+    # "정지" 를 set 으로 표현하면 게이트가 아무것도 막지 못한다.
+    "go": threading.Event(),
+    "pending_miss": [],               # 아직 확정 안 된 미수록 행
+    "probed": set(),                  # 투입 전 검증을 마친 키
+    "dropped_miss": 0,                # 은퇴와 함께 버린 미수록 수
+}
 lock = threading.Lock()
 
 # 상한에 걸리면 서버가 JSON 에러가 아니라 **연결을 그냥 끊는다**(WinError 10054).
@@ -100,15 +134,69 @@ FAIL_STREAK_BLOCK = 40
 # 진짜 미수록은 흩어져 나오고 쿼터 차단은 연속으로 나온다. 그래서 구분한다.
 MISS_STREAK_BLOCK = 50
 
+# 키를 투입하기 전에 이 ISBN 으로 1회 찔러 본다.
+# 조건: 확실히 존재하고, 우리가 이미 수집해 둔 책이어야 한다
+# (검증 때문에 새 데이터를 얻거나 잃지 않도록).
+PROBE_ISBN = "9788954699914"          # 하얼빈 · 김훈
+
+# 한 번에 풀에 넣는 항목 수.
+# ThreadPoolExecutor.map 은 넘긴 항목 **전부**의 Future 를 즉시 만든다.
+# 100만 건을 통째로 넘기면 그것만으로 2GB 다 (실측 VmRSS 2,107,104 kB).
+# 나눠 넣으면 대기열 비용이 이 크기에 비례해 묶인다.
+SUBMIT_CHUNK = 20_000
+
+# ── 서버 장애를 쿼터 소진과 구분한다 ──────────────────────────
+# 실측 2026-08-31: API 가 504 Gateway Time-out 을 뱉는 동안 실패가 쌓여
+# 5,980건밖에 안 쓴 키가 "소진" 처리됐다. 같은 시각 웹사이트는 HTTP 200 이었다.
+# 게이트웨이 오류는 우리 쿼터와 무관하므로 키 카운터에 넣지 않는다.
+GATEWAY_CODES = (502, 503, 504)
+GATEWAY_STREAK_PAUSE = 30      # 연속 이만큼이면 전체 일시 정지
+SERVER_WAIT = 300              # 정지 후 대기 (초)
+SERVER_WAIT_MAX = 12           # 최대 반복 (= 1시간)
+GATEWAY_TIMEOUT = 25           # 장애 중에는 짧게 끊는다
+
+# 진단(diagnose) 호출 사이 최소 간격.
+# 진단도 실제 API 호출이라 쿼터에서 빠진다. 이미 아픈 서버를 반복해서
+# 찌를 이유가 없다. 실측: 장애 두 번에 94회가 불렸다.
+DIAGNOSE_MIN_GAP = 120
+
+# ── 키는 순차로 예산만큼 쓴다 (라운드로빈이 아니다) ────────────
+# 라운드로빈을 먼저 시도했다가 접었다. 실패 원인이 (a) 그 키의 쿼터 소진인지
+# (b) 서버 장애인지 증상만으로 구분이 안 되는데, 오판하면 멀쩡한 키가 죽는다.
+# 실측 2026-08-31 에 두 번 당했다 — 5,418 / 5,417건에서 두 키가 연달아 죽었다.
+# 우리가 직접 세면 추론할 필요가 없다.
+KEY_BUDGET = 29_000            # 3만에서 안전 여유를 뺀 값
+
 
 # ── 단일 프로세스 강제 ────────────────────────────────────────
 # 전에 중복 기동으로 출력 파일을 깨먹은 적이 있다. 같은 실수를 막는다.
 def pid_alive(pid: int) -> bool:
+    """PID 가 살아 있는지 확인한다.
+
+    **`os.kill(pid, 0)` 을 쓰면 안 된다.** POSIX 에서는 신호를 보내지 않고
+    존재만 확인하지만, 윈도우에서는 그런 개념이 없어 파이썬이
+    `TerminateProcess` 를 호출한다 — 즉 **확인하려다 죽인다.**
+    실측 2026-08-31: 락 확인 한 번에 돌고 있던 수집기가 종료됐다.
+
+    윈도우에서는 tasklist 로 조회한다 (Git Bash 의 tasklist 는 신뢰할 수 없지만
+    파이썬에서 직접 부르는 것은 정상 동작한다).
+    """
+    if os.name != "nt":
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        return True
+
+    import subprocess
     try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    return True
+        out = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"],
+            capture_output=True, text=True, timeout=10,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except (OSError, subprocess.SubprocessError):
+        return False                       # 확인 불가 -> 죽은 것으로 본다
+    return f'"{pid}"' in (out.stdout or "")
 
 
 def acquire_lock() -> None:
@@ -132,30 +220,84 @@ def release_lock() -> None:
         pass
 
 
-def load_key() -> str:
+state["go"].set()                     # 평상시는 통과
+
+
+def load_keys() -> list:
+    """`.env` 의 정보나루* 키를 전부 읽는다 (정보나루, 정보나루2, 정보나루3 …).
+
+    쿼터가 **키 단위인지 IP 단위인지 확인되지 않았다.**
+    공지의 "마이페이지 내 서버IP 기재 시 1일 30,000건" 은 계정에게 하는 안내라
+    카운터의 집계 단위를 못 박지 않는다.
+
+    그래서 로테이션을 낙관적으로 돌린다 — 한 키가 막히면 다음 키로 넘어가고,
+    **모든 키가 막혀야 종료**한다. IP 단위였다면 두 번째 키가 즉시 막히므로
+    그 자체가 답이 된다. 키별 호출 수를 남겨 나중에 확인할 수 있게 한다.
+    """
     raw = ENV.read_bytes()
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
         text = raw.decode("cp949", "replace")
+    found = []
     for line in text.splitlines():
         line = line.strip()
         if line.startswith("정보나루") and "=" in line:
-            return line.split("=", 1)[1].strip().strip("\"'")
-    raise SystemExit("`.env` 에 정보나루 키가 없다")
+            name, value = line.split("=", 1)
+            value = value.strip().strip("\"'")
+            if value:
+                found.append((name.strip(), value))
+    if not found:
+        raise SystemExit("`.env` 에 정보나루 키가 없다")
+    return found
+
+
+def order_keys(found: list, spec: str) -> list:
+    """`--key-order 1,3,4,5,2` 를 실제 키 순서로 옮긴다.
+
+    숫자는 `.env` 의 접미사다 (`정보나루`=1, `정보나루2`=2 ...).
+    지정하지 않은 키는 뒤에 파일 순서대로 붙는다. 없는 번호는 무시한다.
+    """
+    if not spec:
+        return found
+    by_num = {}
+    for name, value in found:
+        tail = name[len("정보나루"):].strip()
+        by_num[tail if tail else "1"] = (name, value)
+    out, used = [], set()
+    for token in spec.split(","):
+        token = token.strip()
+        if token in by_num and token not in used:
+            out.append(by_num[token])
+            used.add(token)
+    for key, pair in by_num.items():
+        if key not in used:
+            out.append(pair)
+    return out
 
 
 def load_done() -> set:
     """이미 처리한 ISBN. 깨진 줄은 건너뛴다(다음 회차에 다시 시도된다)."""
     if not OUT.exists():
         return set()
+    # **레코드 전체를 파싱하면 안 된다.** 한 줄에 소개문·키워드 50개·
+    # 함께대출·월별 이력이 들어 있어 평균 3.4KB 다. isbn13 하나 꺼내자고
+    # json.loads 를 66만 번 돌리면 임시 객체로 CPU 와 메모리를 다 쓴다.
+    # isbn13 은 항상 맨 앞 필드라 문자열로 바로 집는다.
     done = set()
+    head = '{"isbn13":"'
+
     with OUT.open(encoding="utf-8") as source:
         for line in source:
+            if line.startswith(head):
+                end = line.find('"', len(head))
+                if end > 0:
+                    done.add(line[len(head):end])
+                    continue
             line = line.strip()
             if not line:
                 continue
-            try:
+            try:                                  # 형식이 다르면 정공법
                 done.add(json.loads(line)["isbn13"])
             except (json.JSONDecodeError, KeyError):
                 continue
@@ -178,23 +320,21 @@ def books_of(body: dict, key: str, cap: int = 10) -> list:
     return out
 
 
-def shape(isbn: str, body: dict) -> dict:
+def shape(isbn: str, body: dict, key_idx: int = -1) -> dict:
     book = body.get("book") or {}
     if not book:
         with lock:
             state["miss"] += 1
-            state["miss_streak"] += 1
-            n = state["miss_streak"]
+            n = state["miss_streak"].get(key_idx, 0) + 1
+            state["miss_streak"][key_idx] = n
         if n >= MISS_STREAK_BLOCK:
-            declare_block(f"연속 미수록 {n}건 — 쿼터 소진으로 판정 "
-                          f"(빈 응답을 미수록으로 오기록하는 것을 막는다)")
-            return None
+            return {"isbn13": isbn, "ok": False, "__misstreak__": n}
         return {"isbn13": isbn, "ok": False}
 
     description = html.unescape((book.get("description") or "").strip())
     with lock:
         state["hit"] += 1
-        state["miss_streak"] = 0
+        state["miss_streak"][key_idx] = 0
 
     record = {
         # ── 서지 (srchDtlList 와 채움율까지 동일) ──
@@ -241,28 +381,301 @@ def shape(isbn: str, body: dict) -> dict:
     return {"isbn13": isbn, "ok": True, **slim}
 
 
-def note_failure(reason: str) -> None:
-    """실패를 세고, 연속 실패가 쌓이면 일일 상한으로 판정한다."""
+def load_usage() -> dict:
+    """키별 오늘 사용량. 날짜가 바뀌면 0 부터 시작한다.
+
+    이게 없으면 재시작할 때마다 예산이 초기화돼 실제 상한을 넘긴다.
+    """
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+    if USAGE.exists():
+        try:
+            saved = json.loads(USAGE.read_text(encoding="utf-8"))
+            if saved.get("date") == today:
+                return {k: int(v) for k, v in saved.items() if k != "date"}
+        except (json.JSONDecodeError, ValueError, OSError):
+            pass
+    return {}
+
+
+def save_usage() -> None:
+    try:
+        with lock:
+            data = {"date": datetime.now(KST).strftime("%Y-%m-%d"),
+                    **{k: int(v) for k, v in state["per_key"].items()}}
+        USAGE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def note_gateway() -> bool:
+    """서버 장애를 센다. 연속으로 쌓이면 전체를 재우라고 알린다. 키는 안 죽인다."""
+    with lock:
+        state["gw_streak"] += 1
+        state["gw_total"] += 1
+        return state["gw_streak"] >= GATEWAY_STREAK_PAUSE and not state["paused"]
+
+
+def server_alive() -> bool:
+    """가볍게 찔러 본다. 쿼터 에러가 와도 서버 자체는 살아 있는 것이다."""
+    _, key, _ = pick_key()
+    if not key:
+        return False
+    url = API + "?" + urllib.parse.urlencode(
+        {"isbn13": "9788936434120", "authKey": key, "format": "json"})
+    try:
+        with urllib.request.urlopen(urllib.request.Request(
+                url, headers={"User-Agent": "b102-probe"}), timeout=40) as r:
+            r.read(200)
+        return True
+    except HTTPError as error:
+        return error.code not in GATEWAY_CODES
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
+def wait_for_server() -> bool:
+    """서버가 살아날 때까지 대기. 살아나면 True, 끝내 안 되면 False."""
+    with lock:
+        if state["paused"]:
+            return True
+        state["paused"] = True
+        state["pauses"] += 1
+    state["go"].clear()          # 모든 워커 정지 (통과 신호를 내린다)
+    print(NL + f"  *** 서버 장애 — 게이트웨이 오류 누적 {state['gw_total']:,}",
+          flush=True)
+    try:
+        for i in range(SERVER_WAIT_MAX):
+            if state["stop"]:
+                return False
+            print(f"      {SERVER_WAIT // 60}분 대기 후 재확인 "
+                  f"({i + 1}/{SERVER_WAIT_MAX}) — {datetime.now(KST):%H:%M}",
+                  flush=True)
+            slept = 0
+            while slept < SERVER_WAIT and not state["stop"]:
+                time.sleep(min(10, SERVER_WAIT - slept))
+                slept += 10
+            if state["stop"]:
+                return False
+            if server_alive():
+                print(f"      서버 복구 — 재개 ({datetime.now(KST):%H:%M})",
+                      flush=True)
+                with lock:
+                    state["gw_streak"] = 0
+                return True
+        print("      끝내 안 살아난다 — 종료", flush=True)
+        with lock:
+            state["blocked"] = True
+            state["block_msg"] = "서버 장애 지속"
+            state["stop"] = True
+        return False
+    finally:
+        state["go"].set()        # 모든 워커 재개
+        with lock:
+            state["paused"] = False
+
+
+def diagnose(key: str) -> str:
+    """키를 죽이기 전에 원인을 가린다.
+
+    연속 실패의 원인은 둘인데 증상이 같다.
+      (a) 이 키의 쿼터가 끝났다   -> 키를 뺀다
+      (b) 서버가 아파서 끊는다     -> 기다렸다 재개한다
+
+    실측 2026-08-31: 서버가 흔들리는 동안 타임아웃이 쌓여 5,418건밖에 안 쓴
+    키 두 개가 연달아 "소진" 처리됐다. 그래서 응답 내용으로 판별한다.
+    """
+    url = API + "?" + urllib.parse.urlencode(
+        {"isbn13": "9788936434120", "authKey": key, "format": "json"})
+    for _ in range(2):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(
+                    url, headers={"User-Agent": "b102-diag"}), timeout=50) as r:
+                body = json.loads(r.read().decode("utf-8", "replace")).get("response", {})
+        except HTTPError as error:
+            if error.code in GATEWAY_CODES:
+                return "outage"
+            time.sleep(2)
+            continue
+        except Exception:                               # noqa: BLE001
+            time.sleep(2)
+            continue
+        return "quota" if body.get("error") else "ok"
+    return "outage"
+
+
+def retire_key(idx: int, message: str) -> None:
+    """지정한 키를 소진 처리한다. 남은 키가 없으면 전량 정지."""
+    with lock:
+        if idx < 0 or idx in state["dead"]:
+            return
+        state["dead"].add(idx)
+        # 이 키로 받은 미확정 미수록은 "책 없음" 이 아니라 키 문제다.
+        # 버려야 큐에 남아 다음 실행에서 다시 시도된다.
+        state["dropped_miss"] += len(state["pending_miss"])
+        state["pending_miss"] = []
+        name = state["keys"][idx][0]
+        used = state["per_key"].get(name, 0)
+        left = [state["keys"][i][0] for i in range(len(state["keys"]))
+                if i not in state["dead"]]
+        print(f"\n  [{name}] 소진 — {used:,}호출  ({message[:44]})", flush=True)
+        if not left:
+            state["blocked"] = True
+            state["block_msg"] = f"키 {len(state['keys'])}개 전부 소진 — {message}"
+            state["stop"] = True
+            print("  남은 키 없음 — 종료", flush=True)
+            return
+        state["streak"] = 0
+        state["miss_streak"] = 0
+        print(f"  남은 키: {', '.join(left)}", flush=True)
+
+
+def note_failure(reason: str, key_idx: int = -1) -> None:
+    """실패를 센다. 연속으로 쌓이면 **원인을 확인한 뒤** 처리한다."""
     with lock:
         state["error"] += 1
-        state["streak"] += 1
-        if state["streak"] >= FAIL_STREAK_BLOCK and not state["blocked"]:
-            state["blocked"] = True
-            state["block_msg"] = (f"연속 실패 {state['streak']}회 ({reason}) "
-                                  f"— 일일 상한으로 판정")
-            state["stop"] = True
+        if key_idx < 0:
+            return
+        n = state["streak"].get(key_idx, 0) + 1
+        state["streak"][key_idx] = n
+        hit = n >= FAIL_STREAK_BLOCK
+        key_name, key = state["keys"][key_idx]
+    if not hit:
+        return
 
-
-def declare_block(message: str) -> None:
+    # **진단도 실제 API 호출이다.** 이미 아픈 서버를 반복해서 찌르면
+    # 얻는 것 없이 쿼터만 빠진다. `paused` 검사만으로는 부족했다 —
+    # 정지 전 구간과 정지 해제 직후에 워커들이 다시 40회를 쌓아 매번 불렀다.
+    # 그래서 최소 간격을 둔다. 건너뛸 때도 게이트웨이 카운터는 먹여서
+    # **추가 호출 없이** 정지가 걸리도록 한다.
+    now = time.time()
     with lock:
-        if not state["blocked"]:
-            state["blocked"] = True
-            state["block_msg"] = message
+        too_soon = (now - state["last_diagnose"]) < DIAGNOSE_MIN_GAP
+        if not too_soon:
+            state["last_diagnose"] = now
+            state["diagnoses"] += 1
+        else:
+            state["diag_skipped"] += 1
+    if state["paused"] or too_soon:
+        if note_gateway():
+            wait_for_server()
+        with lock:
+            state["streak"][key_idx] = 0
+        return
+
+    verdict = diagnose(key)
+    if verdict == "quota":
+        retire_key(key_idx, f"연속 실패 {n}회 — 쿼터 확인됨")
+    elif verdict == "outage":
+        print(NL + f"  [{key_name}] 연속 실패 {n}회 — 서버 장애로 판정 "
+              f"(키는 살려 둔다)", flush=True)
+        if note_gateway():
+            wait_for_server()
+        with lock:
+            state["streak"][key_idx] = 0
+    else:
+        print(NL + f"  [{key_name}] 연속 실패 {n}회였으나 확인 결과 정상 — 계속",
+              flush=True)
+        with lock:
+            state["streak"][key_idx] = 0
+
+
+def probe_key(key: str) -> str:
+    """키 하나를 찔러 본다. 반환: "ok" | "empty" | "quota" | "outage"
+
+    **`diagnose()` 로는 부족하다.** 그쪽은 응답에 `error` 가 없으면 "ok" 라고
+    답하는데, IP 미등록 키는 *error 없는 빈 응답*을 준다 (실측 98바이트).
+    그래서 죽은 키가 "사용 가능" 으로 통과한다.
+
+    여기서는 **확실히 존재하는 책을 실제로 가져오는지**로 판정한다.
+    못 가져오면 그 키로는 수집이 안 된다 — 원인이 IP든 쿼터든 결과는 같다.
+    """
+    url = API + "?" + urllib.parse.urlencode(
+        {"isbn13": PROBE_ISBN, "authKey": key, "format": "json"})
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(
+                    url, headers={"User-Agent": "b102-probe"}), timeout=70) as r:
+                payload = json.loads(r.read().decode("utf-8", "replace"))
+        except HTTPError as error:
+            if error.code in GATEWAY_CODES:
+                return "outage"
+            time.sleep(2)
+            continue
+        except Exception:                               # noqa: BLE001
+            time.sleep(2)
+            continue
+        body = payload.get("response") or {}
+        if body.get("error"):
+            return "quota"
+        return "ok" if (body.get("book") or {}).get("isbn13") else "empty"
+    return "outage"
+
+
+def verify_keys() -> None:
+    """쓰기 시작하기 전에 키를 하나씩 1회 찔러 본다.
+
+    IP 미등록 키는 **정상 형식의 빈 응답**을 준다. 그것을 실제 수집으로
+    알아내려면 MISS_STREAK_BLOCK(50) 건을 헛돌아야 하고, 그 사이 49건이
+    `ok:false` 로 파일에 들어간다. 뒤에 성공이 이어지면 그 49건은
+    **다시 시도되지 않는 영구 결측**이 된다.
+
+    그래서 키당 1회로 미리 판정한다. 못 쓰는 키는 아예 투입하지 않는다.
+    검증에 쓰는 ISBN 은 이미 수집해 둔 책이라 결과가 데이터에 안 남는다.
+    """
+    print("키 투입 전 확인 (키당 1회 호출)", flush=True)
+    verdicts = []
+    for idx, (name, value) in enumerate(state["keys"]):
+        verdict = probe_key(value)
+        verdicts.append(verdict)
+        state["probed"].add(idx)
+        label = {"ok": "사용 가능",
+                 "empty": "빈 응답 — IP 미등록이거나 쿼터 소진",
+                 "quota": "쿼터 소진",
+                 "outage": "서버 장애 (판정 보류)"}[verdict]
+        print(f"  {name:<10} {label}", flush=True)
+
+    # 전부 장애면 서버 문제다. 키를 죽이지 않는다 — 기다렸다 다시 본다.
+    if all(v == "outage" for v in verdicts):
+        print("  -> 전 키가 장애 응답. 서버 문제로 보고 키를 살려 둔다.",
+              flush=True)
+        return
+
+    for idx, verdict in enumerate(verdicts):
+        if verdict in ("empty", "quota"):
+            retire_key(idx, f"투입 전 확인 — {verdict}")
+
+    live = [n for i, (n, _) in enumerate(state["keys"]) if i not in state["dead"]]
+    if not live:
+        state["blocked"] = True
         state["stop"] = True
+        state["block_msg"] = "투입 전 확인에서 쓸 수 있는 키가 없었다"
+    print(f"  -> 투입 {len(live)}개: {', '.join(live) or '없음'}", flush=True)
 
 
-def fetch(key: str, isbn: str) -> dict:
-    """성공 시 레코드, 차단·영구실패 시 None."""
+def pick_key() -> tuple:
+    """예산이 남은 키를 앞에서부터 하나 고른다 (순차 소진).
+
+    한 키를 KEY_BUDGET 만큼 쓰고 다음으로 넘긴다.
+    **우리가 직접 세므로 실패 원인을 추론할 필요가 없다.**
+
+    정합성은 키가 아니라 프로세스 수에 달렸다. 단일 프로세스 안에서 도는 한
+    쓰기 락도 완료 ISBN 집합도 하나뿐이라 안전하다.
+    """
+    with lock:
+        for idx, (name, value) in enumerate(state["keys"]):
+            if idx in state["dead"]:
+                continue
+            if state["per_key"].get(name, 0) >= KEY_BUDGET:
+                continue
+            return name, value, idx
+    return None, None, -1
+
+
+def fetch(_unused: str, isbn: str) -> dict:
+    """성공 시 레코드, 차단·영구실패 시 None. 키는 호출마다 번갈아 쓴다."""
+    key_name, key, key_idx = pick_key()
+    if key is None:
+        return None
     params = {"isbn13": isbn, "authKey": key, "format": "json"}
     url = API + "?" + urllib.parse.urlencode(params)
     request = urllib.request.Request(url, headers={"User-Agent": "b102-enrich/1.0"})
@@ -270,35 +683,80 @@ def fetch(key: str, isbn: str) -> dict:
     for attempt in range(3):
         if state["stop"]:
             return None
+        # 장애 중이면 여기서 모두 멈춘다 (게이트가 열릴 때까지)
+        if not state["go"].is_set():
+            # 통과 신호가 올 때까지 **실제로 막는다.**
+            # 타임아웃은 교착 방지용 상한일 뿐이라 루프로 다시 기다린다.
+            waited = 0
+            limit = SERVER_WAIT * SERVER_WAIT_MAX + 120
+            while not state["go"].wait(timeout=30):
+                waited += 30
+                if state["stop"] or waited >= limit:
+                    return None
+        if state["stop"]:
+            return None
+        # 서버가 63초에 504 를 준다. 60초로 끊으면 응답을 못 보고
+        # 타임아웃으로 처리돼 원인 판별이 흐려진다. 넉넉히 둔다.
+        timeout = GATEWAY_TIMEOUT if state["gw_streak"] else 75
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
                 payload = json.loads(response.read().decode("utf-8", "replace"))
         except HTTPError as error:
-            if error.code in (429, 500, 502, 503, 504) and attempt < 2:
-                time.sleep(2 * (attempt + 1))
+            # 게이트웨이 오류는 **서버 문제**다. 키를 죽이면 안 된다.
+            if error.code in GATEWAY_CODES:
+                if note_gateway():
+                    if not wait_for_server():
+                        return None
+                elif attempt < 2:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                return None
+            if error.code in (429, 500) and attempt < 2:
+                time.sleep(3 * (attempt + 1) ** 2)
                 continue
-            note_failure(f"HTTP {error.code}")
+            note_failure(f"HTTP {error.code}", key_idx)
             return None
         # OSError 를 반드시 포함해야 한다. ConnectionResetError 는 OSError 이지
         # URLError 가 아니라서, 상한에 걸린 순간 이 예외가 pool.map 밖으로
         # 튀어나가 실행 전체를 죽인 적이 있다 (2026-08-27, 28,124건 지점).
         except (URLError, TimeoutError, OSError, json.JSONDecodeError):
-            if attempt < 2:
-                time.sleep(2 * (attempt + 1))
+            # **타임아웃도 게이트웨이 장애 신호로 센다.**
+            # 실측 2026-09-01: 서버가 63초에 504 를 주는데 우리 타임아웃이
+            # 60초라 대부분 504 를 받기 전에 TimeoutError 로 끝난다. 그러면
+            # 게이트웨이 카운터가 안 올라 전역 정지가 걸리지 않고, 워커 24개가
+            # 죽은 서버에 연결을 계속 유지한다 (실측 동시 연결 19~23개).
+            # 504 로 끝난 호출도 정보나루 쪽 쿼터에서는 빠져나가므로
+            # 그대로 두면 얻는 것 없이 하루치가 샌다.
+            if note_gateway():
+                if not wait_for_server():
+                    return None
+            elif attempt < 2:
+                time.sleep(3 * (attempt + 1) ** 2)   # 3s -> 12s. 폭주를 막는다
                 continue
-            note_failure("연결 끊김")
+            note_failure("연결 끊김", key_idx)
             return None
+
+        # **서버가 응답을 준 호출만** 예산으로 센다.
+        # 연결 단계에서 실패한 요청은 서버에 닿지도 않아 쿼터를 안 쓴다.
+        # 그것까지 세면 장애 때 쓰지도 않은 예산이 증발한다.
+        with lock:
+            state["per_key"][key_name] = state["per_key"].get(key_name, 0) + 1
 
         body = payload.get("response") or {}
         message = body.get("error") or ""
         if message and ("500건" in message or "IP" in message or "초과" in message):
-            declare_block(message)
+            retire_key(key_idx, message)
             return None
 
         with lock:
             state["calls"] += 1
-            state["streak"] = 0
-        return shape(isbn, body)
+            state["streak"][key_idx] = 0
+            state["gw_streak"] = 0          # 서버가 살아 있다는 증거
+        record = shape(isbn, body, key_idx)
+        if record and record.pop("__misstreak__", 0):
+            retire_key(key_idx, "연속 미수록 — 쿼터 소진 (빈 응답 위장)")
+            return None
+        return record
     return None
 
 
@@ -336,14 +794,28 @@ def drain(key: str, pending: list, workers: int) -> int:
             return
         if record is None:
             return
-        line = json.dumps(record, ensure_ascii=False, separators=(",", ":"))
         with write_lock:
-            sink.write(line + "\n")
-            counter["n"] += 1
+            if not record.get("ok"):
+                # **미수록을 바로 쓰지 않는다.**
+                # 빈 응답은 "책 없음" 과 "키가 죽었음" 이 구분되지 않는다.
+                # 바로 쓰면 재개 로직이 완료로 보아 다시 시도하지 않고,
+                # 키 문제였을 경우 그대로 영구 결측이 된다.
+                # 같은 키에서 성공이 나오면(=키가 멀쩡하다는 증거) 그때
+                # 확정하고, 키가 은퇴하면 retire_key 가 통째로 버린다.
+                state["pending_miss"].append(record)
+                return
+            rows = state["pending_miss"] + [record]
+            state["pending_miss"] = []
+            for row in rows:
+                sink.write(json.dumps(row, ensure_ascii=False,
+                                      separators=(",", ":")) + "\n")
+            counter["n"] += len(rows)
             n = counter["n"]
             if n % FLUSH_EVERY == 0:
                 sink.flush()
                 os.fsync(sink.fileno())
+            if n % FLUSH_EVERY == 0:
+                save_usage()
             if n % REPORT_EVERY == 0:
                 elapsed = time.time() - started
                 rate = n / elapsed if elapsed else 0
@@ -355,11 +827,28 @@ def drain(key: str, pending: list, workers: int) -> int:
 
     try:
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            list(pool.map(worker, pending))
+            # **한꺼번에 넘기지 않는다.** 아래를 보라 (SUBMIT_CHUNK).
+            for start in range(0, total, SUBMIT_CHUNK):
+                if state["stop"]:
+                    break
+                list(pool.map(worker, pending[start:start + SUBMIT_CHUNK]))
     finally:
+        # 남은 버퍼: 정상 종료면 진짜 미수록이므로 확정한다.
+        # 차단·중단으로 끝났으면 키 문제일 수 있어 버린다 (큐에 남는다).
+        with write_lock:
+            rows = state["pending_miss"]
+            state["pending_miss"] = []
+        if rows and not state["stop"] and not state["blocked"]:
+            for row in rows:
+                sink.write(json.dumps(row, ensure_ascii=False,
+                                      separators=(",", ":")) + "\n")
+            counter["n"] += len(rows)
+        elif rows:
+            state["dropped_miss"] += len(rows)
         sink.flush()
         os.fsync(sink.fileno())
         sink.close()
+        save_usage()
     return counter["n"]
 
 
@@ -369,30 +858,68 @@ def trim_trailing_misses() -> int:
     차단은 연속 미수록 MISS_STREAK_BLOCK 건째에 판정되므로 그 직전까지의
     미수록은 이미 파일에 들어가 있다. 그것들은 진짜 미수록이 아니라
     쿼터 소진의 산물이므로 남겨 두면 **다시 시도되지 않는 영구 결측**이 된다.
+
+    **파일을 통째로 읽으면 안 된다.** 예전 구현은
+    `OUT.read_text().splitlines()` 였는데, L1 전량이면 출력이 3.7GB 라
+    디코딩된 문자열과 줄 리스트로 **피크 5GB** 를 먹는다. 메모리 16GB 인
+    서버에서 PostgreSQL·Qdrant 와 같이 뜨면 그대로 OOM 이다.
+
+    잘라낼 구간은 항상 파일 **끝의 수십 줄**이다. 그래서 뒤에서 1MB 만
+    읽어 자를 바이트 위치를 구하고 `truncate()` 한다. 창 안이 전부
+    미수록이면 창을 4배씩 넓힌다. 전체를 다시 쓰지 않으므로 파일이
+    아무리 커도 순식간에 끝난다.
     """
     if not OUT.exists():
         return 0
-    lines = OUT.read_text(encoding="utf-8", errors="replace").splitlines()
-    cut = len(lines)
-    while cut > 0:
-        line = lines[cut - 1].strip()
-        if not line:
-            cut -= 1
-            continue
-        try:
-            if json.loads(line).get("ok"):
-                break
-        except json.JSONDecodeError:
-            cut -= 1
-            continue
-        cut -= 1
-    removed = len(lines) - cut
-    if removed:
-        with OUT.open("w", encoding="utf-8") as sink:
-            for line in lines[:cut]:
-                if line.strip():
-                    sink.write(line + "\n")
-    return removed
+    size = OUT.stat().st_size
+    if not size:
+        return 0
+
+    window = 1 << 20                       # 1MB. 레코드가 3.4KB 이니 약 300줄
+    while True:
+        start = max(0, size - window)
+        with OUT.open("rb") as fh:
+            fh.seek(start)
+            blob = fh.read()
+
+        if start > 0:                      # 앞이 잘렸으면 첫 줄은 버린다
+            nl = blob.find(b"\n")
+            if nl < 0:                     # 창 안에 개행이 없다 -> 넓힌다
+                if window >= size:
+                    return 0
+                window = min(window * 4, size)
+                continue
+            start += nl + 1
+            blob = blob[nl + 1:]
+
+        lines = blob.split(b"\n")
+        offsets, pos = [], start
+        for line in lines:
+            offsets.append(pos)
+            pos += len(line) + 1
+
+        cut, removed, found_ok = size, 0, False
+        for i in range(len(lines) - 1, -1, -1):
+            line = lines[i].strip()
+            if not line:
+                cut = offsets[i]
+                continue
+            try:
+                if json.loads(line.decode("utf-8", "replace")).get("ok"):
+                    found_ok = True
+                    break
+            except (json.JSONDecodeError, ValueError):
+                pass                       # 깨진 줄도 잘라낸다
+            cut = offsets[i]
+            removed += 1
+
+        if found_ok or start == 0:         # 판정 끝 (또는 파일 전체를 봤다)
+            if removed and cut < size:
+                with OUT.open("rb+") as fh:
+                    fh.truncate(cut)
+            return removed
+
+        window = min(window * 4, size)     # 창이 전부 미수록 -> 더 넓게
 
 
 def summary() -> None:
@@ -401,20 +928,50 @@ def summary() -> None:
     print(f"  서지 확보   {state['hit']:>9,}")
     print(f"  미수록      {state['miss']:>9,}")
     print(f"  오류        {state['error']:>9,}")
+    if state.get("dropped_miss"):
+        print(f"  버린 미수록 {state['dropped_miss']:>9,}  "
+              f"(키 문제로 판단 — 큐에 남아 다음에 다시 시도한다)")
+    if state.get("diagnoses") or state.get("diag_skipped"):
+        print(f"  진단 호출   {state['diagnoses']:>9,}  "
+              f"(간격 제한으로 생략 {state['diag_skipped']:,}회)")
+    if state.get("gw_total"):
+        print(f"  서버 장애   {state['gw_total']:>9,}  (일시 정지 {state['pauses']}회)")
+    if state.get("keys"):
+        print("  키별 호출:")
+        for i, (name, _) in enumerate(state["keys"]):
+            n = state["per_key"].get(name, 0)
+            mark = " (소진)" if i in state["dead"] else ""
+            print(f"    {name:<12}{n:>9,}{mark}")
     if OUT.exists():
         print(f"  누적 파일   {OUT.stat().st_size/1024/1024:>8.1f} MB")
 
 
 def run(args) -> int:
-    key = load_key()
-    lines = QUEUE.read_text(encoding="utf-8").splitlines()[1:]
-    targets = [line.split(",")[0] for line in lines]
+    keys = order_keys(load_keys(), getattr(args, "key_order", ""))
+    state["keys"] = keys
+    state["per_key"] = load_usage()
+    if state["per_key"]:
+        print("오늘 이미 쓴 양 (이어서 셈): "
+              + " · ".join(f"{k} {v:,}" for k, v in state["per_key"].items()))
+    key = ""          # 실제 키는 pick_key() 가 호출마다 고른다
+    # 큐는 108만 행이다. 중간 리스트를 남겨 두면 그것만으로 수백 MB 다.
+    lines = QUEUE.read_text(encoding="utf-8").splitlines()
+    targets = [line.split(",", 1)[0] for line in lines[1:]]
+    del lines
     done = load_done()
     pending = [i for i in targets if i not in done]
+    queue_total = len(targets)       # 리스트를 놓기 전에 숫자만 챙긴다
+    del targets
     if args.limit:
         pending = pending[:args.limit]
 
-    print(f"큐 {len(targets):,}건 · 완료 {len(done):,}건 · 이번 대상 {len(pending):,}건")
+    print(f"큐 {queue_total:,}건 · 완료 {len(done):,}건 · 이번 대상 {len(pending):,}건")
+    if not getattr(args, "no_verify", False):
+        verify_keys()
+    print(f"키 {len(keys)}개 순차 소진: {', '.join(n for n, _ in keys)}  "
+          f"(키당 예산 {KEY_BUDGET:,})")
+    print("  한 키를 예산만큼 쓰고 다음으로 넘긴다. 우리가 직접 세므로")
+    print("  실패 원인을 추론할 필요가 없다. 사용량은 재시작해도 이어진다.")
     print(f"워커 {args.workers} (서버 포화 7.5건/초 — 더 늘려도 지연만 는다)")
     print(f"출력 {OUT}\n", flush=True)
     if not pending:
@@ -466,6 +1023,11 @@ def run(args) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workers", type=int, default=WORKERS)
+    parser.add_argument("--key-order", default="",
+                        help="키 사용 순서. 예: 1,3,4,5,2 "
+                             "(.env 접미사 기준, 정보나루=1). 지정 안 하면 파일 순서)")
+    parser.add_argument("--no-verify", action="store_true",
+                        help="투입 전 키 확인을 건너뛴다 (권장하지 않음)")
     parser.add_argument("--limit", type=int, default=0,
                         help="이번 실행에서 처리할 최대 건수")
     parser.add_argument("--wait", action="store_true",

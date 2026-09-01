@@ -10,6 +10,8 @@ export interface BookSummary {
   coverUrl: string | null
   pageCount: number | null
   publicationYear: number | null
+  /** 분류 경로 (예: "문학 > 한국소설"). 서재 선반 구성용 — 선반 키는 2단계까지만 사용 */
+  category?: string | null
 }
 
 export interface BookDetail extends BookSummary {
@@ -38,7 +40,8 @@ export interface FeatureScore {
 
 export type ReasonType = 'SAME_AUTHOR' | 'SAME_CATEGORY' | 'TEXT_SIMILARITY' | 'SEGMENT_POPULAR' | 'DEMAND_POPULAR' | 'MOMENTUM' | 'NEW_BOOK' | 'INITIAL_PREFERENCE'
 
-export type RecommendationMode = 'ANONYMOUS_TAG' | 'COLD_START' | 'PERSONALIZED'
+/** 비로그인은 랜딩만 접근 가능 (8/31 결정) — 비회원 추천 모드 없음 */
+export type RecommendationMode = 'COLD_START' | 'PERSONALIZED'
 
 /** 추천 항목 — 해시태그는 설명용, featureScores는 랭킹 재현용 */
 export interface RecommendationItem {
@@ -57,7 +60,6 @@ export interface RecommendationResponse {
   recommendationId: string
   generatedAt: string
   mode: RecommendationMode
-  sessionId: string | null
   fallback: boolean // true = 콜드스타트 폴백(세그먼트 인기)
   basedOnCount: number // "최근 기록한 N권을 반영했어요"
   /** 이번 추천 결과에 적용한 최종 랭킹 가중치. 합계는 서버가 정규화한다. */

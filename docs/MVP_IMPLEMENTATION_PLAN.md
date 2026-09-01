@@ -22,8 +22,6 @@
   → 추천 이유 확인
 ```
 
-비회원은 로그인 없이 `/explore`에서 해시태그를 선택해 태그·서버 기본 가중치만으로 추천을 먼저 확인할 수 있다.
-
 ### 포함 기능
 
 - 카카오·Google OAuth 로그인·로그아웃
@@ -54,7 +52,6 @@
   - 본인 독서 기록으로만 저장·조회·수정
   - MVP 추천·검색·AI 분석에는 사용하지 않음
 - 추천
-  - 비회원은 선택한 해시태그와 서버 기본 가중치만으로 추천
   - 로그인 사용자는 조회·좋아요·평점·서재·초기 취향을 추가로 반영한 개인 추천
   - 행동 데이터가 없는 로그인 사용자는 정보나루 인기대출 기반 세그먼트 인기 도서로 폴백
   - 로그인 사용자의 `BOOK_VIEW`는 평점·좋아요보다 낮은 가중치와 최근성·중복 감쇠로 반영
@@ -104,7 +101,7 @@
 | 5 | 도서 검색·상세 | 3단계 | 제목·저자 검색·상세 조회 |
 | 6 | 서재·독서 상태·좋아요 | 4~5단계 | 사용자별 서재 CRUD |
 | 7 | 평점 | 4~6단계 | 사용자별 평점 저장 |
-| 8 | 비회원·콜드스타트 추천 | 2~3단계 | 비회원 태그 추천과 행동 없는 로그인 사용자 추천 |
+| 8 | 콜드스타트 추천 | 2~3단계 | 행동 없는 로그인 사용자 추천 |
 | 9 | 개인화 추천 | 6~8단계 | 행동 기반 콘텐츠 추천 |
 | 10 | 프론트엔드 통합·이벤트 | API 계약 | 전체 사용자 흐름 연결 |
 | 11 | 테스트·베타·배포 | 1~10단계 | 배포 가능한 MVP |
@@ -125,7 +122,7 @@
 - 외부 API 필드와 내부 필드의 매핑표를 만든다.
 - ISBN13 정규화·중복 제거 규칙을 정한다.
 - 추천 응답의 `recommendationId`, `mode`, `rank`, `tags`, `featureScores`, `weights`, `reasonType`, `reasonText`를 확정한다.
-- 비회원 추천 API(`/recommendations/anonymous`)는 인증 없이 태그 1~5개와 서버 기본 가중치만 받도록 확정한다.
+- 추천 API(`/recommendations`)는 인증된 사용자만 호출할 수 있도록 확정한다.
 - API 에러 응답·페이지네이션·인증 실패 형식을 확정한다.
 
 ### 상태 규칙
@@ -249,31 +246,23 @@ rawPayload, collectedAt
 
 | 테이블 | 주요 필드 | 목적 |
 | --- | --- | --- |
-| `users` | id, oauth_provider, oauth_subject, email, nickname, birth_year, gender, onboarding_status | 카카오·Google OAuth 회원·세그먼트·온보딩 상태 |
-| `user_interests` | user_id, tag_code | 초기 관심 해시태그 |
-| `user_seed_books` | user_id, book_id, rating | 초기 취향 입력 |
-| `books` | id, isbn13, title, authors, description, categories 등 | 표준 도서 원천 데이터 |
-| `tags` | code, label, tag_type | 통제된 해시태그 사전 |
-| `book_tags` | book_id, tag_code, feature_version, score, confidence, source | 도서별 태그 적합도 |
-| `book_content_features` | book_id, feature_scores, feature_version, extracted_at | 책소개·목차·카테고리 기반 콘텐츠 feature |
-| `library_items` | user_id, book_id, status, finished_at | 개인 서재·독서 상태·좋아요 |
-| `book_ratings` | user_id, book_id, rating, review_text | 평점·개인 감상 기록 |
+| `users` | id, oauth_provider, oauth_subject, nickname, birth_year, gender, onboarding_status, interest_tags | OAuth 회원·프로필·초기 관심 태그 |
+| `books` | id, isbn13, title, authors, description, tags, popularity_score | 검색·상세·추천용 표준 도서 정보 |
+| `library_items` | user_id, book_id, status, rating, review_text, finished_at | 개인 서재·독서 상태·평점·감상 기록 |
 | `recommendations` | id, user_id, mode, model_version, weights, applied_tags, fallback, generated_at | 로그인 추천 결과 묶음·적용 기준 |
 | `recommendation_items` | recommendation_id, book_id, rank, score, feature_scores, tags, reason_type, reason_text | 추천 항목·계산 근거·화면 태그 |
-| `user_events` | user_id, recommendation_id, book_id, event_type, rank, created_at | 추천 측정 이벤트 |
-| `book_demand_features` | book_id, as_of_month, feature_version, cumulative_loan_count, loan_24m_count, loan_3m_count, observed_months, trending_score, steady_score, rank_score, candidate_type | 추천 후보·수요 파생 결과 |
 
 ### 저장 규칙
 
 - `books.isbn13`은 unique로 관리한다.
-- L0 카탈로그는 국중·정보나루 ISBN13 합집합이며, 카탈로그 출처는 `book_source_records`로 추적한다.
+- 도서 원본 수집·대출 집계·분석 로그는 서비스 ERD 밖의 배치/분석 영역에서 관리한다.
 - `library_items(user_id, book_id)`는 unique로 관리한다.
-- `book_ratings(user_id, book_id)`는 unique로 관리한다.
+- `library_items(user_id, book_id)`는 unique로 관리하고 평점·감상평을 같은 행에 저장한다.
 - `review_text`는 nullable이며 최대 300자로 제한한다. MVP 추천 입력에는 포함하지 않는다.
 - `WISH`가 좋아요·읽고 싶은 책 등록을 의미한다.
 - PostgreSQL을 원천 데이터로 두고 Flyway로 스키마를 관리한다.
 - 대용량 외부 대출 원장은 PostgreSQL 트랜잭션 테이블에 적재하지 않고 Parquet/분석 저장소에서 배치 처리한다.
-- 배치 집계한 도서별 대출량과 추천 수요 feature는 `book_demand_features`에 저장한다.
+- 추천에 필요한 인기 점수는 배치에서 계산해 `books.popularity_score`에 반영한다.
 - 개인정보는 추천 세그먼트 계산에 필요한 범위만 사용한다.
 
 ### Elasticsearch 기준
@@ -421,19 +410,15 @@ DELETE /api/v1/books/{bookId}/rating
 
 ## 12. 8단계 — 콜드스타트 추천
 
-### 비회원 태그 추천
-
-인증 없이도 추천을 체험할 수 있도록 `GET /api/v1/recommendations/anonymous`를 제공한다. 요청 태그와 후보 도서 태그의 적합도만 `taste`로 계산하고, 개인 사용자 데이터나 연령·성별을 사용하지 않는다. 가중치는 서버 기본값만 적용하며, 비회원 결과를 로그인 후 개인 프로필에 자동 병합하지 않는다.
-
 완료 조건:
 
-- 로그인하지 않은 사용자가 태그를 선택해 추천 결과를 받는다.
-- 비회원 응답의 `mode`가 `ANONYMOUS_TAG`이고 `userId`가 없다.
-- 비회원 추천에서 조회·서재·평점·연령·성별이 사용되지 않는다.
+- 로그인한 사용자가 초기 취향 없이도 콜드스타트 추천 결과를 받는다.
+- 콜드스타트 응답의 `mode`가 `COLD_START`이고 `userId`가 있다.
+- 추천 API는 인증되지 않은 요청을 거부한다.
 
 ### 목적
 
-아직 `WISH`, `READING`, `READ`, 평점, 초기 취향 데이터가 없는 신규 사용자도 추천을 받을 수 있게 한다.
+아직 `WISH`, `READING`, `READ`, 평점, 초기 취향 데이터가 없는 신규 로그인 사용자도 추천을 받을 수 있게 한다.
 
 ### 작업 순서
 
@@ -475,9 +460,7 @@ DELETE /api/v1/books/{bookId}/rating
 7. `trending_score`, `steady_score`, `newField`, `coLoan` 등 보조 feature를 0~100 범위로 맞춘다. `coLoan`은 사용자별 협업 필터링이 아니므로 기본값을 낮게 둔다.
 8. `score = Σ(feature_score × weight) / Σ(사용 가능한 feature의 weight)`로 최종 순위를 계산한다. 해시태그 단순 일치 개수만으로 순위를 확정하지 않는다.
 9. 이미 서재에 있는 도서는 제외하고, 텍스트 부족 도서는 사전 필터에서 제거하지 않는다.
-10. 로그인 추천의 상위 N개만 저장하고 rank·score·featureScores·추천 tags·적용 weights를 함께 기록한다. 비회원 추천은 응답만 반환한다.
-
-비회원 추천은 위 개인화 계산을 사용하지 않고, 요청 해시태그와 책 태그 적합도 및 서버 기본 가중치만으로 별도 계산한다.
+10. 로그인 추천의 상위 N개만 저장하고 rank·score·featureScores·추천 tags·적용 weights를 함께 기록한다.
 
 ### 초기 가중치
 

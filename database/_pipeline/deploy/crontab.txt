@@ -1,0 +1,3 @@
+0 2 * * * /home/ubuntu/backup.sh >> /home/ubuntu/backup.log 2>&1
+50 14 * * * /home/ubuntu/backup.sh >> /home/ubuntu/backup.log 2>&1
+*/30 * * * * /home/ubuntu/heartbeat.sh >> /home/ubuntu/heartbeat.log 2>&1
