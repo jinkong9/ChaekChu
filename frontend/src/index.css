@@ -36,3 +36,29 @@ h1, h2 {
   font-family: 'Jua', 'Apple SD Gothic Neo', sans-serif;
   font-weight: 400;
 }
+
+/* ==== 종이 결 ====
+   feTurbulence로 뽑은 섬유 노이즈 한 장. 이미지 파일 없이 종이 질감을 만든다.
+   유산지 봉투와 엽서가 같은 결을 쓰도록 토큰으로 둔다.
+   noise는 촘촘한 종이 결, fiber는 유산지 특유의 길쭉하고 뭉근한 결. */
+:root {
+  --paper-noise: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.42'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  --paper-fiber: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.24 0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.22'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23f)'/%3E%3C/svg%3E");
+}
+
+/* 종이 위에 결 한 겹. 부모가 position:relative여야 하고,
+   isolate로 블렌딩 범위를 이 종이 안에 가둔다 (밖의 배경까지 곱해지지 않게). */
+.paper-grain {
+  isolation: isolate;
+}
+.paper-grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: var(--paper-noise);
+  background-size: 180px 180px;
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}

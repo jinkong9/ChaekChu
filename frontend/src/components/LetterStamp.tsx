@@ -23,7 +23,7 @@ export default function LetterStamp({ reason, to, postmark, rank, width = 230, n
 
   return (
     <Perforated width={width} notch={notch} frame={PAPER}>
-      <div className="relative flex flex-col"
+      <div className="relative flex flex-col paper-grain"
         style={{
           aspectRatio: '5 / 7', color: INK, padding: pad,
           // 오래된 종이 — 미세한 얼룩 두 겹으로 균일한 색면을 깬다

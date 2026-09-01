@@ -88,7 +88,7 @@ export default function Postcard({ book, reason, to, width = 620, postmark, inse
   ]
 
   return (
-    <div className={`relative ${className}`}
+    <div className={`relative paper-grain ${className}`}
       style={{
         width, aspectRatio: '1.5 / 1', background: PAPER, color: INK,
         // 오래된 종이 — 미세한 얼룩 두 겹으로 균일한 색면을 깬다

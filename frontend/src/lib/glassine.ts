@@ -16,9 +16,12 @@ export const GLASS_LINE = 'rgba(34,34,74,0.18)'  // 유산지 위에 인쇄한 �
  *    봉투에 걸지 말고 안에 든 표지 자체를 blur해 같은 그림을 훨씬 싸게 만든다. */
 export function glassine(tint = 0.62, blur = 0): CSSProperties {
   return {
-    background:
-      `linear-gradient(118deg, rgba(255,255,255,${(tint + 0.12).toFixed(2)}) 0%, ` +
-      `rgba(234,236,239,${tint.toFixed(2)}) 55%, rgba(214,219,225,${(tint - 0.04).toFixed(2)}) 100%)`,
+    // 결(--paper-fiber)이 위, 종이색 그러데이션이 아래. 결은 알파가 낮아 반투명을 해치지 않는다.
+    backgroundImage:
+      'var(--paper-fiber), ' +
+      `linear-gradient(118deg, rgba(255,255,255,${(tint + 0.1).toFixed(2)}) 0%, ` +
+      `rgba(234,236,239,${(tint - 0.04).toFixed(2)}) 55%, rgba(214,219,225,${(tint - 0.08).toFixed(2)}) 100%)`,
+    backgroundSize: '240px 240px, auto',
     ...(blur > 0 ? { backdropFilter: `blur(${blur}px) saturate(0.8)`, WebkitBackdropFilter: `blur(${blur}px) saturate(0.8)` } : {}),
   }
 }
