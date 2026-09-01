@@ -117,7 +117,7 @@ export default function RecommendPageArchive() {
           <div className="relative" style={{ width: HERO.w, height: HERO.h }}>
             <StampFolder
               open={heroOpen} width={HERO.folderW} height={HERO.folderH}
-              label="오늘의 편지" sub={`${postmark} 소인 · No.${featured.rank}`}
+              label="오늘의 책" sub={`${postmark} 소인 · No.${featured.rank}`}
               slots={[
                 {
                   key: 'cover', out: 250, tilt: -2, top: 28, left: 20,
