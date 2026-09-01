@@ -16,9 +16,10 @@ const shade = (hex: string, amt: number) => {
   return `rgb(${f((n >> 16) & 255)},${f((n >> 8) & 255)},${f(n & 255)})`
 }
 
-/** 멀리 있는 책을 배경(크림)으로 물러나게 하는 안개 — 각 면마다 한 장씩 */
+/** 멀리 있는 책을 배경색으로 물러나게 하는 안개 — 각 면마다 한 장씩.
+ *  배경이 크림이 아닌 화면(궤도 홈=흰 배경)은 --veil-color 로 갈아끼운다 */
 const Veil = () => (
-  <i style={{ position: 'absolute', inset: 0, background: '#fff8ec', opacity: 'var(--veil, 0)', pointerEvents: 'none' }} />
+  <i style={{ position: 'absolute', inset: 0, background: 'var(--veil-color, #fff8ec)', opacity: 'var(--veil, 0)', pointerEvents: 'none' }} />
 )
 
 export default function Book3D({ book, w, h, t = 7 }: { book: BookSummary; w: number; h: number; t?: number }) {

@@ -2,13 +2,16 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 
 import type { BookSummary } from '../api/types'
 import Book3D from './Book3D'
 
-/** 3D 원통 궤도 — 책들이 중앙을 공전한다.
+/** 3D 궤도 — 책들이 중앙을 공전한다.
  *
- *  품질의 핵심 4가지:
- *   1) 평면 원(translateX)이 아니라 원통(translateZ + perspective) — 앞뒤로 오가야 깊이가 생긴다
- *   2) CSS 키프레임 대신 각도 하나(rot)를 rAF로 적분 — 속도를 바꿔도 점프가 없다
- *   3) dt 곱셈 + 지수 감쇠 — 60/120/144Hz에서 같은 속도, 같은 감속
- *   4) 깊이(z)에서 안개·크기·그림자·z-index를 전부 파생 — 앞책이 항상 위로 온다
+ *  품질의 핵심 5가지:
+ *   1) translateZ + perspective — 앞뒤로 오가야 깊이가 생긴다 (평면 원이 아님)
+ *   2) 가로(rx)·세로(ry)·깊이(rz)를 따로 받는다. 무대를 rotateX로 기울이면
+ *      세로 크기가 깊이에 묶여 타원이 납작해지고 가운데 구멍이 사라진다 —
+ *      셋을 분리해야 '큰 링 + 작은 책 + 넓은 가운데'라는 레퍼런스 구도가 나온다
+ *   3) CSS 키프레임 대신 각도 하나(rot)를 rAF로 적분 — 속도를 바꿔도 점프가 없다
+ *   4) dt 곱셈 + 지수 감쇠 — 60/120/144Hz에서 같은 속도, 같은 감속
+ *   5) 깊이(z)에서 안개·그림자·z-index를 전부 파생 — 앞책이 항상 위로 온다
  *
  *  React 리렌더는 '포커스 책이 바뀔 때'만. 매 프레임은 ref로 DOM에 직접 쓴다. */
 
@@ -30,16 +33,16 @@ export interface OrbitHandle { snapTo: (index: number) => void }
 
 interface Props {
   books: BookSummary[]
-  /** 깊이 반지름(z) — 앞뒤로 오가는 거리. 원근 배율을 결정한다 */
-  radius: number
-  /** 가로 반지름(x). radius보다 크게 주면 넓은 화면을 채우는 납작한 타원 궤도가 된다 */
-  radiusX?: number
-  /** 무대 기울기(deg, 음수 = 위에서 내려다봄). 책은 이 각을 되돌려 똑바로 선다 */
-  tilt?: number
+  /** 가로 반지름 — 화면에서 링이 차지하는 폭의 절반 */
+  radiusX: number
+  /** 세로 반지름 — 화면에서 링이 차지하는 높이의 절반. 클수록 가운데 구멍이 커진다 */
+  radiusY: number
+  /** 깊이 반지름 — 앞뒤로 오가는 거리. 원근 배율·겹침 순서만 결정한다 */
+  depth: number
   bookW?: number
   bookH?: number
   thickness?: number
-  /** 무대 평면의 세로 위치 — 앞줄 책이 아래 텍스트를 덮지 않도록 페이지가 조절한다 */
+  /** 링 중심의 세로 위치 — 앞줄 책이 아래 텍스트를 덮지 않도록 페이지가 조절한다 */
   planeY?: string
   /** true인 책은 흐려진다 — 태그 필터용 */
   dimmed?: boolean[]
@@ -48,11 +51,10 @@ interface Props {
 }
 
 const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
-  { books, radius, radiusX, tilt = -26, bookW = 62, bookH = 90, thickness = 7, planeY = '58%', dimmed, onFocusChange, onOpen }, ref,
+  { books, radiusX, radiusY, depth, bookW = 62, bookH = 90, thickness = 7, planeY = '50%', dimmed, onFocusChange, onOpen }, ref,
 ) {
   const n = books.length
   const step = n > 0 ? 360 / n : 0
-  const rx = radiusX ?? radius
 
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const bookRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -87,21 +89,22 @@ const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
       if (!el || !bk || !sh) continue
 
       const a = (i * step + rot.current) * DEG
-      const x = Math.sin(a) * rx
-      const z = Math.cos(a) * radius
-      const t = (z / radius + 1) / 2                 // 0 = 맨 뒤, 1 = 맨 앞
+      const x = Math.sin(a) * radiusX
+      const y = Math.cos(a) * radiusY   // 화면 세로 — 깊이와 무관하게 따로 준다
+      const z = Math.cos(a) * depth
+      const t = (z / depth + 1) / 2                  // 0 = 맨 뒤, 1 = 맨 앞
       const dim = dimRef.current?.[i] ? 1 : 0
 
-      el.style.transform = `translate3d(${x.toFixed(2)}px, 0px, ${z.toFixed(2)}px)`
+      el.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, ${z.toFixed(2)}px)`
       // perspective가 크기는 알아서 줄여준다. z-index만 정확히 — 뒷책이 앞책 위로 새는 걸 막는다
       el.style.zIndex = String(Math.round(t * 1000))
       el.style.setProperty('--veil', clamp(0.74 * (1 - t) ** 1.3 + dim * 0.5, 0, 0.92).toFixed(3))
       el.style.setProperty('--sheen', (0.5 + 0.5 * Math.sin(a)).toFixed(3))
 
       // 링에 접하도록 살짝 틀어 책등·책배를 노출 — 두께가 보이는 순간 '물체'가 된다
-      const ry = (x / rx) * 24
+      const turn = (x / radiusX) * 26
       const k = (1 + 0.24 * t ** 5) * (dim ? 0.9 : 1)   // 맨 앞 한 권만 확실히 커진다
-      bk.style.transform = `rotateX(${-tilt}deg) rotateY(${ry.toFixed(2)}deg) scale(${k.toFixed(3)})`
+      bk.style.transform = `rotateY(${turn.toFixed(2)}deg) scale(${k.toFixed(3)})`
       sh.style.opacity = (0.42 * t ** 2.5 * (dim ? 0.35 : 1)).toFixed(3)
     }
 
@@ -119,7 +122,7 @@ const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
       bookRefs.current.forEach((b, j) => b?.setAttribute('aria-selected', String(j === best)))
       focusCb.current?.(best)
     }
-  }, [n, step, radius, rx, tilt, books])
+  }, [n, step, radiusX, radiusY, depth, books])
 
   const snapTo = useCallback((i: number) => {
     // 절대 목표각을 '현재 위치에서 최단 경로'로 잡는다 — 한 바퀴 도는 고전 버그 방지
@@ -230,22 +233,18 @@ const BookOrbit = forwardRef<OrbitHandle, Props>(function BookOrbit(
       onKeyDown={onKeyDown}
     >
       {/* 회전 무대 — 위에서 내려다보는 턴테이블 */}
-      <div className="absolute left-1/2" style={{ top: planeY, transformStyle: 'preserve-3d', transform: `rotateX(${tilt}deg)` }}>
-        {/* 궤도선 — 기울어진 평면에 누운 원이라 화면에서는 타원으로 보인다.
-            '돌고 있다'를 한 프레임만 봐도 알게 해 주는 값싼 단서 */}
-        <div style={{
-          position: 'absolute', left: -rx, top: -radius, width: rx * 2, height: radius * 2,
-          borderRadius: '50%', border: '1px dashed rgba(34,34,74,0.13)', pointerEvents: 'none',
-        }} />
+      <div className="absolute left-1/2" style={{ top: planeY, transformStyle: 'preserve-3d' }}>
         {books.map((book, i) => (
           <div key={book.bookId} ref={(el) => { itemRefs.current[i] = el }}
             className="absolute" style={{ transformStyle: 'preserve-3d', willChange: 'transform' }}>
             {/* 접지 그림자 — 무대 평면에 그대로 누워 있어야 '바닥에 놓인 책'이 된다 */}
             <div ref={(el) => { shadowRefs.current[i] = el }}
               style={{
-                position: 'absolute', left: -bookW * 0.66, top: -5, width: bookW * 1.32, height: 11,
+                position: 'absolute', left: -bookW * 0.7, top: -6, width: bookW * 1.4, height: 24,
                 borderRadius: '50%', opacity: 0, pointerEvents: 'none',
-                background: 'radial-gradient(50% 50% at 50% 50%, rgba(34,34,74,0.55), rgba(34,34,74,0) 72%)',
+                // 무대를 기울이지 않으므로 그림자만 개별로 눕힌다 — 이게 책을 바닥에 붙여 준다
+                transform: 'rotateX(74deg)', transformOrigin: '50% 0%',
+                background: 'radial-gradient(50% 50% at 50% 50%, rgba(34,34,74,0.5), rgba(34,34,74,0) 72%)',
               }} />
             {/* 책 — 밑변을 축으로 세워 둔다 */}
             <div ref={(el) => { bookRefs.current[i] = el }}
