@@ -1,0 +1,38 @@
+[Unit]
+Description=정보나루 도서 데이터 수집기 (B102)
+Documentation=https://lab.ssafy.com/s15-bigdata-recom-sub1/S15P21B102
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/pipeline
+Environment=PIPELINE_DATA=/home/ubuntu/pipeline_data
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+
+# --wait : 일일 상한에 걸리면 KST 자정까지 기다렸다 스스로 재개한다.
+#          이게 없으면 상한에서 종료하고 하루를 통째로 논다.
+ExecStart=/usr/bin/python3 scripts/enrich_from_data4library.py \
+          --workers 24 --key-order 1,3,4,5,2 --wait
+
+# 크래시나 재부팅에도 살아난다. 60초 쉬고 재시작한다.
+Restart=always
+RestartSec=60
+
+# 팀 공용 서버다. PostgreSQL·Qdrant 가 올라와도 이 프로세스가
+# 자원을 독점하지 못하게 막는다.
+MemoryMax=3G
+Nice=10
+IOSchedulingClass=idle
+
+# 종료 신호를 받으면 진행분을 저장할 시간을 준다 (fsync + 요약)
+KillSignal=SIGINT
+TimeoutStopSec=120
+
+StandardOutput=append:/home/ubuntu/collect.log
+StandardError=append:/home/ubuntu/collect.log
+
+[Install]
+WantedBy=multi-user.target

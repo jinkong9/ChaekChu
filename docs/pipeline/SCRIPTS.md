@@ -2,6 +2,9 @@
 
 `database/_pipeline/scripts/` 의 파이썬 파일 전부. 22개.
 
+EC2 무인 운영에 쓰는 systemd 유닛·백업·로그 회전 설정은
+[`database/_pipeline/deploy/`](../../database/_pipeline/deploy/README.md) 에 있다.
+
 실행 위치는 항상 `database/_pipeline/` 이다. 경로가 상대로 잡혀 있다.
 
 ```bash

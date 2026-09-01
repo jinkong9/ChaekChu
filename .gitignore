@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
-
+# SSH 개인키 — '.pem' 은 그 이름의 파일만 잡는다. 확장자를 잡으려면 '*.pem'
+*.pem
+*.ppk
 # 렌더 산출물 (보고서 PNG 등) — 재생성 가능
 tmp/
