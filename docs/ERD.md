@@ -2,7 +2,7 @@
 
 > Jira: `S15P21B102-14`
 >
-> 이 문서는 MVP 백엔드의 PostgreSQL 운영 모델과 추천 배치/분석 모델을 함께 표현한 ERD다. 운영 DB의 내부 PK/FK는 UUID, 시간 컬럼은 TIMESTAMPTZ를 사용하고 API에서는 문자열 형태의 opaque ID로 노출한다. ERDCloud import 파일에서는 호환성을 위해 일부 타입을 단순화한다.
+> 이 문서는 MVP 백엔드의 PostgreSQL 운영 모델과 추천 배치/분석 모델을 함께 표현한 ERD다. 운영 DB의 내부 PK는 BIGINT 자동 증가, FK는 BIGINT, 시간 컬럼은 TIMESTAMPTZ를 사용하고 API에서는 문자열 형태의 opaque ID로 노출한다. ERDCloud import 파일에서는 호환성을 위해 일부 타입을 단순화한다.
 
 ## 1. 설계 원칙
 
@@ -45,7 +45,7 @@ erDiagram
     BOOKS o|--o{ USER_EVENTS : targets
 
     BOOK_WORKS {
-        uuid id PK
+        bigint id PK
         varchar canonical_title
         varchar canonical_author
         timestamp created_at
@@ -53,8 +53,8 @@ erDiagram
     }
 
     BOOKS {
-        uuid id PK
-        uuid work_id FK
+        bigint id PK
+        bigint work_id FK
         char isbn13 UK
         char isbn10
         varchar title
@@ -72,8 +72,8 @@ erDiagram
     }
 
     BOOK_SOURCE_RECORDS {
-        uuid id PK
-        uuid book_id FK
+        bigint id PK
+        bigint book_id FK
         varchar source
         varchar source_record_key
         varchar source_book_id
@@ -84,7 +84,7 @@ erDiagram
     }
 
     BOOK_DEMAND_FEATURES {
-        uuid book_id PK,FK
+        bigint book_id PK,FK
         date as_of_month PK
         varchar feature_version PK
         bigint cumulative_loan_count
@@ -98,7 +98,7 @@ erDiagram
     }
 
     BOOK_CONTENT_FEATURES {
-        uuid book_id PK,FK
+        bigint book_id PK,FK
         jsonb feature_scores
         varchar feature_version PK
         timestamp extracted_at
@@ -112,7 +112,7 @@ erDiagram
     }
 
     BOOK_TAGS {
-        uuid book_id PK,FK
+        bigint book_id PK,FK
         varchar tag_code PK,FK
         varchar feature_version PK
         decimal score
@@ -121,7 +121,7 @@ erDiagram
     }
 
     USERS {
-        uuid id PK
+        bigint id PK
         varchar oauth_provider
         varchar oauth_subject
         varchar email
@@ -134,22 +134,22 @@ erDiagram
     }
 
     USER_INTERESTS {
-        uuid user_id PK,FK
+        bigint user_id PK,FK
         varchar tag_code PK,FK
         timestamp created_at
     }
 
     USER_SEED_BOOKS {
-        uuid user_id PK,FK
-        uuid book_id PK,FK
+        bigint user_id PK,FK
+        bigint book_id PK,FK
         smallint rating
         timestamp created_at
     }
 
     LIBRARY_ITEMS {
-        uuid id PK
-        uuid user_id FK
-        uuid book_id FK
+        bigint id PK
+        bigint user_id FK
+        bigint book_id FK
         varchar status
         date finished_at
         timestamp created_at
@@ -157,9 +157,9 @@ erDiagram
     }
 
     BOOK_RATINGS {
-        uuid id PK
-        uuid user_id FK
-        uuid book_id FK
+        bigint id PK
+        bigint user_id FK
+        bigint book_id FK
         smallint rating
         varchar review_text
         timestamp created_at
@@ -167,8 +167,8 @@ erDiagram
     }
 
     RECOMMENDATIONS {
-        uuid id PK
-        uuid user_id FK
+        bigint id PK
+        bigint user_id FK
         varchar mode
         varchar model_version
         jsonb weights
@@ -178,8 +178,8 @@ erDiagram
     }
 
     RECOMMENDATION_ITEMS {
-        uuid recommendation_id PK,FK
-        uuid book_id PK,FK
+        bigint recommendation_id PK,FK
+        bigint book_id PK,FK
         integer rank
         decimal score
         jsonb feature_scores
@@ -189,10 +189,10 @@ erDiagram
     }
 
     USER_EVENTS {
-        uuid id PK
-        uuid user_id FK
-        uuid recommendation_id FK
-        uuid book_id FK
+        bigint id PK
+        bigint user_id FK
+        bigint recommendation_id FK
+        bigint book_id FK
         varchar event_type
         integer rank
         varchar client_event_id
@@ -209,7 +209,7 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `id` | UUID | O | 작품 그룹 식별자 |
+| `id` | BIGINT | O | 작품 그룹 식별자 |
 | `canonical_title` | VARCHAR | O | 대표 작품명 |
 | `canonical_author` | VARCHAR |  | 대표 저자명 |
 | `created_at`, `updated_at` | TIMESTAMP | O | 변경 추적 |
@@ -220,8 +220,8 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `id` | UUID | O | 내부 도서 식별자 |
-| `work_id` | UUID |  | `book_works.id`; 작품 그룹 미확정이면 NULL |
+| `id` | BIGINT | O | 내부 도서 식별자 |
+| `work_id` | BIGINT |  | `book_works.id`; 작품 그룹 미확정이면 NULL |
 | `isbn13` | CHAR(13) | O | 하이픈 없는 검증된 ISBN-13, UNIQUE |
 | `isbn10` | CHAR(10) |  | 보조 ISBN, 마지막 `X` 허용 |
 | `title` | VARCHAR | O | 제목 |
@@ -244,8 +244,8 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `id` | UUID | O | 원본 레코드 식별자 |
-| `book_id` | UUID |  | canonical 도서로 확정되기 전에는 NULL |
+| `id` | BIGINT | O | 원본 레코드 식별자 |
+| `book_id` | BIGINT |  | canonical 도서로 확정되기 전에는 NULL |
 | `source` | VARCHAR | O | `NATIONAL_LIBRARY`, `DATA4LIBRARY`, `YES24`, `ALADIN`, `KAKAO` 등 |
 | `source_record_key` | VARCHAR | O | 출처와 조합해 중복 수집을 막는 안정 키. source ID 또는 정규화 ISBN |
 | `source_book_id` | VARCHAR |  | 출처별 상품·volume ID |
@@ -264,7 +264,7 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `book_id` | UUID | O | `books.id` 외래키 |
+| `book_id` | BIGINT | O | `books.id` 외래키 |
 | `as_of_month` | DATE | O | 해당 월 1일로 정규화한 산출 기준일 |
 | `feature_version` | VARCHAR | O | 후보·랭킹 산출 버전 |
 | `cumulative_loan_count` | BIGINT | O | L1 임계·prior용 누적 대출량 |
@@ -283,7 +283,7 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `book_id` | UUID | O | `books.id` 외래키 |
+| `book_id` | BIGINT | O | `books.id` 외래키 |
 | `feature_scores` | JSONB | O | 콘텐츠 feature별 점수·신뢰도 |
 | `feature_version` | VARCHAR | O | 추출 규칙·모델 버전 |
 | `extracted_at` | TIMESTAMP | O | feature 추출 시각 |
@@ -309,7 +309,7 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `book_id` | UUID | O | `books.id` 외래키 |
+| `book_id` | BIGINT | O | `books.id` 외래키 |
 | `tag_code` | VARCHAR(50) | O | `tags.code` 외래키 |
 | `feature_version` | VARCHAR(50) | O | 태그 추출 버전 |
 | `score` | DECIMAL(5,2) |  | 0~100 적합도. 판단 불가 시 NULL |
@@ -322,7 +322,7 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `id` | UUID | O | 사용자 식별자 |
+| `id` | BIGINT | O | 사용자 식별자 |
 | `oauth_provider` | VARCHAR | O | `KAKAO` 또는 `GOOGLE` |
 | `oauth_subject` | VARCHAR | O | OAuth 제공자의 사용자 고유 식별자 |
 | `email` | VARCHAR |  | OAuth에서 제공된 이메일, 로그인 식별자로 사용하지 않음 |
@@ -340,7 +340,7 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `user_id` | UUID | O | 사용자 |
+| `user_id` | BIGINT | O | 사용자 |
 | `tag_code` | VARCHAR(50) | O | `tags.code`; 관심 해시태그 |
 | `created_at` | TIMESTAMP | O | 등록 시각 |
 
@@ -352,8 +352,8 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `user_id` | UUID | O | 사용자 |
-| `book_id` | UUID | O | 선택한 도서 |
+| `user_id` | BIGINT | O | 사용자 |
+| `book_id` | BIGINT | O | 선택한 도서 |
 | `rating` | SMALLINT | O | 1~5 정수 |
 | `created_at` | TIMESTAMP | O | 등록 시각 |
 
@@ -367,9 +367,9 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `id` | UUID | O | 서재 항목 식별자 |
-| `user_id` | UUID | O | 소유 사용자 |
-| `book_id` | UUID | O | canonical 도서 |
+| `id` | BIGINT | O | 서재 항목 식별자 |
+| `user_id` | BIGINT | O | 소유 사용자 |
+| `book_id` | BIGINT | O | canonical 도서 |
 | `status` | VARCHAR | O | `WISH`, `READING`, `READ` |
 | `finished_at` | DATE |  | `READ` 상태의 완독일 |
 | `created_at`, `updated_at` | TIMESTAMP | O | 변경 추적 |
@@ -382,9 +382,9 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `id` | UUID | O | 평점 식별자 |
-| `user_id` | UUID | O | 작성자 |
-| `book_id` | UUID | O | 평가 대상 |
+| `id` | BIGINT | O | 평점 식별자 |
+| `user_id` | BIGINT | O | 작성자 |
+| `book_id` | BIGINT | O | 평가 대상 |
 | `rating` | SMALLINT | O | 1~5 정수 |
 | `review_text` | VARCHAR(300) |  | 개인 기록용 한 줄 감상평 |
 | `created_at`, `updated_at` | TIMESTAMP | O | 변경 추적 |
@@ -397,8 +397,8 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `id` | UUID | O | 추천 결과 식별자 |
-| `user_id` | UUID | O | 로그인 추천 대상 |
+| `id` | BIGINT | O | 추천 결과 식별자 |
+| `user_id` | BIGINT | O | 로그인 추천 대상 |
 | `mode` | VARCHAR | O | `COLD_START`, `PERSONALIZED` |
 | `model_version` | VARCHAR | O | 계산·폴백 전략 버전 |
 | `weights` | JSON | O | 해당 추천에 적용한 feature별 가중치 |
@@ -414,8 +414,8 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `recommendation_id` | UUID | O | 추천 결과 |
-| `book_id` | UUID | O | 추천 도서 |
+| `recommendation_id` | BIGINT | O | 추천 결과 |
+| `book_id` | BIGINT | O | 추천 도서 |
 | `rank` | INTEGER | O | 1부터 시작하는 순위 |
 | `score` | DECIMAL | O | 추천 점수 |
 | `feature_scores` | JSON | O | `taste`, `coLoan`, `trending`, `steady`, `newField`별 0~100 원점수 |
@@ -431,10 +431,10 @@ erDiagram
 
 | 칼럼 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `id` | UUID | O | 이벤트 식별자 |
-| `user_id` | UUID | O | 로그인 사용자 이벤트. 비회원 이벤트는 MVP에서 저장하지 않음 |
-| `recommendation_id` | UUID |  | 추천 결과 |
-| `book_id` | UUID |  | 대상 도서 |
+| `id` | BIGINT | O | 이벤트 식별자 |
+| `user_id` | BIGINT | O | 로그인 사용자 이벤트. 비회원 이벤트는 MVP에서 저장하지 않음 |
+| `recommendation_id` | BIGINT |  | 추천 결과 |
+| `book_id` | BIGINT |  | 대상 도서 |
 | `event_type` | VARCHAR | O | `IMPRESSION`, `CLICK`, `REASON_VIEW`, `BOOK_VIEW`, `WISH` |
 | `rank` | INTEGER |  | 노출 당시 순위 |
 | `client_event_id` | VARCHAR |  | 클라이언트 중복 방지 키 |
@@ -486,7 +486,7 @@ erDiagram
 
 ## 6. 구현 기준
 
-- 모든 내부 PK와 서비스 FK는 UUID를 사용한다. API에서는 문자열 opaque ID로 노출한다.
+- 모든 내부 PK는 `BIGINT GENERATED BY DEFAULT AS IDENTITY`, 서비스 FK는 `BIGINT`를 사용한다(2026-08-31 결정). `ALWAYS`가 아닌 `BY DEFAULT`인 이유는 카탈로그 대량 적재 시 id를 명시 지정해야 하기 때문이다. API에서는 문자열 opaque ID로 노출하며, 내부 ID를 그대로 노출하지 않기로 하면 `books`·`users`에 `public_id UUID`를 별도 추가한다.
 - `authors`, `categories`, `feature_scores`, `validation_errors`는 PostgreSQL `JSONB`로 저장한다. 배열 JSON만 허용한다.
 - `book_tags`는 해시태그 검색의 정규화 테이블이며, `book_content_features`에는 태그 JSON을 중복 저장하지 않는다.
 - 추천 배치가 사용할 `book_content_features`·`book_tags`의 활성 `feature_version`은 추천 설정으로 지정하고, 과거 버전은 재현·롤백을 위해 보존한다.
