@@ -29,6 +29,7 @@
 ```
 database/_pipeline/
 ├── scripts/     수집·측정·정제 코드
+├── deploy/      EC2 무인 운영 설정 (systemd·백업·로그 회전)
 └── reports/     스크립트가 생성한 산출물 (.txt, .csv) — 재생성 가능
 ```
 
