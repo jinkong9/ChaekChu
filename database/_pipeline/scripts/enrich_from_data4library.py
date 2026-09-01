@@ -135,6 +135,12 @@ MISS_STREAK_BLOCK = 50
 # (검증 때문에 새 데이터를 얻거나 잃지 않도록).
 PROBE_ISBN = "9788954699914"          # 하얼빈 · 김훈
 
+# 한 번에 풀에 넣는 항목 수.
+# ThreadPoolExecutor.map 은 넘긴 항목 **전부**의 Future 를 즉시 만든다.
+# 100만 건을 통째로 넘기면 그것만으로 2GB 다 (실측 VmRSS 2,107,104 kB).
+# 나눠 넣으면 대기열 비용이 이 크기에 비례해 묶인다.
+SUBMIT_CHUNK = 20_000
+
 # ── 서버 장애를 쿼터 소진과 구분한다 ──────────────────────────
 # 실측 2026-08-31: API 가 504 Gateway Time-out 을 뱉는 동안 실패가 쌓여
 # 5,980건밖에 안 쓴 키가 "소진" 처리됐다. 같은 시각 웹사이트는 HTTP 200 이었다.
@@ -262,13 +268,24 @@ def load_done() -> set:
     """이미 처리한 ISBN. 깨진 줄은 건너뛴다(다음 회차에 다시 시도된다)."""
     if not OUT.exists():
         return set()
+    # **레코드 전체를 파싱하면 안 된다.** 한 줄에 소개문·키워드 50개·
+    # 함께대출·월별 이력이 들어 있어 평균 3.4KB 다. isbn13 하나 꺼내자고
+    # json.loads 를 66만 번 돌리면 임시 객체로 CPU 와 메모리를 다 쓴다.
+    # isbn13 은 항상 맨 앞 필드라 문자열로 바로 집는다.
     done = set()
+    head = '{"isbn13":"'
+
     with OUT.open(encoding="utf-8") as source:
         for line in source:
+            if line.startswith(head):
+                end = line.find('"', len(head))
+                if end > 0:
+                    done.add(line[len(head):end])
+                    continue
             line = line.strip()
             if not line:
                 continue
-            try:
+            try:                                  # 형식이 다르면 정공법
                 done.add(json.loads(line)["isbn13"])
             except (json.JSONDecodeError, KeyError):
                 continue
@@ -759,7 +776,11 @@ def drain(key: str, pending: list, workers: int) -> int:
 
     try:
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            list(pool.map(worker, pending))
+            # **한꺼번에 넘기지 않는다.** 아래를 보라 (SUBMIT_CHUNK).
+            for start in range(0, total, SUBMIT_CHUNK):
+                if state["stop"]:
+                    break
+                list(pool.map(worker, pending[start:start + SUBMIT_CHUNK]))
     finally:
         # 남은 버퍼: 정상 종료면 진짜 미수록이므로 확정한다.
         # 차단·중단으로 끝났으면 키 문제일 수 있어 버린다 (큐에 남는다).
@@ -879,10 +900,13 @@ def run(args) -> int:
         print("오늘 이미 쓴 양 (이어서 셈): "
               + " · ".join(f"{k} {v:,}" for k, v in state["per_key"].items()))
     key = ""          # 실제 키는 pick_key() 가 호출마다 고른다
-    lines = QUEUE.read_text(encoding="utf-8").splitlines()[1:]
-    targets = [line.split(",")[0] for line in lines]
+    # 큐는 108만 행이다. 중간 리스트를 남겨 두면 그것만으로 수백 MB 다.
+    lines = QUEUE.read_text(encoding="utf-8").splitlines()
+    targets = [line.split(",", 1)[0] for line in lines[1:]]
+    del lines
     done = load_done()
     pending = [i for i in targets if i not in done]
+    del targets
     if args.limit:
         pending = pending[:args.limit]
 
