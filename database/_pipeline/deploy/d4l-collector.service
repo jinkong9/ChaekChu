@@ -17,9 +17,14 @@ Environment=PYTHONIOENCODING=utf-8
 ExecStart=/usr/bin/python3 scripts/enrich_from_data4library.py \
           --workers 24 --key-order 1,3,4,5,2 --wait
 
-# 크래시나 재부팅에도 살아난다. 60초 쉬고 재시작한다.
+# 크래시나 재부팅에도 살아난다.
+# **재시작마다 키 확인 5호출을 태운다.** 크래시 루프가 무인으로 방치되면
+# 하루 7,200건이 날아간다. 그래서 지수 백오프를 건다 (systemd 254+).
+#   60s -> 최대 900s. 루프에 빠져도 시간당 4회를 넘지 않는다.
 Restart=always
 RestartSec=60
+RestartSteps=5
+RestartMaxDelaySec=900
 
 # 팀 공용 서버다. PostgreSQL·Qdrant 가 올라와도 이 프로세스가
 # 자원을 독점하지 못하게 막는다.
