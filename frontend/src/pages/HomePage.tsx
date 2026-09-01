@@ -15,7 +15,7 @@ type Variant = (typeof VARIANTS)[number]['key']
 export default function HomePage() {
   const [variant, setVariant] = useState<Variant>('orbit')
   return (
-    <div className="relative">
+    <div className="relative flex flex-1 flex-col">
       <div className="absolute right-6 top-4 z-30 flex overflow-hidden rounded-full border-2 border-primary bg-white text-xs">
         {VARIANTS.map((v) => (
           <button key={v.key} onClick={() => setVariant(v.key)}

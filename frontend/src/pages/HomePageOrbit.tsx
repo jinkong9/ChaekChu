@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
@@ -16,23 +16,13 @@ import BookCover from '../components/BookCover'
  *  움직이는 것은 궤도 하나뿐이다 — 랜딩의 오로라·먼지를 여기 겹치지 않는 것도 설계 결정.
  *  배경까지 같이 움직이면 궤도가 눈에 안 들어온다. */
 
-const GNB_H = 62
 const PERSPECTIVE = 1300   // BookOrbit 과 같은 값 — 라벨·워드마크 위치를 여기서 역산한다
 const PLANE_Y = 0.44       // 링 중심의 세로 위치
 
-/** 화면 크기에 맞춘 궤도 기하.
+/** 무대 크기에 맞춘 궤도 기하.
  *  링은 크게, 책은 작게 — 그래야 가운데에 워드마크가 들어갈 구멍이 생긴다 (레퍼런스 구도).
  *  파생값(앞줄 밑변·뒷줄 밑변·구멍 중앙)까지 같이 계산해서 화면 요소를 거기에 맞춘다. */
-function useOrbitGeometry() {
-  const [size, setSize] = useState(() => ({ w: 1280, h: 800 }))
-  useEffect(() => {
-    const on = () => setSize({ w: window.innerWidth, h: window.innerHeight - GNB_H })
-    on()
-    window.addEventListener('resize', on)
-    return () => window.removeEventListener('resize', on)
-  }, [])
-
-  const { w, h } = size
+function orbitGeometry(w: number, h: number) {
   const radiusX = Math.max(240, Math.min(w * 0.34, 520))
   const radiusY = Math.round(radiusX * 0.36)
   const depth = Math.max(180, Math.min(radiusX * 0.62, 340))
@@ -57,7 +47,21 @@ export default function HomePageOrbit() {
   const qc = useQueryClient()
   const { data, isPending } = useRecommendations()
   const orbit = useRef<OrbitHandle>(null)
-  const { w, radiusX, radiusY, depth, bookW, bookH, plane, holeCenter, holeHeight } = useOrbitGeometry()
+
+  // 무대 크기는 window 가 아니라 무대 자신을 잰다 — GNB 높이를 상수로 빼서 쓰면
+  // 헤더 구성이 바뀔 때마다 어긋나고, 그 차이만큼 아래에 배경색 띠가 남는다.
+  const [box, setBox] = useState({ w: 1280, h: 800 })
+  const ro = useRef<ResizeObserver | null>(null)
+  const stageRef = useCallback((el: HTMLElement | null) => {
+    ro.current?.disconnect()
+    if (!el) return
+    const measure = () => setBox({ w: el.clientWidth, h: el.clientHeight })
+    measure()
+    ro.current = new ResizeObserver(measure)
+    ro.current.observe(el)
+  }, [])
+
+  const { w, radiusX, radiusY, depth, bookW, bookH, plane, holeCenter, holeHeight } = orbitGeometry(box.w, box.h)
 
   const [focus, setFocus] = useState(0)
   const [hovered, setHovered] = useState<number | null>(null)
@@ -102,14 +106,16 @@ export default function HomePageOrbit() {
       .catch(() => setWished((list) => list.filter((id) => id !== current.book.bookId)))
   }
 
-  const stage = { height: `calc(100vh - ${GNB_H}px)`, minHeight: 620 }
+  // 남은 높이를 그대로 채운다 (Layout 이 세로 플렉스). 100vh 를 직접 쓰지 않는 이유는 위 주석 참고
+  const stageClass = 'flex-1 bg-white'
+  const stage = { minHeight: 620 }
   const font = "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', sans-serif"
 
   if (isPending) {
-    return <main className="grid place-items-center bg-white text-gray-400" style={stage}>추천을 불러오는 중…</main>
+    return <main ref={stageRef} className={`${stageClass} grid place-items-center text-gray-400`} style={stage}>추천을 불러오는 중…</main>
   }
   if (books.length === 0) {
-    return <main className="grid place-items-center bg-white text-gray-400" style={stage}>아직 보여 드릴 책이 없어요.</main>
+    return <main ref={stageRef} className={`${stageClass} grid place-items-center text-gray-400`} style={stage}>아직 보여 드릴 책이 없어요.</main>
   }
 
   /** 섹터 라벨 — 그 각도에 선 책의 바로 위·바깥. 링 '윗쪽 호'에만 건다
@@ -125,7 +131,7 @@ export default function HomePageOrbit() {
   }
 
   return (
-    <main className="relative overflow-hidden bg-white"
+    <main ref={stageRef} className={`${stageClass} relative overflow-hidden`}
       style={{ ...stage, fontFamily: font, ['--veil-color' as string]: '#ffffff' }}>
 
       <BookOrbit ref={orbit} books={books}
