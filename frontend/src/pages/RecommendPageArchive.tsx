@@ -73,7 +73,7 @@ export default function RecommendPageArchive() {
   return (
     <div className="bg-white" style={{ minHeight: 'calc(100vh - 62px)' }}>
       <main className="px-8 pb-16 pt-8 max-w-5xl mx-auto">
-        <h1 className="text-3xl">오늘 치 우표를 꺼냈어요</h1>
+        <h1 className="text-3xl">오늘, 한 권 도착했어요</h1>
         <p className="text-sm text-gray-500 mt-1">
           {data.fallback ? '아직 취향을 몰라서 인기 도서로 첫 장을 채웠어요 — 찜하면 더 정확해져요.' : `최근 기록한 ${data.basedOnCount}권을 보고 골랐어요`}
         </p>
