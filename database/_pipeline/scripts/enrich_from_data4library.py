@@ -906,11 +906,12 @@ def run(args) -> int:
     del lines
     done = load_done()
     pending = [i for i in targets if i not in done]
+    queue_total = len(targets)       # 리스트를 놓기 전에 숫자만 챙긴다
     del targets
     if args.limit:
         pending = pending[:args.limit]
 
-    print(f"큐 {len(targets):,}건 · 완료 {len(done):,}건 · 이번 대상 {len(pending):,}건")
+    print(f"큐 {queue_total:,}건 · 완료 {len(done):,}건 · 이번 대상 {len(pending):,}건")
     if not getattr(args, "no_verify", False):
         verify_keys()
     print(f"키 {len(keys)}개 순차 소진: {', '.join(n for n, _ in keys)}  "
