@@ -112,6 +112,9 @@ state = {
     # 한 스레드만 재우면 나머지가 계속 두드려 예산이 순식간에 증발한다 —
     # 47개 워커가 계속 던져 2분 만에 87,000 을 태운 적이 있다.
     "hold": threading.Event(),
+    "pending_miss": [],               # 아직 확정 안 된 미수록 행
+    "probed": set(),                  # 투입 전 검증을 마친 키
+    "dropped_miss": 0,                # 은퇴와 함께 버린 미수록 수
 }
 lock = threading.Lock()
 
@@ -126,6 +129,11 @@ FAIL_STREAK_BLOCK = 40
 #   실측 2026-08-28: 29,000건 지점부터 확보율 100% -> 0%. 19,472건이 오염됐다.
 # 진짜 미수록은 흩어져 나오고 쿼터 차단은 연속으로 나온다. 그래서 구분한다.
 MISS_STREAK_BLOCK = 50
+
+# 키를 투입하기 전에 이 ISBN 으로 1회 찔러 본다.
+# 조건: 확실히 존재하고, 우리가 이미 수집해 둔 책이어야 한다
+# (검증 때문에 새 데이터를 얻거나 잃지 않도록).
+PROBE_ISBN = "9788954699914"          # 하얼빈 · 김훈
 
 # ── 서버 장애를 쿼터 소진과 구분한다 ──────────────────────────
 # 실측 2026-08-31: API 가 504 Gateway Time-out 을 뱉는 동안 실패가 쌓여
@@ -224,6 +232,30 @@ def load_keys() -> list:
     if not found:
         raise SystemExit("`.env` 에 정보나루 키가 없다")
     return found
+
+
+def order_keys(found: list, spec: str) -> list:
+    """`--key-order 1,3,4,5,2` 를 실제 키 순서로 옮긴다.
+
+    숫자는 `.env` 의 접미사다 (`정보나루`=1, `정보나루2`=2 ...).
+    지정하지 않은 키는 뒤에 파일 순서대로 붙는다. 없는 번호는 무시한다.
+    """
+    if not spec:
+        return found
+    by_num = {}
+    for name, value in found:
+        tail = name[len("정보나루"):].strip()
+        by_num[tail if tail else "1"] = (name, value)
+    out, used = [], set()
+    for token in spec.split(","):
+        token = token.strip()
+        if token in by_num and token not in used:
+            out.append(by_num[token])
+            used.add(token)
+    for key, pair in by_num.items():
+        if key not in used:
+            out.append(pair)
+    return out
 
 
 def load_done() -> set:
@@ -448,6 +480,10 @@ def retire_key(idx: int, message: str) -> None:
         if idx < 0 or idx in state["dead"]:
             return
         state["dead"].add(idx)
+        # 이 키로 받은 미확정 미수록은 "책 없음" 이 아니라 키 문제다.
+        # 버려야 큐에 남아 다음 실행에서 다시 시도된다.
+        state["dropped_miss"] += len(state["pending_miss"])
+        state["pending_miss"] = []
         name = state["keys"][idx][0]
         used = state["per_key"].get(name, 0)
         left = [state["keys"][i][0] for i in range(len(state["keys"]))
@@ -492,6 +528,79 @@ def note_failure(reason: str, key_idx: int = -1) -> None:
               flush=True)
         with lock:
             state["streak"][key_idx] = 0
+
+
+def probe_key(key: str) -> str:
+    """키 하나를 찔러 본다. 반환: "ok" | "empty" | "quota" | "outage"
+
+    **`diagnose()` 로는 부족하다.** 그쪽은 응답에 `error` 가 없으면 "ok" 라고
+    답하는데, IP 미등록 키는 *error 없는 빈 응답*을 준다 (실측 98바이트).
+    그래서 죽은 키가 "사용 가능" 으로 통과한다.
+
+    여기서는 **확실히 존재하는 책을 실제로 가져오는지**로 판정한다.
+    못 가져오면 그 키로는 수집이 안 된다 — 원인이 IP든 쿼터든 결과는 같다.
+    """
+    url = API + "?" + urllib.parse.urlencode(
+        {"isbn13": PROBE_ISBN, "authKey": key, "format": "json"})
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(
+                    url, headers={"User-Agent": "b102-probe"}), timeout=70) as r:
+                payload = json.loads(r.read().decode("utf-8", "replace"))
+        except HTTPError as error:
+            if error.code in GATEWAY_CODES:
+                return "outage"
+            time.sleep(2)
+            continue
+        except Exception:                               # noqa: BLE001
+            time.sleep(2)
+            continue
+        body = payload.get("response") or {}
+        if body.get("error"):
+            return "quota"
+        return "ok" if (body.get("book") or {}).get("isbn13") else "empty"
+    return "outage"
+
+
+def verify_keys() -> None:
+    """쓰기 시작하기 전에 키를 하나씩 1회 찔러 본다.
+
+    IP 미등록 키는 **정상 형식의 빈 응답**을 준다. 그것을 실제 수집으로
+    알아내려면 MISS_STREAK_BLOCK(50) 건을 헛돌아야 하고, 그 사이 49건이
+    `ok:false` 로 파일에 들어간다. 뒤에 성공이 이어지면 그 49건은
+    **다시 시도되지 않는 영구 결측**이 된다.
+
+    그래서 키당 1회로 미리 판정한다. 못 쓰는 키는 아예 투입하지 않는다.
+    검증에 쓰는 ISBN 은 이미 수집해 둔 책이라 결과가 데이터에 안 남는다.
+    """
+    print("키 투입 전 확인 (키당 1회 호출)", flush=True)
+    verdicts = []
+    for idx, (name, value) in enumerate(state["keys"]):
+        verdict = probe_key(value)
+        verdicts.append(verdict)
+        state["probed"].add(idx)
+        label = {"ok": "사용 가능",
+                 "empty": "빈 응답 — IP 미등록이거나 쿼터 소진",
+                 "quota": "쿼터 소진",
+                 "outage": "서버 장애 (판정 보류)"}[verdict]
+        print(f"  {name:<10} {label}", flush=True)
+
+    # 전부 장애면 서버 문제다. 키를 죽이지 않는다 — 기다렸다 다시 본다.
+    if all(v == "outage" for v in verdicts):
+        print("  -> 전 키가 장애 응답. 서버 문제로 보고 키를 살려 둔다.",
+              flush=True)
+        return
+
+    for idx, verdict in enumerate(verdicts):
+        if verdict in ("empty", "quota"):
+            retire_key(idx, f"투입 전 확인 — {verdict}")
+
+    live = [n for i, (n, _) in enumerate(state["keys"]) if i not in state["dead"]]
+    if not live:
+        state["blocked"] = True
+        state["stop"] = True
+        state["block_msg"] = "투입 전 확인에서 쓸 수 있는 키가 없었다"
+    print(f"  -> 투입 {len(live)}개: {', '.join(live) or '없음'}", flush=True)
 
 
 def pick_key() -> tuple:
@@ -617,10 +726,22 @@ def drain(key: str, pending: list, workers: int) -> int:
             return
         if record is None:
             return
-        line = json.dumps(record, ensure_ascii=False, separators=(",", ":"))
         with write_lock:
-            sink.write(line + "\n")
-            counter["n"] += 1
+            if not record.get("ok"):
+                # **미수록을 바로 쓰지 않는다.**
+                # 빈 응답은 "책 없음" 과 "키가 죽었음" 이 구분되지 않는다.
+                # 바로 쓰면 재개 로직이 완료로 보아 다시 시도하지 않고,
+                # 키 문제였을 경우 그대로 영구 결측이 된다.
+                # 같은 키에서 성공이 나오면(=키가 멀쩡하다는 증거) 그때
+                # 확정하고, 키가 은퇴하면 retire_key 가 통째로 버린다.
+                state["pending_miss"].append(record)
+                return
+            rows = state["pending_miss"] + [record]
+            state["pending_miss"] = []
+            for row in rows:
+                sink.write(json.dumps(row, ensure_ascii=False,
+                                      separators=(",", ":")) + "\n")
+            counter["n"] += len(rows)
             n = counter["n"]
             if n % FLUSH_EVERY == 0:
                 sink.flush()
@@ -640,6 +761,18 @@ def drain(key: str, pending: list, workers: int) -> int:
         with ThreadPoolExecutor(max_workers=workers) as pool:
             list(pool.map(worker, pending))
     finally:
+        # 남은 버퍼: 정상 종료면 진짜 미수록이므로 확정한다.
+        # 차단·중단으로 끝났으면 키 문제일 수 있어 버린다 (큐에 남는다).
+        with write_lock:
+            rows = state["pending_miss"]
+            state["pending_miss"] = []
+        if rows and not state["stop"] and not state["blocked"]:
+            for row in rows:
+                sink.write(json.dumps(row, ensure_ascii=False,
+                                      separators=(",", ":")) + "\n")
+            counter["n"] += len(rows)
+        elif rows:
+            state["dropped_miss"] += len(rows)
         sink.flush()
         os.fsync(sink.fileno())
         sink.close()
@@ -723,6 +856,9 @@ def summary() -> None:
     print(f"  서지 확보   {state['hit']:>9,}")
     print(f"  미수록      {state['miss']:>9,}")
     print(f"  오류        {state['error']:>9,}")
+    if state.get("dropped_miss"):
+        print(f"  버린 미수록 {state['dropped_miss']:>9,}  "
+              f"(키 문제로 판단 — 큐에 남아 다음에 다시 시도한다)")
     if state.get("gw_total"):
         print(f"  서버 장애   {state['gw_total']:>9,}  (일시 정지 {state['pauses']}회)")
     if state.get("keys"):
@@ -736,7 +872,7 @@ def summary() -> None:
 
 
 def run(args) -> int:
-    keys = load_keys()
+    keys = order_keys(load_keys(), getattr(args, "key_order", ""))
     state["keys"] = keys
     state["per_key"] = load_usage()
     if state["per_key"]:
@@ -751,6 +887,8 @@ def run(args) -> int:
         pending = pending[:args.limit]
 
     print(f"큐 {len(targets):,}건 · 완료 {len(done):,}건 · 이번 대상 {len(pending):,}건")
+    if not getattr(args, "no_verify", False):
+        verify_keys()
     print(f"키 {len(keys)}개 순차 소진: {', '.join(n for n, _ in keys)}  "
           f"(키당 예산 {KEY_BUDGET:,})")
     print("  한 키를 예산만큼 쓰고 다음으로 넘긴다. 우리가 직접 세므로")
@@ -806,6 +944,11 @@ def run(args) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workers", type=int, default=WORKERS)
+    parser.add_argument("--key-order", default="",
+                        help="키 사용 순서. 예: 1,3,4,5,2 "
+                             "(.env 접미사 기준, 정보나루=1). 지정 안 하면 파일 순서)")
+    parser.add_argument("--no-verify", action="store_true",
+                        help="투입 전 키 확인을 건너뛴다 (권장하지 않음)")
     parser.add_argument("--limit", type=int, default=0,
                         help="이번 실행에서 처리할 최대 건수")
     parser.add_argument("--wait", action="store_true",
