@@ -107,6 +107,7 @@ state = {
 
     # 서버 장애 추적. 키 쿼터와 무관하다
     "gw_streak": 0, "gw_total": 0, "paused": False, "pauses": 0,
+    "last_diagnose": 0.0, "diagnoses": 0, "diag_skipped": 0,
 
     # 장애 시 **모든 워커**를 세우는 게이트.
     # 한 스레드만 재우면 나머지가 계속 두드려 예산이 순식간에 증발한다 —
@@ -153,6 +154,11 @@ GATEWAY_STREAK_PAUSE = 30      # 연속 이만큼이면 전체 일시 정지
 SERVER_WAIT = 300              # 정지 후 대기 (초)
 SERVER_WAIT_MAX = 12           # 최대 반복 (= 1시간)
 GATEWAY_TIMEOUT = 25           # 장애 중에는 짧게 끊는다
+
+# 진단(diagnose) 호출 사이 최소 간격.
+# 진단도 실제 API 호출이라 쿼터에서 빠진다. 이미 아픈 서버를 반복해서
+# 찌를 이유가 없다. 실측: 장애 두 번에 94회가 불렸다.
+DIAGNOSE_MIN_GAP = 120
 
 # ── 키는 순차로 예산만큼 쓴다 (라운드로빈이 아니다) ────────────
 # 라운드로빈을 먼저 시도했다가 접었다. 실패 원인이 (a) 그 키의 쿼터 소진인지
@@ -536,10 +542,22 @@ def note_failure(reason: str, key_idx: int = -1) -> None:
     if not hit:
         return
 
-    # 이미 장애로 판정해 정지 중이면 또 찌르지 않는다.
-    # 예전에는 임계를 넘긴 실패마다 diagnose 가 서버를 한 번 더 찔러서
-    # 장애 한 번에 24회를 호출했다. 그것도 전부 쿼터에서 빠진다.
-    if state["paused"]:
+    # **진단도 실제 API 호출이다.** 이미 아픈 서버를 반복해서 찌르면
+    # 얻는 것 없이 쿼터만 빠진다. `paused` 검사만으로는 부족했다 —
+    # 정지 전 구간과 정지 해제 직후에 워커들이 다시 40회를 쌓아 매번 불렀다.
+    # 그래서 최소 간격을 둔다. 건너뛸 때도 게이트웨이 카운터는 먹여서
+    # **추가 호출 없이** 정지가 걸리도록 한다.
+    now = time.time()
+    with lock:
+        too_soon = (now - state["last_diagnose"]) < DIAGNOSE_MIN_GAP
+        if not too_soon:
+            state["last_diagnose"] = now
+            state["diagnoses"] += 1
+        else:
+            state["diag_skipped"] += 1
+    if state["paused"] or too_soon:
+        if note_gateway():
+            wait_for_server()
         with lock:
             state["streak"][key_idx] = 0
         return
@@ -901,6 +919,9 @@ def summary() -> None:
     if state.get("dropped_miss"):
         print(f"  버린 미수록 {state['dropped_miss']:>9,}  "
               f"(키 문제로 판단 — 큐에 남아 다음에 다시 시도한다)")
+    if state.get("diagnoses") or state.get("diag_skipped"):
+        print(f"  진단 호출   {state['diagnoses']:>9,}  "
+              f"(간격 제한으로 생략 {state['diag_skipped']:,}회)")
     if state.get("gw_total"):
         print(f"  서버 장애   {state['gw_total']:>9,}  (일시 정지 {state['pauses']}회)")
     if state.get("keys"):
