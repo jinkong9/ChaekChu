@@ -20,8 +20,11 @@ export default function Layout() {
       ? 'text-primary font-bold underline underline-offset-4 decoration-2'
       : 'text-gray-400 hover:text-primary'
   return (
-    <div className="min-h-screen bg-cream">
-      <header className="flex items-center px-8 py-3 border-b-2 border-primary bg-white">
+    // 세로 플렉스 — Outlet이 헤더를 뺀 나머지를 정확히 채운다.
+    // 화면 높이를 calc(100vh - 헤더높이)로 빼서 쓰면 헤더 구성이 바뀔 때마다
+    // 그 상수가 어긋나 바닥에 배경색 띠가 남는다.
+    <div className="flex min-h-screen flex-col bg-cream">
+      <header className="flex shrink-0 items-center px-8 py-3 border-b-2 border-primary bg-white">
         <Link to="/home" className="text-lg font-bold tracking-tight text-primary">책추책책추</Link>
         <nav className="ml-8 flex items-center gap-6 text-sm">
           {MENU.map((m) => (
