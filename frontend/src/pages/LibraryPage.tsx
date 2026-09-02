@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import LibraryPageShelf from './LibraryPageShelf'
 import LibraryPageB from './LibraryPageB'
+import LibraryPageArchive from './LibraryPageArchive'
 
 /** 내 서재 시안 토글 (팀 비교용 — 홈·추천과 같은 방식. 확정되면 한쪽만 남기고 이 파일 정리) */
 const VARIANTS = [
   { key: 'shelf', label: 'A 선반' },
   { key: 'book', label: 'B 나의 책' },
+  { key: 'archive', label: 'C 완독 기록' },
 ] as const
 
 type Variant = (typeof VARIANTS)[number]['key']
@@ -24,6 +26,7 @@ export default function LibraryPage() {
       </div>
       {variant === 'shelf' && <LibraryPageShelf />}
       {variant === 'book' && <LibraryPageB />}
+      {variant === 'archive' && <LibraryPageArchive />}
     </div>
   )
 }
