@@ -98,6 +98,11 @@ NL = chr(10)
 state = {
     "calls": 0, "hit": 0, "miss": 0, "error": 0,
     "blocked": False, "stop": False, "block_msg": "",
+
+    # **사용자 중단과 상한 정지를 구분해야 한다.** 둘 다 stop 을 세우는데,
+    # 자정 대기 루프가 stop 으로 빠져나가면 상한 정지에서도 즉시 깨어나
+    # 무한 루프가 된다 (실측 2026-09-02~03: 로그 175만 줄, 이틀 손실).
+    "interrupted": False,
     "keys": [], "per_key": {}, "dead": set(), "rr": 0,
 
     # 연속 실패는 **키별로** 센다. 전역으로 세면 한 키가 쏟아낸 실패가
@@ -1006,6 +1011,7 @@ def run(args) -> int:
 
     def graceful(signum, frame):
         print("\n중단 신호 — 진행분을 저장하고 종료한다", flush=True)
+        state["interrupted"] = True
         state["stop"] = True
 
     signal.signal(signal.SIGINT, graceful)
@@ -1029,14 +1035,41 @@ def run(args) -> int:
                 break
             print(f"    KST 자정까지 {wait/3600:.1f}시간 대기 후 자동 재개", flush=True)
             slept = 0.0
-            while slept < wait and not state["stop"]:
+            # **stop 이 아니라 interrupted 를 본다.** 상한 정지도 stop 을
+            # 세우므로 stop 으로 빠져나가면 한 번도 자지 않는다.
+            while slept < wait and not state["interrupted"]:
                 time.sleep(min(60, wait - slept))
                 slept += 60
-            if state["stop"] and not state["blocked"]:
+            if state["interrupted"]:
                 break
-            state["blocked"] = False
-            state["stop"] = False
+
+            # **날짜가 바뀌었으니 카운터를 되살려야 한다.**
+            # load_usage() 는 기동 시 한 번만 부른다. 여기서 다시 읽지 않으면
+            # per_key 와 dead 가 어제 값 그대로라 pick_key 가 곧바로 None 을
+            # 돌려주고 다시 상한 -> 다시 대기로 무한 루프가 된다.
+            with lock:
+                state["blocked"] = False
+                state["stop"] = False
+                state["block_msg"] = ""
+                state["dead"] = set()        # 어제 은퇴한 키도 오늘은 살아난다
+                state["streak"] = {}
+                state["miss_streak"] = {}
+                state["gw_streak"] = 0
+                state["paused"] = False
+                state["pending_miss"] = []
+            state["go"].set()
+            state["per_key"] = load_usage()  # 날짜가 다르면 {} 를 돌려준다
             print(f"\n=== 재개 {datetime.now(KST):%Y-%m-%d %H:%M} KST ===", flush=True)
+            if state["per_key"]:
+                print("    오늘 이미 쓴 양: "
+                      + " · ".join(f"{k} {v:,}"
+                                   for k, v in state["per_key"].items()),
+                      flush=True)
+            if not getattr(args, "no_verify", False):
+                verify_keys()            # 오늘 쓸 수 있는 키를 다시 확인
+            if state["blocked"]:         # 확인에서 전부 막히면 더 못 간다
+                print("    재개했으나 쓸 수 있는 키가 없다 — 종료", flush=True)
+                break
             continue
         if state["stop"]:
             break                       # 사용자 중단
