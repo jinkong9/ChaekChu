@@ -137,12 +137,14 @@ export default function HomePageOrbit() {
         style={{ top: holeCenter }}>
         <AnimatePresence>
           {hovered == null || !current ? (
+            /* Cormorant Garamond 는 x-height 가 낮아 같은 px 에서 작아 보이므로 크기를 한 단계 올리고,
+               자간은 한글 산세리프용 음수(-0.045em) 대신 라틴 세리프에 맞게 0 근처로 되돌린다 */
             <motion.p key="wordmark"
               initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.16 }}
-              className="col-start-1 row-start-1 whitespace-nowrap font-extrabold text-primary"
-              style={{ fontSize: 'clamp(40px, 6.2vw, 92px)', letterSpacing: '-0.045em' }}>
-              책추책책추
+              className="col-start-1 row-start-1 whitespace-nowrap font-wordmark text-primary"
+              style={{ fontSize: 'clamp(46px, 7vw, 104px)', fontWeight: 600, letterSpacing: '0.01em' }}>
+              Book For You
             </motion.p>
           ) : (
             <motion.div key={`preview-${current.book.bookId}`}
