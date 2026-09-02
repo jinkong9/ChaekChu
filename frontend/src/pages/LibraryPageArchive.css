@@ -54,7 +54,7 @@
   line-height: 1.6;
 }
 
-.library-archive__stage {
+.book-experience__stage.library-archive__stage {
   height: calc(100vh - 58px);
   margin-top: 0;
   perspective-origin: 50% 44%;
