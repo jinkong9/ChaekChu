@@ -20,10 +20,14 @@ const PLANE_Y = 0.44       // 링 중심의 세로 위치
  *  링은 크게, 책은 작게 — 그래야 가운데에 워드마크가 들어갈 구멍이 생긴다 (레퍼런스 구도).
  *  파생값(앞줄 밑변·뒷줄 밑변·구멍 중앙)까지 같이 계산해서 화면 요소를 거기에 맞춘다. */
 function orbitGeometry(w: number, h: number) {
-  const radiusX = Math.max(240, Math.min(w * 0.34, 520))
-  const radiusY = Math.round(radiusX * 0.36)
-  const depth = Math.max(180, Math.min(radiusX * 0.62, 340))
-  const bookW = Math.round(Math.max(44, Math.min(radiusX * 0.13, h * 0.105)))
+  // 링의 기준 크기 — 세로·깊이·책 크기가 전부 여기서 나온다
+  const base = Math.max(240, Math.min(w * 0.34, 520))
+  // 가로만 조금 더 벌린다. base 를 같이 키우면 책도 커져서 '넓어졌다'가 아니라
+  // '전체가 커졌다'로 보인다. 상한은 링 바깥 섹터 라벨이 화면에 들어올 만큼 (라벨 여유 110px)
+  const radiusX = Math.max(base, Math.min(base * 1.15, w / 2 - 110))
+  const radiusY = Math.round(base * 0.36)
+  const depth = Math.max(180, Math.min(base * 0.62, 340))
+  const bookW = Math.round(Math.max(44, Math.min(base * 0.13, h * 0.105)))
   const bookH = Math.round(bookW * 1.45)
 
   const near = PERSPECTIVE / (PERSPECTIVE - depth)   // 맨 앞 배율
