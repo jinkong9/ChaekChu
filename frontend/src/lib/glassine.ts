@@ -19,8 +19,8 @@ export function glassine(tint = 0.62, blur = 0): CSSProperties {
     // 결(--paper-fiber)이 위, 종이색 그러데이션이 아래. 결은 알파가 낮아 반투명을 해치지 않는다.
     backgroundImage:
       'var(--paper-fiber), ' +
-      `linear-gradient(118deg, rgba(255,255,255,${(tint + 0.1).toFixed(2)}) 0%, ` +
-      `rgba(234,236,239,${(tint - 0.04).toFixed(2)}) 55%, rgba(214,219,225,${(tint - 0.08).toFixed(2)}) 100%)`,
+      `linear-gradient(118deg, rgba(255,255,255,${Math.min(tint + 0.12, 0.92).toFixed(2)}) 0%, ` +
+      `rgba(239,240,238,${Math.max(tint - 0.05, 0.08).toFixed(2)}) 50%, rgba(207,211,210,${Math.max(tint - 0.1, 0.06).toFixed(2)}) 100%)`,
     backgroundSize: '240px 240px, auto',
     ...(blur > 0 ? { backdropFilter: `blur(${blur}px) saturate(0.8)`, WebkitBackdropFilter: `blur(${blur}px) saturate(0.8)` } : {}),
   }
