@@ -1,10 +1,12 @@
 import { useState, type ComponentType } from 'react'
 import HomePageOrbit from './HomePageOrbit'
+import HomePageB from './HomePageB'
 
 /** 홈 시안 토글 (팀 비교용 — 한 안으로 확정되면 이 파일을 지우고 라우트가 그 안을 직접 가리키게 한다).
  *  시안 추가는 이 배열에 { key, label, Page } 한 줄만 더하면 된다. */
 const VARIANTS: { key: string; label: string; Page: ComponentType }[] = [
   { key: 'orbit', label: 'A 궤도', Page: HomePageOrbit },
+  { key: 'shelf', label: 'B 서가', Page: HomePageB },
 ]
 
 export default function HomePage() {
