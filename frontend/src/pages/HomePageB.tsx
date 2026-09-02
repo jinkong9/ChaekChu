@@ -18,6 +18,10 @@ const GAP = 10
 /** 아래 줄이 조금 느려야 두 줄이 같은 박자로 움직이지 않는다 */
 const ROW1_SEC = 56
 const ROW2_SEC = 72
+/** 아래 여백 — 없으면 아랫줄이 화면 바닥에 딱 붙어 잘린 것처럼 보인다 */
+const ROWS_PAD = 28
+/** 두 줄을 자르지 않고 그대로 담는 높이 */
+const ROWS_H = COVER_H * 2 + GAP + ROWS_PAD
 
 const CSS = `
   /* 같은 세트를 두 벌 넣고 한 세트 폭(-50%)만큼 옮기면 이음매가 보이지 않는다 */
@@ -82,7 +86,8 @@ export default function HomePageB() {
   const row1 = items.slice(0, half)
   const row2 = items.slice(half)
 
-  const stage = { minHeight: 620 }
+  // 두 줄이 온전히 들어갈 만큼은 확보해야 아래 줄이 잘리지 않는다 (표지 두 줄 + 히어로 최소치)
+  const stage = { minHeight: ROWS_H + 340 }
   const shell = 'flex-1 flex flex-col overflow-hidden'
 
   const open = (it: RecommendationItem) => {
@@ -145,8 +150,8 @@ export default function HomePageB() {
         </div>
       </div>
 
-      {/* ===== 두 줄이 서로 반대 방향으로. 아래 줄은 화면 끝에 잘려 계속 이어지는 느낌을 준다 ===== */}
-      <div className="shrink-0 overflow-hidden" style={{ height: COVER_H + GAP + 128 }}>
+      {/* ===== 두 줄이 서로 반대 방향으로. 좌우로는 흘러 나가되 위아래로는 잘리지 않는다 ===== */}
+      <div className="shrink-0" style={{ height: ROWS_H, paddingBottom: ROWS_PAD }}>
         <div className="flex flex-col" style={{ gap: GAP }}>
           <Row items={row1} seconds={ROW1_SEC} onOpen={open} />
           <Row items={row2} reverse seconds={ROW2_SEC} onOpen={open} />
