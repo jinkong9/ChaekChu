@@ -41,6 +41,8 @@ const CATALOG: BookSummary[] = [
   b(32, '달러구트 꿈 백화점', '이미예', '팩토리나인', 300, 2020),
   b(33, '아주 오랜만에 행복하다는 느낌', '백수린', '창비', 232, 2022),
   b(34, '여행의 이유', '김영하', '문학동네', 208, 2019),
+  b(35, '소년이 온다', '한강', '창비', 216, 2014),
+  b(36, '어린이라는 세계', '김소영', '사계절', 264, 2020),
 ]
 
 /** ============ 분류 (국중 KDC 2단계 기준) — books.categories 정제 결과의 mock ============ */
@@ -53,7 +55,7 @@ const CATEGORY: Record<number, string> = {
   21: '역사 > 인류사', 22: '과학 > 생물학', 23: '인문 > 철학', 24: '문학 > 일본문학',
   25: '문학 > 일본문학', 26: '문학 > 한국소설', 27: '문학 > 한국소설', 28: '문학 > 한국소설',
   29: '문학 > 한국소설', 30: '문학 > 한국소설', 31: '문학 > 한국소설', 32: '문학 > 한국소설',
-  33: '문학 > 에세이', 34: '문학 > 에세이',
+  33: '문학 > 에세이', 34: '문학 > 에세이', 35: '문학 > 한국소설', 36: '문학 > 에세이',
 }
 /** 표지 URL — 카카오 책 검색 API로 확보한 실제 썸네일 (핫링크, 실 데이터 합류 시 books.coverImageUrl로 교체) */
 const COVER: Record<number, string> = {
@@ -91,6 +93,8 @@ const COVER: Record<number, string> = {
   32: 'https://image.aladin.co.kr/product/24512/70/cover500/k392630952_3.jpg',
   33: 'https://image.aladin.co.kr/product/30276/23/cover500/8936438867_1.jpg',
   34: 'https://image.aladin.co.kr/product/18827/60/cover500/8954655971_3.jpg',
+  35: 'https://image.aladin.co.kr/product/23940/2/cover500/8936434411_1.jpg',
+  36: 'https://image.aladin.co.kr/product/25509/75/cover500/k132633125_2.jpg',
 }
 const withCategory = (bk: BookSummary): BookSummary =>
   ({ ...bk, category: CATEGORY[bk.bookId] ?? null, coverUrl: COVER[bk.bookId] ?? null })
@@ -121,6 +125,12 @@ const TAIL: { i: number; tags: string[]; reason: string }[] = [
   { i: 27, tags: ['#성장', '#짧은호흡'], reason: '『아몬드』에 5점을 준 취향의 성장 서사예요.' },
   { i: 28, tags: ['#소설', '#스테디셀러'], reason: '완독한 한국소설들과 정서가 가까워요.' },
   { i: 29, tags: ['#추리', '#짧은호흡'], reason: '176쪽, 한 자리에서 끝낼 수 있어요.' },
+  { i: 30, tags: ['#판타지', '#지금뜨는'], reason: '서재에 없는 SF인데 또래에서 가장 많이 읽혀요.' },
+  { i: 31, tags: ['#판타지', '#베스트셀러'], reason: '가볍게 읽히는 판타지 베스트셀러예요.' },
+  { i: 32, tags: ['#에세이', '#짧은호흡'], reason: '서재에 에세이가 없어 짧은 것부터 골랐어요.' },
+  { i: 33, tags: ['#에세이', '#같은작가'], reason: '『살인자의 기억법』 작가의 산문이에요.' },
+  { i: 34, tags: ['#같은작가', '#내취향근접'], reason: '『채식주의자』와 같은 작가의 다른 결이에요.' },
+  { i: 35, tags: ['#에세이', '#새로운분야'], reason: '소설에 치우친 서재에 다른 결을 하나 얹었어요.' },
 ]
 
 const recommendations: RecommendationResponse = {

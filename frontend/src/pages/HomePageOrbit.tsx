@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { useRecommendations } from '../lib/useRecommendations'
 import { trackEvent } from '../lib/events'
-import { useAuthStore } from '../stores/authStore'
 import BookOrbit, { type OrbitHandle } from '../components/BookOrbit'
 import BookCover from '../components/BookCover'
 
@@ -21,10 +20,14 @@ const PLANE_Y = 0.44       // 링 중심의 세로 위치
  *  링은 크게, 책은 작게 — 그래야 가운데에 워드마크가 들어갈 구멍이 생긴다 (레퍼런스 구도).
  *  파생값(앞줄 밑변·뒷줄 밑변·구멍 중앙)까지 같이 계산해서 화면 요소를 거기에 맞춘다. */
 function orbitGeometry(w: number, h: number) {
-  const radiusX = Math.max(240, Math.min(w * 0.34, 520))
-  const radiusY = Math.round(radiusX * 0.36)
-  const depth = Math.max(180, Math.min(radiusX * 0.62, 340))
-  const bookW = Math.round(Math.max(44, Math.min(radiusX * 0.13, h * 0.105)))
+  // 링의 기준 크기 — 세로·깊이·책 크기가 전부 여기서 나온다
+  const base = Math.max(240, Math.min(w * 0.34, 520))
+  // 가로만 조금 더 벌린다. base 를 같이 키우면 책도 커져서 '넓어졌다'가 아니라
+  // '전체가 커졌다'로 보인다. 상한은 링 바깥 섹터 라벨이 화면에 들어올 만큼 (라벨 여유 110px)
+  const radiusX = Math.max(base, Math.min(base * 1.15, w / 2 - 110))
+  const radiusY = Math.round(base * 0.36)
+  const depth = Math.max(180, Math.min(base * 0.62, 340))
+  const bookW = Math.round(Math.max(44, Math.min(base * 0.13, h * 0.105)))
   const bookH = Math.round(bookW * 1.45)
 
   const near = PERSPECTIVE / (PERSPECTIVE - depth)   // 맨 앞 배율
@@ -40,7 +43,6 @@ function orbitGeometry(w: number, h: number) {
 }
 
 export default function HomePageOrbit() {
-  const nickname = useAuthStore((s) => s.nickname)
   const navigate = useNavigate()
   const { data, isPending } = useRecommendations()
   const orbit = useRef<OrbitHandle>(null)
@@ -137,12 +139,14 @@ export default function HomePageOrbit() {
         style={{ top: holeCenter }}>
         <AnimatePresence>
           {hovered == null || !current ? (
+            /* Cormorant Garamond 는 x-height 가 낮아 같은 px 에서 작아 보이므로 크기를 한 단계 올리고,
+               자간은 한글 산세리프용 음수(-0.045em) 대신 라틴 세리프에 맞게 0 근처로 되돌린다 */
             <motion.p key="wordmark"
               initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.16 }}
-              className="col-start-1 row-start-1 whitespace-nowrap font-extrabold text-primary"
-              style={{ fontSize: 'clamp(40px, 6.2vw, 92px)', letterSpacing: '-0.045em' }}>
-              책추책책추
+              className="col-start-1 row-start-1 whitespace-nowrap font-wordmark text-primary"
+              style={{ fontSize: 'clamp(46px, 7vw, 104px)', fontWeight: 600, letterSpacing: '0.01em' }}>
+              Book For You
             </motion.p>
           ) : (
             <motion.div key={`preview-${current.book.bookId}`}
@@ -191,11 +195,6 @@ export default function HomePageOrbit() {
           </button>
         )
       })}
-
-      {/* ===== 좌상단 — 인사 한 줄. 나머지 내비게이션은 GNB가 이미 갖고 있다 ===== */}
-      <p className="pointer-events-none absolute left-8 top-6 z-20 text-sm text-gray-400">
-        {nickname ?? '독자'}님, 오늘의 궤도예요
-      </p>
 
       {/* ===== 하단 — 정면 책의 이름·이유·행동 ===== */}
       <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 px-8 pb-10">
