@@ -2,6 +2,8 @@
 @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
 /* Cormorant Garamond — 홈 궤도 가운데 워드마크 전용 세리프. 본문 폰트로는 쓰지 않는다. */
 @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&display=swap");
+/* Noto Serif KR — 홈 B안 히어로 헤드라인. 한글 세리프가 필요한 곳에만 쓴다. */
+@import url("https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;600&display=swap");
 @import "tailwindcss";
 
 /* 그리운 푸하체 — 추천 편지(엽서) 손글씨 전용. 본문 폰트로는 쓰지 않는다. */
@@ -24,6 +26,7 @@
   --font-display: 'Jua', 'Apple SD Gothic Neo', sans-serif;
   --font-hand: 'YearningPuha', 'Jua', 'Apple SD Gothic Neo', cursive;  /* 엽서 손글씨 */
   --font-wordmark: 'Cormorant Garamond', 'Times New Roman', serif;     /* 홈 워드마크 */
+  --font-serif-ko: 'Noto Serif KR', 'Apple SD Gothic Neo', serif;      /* 한글 세리프 헤드라인 */
   --color-paper: #f6f1e3;     /* 엽서 종이 */
   --color-kraft: #e6d9be;     /* 편지 봉투 */
   --color-ink-pen: #2b3a86;   /* 만년필 잉크 — 손글씨 전용 */
