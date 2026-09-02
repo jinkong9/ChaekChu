@@ -103,6 +103,9 @@ state = {
     # 자정 대기 루프가 stop 으로 빠져나가면 상한 정지에서도 즉시 깨어나
     # 무한 루프가 된다 (실측 2026-09-02~03: 로그 175만 줄, 이틀 손실).
     "interrupted": False,
+
+    # 카운터가 어느 날짜의 것인지. 날짜가 바뀌면 되살린다.
+    "usage_date": None,
     "keys": [], "per_key": {}, "dead": set(), "rr": 0,
 
     # 연속 실패는 **키별로** 센다. 전역으로 세면 한 키가 쏟아낸 실패가
@@ -392,6 +395,7 @@ def load_usage() -> dict:
     이게 없으면 재시작할 때마다 예산이 초기화돼 실제 상한을 넘긴다.
     """
     today = datetime.now(KST).strftime("%Y-%m-%d")
+    state["usage_date"] = today
     if USAGE.exists():
         try:
             saved = json.loads(USAGE.read_text(encoding="utf-8"))
@@ -403,6 +407,8 @@ def load_usage() -> dict:
 
 
 def save_usage() -> None:
+    # 200건마다 불린다. 자정을 넘겨 계속 도는 경우가 여기서 잡힌다.
+    roll_day_if_needed()
     try:
         with lock:
             data = {"date": datetime.now(KST).strftime("%Y-%m-%d"),
@@ -663,6 +669,40 @@ def verify_keys() -> None:
     print(f"  -> 투입 {len(live)}개: {', '.join(live) or '없음'}", flush=True)
 
 
+def roll_day_if_needed() -> bool:
+    """KST 날짜가 바뀌었으면 카운터를 되살린다.
+
+    **날짜가 주 기준이고 호출 수는 보조 안전장치다.**
+    쿼터는 KST 자정에 서버에서 리셋된다. 우리 카운터는 그것을 흉내내는
+    보조 수단일 뿐이다. 그런데 날짜 확인이 기동 시점에만 있으면,
+    프로세스가 자정을 넘겨 계속 도는 동안 per_key 가 어제 값 위에 쌓여
+    **서버는 리셋됐는데 우리만 상한이라고 판단해 멈춘다.**
+
+    실측 2026-09-02~03: 09-01 에 5개 키를 다 쓴 뒤 이틀을 통째로 날렸다.
+
+    어제 은퇴한 키도 오늘은 살아나므로 dead 와 스트릭도 함께 비운다.
+    """
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+    with lock:
+        prev = state.get("usage_date")
+        if prev == today:
+            return False
+        state["usage_date"] = today
+        if prev is None:                 # 기동 직후 — 되살릴 것이 없다
+            return False
+        state["per_key"] = {}
+        state["dead"] = set()
+        state["streak"] = {}
+        state["miss_streak"] = {}
+        state["gw_streak"] = 0
+        state["blocked"] = False
+        state["block_msg"] = ""
+        state["stop"] = False
+    state["go"].set()
+    print(NL + f"=== 날짜 변경 {prev} -> {today} · 카운터 초기화 ===", flush=True)
+    return True
+
+
 def pick_key() -> tuple:
     """예산이 남은 키를 앞에서부터 하나 고른다 (순차 소진).
 
@@ -680,6 +720,11 @@ def pick_key() -> tuple:
                 continue
             return name, value, idx
 
+        # **상한을 선언하기 전에 날짜부터 본다.** 자정을 넘겼으면 서버 쿼터가
+        # 이미 리셋됐으므로 우리 카운터만 붙들고 멈출 이유가 없다.
+        # (lock 을 잡은 채라 여기서 직접 부르지 않고 아래에서 처리한다)
+        stale = state.get("usage_date") != datetime.now(KST).strftime("%Y-%m-%d")
+
         # 쓸 수 있는 키가 하나도 없다. **여기서 상한 도달을 선언해야 한다.**
         #
         # 키는 두 가지 경로로 빠진다 — 은퇴(빈 응답으로 판정, dead 에 들어감)와
@@ -691,7 +736,7 @@ def pick_key() -> tuple:
         # run 루프가 `if not written: break` 로 그냥 종료한다.
         # **--wait 의 자정 재개가 작동하지 않는다.** systemd 가 재시작하면
         # 투입 전 키 확인 5호출만 태우고 또 즉시 종료하기를 반복한다.
-        if not state["blocked"]:
+        if not stale and not state["blocked"]:
             live = [state["keys"][i][0] for i in range(len(state["keys"]))
                     if i not in state["dead"]]
             state["blocked"] = True
@@ -699,6 +744,10 @@ def pick_key() -> tuple:
             state["block_msg"] = (
                 f"쓸 수 있는 키 없음 — 은퇴 {len(state['dead'])}개"
                 + (f" · 예산 소진 {len(live)}개" if live else ""))
+
+    if stale:                            # 날짜가 바뀌었다 — 되살리고 다시 고른다
+        roll_day_if_needed()
+        return pick_key()
     return None, None, -1
 
 
