@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { useRecommendations } from '../lib/useRecommendations'
 import { trackEvent } from '../lib/events'
-import { useAuthStore } from '../stores/authStore'
 import BookOrbit, { type OrbitHandle } from '../components/BookOrbit'
 import BookCover from '../components/BookCover'
 
@@ -40,7 +39,6 @@ function orbitGeometry(w: number, h: number) {
 }
 
 export default function HomePageOrbit() {
-  const nickname = useAuthStore((s) => s.nickname)
   const navigate = useNavigate()
   const { data, isPending } = useRecommendations()
   const orbit = useRef<OrbitHandle>(null)
@@ -193,11 +191,6 @@ export default function HomePageOrbit() {
           </button>
         )
       })}
-
-      {/* ===== 좌상단 — 인사 한 줄. 나머지 내비게이션은 GNB가 이미 갖고 있다 ===== */}
-      <p className="pointer-events-none absolute left-8 top-6 z-20 text-sm text-gray-400">
-        {nickname ?? '독자'}님, 오늘의 궤도예요
-      </p>
 
       {/* ===== 하단 — 정면 책의 이름·이유·행동 ===== */}
       <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 px-8 pb-10">
