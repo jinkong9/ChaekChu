@@ -1,0 +1,111 @@
+/* BOOK DNA 시안 — Editorial Orbit 토큰 (DESIGN.md).
+   전역 토큰 교체 전이므로 페이지 루트(.dna-mock)에 스코프한다. */
+.dna-mock {
+  --paper: #fdfdfb;
+  --ink: #0b0b0b;
+  --ink-muted: rgba(11, 11, 11, 0.56);
+  --ink-faint: rgba(11, 11, 11, 0.42);
+  --rule: rgba(11, 11, 11, 0.25);
+  --rule-soft: rgba(11, 11, 11, 0.18);
+  --placeholder: #e9e9e5;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 28px 64px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.dna-mock button { font: inherit; }
+
+/* ── 공용 타이포 ─────────────────────────────── */
+.dna-section-title { font-size: 19px; font-weight: 650; line-height: 1.25; letter-spacing: -0.02em; margin: 0; }
+.dna-headline {
+  font-size: clamp(19px, 2.7vw, 42px); font-weight: 550; line-height: 1.04; letter-spacing: -0.055em;
+  margin: 12px 0 24px; text-wrap: balance;
+}
+.dna-utility { font-size: 10px; font-weight: 450; line-height: 1.2; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+/* ── 도구 영역 ───────────────────────────────── */
+.dna-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 40px; flex-wrap: wrap; }
+.dna-personas { display: flex; gap: 18px; }
+.dna-persona {
+  min-height: 40px; padding: 0; border: 0; border-bottom: 2px solid transparent;
+  background: transparent; color: var(--ink-faint); font-size: 15px; font-weight: 700; cursor: pointer;
+  transition: color 140ms ease-out, opacity 140ms ease-out;
+}
+.dna-persona:hover { color: var(--ink); }
+.dna-persona.is-active { color: var(--ink); border-bottom-color: currentColor; }
+.dna-persona:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+/* ── 히어로: 스펙트럼 ─────────────────────────── */
+.dna-hero { border-top: 1px solid var(--rule); margin-top: 25px; padding-top: 24px; }
+.dna-spectrum { margin: 0; display: grid; gap: 12px; }
+.dna-spectrum__band {
+  height: 88px; border: 1px solid rgba(0, 0, 0, 0.08);
+  animation: dna-reveal 180ms ease-out both;
+}
+@keyframes dna-reveal { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* 표지 스트립 — 스펙트럼 순서 그대로 놓아 "이 색이 이 책"이 읽히게 */
+.dna-strip { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; }
+.dna-strip img {
+  width: var(--strip-w, 34px); aspect-ratio: 0.7; object-fit: cover; flex: none;
+  background: var(--placeholder); outline: 1px solid rgba(0, 0, 0, 0.1);
+  transition: transform 140ms ease-out;
+}
+.dna-strip img:hover { transform: translateY(-3px); }
+
+/* ── 섹션 공통 ───────────────────────────────── */
+.dna-section { border-top: 1px solid var(--rule); margin-top: 38px; padding-top: 25px; display: grid; gap: 24px; align-content: start; }
+
+/* 하단 4개 섹션: 장르·작가 / 선언vs행동·최근 — 가로 2줄 */
+.dna-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 48px; }
+
+/* 장르 — 카드 없이 규칙선 행 */
+.dna-genres { list-style: none; margin: 0; padding: 0; }
+.dna-genre {
+  display: grid; grid-template-columns: 24px minmax(72px, auto) 40px 1fr; align-items: center; gap: 14px;
+  padding: 12px 0; border-bottom: 1px solid var(--rule-soft);
+}
+.dna-genre__rank { font-size: 11px; font-weight: 650; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.dna-genre__label { font-size: 15px; font-weight: 650; letter-spacing: -0.02em; }
+.dna-genre__count { font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+/* 작가 */
+.dna-authors { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.dna-authors li { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--rule-soft); }
+.dna-authors__name { font-size: 15px; font-weight: 650; letter-spacing: -0.02em; }
+.dna-authors__meta { font-size: 11px; font-weight: 650; color: var(--ink-muted); }
+.dna-authors__best { font-size: 12px; color: var(--ink-muted); }
+
+/* 선언 vs 행동 */
+.dna-compare { display: grid; gap: 18px; }
+.dna-compare__row { display: grid; gap: 8px; }
+.dna-compare__row > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.dna-chip {
+  padding: 6px 12px; border: 1px solid var(--rule); border-radius: 999px;
+  font-size: 11px; font-weight: 650; color: var(--ink-muted); background: transparent;
+}
+.dna-chip.is-matched { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+/* 최근 성향 */
+.dna-recent { display: grid; gap: 12px; }
+.dna-recent__note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-muted); text-wrap: pretty; }
+
+/* 로딩·오류 */
+.dna-skeleton { height: 88px; margin-top: 24px; background: var(--placeholder); }
+.dna-error { font-size: 12px; color: var(--ink-muted); }
+
+@media (max-width: 900px) {
+  .dna-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .dna-mock { padding: 16px 16px 48px; }
+  .dna-genre { grid-template-columns: 24px 1fr 40px; }
+  .dna-genre .dna-strip { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dna-spectrum__band { animation: none; }
+  .dna-strip img { transition: none; }
+}
