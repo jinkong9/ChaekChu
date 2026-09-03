@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import type { PopularBook, PopularSegment, PopularSelection } from './types'
 import { usePopularRingData } from './usePopularRingData'
 import './popular-ring.css'
@@ -63,11 +63,11 @@ function CoverImage({ book, large = false }: { book: PopularBook; large?: boolea
 function PopularGrid({
   segments,
   activeSegmentId,
-  onPick,
+  onOpen,
 }: {
   segments: PopularSegment[]
   activeSegmentId: string | null
-  onPick: (selection: PopularSelection) => void
+  onOpen: (book: PopularBook) => void
 }) {
   const [expandedSegmentIds, setExpandedSegmentIds] = useState<Set<string>>(() => new Set())
   const sectionRefs = useRef(new Map<string, HTMLElement>())
@@ -98,8 +98,8 @@ function PopularGrid({
     })
   }
 
-  const renderBook = (book: PopularBook, segment: PopularSegment) => (
-    <button key={book.id} type="button" className="popular-grid__book" onClick={() => onPick({ book, segment })}>
+  const renderBook = (book: PopularBook) => (
+    <button key={book.id} type="button" className="popular-grid__book" onClick={() => onOpen(book)}>
       <span className="popular-grid__rank">{String(book.ranking).padStart(2, '0')}</span>
       <CoverImage book={book} />
       <span className="popular-grid__title">{book.title}</span>
@@ -130,7 +130,7 @@ function PopularGrid({
               <span>{segment.startDate.replaceAll('-', '.')} — {segment.endDate.replaceAll('-', '.')}</span>
             </header>
             <div className="popular-grid__books">
-              {primaryBooks.map((book) => renderBook(book, segment))}
+              {primaryBooks.map(renderBook)}
             </div>
 
             <AnimatePresence initial={false}>
@@ -143,7 +143,7 @@ function PopularGrid({
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.16, ease: 'easeOut' }}
                 >
-                  {additionalBooks.map((book) => renderBook(book, segment))}
+                  {additionalBooks.map(renderBook)}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -170,6 +170,7 @@ function PopularGrid({
 }
 
 export default function PopularRingPage() {
+  const navigate = useNavigate()
   const { data, isPending, isError } = usePopularRingData()
   const [view, setView] = useState<ViewMode>('ring')
   const [filterOpen, setFilterOpen] = useState(false)
@@ -220,6 +221,9 @@ export default function PopularRingPage() {
   }, [selection])
 
   const handleSelection = useCallback((next: PopularSelection | null) => setSelection(next), [])
+  const openBook = useCallback((book: PopularBook) => {
+    navigate(`/books/${encodeURIComponent(book.isbn13)}?from=home`)
+  }, [navigate])
   const handleLoadProgress = useCallback((loaded: number, total: number) => {
     setLoadedCovers(loaded)
     setTotalCovers(total)
@@ -232,12 +236,6 @@ export default function PopularRingPage() {
   const selectSegment = (segmentId: string | null) => {
     setActiveSegmentId(segmentId)
     setFilterOpen(false)
-  }
-
-  const pickFromGrid = (next: PopularSelection) => {
-    setSelection(next)
-    setActiveSegmentId(next.segment.id)
-    setView('ring')
   }
 
   if (isPending) {
@@ -311,6 +309,7 @@ export default function PopularRingPage() {
               activeSegmentId={activeSegmentId}
               onActiveSegmentChange={setActiveSegmentId}
               onSelectionChange={handleSelection}
+              onBookOpen={openBook}
               onLoadProgress={handleLoadProgress}
               onRendererReady={handleRendererReady}
             />
@@ -367,7 +366,7 @@ export default function PopularRingPage() {
           )}
         </>
       ) : (
-        <PopularGrid segments={segments} activeSegmentId={activeSegmentId} onPick={pickFromGrid} />
+        <PopularGrid segments={segments} activeSegmentId={activeSegmentId} onOpen={openBook} />
       )}
     </main>
   )

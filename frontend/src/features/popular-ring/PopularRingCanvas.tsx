@@ -24,6 +24,7 @@ interface Props {
   activeSegmentId: string | null
   onActiveSegmentChange: (segmentId: string | null) => void
   onSelectionChange: (selection: PopularSelection | null) => void
+  onBookOpen: (book: PopularBook) => void
   onLoadProgress: (loaded: number, total: number) => void
   onRendererReady: (renderer: 'webgl' | 'fallback') => void
 }
@@ -33,6 +34,7 @@ export default function PopularRingCanvas({
   activeSegmentId,
   onActiveSegmentChange,
   onSelectionChange,
+  onBookOpen,
   onLoadProgress,
   onRendererReady,
 }: Props) {
@@ -41,12 +43,14 @@ export default function PopularRingCanvas({
   const labelRefs = useRef<(HTMLButtonElement | null)[]>([])
   const activeRef = useRef(activeSegmentId)
   const selectionRef = useRef(onSelectionChange)
+  const bookOpenRef = useRef(onBookOpen)
   const activeChangeRef = useRef(onActiveSegmentChange)
   const snapTargetRef = useRef<number | null>(null)
   const rotationValueRef = useRef(0)
 
   activeRef.current = activeSegmentId
   selectionRef.current = onSelectionChange
+  bookOpenRef.current = onBookOpen
   activeChangeRef.current = onActiveSegmentChange
 
   useEffect(() => {
@@ -150,13 +154,7 @@ export default function PopularRingCanvas({
         })
         sprite.on('pointertap', () => {
           if (moved > 5) return
-          pinned = slot
-          hovered = slot
-          selectionRef.current({ book: slot.book, segment: slot.segment })
-          activeChangeRef.current(slot.segment.id)
-          const segmentIndex = segments.findIndex((segment) => segment.id === slot.segment.id)
-          const center = segmentIndex * sectorSpan + sectorSpan / 2 - Math.PI
-          snapTargetRef.current = rotation + shortestAngle(Math.PI / 2 - center - rotation)
+          bookOpenRef.current(slot.book)
         })
       }
 
