@@ -1,0 +1,368 @@
+{
+  "schemaVersion": 2,
+  "name": "책추책책추 — Editorial Orbit",
+  "description": "따뜻한 종이 위에 검정 잉크와 책 표지의 색만 남기는, 여백 중심의 편집형 인터페이스",
+  "source": "C:/Users/SSAFY/Desktop/책추책책추/S15P21B102/frontend",
+  "generatedAt": "2026-09-03T10:05:47.2452197+09:00",
+  "tokens": {
+    "colors": {
+      "paper": "#fdfdfb",
+      "paper-raised": "rgba(253, 253, 251, 0.98)",
+      "ink": "#0b0b0b",
+      "ink-muted": "rgba(11, 11, 11, 0.56)",
+      "ink-faint": "rgba(11, 11, 11, 0.42)",
+      "rule": "rgba(11, 11, 11, 0.25)",
+      "rule-soft": "rgba(11, 11, 11, 0.18)",
+      "placeholder": "#e9e9e5"
+    },
+    "typography": {
+      "display": {
+        "fontFamily": "Pretendard Variable, Pretendard, Apple SD Gothic Neo, sans-serif",
+        "fontSize": "clamp(48px, 7.4vw, 116px)",
+        "fontWeight": 700,
+        "lineHeight": 0.96,
+        "letterSpacing": "-0.075em"
+      },
+      "headline": {
+        "fontFamily": "Pretendard Variable, Pretendard, Apple SD Gothic Neo, sans-serif",
+        "fontSize": "clamp(19px, 2.7vw, 42px)",
+        "fontWeight": 550,
+        "lineHeight": 1.04,
+        "letterSpacing": "-0.055em"
+      },
+      "section-title": {
+        "fontFamily": "Pretendard Variable, Pretendard, Apple SD Gothic Neo, sans-serif",
+        "fontSize": "19px",
+        "fontWeight": 650,
+        "lineHeight": 1.25,
+        "letterSpacing": "-0.02em"
+      },
+      "body": {
+        "fontFamily": "Pretendard Variable, Pretendard, Apple SD Gothic Neo, sans-serif",
+        "fontSize": "12px",
+        "fontWeight": 400,
+        "lineHeight": 1.5,
+        "letterSpacing": "0"
+      },
+      "label": {
+        "fontFamily": "Pretendard Variable, Pretendard, Apple SD Gothic Neo, sans-serif",
+        "fontSize": "11px",
+        "fontWeight": 650,
+        "lineHeight": 1.2,
+        "letterSpacing": "0"
+      },
+      "utility": {
+        "fontFamily": "Pretendard Variable, Pretendard, Apple SD Gothic Neo, sans-serif",
+        "fontSize": "10px",
+        "fontWeight": 450,
+        "lineHeight": 1.2,
+        "letterSpacing": "0"
+      }
+    },
+    "spacing": {
+      "xxs": "4px",
+      "xs": "8px",
+      "sm": "12px",
+      "md": "18px",
+      "lg": "24px",
+      "frame": "28px",
+      "section": "38px",
+      "page": "48px"
+    },
+    "rounded": {
+      "square": "0px",
+      "subtle": "2px",
+      "pill": "999px"
+    },
+    "components": {
+      "primary-button": {
+        "backgroundColor": "{colors.ink}",
+        "textColor": "{colors.paper}",
+        "typography": "{typography.label}",
+        "rounded": "{rounded.pill}",
+        "padding": "0 17px",
+        "height": "40px"
+      },
+      "text-button": {
+        "backgroundColor": "transparent",
+        "textColor": "{colors.ink}",
+        "typography": "{typography.body}",
+        "rounded": "{rounded.square}",
+        "padding": "0",
+        "height": "40px"
+      },
+      "popover": {
+        "backgroundColor": "{colors.paper-raised}",
+        "textColor": "{colors.ink}",
+        "typography": "{typography.body}",
+        "rounded": "{rounded.square}",
+        "padding": "18px",
+        "border": "1px solid {colors.rule-soft}"
+      },
+      "book-tile": {
+        "backgroundColor": "transparent",
+        "textColor": "{colors.ink}",
+        "typography": "{typography.body}",
+        "rounded": "{rounded.square}",
+        "padding": "0"
+      }
+    }
+  },
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "background",
+        "displayName": "Warm Paper",
+        "canonical": "#fdfdfb",
+        "tonalRamp": {
+          "50": "oklch(99.4% 0.003 95)",
+          "100": "oklch(97.8% 0.004 95)",
+          "200": "oklch(94.2% 0.005 95)",
+          "300": "oklch(88.5% 0.006 95)",
+          "400": "oklch(76.5% 0.006 95)",
+          "500": "oklch(63% 0.005 95)",
+          "600": "oklch(49% 0.004 95)",
+          "700": "oklch(36% 0.003 95)",
+          "800": "oklch(24% 0.002 95)",
+          "900": "oklch(15% 0.001 95)"
+        }
+      },
+      "paper-raised": {
+        "role": "surface",
+        "displayName": "Raised Paper",
+        "canonical": "rgba(253, 253, 251, 0.98)",
+        "tonalRamp": {
+          "50": "oklch(99.4% 0.003 95)",
+          "100": "oklch(98.4% 0.003 95)",
+          "200": "oklch(95.2% 0.004 95)",
+          "300": "oklch(89.5% 0.005 95)",
+          "400": "oklch(78% 0.005 95)",
+          "500": "oklch(65% 0.004 95)",
+          "600": "oklch(51% 0.003 95)",
+          "700": "oklch(38% 0.002 95)",
+          "800": "oklch(25% 0.001 95)",
+          "900": "oklch(15% 0.001 95)"
+        }
+      },
+      "ink": {
+        "role": "foreground",
+        "displayName": "Ink",
+        "canonical": "#0b0b0b",
+        "tonalRamp": {
+          "50": "oklch(98% 0 0)",
+          "100": "oklch(94% 0 0)",
+          "200": "oklch(86% 0 0)",
+          "300": "oklch(72% 0 0)",
+          "400": "oklch(58% 0 0)",
+          "500": "oklch(45% 0 0)",
+          "600": "oklch(34% 0 0)",
+          "700": "oklch(25% 0 0)",
+          "800": "oklch(18% 0 0)",
+          "900": "oklch(14.5% 0 0)"
+        }
+      },
+      "ink-muted": {
+        "role": "muted",
+        "displayName": "Muted Ink",
+        "canonical": "rgba(11, 11, 11, 0.56)",
+        "tonalRamp": {
+          "50": "oklch(98% 0 0)",
+          "100": "oklch(94% 0 0)",
+          "200": "oklch(86% 0 0)",
+          "300": "oklch(74% 0 0)",
+          "400": "oklch(62% 0 0)",
+          "500": "oklch(52% 0 0)",
+          "600": "oklch(43% 0 0)",
+          "700": "oklch(34% 0 0)",
+          "800": "oklch(25% 0 0)",
+          "900": "oklch(17% 0 0)"
+        }
+      },
+      "ink-faint": {
+        "role": "muted",
+        "displayName": "Faint Ink",
+        "canonical": "rgba(11, 11, 11, 0.42)",
+        "tonalRamp": {
+          "50": "oklch(98% 0 0)",
+          "100": "oklch(95% 0 0)",
+          "200": "oklch(89% 0 0)",
+          "300": "oklch(80% 0 0)",
+          "400": "oklch(69% 0 0)",
+          "500": "oklch(58% 0 0)",
+          "600": "oklch(48% 0 0)",
+          "700": "oklch(38% 0 0)",
+          "800": "oklch(28% 0 0)",
+          "900": "oklch(18% 0 0)"
+        }
+      },
+      "rule": {
+        "role": "border",
+        "displayName": "Rule",
+        "canonical": "rgba(11, 11, 11, 0.25)",
+        "tonalRamp": {
+          "50": "oklch(99% 0 0)",
+          "100": "oklch(96% 0 0)",
+          "200": "oklch(91% 0 0)",
+          "300": "oklch(84% 0 0)",
+          "400": "oklch(75% 0 0)",
+          "500": "oklch(65% 0 0)",
+          "600": "oklch(54% 0 0)",
+          "700": "oklch(43% 0 0)",
+          "800": "oklch(31% 0 0)",
+          "900": "oklch(20% 0 0)"
+        }
+      },
+      "rule-soft": {
+        "role": "border",
+        "displayName": "Soft Rule",
+        "canonical": "rgba(11, 11, 11, 0.18)",
+        "tonalRamp": {
+          "50": "oklch(99% 0 0)",
+          "100": "oklch(97% 0 0)",
+          "200": "oklch(93% 0 0)",
+          "300": "oklch(87% 0 0)",
+          "400": "oklch(79% 0 0)",
+          "500": "oklch(69% 0 0)",
+          "600": "oklch(58% 0 0)",
+          "700": "oklch(46% 0 0)",
+          "800": "oklch(34% 0 0)",
+          "900": "oklch(22% 0 0)"
+        }
+      },
+      "placeholder": {
+        "role": "surface",
+        "displayName": "Cover Placeholder",
+        "canonical": "#e9e9e5",
+        "tonalRamp": {
+          "50": "oklch(98.7% 0.002 100)",
+          "100": "oklch(96.5% 0.003 100)",
+          "200": "oklch(93% 0.004 100)",
+          "300": "oklch(86% 0.005 100)",
+          "400": "oklch(75% 0.005 100)",
+          "500": "oklch(63% 0.004 100)",
+          "600": "oklch(51% 0.003 100)",
+          "700": "oklch(39% 0.002 100)",
+          "800": "oklch(27% 0.001 100)",
+          "900": "oklch(17% 0.001 100)"
+        }
+      }
+    },
+    "typographyMeta": {
+      "fontFamilies": {
+        "primary": "Pretendard Variable, Pretendard, Apple SD Gothic Neo, sans-serif"
+      },
+      "scale": {
+        "display": "clamp(48px, 7.4vw, 116px)",
+        "headline": "clamp(19px, 2.7vw, 42px)",
+        "section-title": "19px",
+        "body": "12px",
+        "label": "11px",
+        "utility": "10px"
+      },
+      "weights": {
+        "regular": 400,
+        "book": 450,
+        "headline": 550,
+        "semibold": 650,
+        "bold": 700
+      },
+      "lineHeights": {
+        "display": 0.96,
+        "headline": 1.04,
+        "compact": 1.2,
+        "body": 1.5
+      },
+      "letterSpacings": {
+        "display": "-0.075em",
+        "headline": "-0.055em",
+        "section-title": "-0.02em",
+        "normal": "0"
+      }
+    },
+    "shadows": {
+      "cover-preview": "0 14px 36px rgba(0, 0, 0, 0.15)",
+      "popover": "0 18px 50px rgba(0, 0, 0, 0.08)"
+    },
+    "motion": {
+      "feedback": {
+        "duration": "140ms",
+        "easing": "ease-out"
+      },
+      "reveal": {
+        "duration": "160ms",
+        "easing": "ease-out",
+        "properties": ["opacity", "transform"]
+      },
+      "section-highlight": {
+        "duration": "180ms",
+        "easing": "ease-out"
+      },
+      "reducedMotion": "Set scroll-behavior to auto and transition/animation duration to 0.01ms with a single iteration."
+    },
+    "breakpoints": {
+      "mobile": "640px",
+      "tablet": "900px"
+    },
+    "components": [
+      {
+        "id": "primary-pill-button",
+        "name": "Primary pill button",
+        "description": "한 화면의 가장 중요한 행동에 쓰는 검정 캡슐 버튼",
+        "html": "<a class=\"ds-primary-button\" href=\"#\">책 추천받기</a>",
+        "css": ".ds-primary-button { display:inline-flex; min-height:40px; align-items:center; padding:0 17px; border:1px solid #0b0b0b; border-radius:999px; background:#0b0b0b; color:#fdfdfb; font:700 13px/1 'Pretendard Variable',Pretendard,sans-serif; text-decoration:none; transition:opacity 140ms ease-out,transform 140ms ease-out; } .ds-primary-button:hover,.ds-primary-button:focus-visible { opacity:.68; transform:translateY(-1px); } .ds-primary-button:focus-visible { outline:2px solid #0b0b0b; outline-offset:3px; }"
+      },
+      {
+        "id": "underline-text-button",
+        "name": "Underline text button",
+        "description": "필터와 뷰 전환에 쓰는 박스 없는 텍스트 버튼",
+        "html": "<button class=\"ds-text-button\" type=\"button\">인기도서 필터 +</button>",
+        "css": ".ds-text-button { min-height:40px; padding:0; border:0; border-bottom:2px solid currentColor; background:transparent; color:#0b0b0b; font:700 15px/1.2 'Pretendard Variable',Pretendard,sans-serif; cursor:pointer; transition:opacity 140ms ease-out; } .ds-text-button:hover,.ds-text-button:focus-visible { opacity:.55; } .ds-text-button:focus-visible { outline:2px solid #0b0b0b; outline-offset:4px; }"
+      },
+      {
+        "id": "editorial-navigation",
+        "name": "Editorial navigation",
+        "description": "활성 항목을 굵기와 밑줄만으로 구분하는 내비게이션",
+        "html": "<nav class=\"ds-nav\" aria-label=\"주요 메뉴\"><a class=\"is-active\" href=\"#\">홈</a><a href=\"#\">내 서재</a><a href=\"#\">BOOK DNA</a></nav>",
+        "css": ".ds-nav { display:flex; gap:24px; align-items:center; font:400 14px/1.2 'Pretendard Variable',Pretendard,sans-serif; } .ds-nav a { min-height:40px; display:inline-flex; align-items:center; color:rgba(11,11,11,.42); text-decoration:none; } .ds-nav a:hover,.ds-nav a:focus-visible,.ds-nav a.is-active { color:#0b0b0b; } .ds-nav a.is-active { font-weight:700; text-decoration:underline; text-decoration-thickness:2px; text-underline-offset:4px; } .ds-nav a:focus-visible { outline:2px solid #0b0b0b; outline-offset:4px; }"
+      },
+      {
+        "id": "filter-popover",
+        "name": "Filter popover",
+        "description": "이름과 개수를 정확히 정렬하는 편집형 필터 패널",
+        "html": "<aside class=\"ds-filter\"><header><strong>연령·성별</strong><button type=\"button\">닫기</button></header><button type=\"button\" class=\"ds-filter-row\"><span>30대 남성</span><span>20</span></button></aside>",
+        "css": ".ds-filter { width:min(430px,calc(100vw - 56px)); padding:18px; border:1px solid rgba(11,11,11,.18); border-radius:0; background:rgba(253,253,251,.98); color:#0b0b0b; box-shadow:0 18px 50px rgba(0,0,0,.08); font:400 12px/1.5 'Pretendard Variable',Pretendard,sans-serif; } .ds-filter header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; } .ds-filter button { min-height:40px; border:0; background:transparent; color:inherit; } .ds-filter-row { width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; border-bottom:1px solid rgba(11,11,11,.18) !important; text-align:left; } .ds-filter-row span:last-child { min-width:2ch; text-align:right; font-variant-numeric:tabular-nums; }"
+      },
+      {
+        "id": "book-tile",
+        "name": "Book tile",
+        "description": "카드 장식 없이 표지 자체가 중심이 되는 책 목록 항목",
+        "html": "<button class=\"ds-book\" type=\"button\"><span class=\"ds-book-rank\">01</span><img src=\"cover.jpg\" alt=\"책 제목 표지\" loading=\"lazy\" decoding=\"async\"><strong>책 제목</strong><small>저자 이름</small></button>",
+        "css": ".ds-book { min-width:0; padding:0; border:0; background:transparent; color:#0b0b0b; text-align:left; cursor:pointer; } .ds-book-rank { display:block; margin-bottom:7px; font:450 10px/1.2 'Pretendard Variable',Pretendard,sans-serif; font-variant-numeric:tabular-nums; } .ds-book img { display:block; width:100%; aspect-ratio:.7; object-fit:cover; outline:1px solid rgba(0,0,0,.1); transition:opacity 150ms ease-out,transform 150ms ease-out; } .ds-book:hover img { opacity:.72; transform:translateY(-3px); } .ds-book strong,.ds-book small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .ds-book strong { margin-top:9px; font:650 12px/1.2 'Pretendard Variable',Pretendard,sans-serif; } .ds-book small { margin-top:3px; color:rgba(11,11,11,.46); font:400 10px/1.2 'Pretendard Variable',Pretendard,sans-serif; }"
+      },
+      {
+        "id": "editorial-section",
+        "name": "Editorial section",
+        "description": "카드 대신 상단 규칙선과 여백으로 구분한 목록 섹션",
+        "html": "<section class=\"ds-section\"><header><h2>30대 남성</h2><span>2026.08.01 — 2026.08.31</span></header><div class=\"ds-section-content\">목록 콘텐츠</div></section>",
+        "css": ".ds-section { padding:25px 0 38px; border-top:1px solid rgba(11,11,11,.25); } .ds-section header { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:24px; } .ds-section h2 { margin:0; color:#0b0b0b; font:650 19px/1.25 'Pretendard Variable',Pretendard,sans-serif; letter-spacing:-.02em; } .ds-section header span { color:rgba(11,11,11,.42); font:450 10px/1.2 'Pretendard Variable',Pretendard,sans-serif; font-variant-numeric:tabular-nums; } @media (max-width:640px) { .ds-section header { align-items:flex-start; flex-direction:column; gap:5px; } }"
+      },
+      {
+        "id": "disclosure-button",
+        "name": "Disclosure button",
+        "description": "추가 목록의 범위를 설명하는 절제된 펼침 버튼",
+        "html": "<button class=\"ds-disclosure\" type=\"button\" aria-expanded=\"false\"><span>11–20위 보기</span><span aria-hidden=\"true\">+</span></button>",
+        "css": ".ds-disclosure { display:inline-flex; min-height:40px; align-items:center; gap:8px; padding:0; border:0; border-bottom:1px solid rgba(11,11,11,.36); background:transparent; color:rgba(11,11,11,.72); font:600 11px/1.2 'Pretendard Variable',Pretendard,sans-serif; cursor:pointer; transition:color 140ms ease-out,border-color 140ms ease-out; } .ds-disclosure:hover,.ds-disclosure:focus-visible,.ds-disclosure[aria-expanded='true'] { border-color:#0b0b0b; color:#0b0b0b; } .ds-disclosure:focus-visible { outline:2px solid #0b0b0b; outline-offset:4px; }"
+      }
+    ],
+    "narrative": {
+      "creativeNorthStar": "Editorial Orbit / 편집된 궤도. 이 시스템은 서점의 진열대보다 잘 편집된 독립출판물의 지면에 가깝다. 따뜻한 흰 종이 위에는 검정 잉크, 얇은 규칙선, 충분한 여백만 두고 실제 책 표지가 화면의 색과 리듬을 만든다. 홈의 원형 WebGL 링은 이 철학을 가장 강하게 보여 주는 시그니처이지만, 다른 화면이 모두 링을 가져야 하는 것은 아니다. 다른 기능은 같은 종이, 타이포 위계, 선, 이미지 처리, 짧은 움직임을 공유하면 된다.",
+      "color": "표지가 색을 담당한다. 인터페이스 자체는 거의 무채색으로 유지하고, 책 표지·콘텐츠 이미지가 유일한 풍부한 색원이 되게 한다. 장식용 그라데이션, 다색 배경, 보라색 포인트, 발광 효과는 사용하지 않는다. 활성 상태는 새 색을 추가하지 않고 검정 농도, 굵기, 밑줄로 표현한다.",
+      "typography": "크기는 계층을 만들고, 굵기는 상태를 알린다. 기본 서체는 Pretendard Variable이다. 제목은 balance wrapping, 본문은 pretty wrapping을 사용하고, 핵심 책 제목은 최대 2줄로 제한하며 줄바꿈이 레이아웃 위치를 바꾸지 않도록 제목 영역 높이를 예약한다.",
+      "layout": "선과 여백으로 그룹을 만든다. 둥근 카드 상자를 반복하는 대신 섹션 시작점에 1px 규칙선을 놓고, 넉넉한 위아래 간격으로 정보 덩어리를 구분한다. 고정 좌표 대신 min(), max(), clamp(), aspect-ratio, 컨테이너 크기에서 파생한 CSS 변수로 계산한다.",
+      "elevation": "기본 상태는 평면, 선택된 대상만 깊이를 얻는다. 카드 전체에 그림자를 두지 않는다. 표지 확대와 팝오버에만 낮고 넓은 그림자를 사용하며, 강한 블러·글로우·큰 면적의 backdrop-filter는 사용하지 않는다.",
+      "shape": "대부분은 직선이고, 하나의 결정적인 CTA만 캡슐형이다. 필터, 목록, 표지, 섹션 면은 0px 또는 시각 보정용 2px 이하를 쓰고, 주요 CTA에만 999px pill을 허용한다.",
+      "motion": "상호작용 피드백은 transform과 opacity 위주로 130–180ms ease-out, 최대 200ms로 유지한다. width, height, top, left, margin은 애니메이션하지 않는다. prefers-reduced-motion에서는 스크롤과 애니메이션을 즉시 또는 거의 즉시 끝낸다.",
+      "performance": "이미지는 lazy loading과 비동기 decoding을 기본으로 하고, 화면의 선택된 한 권만 eager 로드한다. 많은 표지는 동시 로딩 수를 제한하고 작은 슬롯에는 필요한 해상도만 사용한다. 무한 애니메이션은 화면 밖에서 중지한다."
+    }
+  }
+}
