@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { LibraryItem, ShelfStatus } from '../api/types'
 import LibraryList from '../components/LibraryList'
+import { coverPalette } from '../lib/coverPalette'
 
 const TABS: { key: ShelfStatus | 'ALL'; label: string }[] = [
   { key: 'ALL', label: '전체' },
@@ -12,12 +13,9 @@ const TABS: { key: ShelfStatus | 'ALL'; label: string }[] = [
   { key: 'WISH', label: '찜' },
 ]
 
-/** 표지 없는 책의 커버 색 — 테마 C 계열, bookId 고정 배정 */
-const COVER_COLORS = [
-  { bg: '#22224a', fg: '#fff8ec' }, { bg: '#ff6b4a', fg: '#fff8ec' }, { bg: '#ffd166', fg: '#22224a' },
-  { bg: '#b7d9c8', fg: '#22224a' }, { bg: '#8a84a8', fg: '#fff8ec' }, { bg: '#e8e1cf', fg: '#22224a' },
-]
-const coverColor = (bookId: number) => COVER_COLORS[bookId % COVER_COLORS.length]
+/** 표지 없는 책의 자리색 — 색은 실제 표지만 담당한다 (DESIGN.md Colors).
+ *  다른 화면과 같은 자리색을 쓰도록 coverPalette를 그대로 빌려 쓴다. */
+const coverColor = coverPalette
 
 /** 분류 2단계의 마지막 세그먼트 ("문학 > 한국소설" → "한국소설") */
 const categoryKey = (li: LibraryItem) => {
@@ -33,10 +31,11 @@ function Cover({ li, size = 'md' }: { li: LibraryItem; size?: 'md' | 'sm' }) {
   if (li.book.coverUrl && !broken) {
     return <img src={li.book.coverUrl} alt={li.book.title} referrerPolicy="no-referrer"
       onError={() => setBroken(true)}
-      className={`${cls} object-cover rounded-r-md rounded-l-sm shadow-[3px_4px_10px_rgba(34,34,74,0.28)]`} />
+      loading="lazy" decoding="async"
+      className={`${cls} object-cover shadow-[3px_4px_10px_rgba(11,11,11,0.18)]`} />
   }
   return (
-    <div className={`${cls} rounded-r-md rounded-l-sm shadow-[3px_4px_10px_rgba(34,34,74,0.28)] flex flex-col justify-between p-1.5`}
+    <div className={`${cls} shadow-[3px_4px_10px_rgba(11,11,11,0.18)] flex flex-col justify-between p-1.5`}
       style={{ background: c.bg, color: c.fg }}>
       <span className={`font-bold leading-snug ${size === 'md' ? 'text-[11px] line-clamp-4' : 'text-[7px] line-clamp-3'}`}>{li.book.title}</span>
       {size === 'md' && <span className="text-[9px] opacity-80 truncate">{li.book.author}</span>}
@@ -51,20 +50,20 @@ function BookPop({ li, x, y, onEnter, onLeave }: { li: LibraryItem; x: number; y
     ? Math.round((li.progressPage / li.book.pageCount) * 100) : null
   return (
     <div onMouseEnter={onEnter} onMouseLeave={onLeave}
-      className="fixed z-50 w-60 bg-white rounded-xl border-2 border-primary shadow-xl p-3 text-left"
+      className="eo-panel fixed z-50 w-60 p-3.5 text-left"
       style={{ left: x, top: y, transform: 'translate(-50%, -100%) translateY(-10px)' }}>
-      <p className="font-bold text-sm leading-snug">{li.book.title}</p>
-      <p className="text-xs text-gray-400 mt-0.5">{li.book.author} · {categoryKey(li)}</p>
-      {li.rating != null && <p className="text-sm mt-1.5 text-accent">{'★'.repeat(li.rating)}<span className="text-gray-300">{'★'.repeat(5 - li.rating)}</span> <span className="text-primary font-bold">{li.rating}.0</span></p>}
+      <p className="text-[13px] font-semibold leading-snug">{li.book.title}</p>
+      <p className="mt-1 text-[10px] text-ink-faint">{li.book.author} · {categoryKey(li)}</p>
+      {li.rating != null && <p className="mt-2 text-[13px] text-ink">{'★'.repeat(li.rating)}<span className="text-rule-soft">{'★'.repeat(5 - li.rating)}</span> <span className="ml-1 text-[11px] font-semibold tabular-nums">{li.rating}.0</span></p>}
       {progress != null && (
         <div className="mt-1.5">
-          <div className="flex justify-between text-xs text-gray-500"><span>읽는 중 {progress}%</span><span>{li.progressPage}p / {li.book.pageCount}p</span></div>
-          <div className="mt-1 h-1.5 bg-gray-100 rounded-full"><div className="h-1.5 bg-accent rounded-full" style={{ width: `${progress}%` }} /></div>
+          <div className="flex justify-between text-[10px] tabular-nums text-ink-muted"><span>읽는 중 {progress}%</span><span>{li.progressPage}p / {li.book.pageCount}p</span></div>
+          <div className="eo-meter mt-1.5"><span style={{ width: `${progress}%` }} /></div>
         </div>
       )}
-      {li.status === 'READ' && li.finishedDate && <p className="text-xs text-gray-400 mt-1.5">완독 · {li.finishedDate}</p>}
-      {li.reviewText && <p className="text-xs text-gray-600 mt-1.5 line-clamp-2">💬 {li.reviewText}</p>}
-      <Link to={`/books/${li.book.bookId}`} className="mt-2 block text-center bg-primary text-white rounded-lg py-1.5 text-sm font-bold">상세 보기</Link>
+      {li.status === 'READ' && li.finishedDate && <p className="mt-2 text-[10px] tabular-nums text-ink-faint">완독 · {li.finishedDate}</p>}
+      {li.reviewText && <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-ink-muted">{li.reviewText}</p>}
+      <Link to={`/books/${li.book.bookId}`} className="eo-link mt-3">상세 보기</Link>
     </div>
   )
 }
@@ -77,7 +76,7 @@ function Shelf({ title, items, count, onBookEnter, onBookLeave }: {
   if (items.length === 0) return null
   return (
     <section>
-      <h2 className="text-sm font-bold text-primary/80">{title} <span className="font-normal text-gray-400">{count ?? items.length}권</span></h2>
+      <h2 className="eo-label">{title} <span className="ml-1 text-[10px] font-normal tabular-nums text-ink-faint">{count ?? items.length}권</span></h2>
       <div className="mt-2 relative">
         <div className="flex items-end gap-4 px-4 pb-2 pt-3 overflow-x-auto">
           {items.map((li) => (
@@ -135,46 +134,48 @@ export default function LibraryPageShelf() {
   }, new Map<string, LibraryItem[]>())].sort((a, b) => b[1].length - a[1].length)
 
   return (
-    <main className="p-8 max-w-5xl">
-      <div className="flex justify-between items-center">
+    <main className="eo-page">
+      <div className="eo-shell">
+      <div className="flex items-end justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-bold">내 서재</h1>
-          <p className="text-sm text-gray-400 mt-0.5">당신의 읽고 싶은 마음이 쌓이는 공간</p>
+          <p className="eo-eyebrow">Library</p>
+          <h1 className="eo-headline">내 서재</h1>
+          <p className="eo-body mt-2.5">당신의 읽고 싶은 마음이 쌓이는 공간</p>
         </div>
-        <Link to="/search" className="border-2 border-primary rounded-lg px-4 py-1.5 font-bold">+ 책 추가</Link>
+        <Link to="/search" className="eo-button">책 추가</Link>
       </div>
 
       {/* 통계 타일 */}
-      <div className="mt-4 grid grid-cols-4 gap-3">
+      <div className="mt-8 grid grid-cols-2 border-t border-rule pt-4 sm:grid-cols-4">
         {[
           { label: '보유한 책', value: `${all.length}권` },
           { label: '완독', value: `${readItems.length}권` },
           { label: '읽는 중', value: `${byStatus('READING').length}권` },
           { label: '평균 별점', value: `★ ${avgRating}` },
         ].map((s) => (
-          <div key={s.label} className="border-2 border-primary rounded-xl bg-white px-4 py-3">
-            <p className="text-xs text-gray-400">{s.label}</p>
-            <p className="text-xl font-bold mt-0.5">{s.value}</p>
+          <div key={s.label} className="py-1.5">
+            <p className="eo-utility">{s.label}</p>
+            <p className="mt-1.5 text-[19px] font-semibold tabular-nums">{s.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="mt-4 flex gap-2 items-center">
-        {TABS.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`rounded-full px-5 py-1.5 border-2 text-sm font-bold ${tab === t.key ? 'bg-primary text-white border-primary' : 'border-gray-300 text-gray-400'}`}>
-            {t.label}
-          </button>
-        ))}
-        <div className="ml-auto flex border-2 border-primary rounded-lg overflow-hidden text-sm">
-          <button className={`px-3 py-1 font-bold ${view === 'shelf' ? 'bg-primary text-white' : ''}`} onClick={() => setView('shelf')}>📚 책장</button>
-          <button className={`px-3 py-1 font-bold ${view === 'list' ? 'bg-primary text-white' : ''}`} onClick={() => setView('list')}>☰ 목록</button>
+      <div className="mt-6 flex flex-wrap items-center gap-x-6 border-t border-rule">
+        <div className="eo-segments">
+          {TABS.map((t) => (
+            <button key={t.key} onClick={() => setTab(t.key)} aria-pressed={tab === t.key}
+              className={`eo-segment ${tab === t.key ? 'is-on' : ''}`}>{t.label}</button>
+          ))}
+        </div>
+        <div className="eo-segments ml-auto">
+          <button className={`eo-segment ${view === 'shelf' ? 'is-on' : ''}`} onClick={() => setView('shelf')}>책장</button>
+          <button className={`eo-segment ${view === 'list' ? 'is-on' : ''}`} onClick={() => setView('list')}>목록</button>
         </div>
       </div>
 
       {/* 책장 영역 — 크림/우드 무드는 배경·선반이 만들고, 표지는 제각각이어도 수용 */}
       {view === 'shelf' && (
-      <div className="mt-5 rounded-2xl p-6 space-y-8" style={{ background: 'linear-gradient(#f4ecdd, #efe4d0)' }}>
+      <div className="mt-7 space-y-9">
         {tab === 'ALL' ? (
           <>
             <Shelf title="읽는 중" items={byStatus('READING')} onBookEnter={showPop} onBookLeave={hidePop} />
@@ -184,17 +185,17 @@ export default function LibraryPageShelf() {
             {/* 분야별 책장 — 미니 카드 행 */}
             {byCategory.length > 0 && (
               <section>
-                <h2 className="text-sm font-bold text-primary/80">분야별 책장</h2>
+                <h2 className="eo-label">분야별 책장</h2>
                 <div className="mt-2 flex gap-3 overflow-x-auto pb-1">
                   {byCategory.map(([cat, books]) => (
                     <button key={cat} onClick={() => setTab('READ')}
-                      className="flex-shrink-0 flex items-center gap-3 bg-white/80 border border-primary/20 rounded-xl px-4 py-3 hover:border-primary transition-colors">
+                      className="flex flex-shrink-0 items-center gap-3 border-t border-rule-soft px-1 py-3 transition-colors hover:border-ink">
                       <div className="flex -space-x-3">
                         {books.slice(0, 3).map((li) => <Cover key={li.libraryItemId} li={li} size="sm" />)}
                       </div>
                       <div className="text-left">
-                        <p className="font-bold text-sm">{cat}</p>
-                        <p className="text-xs text-gray-400">{books.length}권</p>
+                        <p className="text-[12px] font-semibold">{cat}</p>
+                        <p className="mt-1 text-[10px] tabular-nums text-ink-faint">{books.length}권</p>
                       </div>
                     </button>
                   ))}
@@ -207,11 +208,11 @@ export default function LibraryPageShelf() {
         )}
 
         {scope.length === 0 && (
-          <div className="border-2 border-dashed border-primary/30 rounded-xl p-10 text-center">
-            <p className="text-gray-500">이 선반은 아직 비어 있어요</p>
-            <div className="mt-3 flex gap-2 justify-center">
-              <Link to="/recommend" className="border-2 border-primary rounded-lg px-4 py-1.5 font-bold bg-white">추천 보러 가기</Link>
-              <Link to="/search" className="border-2 border-primary rounded-lg px-4 py-1.5 bg-white">검색하기</Link>
+          <div className="eo-empty">
+            <p className="eo-body">이 선반은 아직 비어 있어요 — 오늘의 추천에서 한 권 꽂아 보세요.</p>
+            <div className="flex items-center gap-7">
+              <Link to="/recommend" className="eo-button">추천 보러 가기</Link>
+              <Link to="/search" className="eo-text-button text-[13px]">검색하기</Link>
             </div>
           </div>
         )}
@@ -227,9 +228,10 @@ export default function LibraryPageShelf() {
 
       {pop && <BookPop li={pop.li} x={pop.x} y={pop.y} onEnter={holdPop} onLeave={hidePop} />}
 
-      <p className="mt-4 text-xs text-gray-400">
+      <p className="eo-utility mt-8">
         책장에서 표지에 마우스를 올리면 기록이 보여요 · 별점·상태·감상평 수정은 목록 뷰에서
       </p>
+      </div>
     </main>
   )
 }

@@ -8,7 +8,7 @@ import type { CSSProperties } from 'react'
  *  뒤를 통째로 흐리는 backdrop-filter(blur 인자)와, 안에 든 것만 직접 흐리는 방법.
  *  전자는 레이어마다 비싸므로 목록에서는 후자를 쓴다 (StampFolder 참고). */
 
-export const GLASS_LINE = 'rgba(34,34,74,0.18)'  // 유산지 위에 인쇄한 접힘선·테두리
+export const GLASS_LINE = 'rgba(11,11,11,0.18)'  // 유산지 위에 인쇄한 접힘선·테두리
 
 /** @param tint 종이의 불투명도 — 높을수록 안이 덜 비친다 (0.45~0.75 사이가 적당)
  *  @param blur backdrop-filter 흐림(px). 0이면 붙이지 않는다 —

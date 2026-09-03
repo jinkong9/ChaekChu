@@ -5,7 +5,7 @@ import { Perforated } from './Stamp'
  *  폴더에서 옆으로 빠져나와야 해서 가로가 아닌 세로 판형이다. */
 
 const PAPER = '#eeede2'
-const INK = '#183064'
+const INK = '#0b0b0b'
 
 export default function LetterStamp({ reason, to, postmark, rank, width = 230, notch }: {
   reason: string

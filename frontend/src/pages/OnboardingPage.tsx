@@ -6,6 +6,8 @@ import type { BookSummary } from '../api/types'
 import { useAuthStore } from '../stores/authStore'
 
 const GENRES = ['소설', '에세이', '인문', '역사', '과학', '예술', '자기계발', '경제·경영', '사회', '시', '여행', '기술·IT']
+const MAX_GENRES = 5
+const STEP_COUNT = 3
 
 /** ONB-002 온보딩 3단 — Step 0 프로필(닉네임·생년월일·성별, 8/27 확정: OAuth 후 필수 수집)
  *  → Step 1 분야(0개 허용) → Step 2 읽은 책+별점(0권 허용) */
@@ -38,7 +40,7 @@ export default function OnboardingPage() {
   }
 
   const toggleGenre = (g: string) =>
-    setGenres((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : prev.length < 5 ? [...prev, g] : prev))
+    setGenres((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : prev.length < MAX_GENRES ? [...prev, g] : prev))
   const toggleBook = (id: number) => {
     const next = new Map(picked)
     if (next.has(id)) next.delete(id)
@@ -57,90 +59,111 @@ export default function OnboardingPage() {
     navigate('/recommend')
   }
 
-  const inp = 'w-full border-2 border-primary rounded-lg px-3 py-2.5'
-
   return (
-    <main className="min-h-screen bg-cream flex items-center justify-center p-8">
-      <div className="w-[720px] bg-white border-2 border-primary rounded-xl p-8">
-        <div className="flex justify-between items-baseline">
-          <span className="text-sm text-gray-400">Step {step + 1} / 3</span>
-          <div className="w-48 h-2 bg-gray-100 rounded-full"><div className="h-2 bg-primary rounded-full" style={{ width: `${((step + 1) / 3) * 100}%` }} /></div>
-        </div>
+    // 로그인 전 단계라 GNB가 없다 — 종이 한 장 위에 단계만 올린다
+    <main className="eo-page flex min-h-screen flex-col">
+      <div className="eo-shell eo-shell--reading flex w-full flex-1 flex-col">
+        <header>
+          <div className="flex items-baseline justify-between">
+            <p className="text-[10px] uppercase tracking-[0.08em] tabular-nums text-ink-faint">Step {step + 1} / {STEP_COUNT}</p>
+            <span className="text-[10px] tabular-nums text-ink-faint">{Math.round(((step + 1) / STEP_COUNT) * 100)}%</span>
+          </div>
+          <div className="eo-meter mt-2.5" role="presentation">
+            <span style={{ width: `${((step + 1) / STEP_COUNT) * 100}%` }} />
+          </div>
+        </header>
 
         {step === 0 && (
-          <>
-            <h1 className="text-2xl font-bold mt-3">먼저, 어떻게 불러드릴까요?</h1>
-            <p className="text-gray-500 text-sm">연령·성별은 첫 추천의 정확도를 높이는 데만 사용해요</p>
-            <div className="mt-5 flex flex-col gap-2.5 max-w-sm">
-              <input className={inp} placeholder="닉네임 (2자 이상)" value={profile.nickname}
-                onChange={(e) => setProfile({ ...profile, nickname: e.target.value })} />
-              <label className="text-xs text-gray-400 -mb-2">생년월일</label>
-              <input className={inp} type="date" max={new Date().toISOString().slice(0, 10)} value={profile.birthDate}
-                onChange={(e) => setProfile({ ...profile, birthDate: e.target.value })} />
-              <select className={inp} value={profile.gender} onChange={(e) => setProfile({ ...profile, gender: e.target.value })}>
-                <option value="">성별 · 응답 안 함</option>
-                <option value="F">여성</option>
-                <option value="M">남성</option>
-              </select>
+          <section className="mt-9">
+            <h1 className="eo-headline">먼저, 어떻게 불러드릴까요?</h1>
+            <p className="eo-body mt-3.5 max-w-[46ch]">연령·성별은 첫 추천의 정확도를 높이는 데만 사용해요</p>
+            <div className="mt-8 flex max-w-sm flex-col gap-6">
+              <div>
+                <label className="eo-fieldlabel" htmlFor="onb-nickname">닉네임</label>
+                <input id="onb-nickname" className="eo-field w-full" placeholder="2자 이상" value={profile.nickname}
+                  onChange={(e) => setProfile({ ...profile, nickname: e.target.value })} />
+              </div>
+              <div>
+                <label className="eo-fieldlabel" htmlFor="onb-birth">생년월일</label>
+                <input id="onb-birth" className="eo-field w-full" type="date" max={new Date().toISOString().slice(0, 10)} value={profile.birthDate}
+                  onChange={(e) => setProfile({ ...profile, birthDate: e.target.value })} />
+              </div>
+              <div>
+                <label className="eo-fieldlabel" htmlFor="onb-gender">성별</label>
+                <select id="onb-gender" className="eo-field w-full" value={profile.gender}
+                  onChange={(e) => setProfile({ ...profile, gender: e.target.value })}>
+                  <option value="">응답 안 함</option>
+                  <option value="F">여성</option>
+                  <option value="M">남성</option>
+                </select>
+              </div>
             </div>
-            <div className="mt-8 flex justify-end">
-              <button className="bg-primary text-white rounded-lg px-10 py-3 font-bold disabled:opacity-40"
-                disabled={!canProfile} onClick={submitProfile}>다음</button>
+            <div className="mt-10 flex justify-end">
+              <button className="eo-button" disabled={!canProfile} onClick={submitProfile}>다음</button>
             </div>
-          </>
+          </section>
         )}
 
         {step === 1 && (
-          <>
-            <h1 className="text-2xl font-bold mt-3">어떤 분야에 끌리세요?</h1>
-            <p className="text-gray-500 text-sm">대충 골라도 괜찮아요 — 최대 5개</p>
-            <div className="mt-5 flex flex-wrap gap-2.5">
-              {GENRES.map((g) => (
-                <button key={g} onClick={() => toggleGenre(g)}
-                  className={`rounded-full px-5 py-2 border-2 ${genres.includes(g) ? 'bg-primary text-white border-primary' : 'border-gray-300'}`}>{g}</button>
-              ))}
+          <section className="mt-9">
+            <h1 className="eo-headline">어떤 분야에 끌리세요?</h1>
+            <p className="eo-body mt-3.5">대충 골라도 괜찮아요 — 최대 {MAX_GENRES}개</p>
+            <div className="mt-8 flex flex-wrap gap-2">
+              {GENRES.map((g) => {
+                const on = genres.includes(g)
+                const full = genres.length >= MAX_GENRES
+                return (
+                  <button key={g} type="button" onClick={() => toggleGenre(g)} disabled={!on && full} aria-pressed={on}
+                    className={`eo-tag eo-tag--lg ${on ? 'is-on' : ''} ${!on && full ? 'opacity-35' : ''}`}>{g}</button>
+                )
+              })}
             </div>
-            <div className="mt-8 flex justify-between items-center">
-              <button className="text-gray-400 underline" onClick={() => setStep(2)}>건너뛰기</button>
-              <button className="bg-primary text-white rounded-lg px-10 py-3 font-bold" onClick={() => setStep(2)}>다음</button>
+            <div className="mt-10 flex items-center justify-between">
+              <button className="eo-link" onClick={() => setStep(2)}>건너뛰기</button>
+              <button className="eo-button" onClick={() => setStep(2)}>다음</button>
             </div>
-          </>
+          </section>
         )}
 
         {step === 2 && (
-          <>
-            <h1 className="text-2xl font-bold mt-3">읽어본 책이 있나요?</h1>
-            <p className="text-gray-500 text-sm">별점까지 남기면 첫 추천이 더 정확해져요 · 3권 권장, 0권도 시작 가능</p>
-            <div className="mt-5 grid grid-cols-4 gap-3">
+          <section className="mt-9">
+            <h1 className="eo-headline">읽어본 책이 있나요?</h1>
+            <p className="eo-body mt-3.5 max-w-[48ch]">별점까지 남기면 첫 추천이 더 정확해져요 · 3권 권장, 0권도 시작 가능</p>
+            <div className="eo-books eo-books--roomy mt-8">
               {(data ?? []).map((bk) => {
                 const selected = picked.has(bk.bookId)
+                const rating = picked.get(bk.bookId) ?? 0
                 return (
                   <div key={bk.bookId}>
-                    <button onClick={() => toggleBook(bk.bookId)}
-                      className={`w-full rounded-lg p-2 text-left border-2 ${selected ? 'border-primary bg-gray-50' : 'border-gray-200'}`}>
-                      <div className="h-24 bg-gray-200 rounded" />
-                      <p className="mt-1.5 text-sm font-bold truncate">{bk.title}</p>
-                      <p className="text-xs text-gray-400 truncate">{bk.author}</p>
+                    {/* 고른 상태는 테두리 대신 표지 농도와 제목 굵기로 — 색을 새로 들이지 않는다 */}
+                    <button type="button" onClick={() => toggleBook(bk.bookId)} aria-pressed={selected}
+                      className={`eo-tile w-full ${selected ? '' : 'opacity-60'}`}>
+                      {bk.coverUrl
+                        ? <img className="eo-cover" src={bk.coverUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+                        : <span className="eo-cover-fallback">{bk.title}</span>}
+                      <span className={`eo-tile__title ${selected ? 'underline decoration-1 underline-offset-4' : ''}`}>{bk.title}</span>
+                      <span className="eo-tile__author">{bk.author}</span>
                     </button>
-                    {selected && (
-                      <div className="flex gap-0.5 mt-1 justify-center">
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <button key={n} onClick={() => rate(bk.bookId, n)}
-                            className={`text-lg leading-none ${(picked.get(bk.bookId) ?? 0) >= n ? 'text-primary' : 'text-gray-300'}`}>★</button>
-                        ))}
-                      </div>
-                    )}
+                    {/* 별점 자리는 고르지 않았을 때도 비워 두어 그리드가 흔들리지 않게 한다 */}
+                    <div className="mt-2 flex h-6 items-center gap-0.5">
+                      {selected && [1, 2, 3, 4, 5].map((n) => (
+                        <button key={n} type="button" onClick={() => rate(bk.bookId, n)}
+                          aria-label={`별점 ${n}점`} aria-pressed={rating === n}
+                          className={`text-[15px] leading-none ${rating >= n ? 'text-ink' : 'text-rule-soft'}`}>★</button>
+                      ))}
+                    </div>
                   </div>
                 )
               })}
             </div>
-            <div className="mt-8 flex justify-between items-center">
-              <button className="text-gray-400 underline" onClick={finish}>건너뛰기</button>
-              <button className="bg-primary text-white rounded-lg px-10 py-3 font-bold disabled:opacity-40" disabled={!canFinishBooks} onClick={finish}>
-                추천 받기{picked.size > 0 && ` (${picked.size}권 선택)`}
+            <div className="mt-10 flex items-center justify-between">
+              <button className="eo-link" onClick={finish}>건너뛰기</button>
+              <button className="eo-button" disabled={!canFinishBooks} onClick={finish}>
+                추천 받기{picked.size > 0 && ` · ${picked.size}권`}
               </button>
             </div>
-          </>
+            {!canFinishBooks && <p className="eo-body mt-3 text-right text-[11px]">고른 책에 별점을 남기면 넘어갈 수 있어요</p>}
+          </section>
         )}
       </div>
     </main>

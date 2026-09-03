@@ -39,9 +39,9 @@
 
 .library-archive__intro h2 {
   margin-top: 8px;
-  font-family: 'Jua', 'Apple SD Gothic Neo', sans-serif;
-  font-size: clamp(26px, 2.7vw, 42px);
-  font-weight: 400;
+  font-family: 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', sans-serif;
+  font-size: clamp(19px, 2.7vw, 42px);
+  font-weight: 550;
   line-height: 1.05;
   letter-spacing: -0.035em;
 }
@@ -97,9 +97,9 @@
 
 .book-experience__header h1 {
   margin-top: 10px;
-  font-family: 'Jua', 'Apple SD Gothic Neo', sans-serif;
+  font-family: 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', sans-serif;
   font-size: clamp(40px, 4.6vw, 72px);
-  font-weight: 400;
+  font-weight: 550;
   line-height: 0.98;
   letter-spacing: -0.045em;
   text-wrap: balance;

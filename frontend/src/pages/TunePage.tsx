@@ -19,13 +19,14 @@ export default function TunePage() {
   // 선택 가능 태그 = 제안 목록 ∪ 이번 덱에 실제로 붙은 태그
   const deckTags = [...new Set((data?.items ?? []).flatMap((i) => i.tags))]
   const allTags = [...new Set([...SUGGESTED_TAGS, ...deckTags])]
+  const full = selected.length >= MAX_TAGS
 
   const toggle = (t: string) =>
     setSelected((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : prev.length < MAX_TAGS ? [...prev, t] : prev))
 
   // 미리보기 — 겹치는 태그 수 내림차순, 동률이면 원래 rank
   const preview = [...(data?.items ?? [])]
-    .map((i) => ({ title: i.book.title, hit: i.tags.filter((t) => selected.includes(t)).length, rank: i.rank, tags: i.tags }))
+    .map((i) => ({ book: i.book, hit: i.tags.filter((t) => selected.includes(t)).length, rank: i.rank }))
     .sort((a, b) => b.hit - a.hit || a.rank - b.rank)
     .slice(0, 3)
 
@@ -35,48 +36,72 @@ export default function TunePage() {
   }
 
   return (
-    <main className="p-8 max-w-5xl">
-      <h1 className="text-3xl font-bold">어떤 결의 책이 먼저 보이면 좋을까요?</h1>
-      <p className="text-sm text-gray-500 mt-1">끌리는 태그를 고르면 그 결의 책이 위로 올라와요 — 최대 {MAX_TAGS}개, 안 골라도 괜찮아요.</p>
+    <main className="eo-page">
+      <div className="eo-shell">
+        <header className="eo-pagehead">
+          <p className="eo-eyebrow">Tune</p>
+          <h1 className="eo-headline">어떤 결의 책이<br />먼저 보이면 좋을까요?</h1>
+          <p className="eo-body mt-4 max-w-[52ch]">
+            끌리는 태그를 고르면 그 결의 책이 위로 올라와요 — 최대 {MAX_TAGS}개, 안 골라도 괜찮아요.
+          </p>
+        </header>
 
-      <div className="mt-5 grid grid-cols-3 gap-6">
-        <div className="col-span-2">
-          <section className="border-2 border-primary rounded-xl bg-white p-5">
-            <h2 className="font-bold text-sm text-gray-500">관심 태그 <span className="font-normal">{selected.length} / {MAX_TAGS}</span></h2>
-            <div className="mt-3 flex flex-wrap gap-2.5">
-              {allTags.map((t) => (
-                <button key={t} onClick={() => toggle(t)}
-                  className={`rounded-full px-4 py-2 border-2 text-sm ${selected.includes(t) ? 'bg-primary text-white border-primary' : 'border-gray-300'}`}>
-                  {t}
-                </button>
-              ))}
+        <div className="mt-8 grid gap-0 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-x-12">
+          <section className="eo-section">
+            <div className="eo-section__header">
+              <h2 className="eo-title">관심 태그</h2>
+              <span>{selected.length} / {MAX_TAGS}</span>
             </div>
-            <p className="text-xs text-gray-400 mt-4">
-              태그는 추천 후보를 새로 계산하지 않고, 이미 준비된 추천을 재정렬해요. 다음 추천부터는 태그가 후보 선정에도 반영됩니다.
+            <div className="flex flex-wrap gap-2">
+              {allTags.map((t) => {
+                const on = selected.includes(t)
+                return (
+                  // 고를 수 있는 자리가 남지 않으면 새 태그는 비활성 — 왜 안 눌리는지 title로 알린다
+                  <button key={t} type="button" onClick={() => toggle(t)} disabled={!on && full}
+                    aria-pressed={on} title={!on && full ? `${MAX_TAGS}개까지 고를 수 있어요` : undefined}
+                    className={`eo-tag eo-tag--lg ${on ? 'is-on' : ''} ${!on && full ? 'opacity-35' : ''}`}>
+                    {t}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="eo-body mt-6 max-w-[58ch] text-[11px]">
+              태그는 추천 후보를 새로 계산하지 않고, 이미 준비된 추천을 재정렬해요.
+              다음 추천부터는 태그가 후보 선정에도 반영됩니다.
             </p>
           </section>
-        </div>
 
-        <div>
-          <section className="border-2 border-primary rounded-xl bg-white p-5">
-            <h2 className="font-bold text-sm text-gray-500">미리보기 상위 3권 <span className="font-normal">태그를 고르면 갱신</span></h2>
-            <ol className="mt-3 space-y-3">
-              {preview.map((b, i) => (
-                <li key={b.title} className="flex items-center gap-3">
-                  <span className="text-gray-400">{i + 1}</span>
-                  <div className="w-8 h-11 bg-gray-200 rounded" />
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-sm">{b.title}</p>
-                    {b.hit > 0 && <p className="text-xs text-accent">태그 {b.hit}개 일치</p>}
-                  </div>
-                </li>
-              ))}
-            </ol>
+          <section className="eo-section">
+            <div className="eo-section__header">
+              <h2 className="eo-title">미리보기</h2>
+              <span>상위 3권</span>
+            </div>
+            {preview.length === 0 ? (
+              <p className="eo-body">추천 덱을 불러오면 여기에서 순서가 어떻게 바뀌는지 볼 수 있어요.</p>
+            ) : (
+              <ol className="border-b border-rule-soft">
+                {preview.map((b, i) => (
+                  <li key={b.book.bookId} className="flex items-center gap-3.5 border-t border-rule-soft py-3">
+                    <span className="w-4 shrink-0 text-[10px] tabular-nums text-ink-faint">{i + 1}</span>
+                    {b.book.coverUrl
+                      ? <img className="eo-row__cover" src={b.book.coverUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
+                      : <span className="eo-row__cover" aria-hidden />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12px] font-semibold">{b.book.title}</span>
+                      <span className="mt-1 block text-[10px] tabular-nums text-ink-faint">
+                        {b.hit > 0 ? `태그 ${b.hit}개 일치` : '태그 일치 없음'}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            {/* 이 화면의 결정적 행동 하나만 캡슐형 — 해제는 밑줄 버튼으로 낮춘다 */}
+            <div className="mt-7 flex flex-col items-start gap-2">
+              <button className="eo-button w-full" onClick={apply}>이 태그로 추천받기</button>
+              <button className="eo-link" onClick={() => setSelected([])} disabled={selected.length === 0}>모두 해제</button>
+            </div>
           </section>
-          <button className="mt-4 w-full bg-primary text-white rounded-lg py-3 font-bold" onClick={apply}>
-            이 태그로 추천받기
-          </button>
-          <button className="mt-2 w-full border-2 border-primary rounded-lg py-2" onClick={() => setSelected([])}>모두 해제</button>
         </div>
       </div>
     </main>

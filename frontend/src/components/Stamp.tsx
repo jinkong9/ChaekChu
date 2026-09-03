@@ -29,7 +29,7 @@ export function Perforated({ width, notch = PAPER, frame = '#fffdf6', children, 
     backgroundRepeat: axis === 'x' ? 'repeat-x' : 'repeat-y',
   })
   return (
-    <div className="relative" style={{ width, filter: 'drop-shadow(1px 2px 3px rgba(34,34,74,0.22))', ...style }}>
+    <div className="relative" style={{ width, filter: 'drop-shadow(1px 2px 3px rgba(11,11,11,0.18))', ...style }}>
       <div style={{ background: frame, padding: tooth * 0.6 }}>{children}</div>
       <div style={{ ...strip(`radial-gradient(circle ${r}px at ${half}px 0px, ${notch} 99%, transparent 100%)`, 'x'), left: 0, right: 0, top: 0, height: tooth }} />
       <div style={{ ...strip(`radial-gradient(circle ${r}px at ${half}px ${tooth}px, ${notch} 99%, transparent 100%)`, 'x'), left: 0, right: 0, bottom: 0, height: tooth }} />

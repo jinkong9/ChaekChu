@@ -16,10 +16,15 @@ export default function LibraryPage() {
   const [variant, setVariant] = useState<Variant>('book')
   return (
     <div className="relative flex flex-1 flex-col">
-      <div className="absolute right-6 top-4 z-40 flex overflow-hidden rounded-full border-2 border-primary bg-white text-xs">
+      {/* 시안 전환은 제품 UI가 아니라 팀용 도구다 — 화면 오른쪽 아래에 조용히 띄워
+          각 시안의 머리말·행동 버튼과 자리를 다투지 않게 한다 */}
+      <div className="eo-panel fixed bottom-5 right-4 z-40 flex items-center gap-4 px-3.5 py-2 sm:right-7">
+        <span className="text-[10px] uppercase tracking-[0.08em] text-ink-faint">시안</span>
         {VARIANTS.map((v) => (
-          <button key={v.key} onClick={() => setVariant(v.key)}
-            className={`px-3 py-1 font-bold ${variant === v.key ? 'bg-primary text-white' : 'text-gray-400'}`}>
+          <button key={v.key} onClick={() => setVariant(v.key)} aria-pressed={variant === v.key}
+            className={`border-b-2 pb-0.5 text-[11px] transition-colors duration-150 ${
+              variant === v.key ? 'border-ink font-bold text-ink' : 'border-transparent text-ink-faint hover:text-ink'
+            }`}>
             {v.label}
           </button>
         ))}

@@ -1,0 +1,56 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font-size",
+        "value": "15px",
+        "createdAt": "2026-09-03T01:53:37.249Z",
+        "reason": "DESIGN.md Components > Underline text button: 높이 40px, 15px/700. popular-ring.css:47,319 동일"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "13px",
+        "createdAt": "2026-09-03T01:53:37.387Z",
+        "reason": "홈 기준 구현의 CTA·필터 크기 (popular-ring.css:63,382). 공통 레이어가 같은 값을 쓴다"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0, 0, 0, 0.1)",
+        "createdAt": "2026-09-03T01:53:37.519Z",
+        "reason": "DESIGN.md Elevation: 표지 1px rgba(0,0,0,.10) 외곽선"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0, 0, 0, 0.15)",
+        "createdAt": "2026-09-03T01:53:37.645Z",
+        "reason": "DESIGN.md Elevation: 표지 확대 0 14px 36px rgba(0,0,0,.15)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0, 0, 0, 0.08)",
+        "createdAt": "2026-09-03T01:53:37.770Z",
+        "reason": "DESIGN.md Elevation: 팝오버 0 18px 50px rgba(0,0,0,.08)"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "yearningpuha",
+        "createdAt": "2026-09-03T01:54:56.059Z",
+        "reason": "추천 편지(엽서) 손글씨 전용 서체. LetterStamp/StampFolder의 연출 요소로 본문 위계에 쓰이지 않는다"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "cormorant garamond",
+        "createdAt": "2026-09-03T01:54:56.196Z",
+        "reason": "라우트에 연결되지 않은 홈 궤도 시안(HomePageOrbit) 전용. 확정안(popular-ring)은 Pretendard만 쓴다"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "noto serif kr",
+        "createdAt": "2026-09-03T01:54:56.327Z",
+        "reason": "라우트에 연결되지 않은 홈 B안 시안(HomePageB) 전용"
+      }
+    ]
+  }
+}
