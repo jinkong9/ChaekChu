@@ -834,6 +834,21 @@ def fetch(_unused: str, isbn: str) -> dict:
             state["gw_streak"] = 0          # 서버가 살아 있다는 증거
         record = shape(isbn, body, key_idx)
         if record and record.pop("__misstreak__", 0):
+            # **은퇴시키기 전에 키를 찔러 본다.**
+            # 연속 미수록의 원인은 둘인데 증상이 같다.
+            #   (a) 쿼터가 끝나 빈 응답이 온다  -> 키를 빼야 한다
+            #   (b) 진짜로 정보나루에 없는 책이 몰려 있다 -> 계속 가야 한다
+            #
+            # 실측 2026-09-04: 2단계 신간 구간의 미수록률이 **12.1%** 다
+            # (1단계는 약 0.5%). 신간은 도서관이 아직 안 사서 이용분석 자료가
+            # 없는 게 정상이고, 그것이 뭉쳐 나오면 50연속이 실제로 발생한다.
+            # 그런데 이 자리에 확인 절차가 없어 **쿼터가 멀쩡한 키 5개를
+            # 50~200호출 만에 전부 은퇴**시키고 8시간을 놀았다.
+            # 실패 경로에는 diagnose() 가 있는데 미수록 경로에만 없었다.
+            if diagnose(key) == "ok":
+                with lock:
+                    state["miss_streak"][key_idx] = 0
+                return record            # 진짜 미수록이다. 기록하고 계속
             retire_key(key_idx, "연속 미수록 — 쿼터 소진 (빈 응답 위장)")
             return None
         return record
