@@ -62,11 +62,31 @@ KST = timezone(timedelta(hours=9))
 FAIL_STREAK_BLOCK = 40      # 정보나루가 그랬듯 상한이 조용히 올 수 있다
 
 state = {"calls": 0, "hit": 0, "miss": 0, "error": 0, "streak": 0,
-         "blocked": False, "stop": False, "block_msg": ""}
+         "blocked": False, "stop": False, "block_msg": "",
+         # 키를 순차로 소진한다. 한 키가 막히면 다음으로 넘어가고,
+         # **전부 막혀야** 종료한다.
+         "keys": [], "per_key": {}, "dead": set()}
 lock = threading.Lock()
 
 
 def pid_alive(pid: int) -> bool:
+    """PID 가 살아 있는지 확인한다.
+
+    **`os.kill(pid, 0)` 은 POSIX 에서만 존재 확인이다.** 윈도우에는 그런
+    개념이 없어 파이썬이 `TerminateProcess` 를 부른다 — 즉 확인하려다 죽인다.
+    실측 2026-08-31 에 정보나루 수집기가 이것 때문에 종료됐다.
+    이 수집기는 윈도우에서 돌므로 같은 함정이 있었다.
+    """
+    if os.name == "nt":
+        import subprocess
+        try:
+            out = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"],
+                capture_output=True, text=True, timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return f'"{pid}"' in (out.stdout or "")
     try:
         os.kill(pid, 0)
     except OSError:
@@ -94,17 +114,58 @@ def release_lock() -> None:
         pass
 
 
-def load_key() -> str:
+def load_keys() -> list:
+    """`.env` 의 카카오* 키를 **전부** 읽는다 (카카오, 카카오2 …).
+
+    예전에는 load_key() 가 단수라 첫 키만 썼다. 실측 2026-09-03 에
+    키가 2개인데 30,000 에서 멈췄다 — 두 번째 키를 아예 안 건드렸다.
+    """
     raw = ENV.read_bytes()
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
         text = raw.decode("cp949", "replace")
+    found = []
     for line in text.splitlines():
         line = line.strip()
         if line.startswith("카카오") and "=" in line:
-            return line.split("=", 1)[1].strip().strip("\"'")
-    raise SystemExit("`.env` 에 카카오 키가 없다")
+            name, value = line.split("=", 1)
+            value = value.strip().strip("\"'")
+            if value:
+                found.append((name.strip(), value))
+    if not found:
+        raise SystemExit("`.env` 에 카카오 키가 없다")
+    return found
+
+
+def pick_key() -> tuple:
+    """살아 있는 키를 앞에서부터 하나 고른다 (순차 소진)."""
+    with lock:
+        for idx, (name, value) in enumerate(state["keys"]):
+            if idx not in state["dead"]:
+                return name, value, idx
+    return None, None, -1
+
+
+def retire_key(idx: int, message: str) -> None:
+    """이 키만 소진 처리한다. 남은 키가 없을 때만 전량 정지."""
+    with lock:
+        if idx < 0 or idx in state["dead"]:
+            return
+        state["dead"].add(idx)
+        name = state["keys"][idx][0]
+        used = state["per_key"].get(name, 0)
+        left = [state["keys"][i][0] for i in range(len(state["keys"]))
+                if i not in state["dead"]]
+        print(f"\n  [{name}] 소진 — {used:,}호출  ({message[:60]})", flush=True)
+        if left:
+            print(f"  남은 키: {', '.join(left)}", flush=True)
+            state["streak"] = 0
+            return
+        state["blocked"] = True
+        state["block_msg"] = f"키 {len(state['keys'])}개 전부 소진 — {message}"
+        state["stop"] = True
+        print("  남은 키 없음 — 종료", flush=True)
 
 
 def load_done() -> set:
@@ -166,7 +227,10 @@ def shape(isbn: str, doc: dict) -> dict:
     return {"isbn13": isbn, "ok": True, **slim}
 
 
-def fetch(key: str, isbn: str) -> dict:
+def fetch(_unused: str, isbn: str) -> dict:
+    key_name, key, key_idx = pick_key()
+    if key is None:
+        return None
     url = API + "?" + urllib.parse.urlencode({"query": isbn, "target": "isbn"})
     request = urllib.request.Request(url, headers={
         "Authorization": f"KakaoAK {key}", "User-Agent": "b102-kakao/1.0"})
@@ -187,7 +251,10 @@ def fetch(key: str, isbn: str) -> dict:
                 except Exception:                        # noqa: BLE001
                     detail = ""
                 if error.code == 429 or "limit has been exceeded" in detail:
-                    declare_block(f"HTTP {error.code} — 일일 쿼터 소진 ({detail[:80]})")
+                    # **전량 정지가 아니라 이 키만 은퇴시킨다.**
+                    # 예전에는 declare_block 으로 통째로 멈춰서, 키가 2개인데
+                    # 30,000 에서 끝났다 (실측 2026-09-03).
+                    retire_key(key_idx, f"HTTP {error.code} 쿼터 소진")
                     return None
                 note_failure(f"HTTP 400 {detail[:40]}")
                 return None
@@ -207,6 +274,7 @@ def fetch(key: str, isbn: str) -> dict:
         with lock:
             state["calls"] += 1
             state["streak"] = 0
+            state["per_key"][key_name] = state["per_key"].get(key_name, 0) + 1
         return shape(isbn, docs[0] if docs else {})
     return None
 
@@ -263,6 +331,11 @@ def drain(key: str, pending: list, workers: int) -> int:
 def summary() -> None:
     print("\n=== 이번 실행 결과 ===")
     print(f"  호출        {state['calls']:>9,}")
+    if state.get("keys"):
+        print("  키별 호출:")
+        for i, (name, _) in enumerate(state["keys"]):
+            mark = " (소진)" if i in state["dead"] else ""
+            print(f"    {name:<10}{state['per_key'].get(name, 0):>9,}{mark}")
     print(f"  매칭        {state['hit']:>9,}")
     print(f"  미매칭      {state['miss']:>9,}")
     print(f"  오류        {state['error']:>9,}")
@@ -271,7 +344,11 @@ def summary() -> None:
 
 
 def run(args) -> int:
-    key = load_key()
+    keys = load_keys()
+    state["keys"] = keys
+    key = ""            # 실제 키는 pick_key() 가 호출마다 고른다
+    print(f"카카오 키 {len(keys)}개 순차 소진: "
+          + ", ".join(n for n, _ in keys))
     lines = QUEUE.read_text(encoding="utf-8").splitlines()[1:]
     targets = [line.split(",")[0] for line in lines]
     done = load_done()
