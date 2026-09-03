@@ -2,6 +2,11 @@
 
 React 19.2 · TypeScript 5.9 · Vite 7.3 · React Router 7 · TanStack Query 5 · Zustand 5 · Tailwind 4 · MSW
 
+## 디자인 가이드
+
+새 화면을 만들거나 기존 화면을 홈 화면 스타일로 정리할 때는 [DESIGN.md](./DESIGN.md)를 기준으로 작업합니다.
+색상, 타이포그래피, 여백, 버튼, 책 표지, 반응형 레이아웃, 모션과 성능 규칙이 정리되어 있습니다.
+
 ## 실행
 
 ```bash

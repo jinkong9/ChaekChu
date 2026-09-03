@@ -15,3 +15,10 @@ skills-lock.json
 
 # 로컬 전용 유틸 스크립트 (개인 API 키로 외부 API를 호출하는 것들) — 공유하지 않음
 frontend/scripts/
+!frontend/scripts/
+frontend/scripts/*
+!frontend/scripts/build-popular-ring-data.mjs
+
+# 홈 화면 시각 QA 산출물 — 로컬 검증용이며 제품 번들에는 포함하지 않음
+frontend/qa-*.png
+frontend/design-qa.md
