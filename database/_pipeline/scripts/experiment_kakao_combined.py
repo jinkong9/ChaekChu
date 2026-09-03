@@ -63,10 +63,8 @@ except Exception:
 
 BASE = Path(os.environ.get("PIPELINE_DATA")
             or r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal").expanduser()
-D4L_CANDIDATES = [
-    BASE / "data4library" / "d4l_usage_20260903.jsonl",
-    BASE / "data4library" / "d4l_usage.jsonl",
-]
+# 로컬 정본. EC2 가 더 최신이므로 실험 전에 회수해 덮어쓴다.
+D4L_CANDIDATES = [BASE / "data4library" / "d4l_usage.jsonl"]
 KAKAO = BASE / "kakao_enriched.jsonl"
 MODEL = "jhgan/ko-sroberta-multitask"
 TOP_K = 10

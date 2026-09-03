@@ -120,11 +120,14 @@ def latest_file(opener, csrf: str, lib_id) -> tuple:
     page = opener.open(urllib.request.Request(DETAIL_URL, data=body),
                        timeout=90).read().decode("utf-8", "replace")
     cns = re.findall(r"/comn/fileDownload\?cn=(\d+)", page)
-    dates = re.findall(r"(20\d\d-\d\d-\d\d)", page)
     if not cns:
         return None, None
-    # 목록은 최신순이다
-    return cns[0], (dates[0] if dates else "")
+    # **페이지 첫 날짜를 잡으면 안 된다.** 그것은 그 관의 데이터 개시일이라
+    # 1,660관이 전부 2017-06-01 로 기록되는 사고가 있었다 (2026-09-03).
+    # 최신 다운로드 링크 앞쪽에서 가장 가까운 제공일을 집는다.
+    head = page[:page.index("/comn/fileDownload?cn=" + cns[0])]
+    near = re.findall(r"데이터 제공일[^0-9]{0,40}(20\d\d-\d\d-\d\d)", head)
+    return cns[0], (near[-1] if near else "")
 
 
 def fetch_csv(opener, cn: str) -> bytes:
@@ -142,14 +145,35 @@ def fetch_csv(opener, cn: str) -> bytes:
 
 
 def decode_csv(raw: bytes) -> str:
-    """정보나루 CSV 는 UTF-8 이지만 예전 파일에 EUC-KR 이 섞여 있을 수 있다."""
-    text = raw.decode("utf-8", "replace")
-    if "\ufffd" in text[:2000] or not re.search(r"[가-힣]", text[:2000]):
+    """인코딩을 **한글이 가장 많이 나오는 쪽**으로 고른다.
+
+    대부분 UTF-8 이지만 EUC-KR 로 올라온 관이 섞여 있고, 그중에는
+    **어느 인코딩으로도 깨끗하게 안 풀리는** 파일이 있다 (잘못된 바이트 혼입).
+    예전 구현은 utf-8 로 먼저 풀어 U+FFFD 를 만든 뒤 euc-kr 을 시도했는데,
+    그것마저 예외가 나면 **손상된 쪽을 그대로 돌려줬다.**
+    실측 2026-09-03: 1,660관 중 4관(20126·20262·8206·8418)이 이렇게 깨졌다.
+
+    그래서 후보를 전부 관대하게 풀어 보고 한글이 많고 깨진 글자가 적은 쪽을
+    택한다. 완벽히 복원되지 않아도 최선을 남긴다.
+    """
+    # **BOM 은 디코드 전에 뗀다.** 원본에 BOM 은 UTF-8 인데 내용은 CP949 인
+    # 기형 파일이 있다. 그대로 CP949 로 풀면 앞 3바이트가 "癤예廢" 가 되어
+    # 헤더 첫 칸이 깨진다 (실측 2026-09-03: 4관).
+    if raw[:3] == b"\xef\xbb\xbf":
+        raw = raw[3:]
+    probe = raw[:200_000]
+    best_enc, best_score = "utf-8", -1e9
+    for enc in ("utf-8", "cp949", "euc-kr"):
         try:
-            return raw.decode("euc-kr")
-        except UnicodeDecodeError:
-            pass
-    return text
+            sample = probe.decode(enc, "replace")
+        except LookupError:
+            continue
+        hangul = sum(1 for ch in sample if "\uac00" <= ch <= "\ud7a3")
+        broken = sample.count("\ufffd")
+        score = (hangul - broken * 3) / max(1, len(sample))
+        if score > best_score:
+            best_enc, best_score = enc, score
+    return raw.decode(best_enc, "replace")
 
 
 def main() -> int:
@@ -192,7 +216,11 @@ def main() -> int:
             out = RAW / f"{lib_id}.csv"
             if (prev and prev.get("cn") == cn and out.exists()
                     and not args.force):
+                # 파일은 그대로 두되 **메타데이터는 갱신한다.**
+                # 조회는 이미 했으므로 공짜다. 제공일 추출 버그로 1,660관이
+                # 전부 2017-06-01 로 기록된 적이 있어 이 경로가 필요하다.
                 with lock:
+                    prev["served"] = served or prev.get("served", "")
                     state["skip"] += 1
                 return
             raw = fetch_csv(opener, cn)
