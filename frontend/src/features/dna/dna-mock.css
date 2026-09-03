@@ -1,5 +1,6 @@
 /* BOOK DNA 시안 — Editorial Orbit 토큰 (DESIGN.md).
-   전역 토큰 교체 전이므로 페이지 루트(.dna-mock)에 스코프한다. */
+   전역 토큰은 이제 index.css가, 공용 클래스는 styles/editorial.css(--eo-*)가 들고 있다.
+   여기 로컬 별칭은 같은 값이라 그대로 둔다 — 손볼 일이 생기면 --eo-* 로 옮기면 된다. */
 .dna-mock {
   --paper: #fdfdfb;
   --ink: #0b0b0b;

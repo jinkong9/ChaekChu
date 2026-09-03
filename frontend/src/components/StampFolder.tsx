@@ -63,7 +63,7 @@ export default function StampFolder({
         }}
         initial={false}
         animate={{
-          boxShadow: open ? `4px 8px 20px -10px rgba(34,34,74,0.28), ${ring}` : `3px 5px 14px -8px rgba(34,34,74,0.26), ${ring}`,
+          boxShadow: open ? `4px 8px 20px -10px rgba(11,11,11,0.22), ${ring}` : `3px 5px 14px -8px rgba(11,11,11,0.2), ${ring}`,
         }}
         transition={spring}>
         {/* 열접착된 좌우/하단 띠 — 레퍼런스의 하얗게 겹친 모서리 */}
@@ -75,8 +75,8 @@ export default function StampFolder({
         <div className="absolute left-0 top-0" style={{ width: width * 0.16, height: height * 0.2, background: 'rgba(255,255,255,.24)', clipPath: 'polygon(0 0, 100% 0, 0 100%)' }} />
 
         <div className="absolute left-0 right-0" style={{ bottom: height * 0.16, paddingLeft: width * 0.11 }}>
-          <p className="font-hand leading-none" style={{ fontSize: width * 0.125, color: '#22224a' }}>{label}</p>
-          {sub && <p className="mt-1.5 leading-none" style={{ fontSize: width * 0.055, color: '#22224a', opacity: 0.5 }}>{sub}</p>}
+          <p className="font-hand leading-none" style={{ fontSize: width * 0.125, color: '#0b0b0b' }}>{label}</p>
+          {sub && <p className="mt-1.5 leading-none" style={{ fontSize: width * 0.055, color: '#0b0b0b', opacity: 0.5 }}>{sub}</p>}
         </div>
         {/* 앞판 아래 인쇄선 두 줄 */}
         <div className="absolute" style={{ left: width * 0.11, right: width * 0.11, bottom: height * 0.1, height: 1, background: GLASS_LINE }} />
@@ -86,13 +86,13 @@ export default function StampFolder({
       {/* 젖혀진 덮개가 몸통에 드리우는 그늘 — 덮개가 '들렸다'를 몸통 쪽에서도 보여 준다 */}
       <motion.div className="absolute z-[21] pointer-events-none"
         style={{ right: 0, top: 0, width: width * 0.34, height, clipPath: sideMouth,
-          background: 'linear-gradient(270deg, rgba(34,34,74,.16), rgba(34,34,74,0) 70%)' }}
+          background: 'linear-gradient(270deg, rgba(11,11,11,.14), rgba(11,11,11,0) 70%)' }}
         initial={false} animate={{ opacity: open ? 1 : 0 }} transition={{ duration: 0.3 }} />
 
       {/* 접힌 골 — 열리면 몸통과 덮개 사이에 그늘이 진다. 두 장이 한 장에서 꺾였다는 표시다 */}
       <motion.div className="absolute z-[23] pointer-events-none"
         style={{ right: -1, top: height * 0.07, bottom: height * 0.07, width: 4,
-          background: 'linear-gradient(90deg, rgba(34,34,74,.26), rgba(34,34,74,.04))' }}
+          background: 'linear-gradient(90deg, rgba(11,11,11,.24), rgba(11,11,11,.04))' }}
         initial={false} animate={{ opacity: open ? 1 : 0 }} transition={{ duration: 0.25 }} />
 
       {/* 오른쪽 덮개 — 봉투를 뜯듯 왼쪽에서 오른쪽으로 젖혀지고, 그 틈으로 우표가 빠져나온다.
@@ -120,7 +120,7 @@ export default function StampFolder({
             initial={false}
             // 그림자는 상자가 아니라 잘라 낸 실루엣을 따라야 해서 box-shadow가 아닌 drop-shadow를 쓴다
             // 젖혀지면 요소가 뒤집혀 좌우 오프셋도 같이 뒤집히므로, 열린 그림자는 아래로만 떨군다
-            animate={{ filter: open ? 'drop-shadow(0 10px 12px rgba(34,34,74,.22))' : 'drop-shadow(1px 0 0 rgba(34,34,74,.1))' }}
+            animate={{ filter: open ? 'drop-shadow(0 10px 12px rgba(11,11,11,.18))' : 'drop-shadow(1px 0 0 rgba(11,11,11,.1))' }}
             transition={{ duration: 0.3 }}>
             {/* 종이 재질 */}
             <div className="absolute inset-0"
@@ -135,11 +135,11 @@ export default function StampFolder({
                 viewBox가 세로로 크게 늘어나니 stroke는 non-scaling으로 고정한다. */}
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible">
               <path d={FLAP_PATH}
-                fill="none" stroke="rgba(34,34,74,.3)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+                fill="none" stroke="rgba(11,11,11,.25)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
             </svg>
           </motion.div>
           <div className="absolute top-1/2 -translate-y-1/2 rounded-full"
-            style={{ right: -width * 0.055, width: width * 0.12, aspectRatio: '1', ...glassine(0.36, 1), border: `1px solid rgba(255,255,255,.36)`, boxShadow: '0 2px 8px rgba(34,34,74,.08)' }} />
+            style={{ right: -width * 0.055, width: width * 0.12, aspectRatio: '1', ...glassine(0.36, 1), border: `1px solid rgba(255,255,255,.36)`, boxShadow: '0 2px 8px rgba(11,11,11,.08)' }} />
         </div>
       </motion.div>
     </div>

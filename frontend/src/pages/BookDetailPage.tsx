@@ -5,6 +5,8 @@ import { api } from '../api/client'
 import type { BookDetail, ShelfStatus } from '../api/types'
 import { trackEvent } from '../lib/events'
 
+const MY_STATUS_LABEL: Record<ShelfStatus, string> = { WISH: '찜', READING: '읽는 중', READ: '읽음' }
+
 /** BOOK-001 도서 상세 — 통합 서지 + 출처별 지표 + 이유 카드(추천 경유 시) + 연령 분포 + 내 기록.
  *  '다음에 읽을 책'(BOOK-002)은 별도 페이지 대신 하단 비슷한 책/함께 대출 섹션으로 흡수 */
 export default function BookDetailPage() {
@@ -27,7 +29,16 @@ export default function BookDetailPage() {
     }
   }, [book])
 
-  if (isPending || !book) return <main className="p-8 text-gray-400">불러오는 중…</main>
+  if (isPending || !book) {
+    return (
+      <main className="eo-page">
+        <div className="eo-state">
+          <span className="eo-progress" />
+          <p className="eo-body">책을 불러오는 중</p>
+        </div>
+      </main>
+    )
+  }
 
   const save = (status: ShelfStatus) => {
     if (status === 'WISH') trackEvent('WISH', { bookId: book.bookId })
@@ -36,86 +47,135 @@ export default function BookDetailPage() {
       .catch(() => {})
   }
 
+  const bibliography = [book.publisher, book.publicationYear, book.pageCount && `${book.pageCount}쪽`].filter(Boolean).join(' · ')
+  // 연령 분포는 값이 아니라 서로의 비율이 읽혀야 한다 — 최댓값을 100%로 잡는다
+  const peakRatio = Math.max(...(book.loanByAge ?? []).map((a) => a.ratio), 1)
+
   return (
-    <main className="p-8 max-w-5xl flex gap-8">
-      <div className="w-52 flex-shrink-0">
-        <div className="w-52 h-72 bg-gray-200 rounded" />
-        <div className="mt-4 flex flex-col gap-2">
-          <button className="bg-primary text-white rounded-lg py-2.5 font-bold" onClick={() => save('WISH')}>찜하기</button>
-          <button className="border-2 border-primary rounded-lg py-2.5" onClick={() => save('READING')}>읽는 중으로 담기</button>
-          <button className="border-2 border-primary rounded-lg py-2.5" onClick={() => save('READ')}>완독 표시</button>
-        </div>
+    <main className="eo-page">
+      <div className="eo-shell">
+        {/* 제목은 폭 전체를 가로질러 먼저 온다 — 좁은 화면에서 표지가 첫 화면을 다 먹지 않도록,
+            그 아래에 표지·행동 레일과 읽을거리 단을 나란히 둔다 */}
+        <header className="eo-pagehead">
+          <h1 className="eo-headline">{book.title}</h1>
+          <p className="eo-body mt-3">
+            {book.author}
+            {bibliography && <span className="eo-faint"> · {bibliography}</span>}
+          </p>
+          {book.isbn13 && <p className="eo-utility mt-1.5">ISBN {book.isbn13}</p>}
+        </header>
 
-        {/* 내 기록 — 계약 §6: 본인 것만, 비로그인·타인은 null */}
-        {book.myLibraryStatus && (
-          <div className="mt-4 border-2 border-primary rounded-lg p-3 text-sm bg-white">
-            <p className="font-bold">내 기록</p>
-            <p className="mt-1 text-gray-500">
-              {{ WISH: '찜', READING: '읽는 중', READ: '읽음' }[book.myLibraryStatus]}
-              {book.myRating != null && ` · ★ ${book.myRating}`}
-            </p>
-            {book.myReviewText && <p className="mt-1 text-gray-600">💬 {book.myReviewText}</p>}
-            <Link to="/library" className="text-xs text-gray-400 underline">서재에서 수정 ›</Link>
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1">
-        <h1 className="text-2xl font-bold">{book.title}</h1>
-        <p className="text-sm text-gray-500 mt-1">{book.publisher} · {book.publicationYear} · {book.pageCount}쪽{book.isbn13 && ` · ISBN ${book.isbn13}`}</p>
-
-        {/* 출처별 지표 — 결측 항목은 렌더 안 함 */}
-        <div className="mt-3 flex gap-3 flex-wrap">
-          {book.metrics.map((m) => (
-            <div key={m.name} className="border-2 border-primary rounded-lg px-3 py-2 text-sm">
-              <span className="font-bold">{m.value}</span> <span className="text-gray-400 text-xs">{m.name} · {m.source} · {m.asOf}</span>
+        <div className="mt-8 flex flex-col gap-9 md:flex-row md:gap-12">
+          <div className="w-[148px] shrink-0 md:w-[196px]">
+            {book.coverUrl
+              ? <img className="eo-cover" src={book.coverUrl} alt={book.title} referrerPolicy="no-referrer" decoding="async" />
+              : <span className="eo-cover-fallback">{book.title}</span>}
+            <div className="mt-5 flex flex-col items-start gap-3.5">
+              <button className="eo-button w-full" onClick={() => save('WISH')}>찜하기</button>
+              <button className="eo-text-button text-[13px]" onClick={() => save('READING')}>읽는 중으로 담기</button>
+              <button className="eo-text-button text-[13px]" onClick={() => save('READ')}>완독 표시</button>
             </div>
-          ))}
-          {book.category && <div className="border-2 border-primary rounded-lg px-3 py-2 text-sm">{book.category} <span className="text-gray-400 text-xs">국립중앙도서관</span></div>}
-        </div>
 
-        {fromRec && (
-          <div className="mt-4 border border-accent rounded-lg p-4 text-sm">
-            <span className="font-bold text-accent">추천으로 들어왔을 때만 보이는 이유 카드</span> — 직접 검색 진입 시 이 섹션은 렌더되지 않음
+            {/* 내 기록 — 계약 §6: 본인 것만, 비로그인·타인은 null */}
+            {book.myLibraryStatus && (
+              <section className="mt-7 border-t border-rule pt-4">
+                <h2 className="eo-label">내 기록</h2>
+                <p className="eo-body mt-2">
+                  {MY_STATUS_LABEL[book.myLibraryStatus]}
+                  {book.myRating != null && ` · 별점 ${book.myRating}`}
+                </p>
+                {book.myReviewText && <p className="eo-body eo-body--ink mt-2">{book.myReviewText}</p>}
+                <Link to="/library" className="eo-link mt-3">서재에서 수정</Link>
+              </section>
+            )}
           </div>
-        )}
 
-        {book.description && (
-          <section className="mt-5 border-2 border-primary rounded-xl bg-white p-5">
-            <h2 className="font-bold">책 소개 <span className="text-xs font-normal text-gray-400">카카오 / YES24 — 추천 임베딩의 원천 텍스트</span></h2>
-            <p className="mt-2 text-sm leading-relaxed">{book.description}</p>
-          </section>
-        )}
-        {book.toc && (
-          <details className="mt-3 border-2 border-primary rounded-xl bg-white p-5">
-            <summary className="font-bold cursor-pointer">목차 <span className="text-xs font-normal text-gray-400">YES24 · 펼치기</span></summary>
-            <pre className="mt-2 text-sm whitespace-pre-line font-sans">{book.toc}</pre>
-          </details>
-        )}
+          <div className="min-w-0 flex-1">
+            {/* 출처별 지표 — 결측 항목은 렌더 안 함. 상자 대신 규칙선으로 끊는다 */}
+            {(book.metrics.length > 0 || book.category) && (
+              <dl className="border-b border-rule-soft">
+                {[
+                  ...book.metrics.map((m) => ({ key: `${m.source}-${m.name}`, name: m.name, value: m.value, source: `${m.source} · ${m.asOf}` })),
+                  ...(book.category ? [{ key: 'category', name: '분류', value: book.category, source: '국립중앙도서관' }] : []),
+                ].map((row) => (
+                  <div key={row.key} className="flex items-baseline gap-4 border-t border-rule-soft py-3">
+                    <dt className="w-20 shrink-0 text-[10px] leading-tight text-ink-muted">{row.name}</dt>
+                    <dd className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
+                      <span className="truncate text-[15px] font-semibold tabular-nums">{row.value}</span>
+                      <span className="shrink-0 text-[10px] tabular-nums text-ink-faint">{row.source}</span>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
 
-        {book.loanByAge && (
-          <section className="mt-3 border-2 border-primary rounded-xl bg-white p-5">
-            <h2 className="font-bold">이 책을 빌린 사람들 <span className="text-xs font-normal text-gray-400">정보나루 — 데이터 없으면 섹션 숨김</span></h2>
-            <div className="mt-3 flex items-end gap-3 h-28">
-              {book.loanByAge.map((a) => (
-                <div key={a.ageGroup} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full bg-gray-300 rounded-t" style={{ height: `${a.ratio * 2.4}px` }} />
-                  <span className="text-xs text-gray-400">{a.ageGroup}</span>
+            {fromRec && (
+              <p className="mt-6 border-l-2 border-ink pl-4 text-[13px] leading-relaxed">
+                <span className="font-bold">추천으로 들어왔을 때만 보이는 이유 카드</span>
+                <span className="eo-faint"> — 직접 검색 진입 시 이 섹션은 렌더되지 않음</span>
+              </p>
+            )}
+
+            {book.description && (
+              <section className="eo-section mt-8">
+                <div className="eo-section__header">
+                  <h2 className="eo-title">책 소개</h2>
+                  <span>카카오 / YES24</span>
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+                <p className="eo-body eo-body--ink max-w-[62ch] text-[13px]">{book.description}</p>
+              </section>
+            )}
 
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <section className="border-2 border-primary rounded-xl bg-white p-5">
-            <h2 className="font-bold text-sm">이 책과 비슷한 책 <span className="text-xs font-normal text-gray-400">책 소개 임베딩 유사도</span></h2>
-            <div className="mt-2 flex gap-2">{[1, 2, 3, 4].map((i) => <div key={i} className="w-14 h-20 bg-gray-200 rounded" />)}</div>
-          </section>
-          <section className="border-2 border-primary rounded-xl bg-white p-5">
-            <h2 className="font-bold text-sm">함께 대출된 책 <span className="text-xs font-normal text-gray-400">행동 기반 · 정보나루</span></h2>
-            <div className="mt-2 flex gap-2">{[1, 2, 3, 4].map((i) => <div key={i} className="w-14 h-20 bg-gray-200 rounded" />)}</div>
-          </section>
+            {book.toc && (
+              <details className="eo-section">
+                <summary className="eo-section__header cursor-pointer list-none">
+                  <h2 className="eo-title">목차</h2>
+                  <span>YES24 · 펼치기</span>
+                </summary>
+                <pre className="eo-body eo-body--ink max-w-[62ch] whitespace-pre-line font-sans text-[13px]">{book.toc}</pre>
+              </details>
+            )}
+
+            {book.loanByAge && (
+              <section className="eo-section">
+                <div className="eo-section__header">
+                  <h2 className="eo-title">이 책을 빌린 사람들</h2>
+                  <span>정보나루</span>
+                </div>
+                {/* 막대는 값이 아니라 서로의 비율을 읽는 자리 — 폭은 좁게 두고 여백이 비교를 돕게 한다 */}
+                <div className="flex h-24 max-w-[380px] items-end gap-6">
+                  {book.loanByAge.map((a) => (
+                    <div key={a.ageGroup} className="flex h-full flex-1 flex-col justify-end gap-2">
+                      <span className="eo-utility text-center">{Math.round(a.ratio)}%</span>
+                      <div className="mx-auto w-6 bg-ink" style={{ height: `${(a.ratio / peakRatio) * 100}%` }} />
+                      <span className="eo-utility text-center">{a.ageGroup}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <div className="grid gap-0 sm:grid-cols-2 sm:gap-x-12">
+              <section className="eo-section">
+                <div className="eo-section__header">
+                  <h2 className="eo-title">비슷한 책</h2>
+                  <span>소개 임베딩</span>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {[1, 2, 3, 4].map((i) => <span key={i} className="eo-cover-fallback eo-skeleton" />)}
+                </div>
+              </section>
+              <section className="eo-section">
+                <div className="eo-section__header">
+                  <h2 className="eo-title">함께 대출된 책</h2>
+                  <span>정보나루</span>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  {[1, 2, 3, 4].map((i) => <span key={i} className="eo-cover-fallback eo-skeleton" />)}
+                </div>
+              </section>
+            </div>
+          </div>
         </div>
       </div>
     </main>

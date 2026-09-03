@@ -16,10 +16,11 @@ import StampFolder from '../components/StampFolder'
 /** REC-001 추천 화면 — 추천을 '모아 둔 우표첩에서 오늘 치를 꺼내는' 동작으로 건넨다.
  *  유산지 봉투의 오른쪽 덮개가 젖혀지고, 그 틈으로 표지 우표와 사연 우표가 계단식으로 나온다.
  *  아래 후보를 누르면 그 책을 이 자리로 꺼내 놓는다 — 넣었다가 다시 꺼내는 동작을 그대로 되풀이한다.
- *  덱은 태그로 재정렬만 하고 후보를 새로 만들지는 않는다 (덱 구조 원칙). */
+ *  덱은 태그로 재정렬만 하고 후보를 새로 만들지는 않는다 (덱 구조 원칙).
+ *  우표첩·엽서라는 재질은 이 화면의 시그니처로 남기고, 그 밖의 면은 홈과 같은 종이·잉크로 둔다. */
 
-const PAGE_BG = '#ffffff'   // 톱니를 파낼 배경색 = 페이지 바탕
-const STAMP_PAPER = '#f6f1e3'  // 우표 테 — 흰 바탕에서 톱니가 보이려면 바탕색과 달라야 한다
+const PAGE_BG = '#fdfdfb'      // 톱니를 파낼 배경색 = 페이지 바탕(paper). 실제 배경과 달라지면 톱니에 테가 생긴다
+const STAMP_PAPER = '#f6f1e3'  // 우표 테 — 종이 바탕에서 톱니가 보이려면 바탕색과 달라야 한다
 
 /** 히어로 무대 치수 — 폴더에서 나온 두 장이 오른쪽으로 늘어설 자리까지 포함한 폭 */
 const HERO = { w: 748, h: 344, folderW: 240, folderH: 336 }
@@ -56,8 +57,27 @@ export default function RecommendPage() {
     }
   }, [data])
 
-  if (isPending) return <main className="p-8 text-gray-400 bg-white" style={{ minHeight: 'calc(100vh - 62px)' }}>우표첩을 여는 중…</main>
-  if (isError || !data) return <main className="p-8 text-gray-400 bg-white" style={{ minHeight: 'calc(100vh - 62px)' }}>오늘 꽂아 둔 우표가 없어요.</main>
+  if (isPending) {
+    return (
+      <main className="eo-page">
+        <div className="eo-state">
+          <span className="eo-progress" />
+          <p className="eo-body">우표첩을 여는 중</p>
+        </div>
+      </main>
+    )
+  }
+  if (isError || !data) {
+    return (
+      <main className="eo-page">
+        <div className="eo-state">
+          <h1 className="eo-title">오늘 꽂아 둔 우표가 없어요</h1>
+          <p className="eo-body">기준을 조금 손보면 다음 장을 채울 수 있어요.</p>
+          <Link to="/tune" className="eo-text-button text-[13px]">추천 기준 조절하기</Link>
+        </div>
+      </main>
+    )
+  }
 
   // 태그 선택 시 캐시된 덱을 겹치는 태그 수로 재정렬 — 후보 재생성 없음 (덱 구조 원칙)
   const overlap = (item: RecommendationItem) => item.tags.filter((t) => myTags.includes(t)).length
@@ -94,30 +114,33 @@ export default function RecommendPage() {
     heroRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
   }
 
-  const Tag = ({ t }: { t: string }) => (
-    <span className={`rounded-full border px-2 py-0.5 text-xs ${myTags.includes(t) ? 'border-accent text-accent font-bold' : 'border-gray-300 text-gray-500'}`}>{t}</span>
-  )
-
   return (
-    <div className="bg-white" style={{ minHeight: 'calc(100vh - 62px)' }}>
-      <main className="px-8 pb-16 pt-8 max-w-5xl mx-auto">
-        <h1 className="text-3xl">오늘, 한 권 도착했어요</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {data.fallback ? '아직 취향을 몰라서 인기 도서로 첫 장을 채웠어요 — 찜하면 더 정확해져요.' : `최근 기록한 ${data.basedOnCount}권을 보고 골랐어요`}
-        </p>
+    <main className="eo-page">
+      <div className="eo-shell">
+        <header className="eo-pagehead">
+          <p className="eo-eyebrow">{postmark} 소인</p>
+          <h1 className="eo-headline">오늘, 한 권 도착했어요</h1>
+          <p className="eo-body mt-3.5 max-w-[52ch]">
+            {data.fallback
+              ? '아직 취향을 몰라서 인기 도서로 첫 장을 채웠어요 — 찜하면 더 정확해져요.'
+              : `최근 기록한 ${data.basedOnCount}권을 보고 골랐어요`}
+          </p>
+        </header>
 
         {/* 적용 중인 관심 태그 — 최종 점수의 근거를 사람이 이해할 수 있게 표시 */}
-        <div className="mt-4 flex items-center gap-2 border-2 border-primary rounded-lg bg-white px-4 py-2 text-sm flex-wrap">
-          <span className="font-bold">관심 태그</span>
-          {appliedTags.length === 0
-            ? <span className="text-gray-400">아직 없어요 — 태그를 고르면 그 결이 먼저 올라와요</span>
-            : appliedTags.map((t) => <Tag key={t} t={t} />)}
-          <Link to="/tune" className="ml-auto font-bold underline">기준 조절하기 ›</Link>
+        <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule pt-3.5">
+          <span className="eo-label shrink-0">관심 태그</span>
+          <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+            {appliedTags.length === 0
+              ? <span className="text-[11px] text-ink-faint">아직 없어요 — 태그를 고르면 그 결이 먼저 올라와요</span>
+              : appliedTags.map((t) => <span key={t} className={`eo-tag ${myTags.includes(t) ? 'is-on' : ''}`}>{t}</span>)}
+          </div>
+          <Link to="/tune" className="eo-link shrink-0">기준 조절하기</Link>
         </div>
 
         {/* ===== 꺼내 놓은 한 권 — 우표첩에서 표지 우표와 사연 우표가 차례로 나온다 ===== */}
-        <section ref={heroRef} className="mt-8 flex justify-center" style={{ scrollMarginTop: 80 }}>
-          <div className="relative" style={{ width: HERO.w, height: HERO.h }}>
+        <section ref={heroRef} className="mt-10 flex justify-center overflow-x-auto" style={{ scrollMarginTop: 80 }}>
+          <div className="relative shrink-0" style={{ width: HERO.w, height: HERO.h }}>
             <StampFolder
               open={heroOpen} width={HERO.folderW} height={HERO.folderH}
               label="오늘의 책" sub={`${postmark} 소인 · No.${featured.rank}`}
@@ -127,7 +150,7 @@ export default function RecommendPage() {
                   // 표지 우표 = 도서 상세로 가는 문
                   node: (
                     <Link to={`/books/${featured.book.bookId}?from=rec`} onClick={() => click(featured)}
-                      className="block transition-transform hover:-translate-y-1" aria-label={`${featured.book.title} 상세 보기`}>
+                      className="block transition-transform duration-150 hover:-translate-y-1" aria-label={`${featured.book.title} 상세 보기`}>
                       <Stamp book={featured.book} width={200} notch={PAGE_BG} frame={STAMP_PAPER} />
                     </Link>
                   ),
@@ -144,18 +167,19 @@ export default function RecommendPage() {
         </section>
 
         {/* 꺼낸 책의 태그 + 행동 — 우표 면을 깨지 않도록 밖에 둔다 */}
-        <div className="mt-6 flex flex-col items-center gap-3">
-          <div className="flex gap-1.5 flex-wrap justify-center">{featured.tags.map((t) => <Tag key={t} t={t} />)}</div>
-          <p className="text-sm text-gray-500">
-            <span className="font-bold text-primary">{featured.book.title}</span>
-            {featured.book.author && <span> · {featured.book.author}</span>}
+        <div className="mt-8 flex flex-col items-center gap-4 text-center">
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {featured.tags.map((t) => <span key={t} className={`eo-tag ${myTags.includes(t) ? 'is-on' : ''}`}>{t}</span>)}
+          </div>
+          <p className="max-w-[46ch]">
+            <span className="text-[15px] font-semibold">{featured.book.title}</span>
+            {featured.book.author && <span className="text-[12px] text-ink-muted"> · {featured.book.author}</span>}
           </p>
-          <div className="flex gap-2">
+          {/* 찜하기 하나만 캡슐형 CTA, 나머지 담기는 밑줄 버튼으로 위계를 낮춘다 */}
+          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-2">
             {SHELF_ACTIONS.map((a, i) => (
               <button key={a.status} onClick={() => save(featured.book.bookId, featured.rank, a.status)}
-                className={i === 0
-                  ? 'bg-primary text-white rounded-lg px-5 py-2 font-bold'
-                  : 'border-2 border-primary rounded-lg px-5 py-2'}>
+                className={i === 0 ? 'eo-button' : 'eo-text-button text-[13px]'}>
                 {a.label}
               </button>
             ))}
@@ -163,12 +187,17 @@ export default function RecommendPage() {
         </div>
 
         {/* ===== 나머지 후보 — 같은 우표첩을 작게. 손을 올린 한 통만 열린다 ===== */}
-        <h3 className="text-xl mt-12">우표첩의 다음 장 <span className="text-sm text-gray-400 font-sans">손을 올리면 안에 든 표지가 보이고, 누르면 위 자리로 꺼내 놓아요</span></h3>
-        <div className="mt-4 grid grid-cols-4 gap-4">
-          {rest.map((item) => <MiniFolder key={item.book.bookId} item={item} onSelect={() => feature(item)} />)}
-        </div>
-      </main>
-    </div>
+        <section className="eo-section mt-12">
+          <div className="eo-section__header">
+            <h2 className="eo-title">우표첩의 다음 장</h2>
+            <span>손을 올리면 표지가 보이고, 누르면 위로 꺼내 놓아요</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-4">
+            {rest.map((item) => <MiniFolder key={item.book.bookId} item={item} onSelect={() => feature(item)} />)}
+          </div>
+        </section>
+      </div>
+    </main>
   )
 }
 
@@ -180,7 +209,7 @@ function MiniFolder({ item, onSelect }: { item: RecommendationItem; onSelect: ()
     <button type="button" onClick={onSelect}
       onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
       onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}
-      className="block text-left outline-none relative cursor-pointer" style={{ zIndex: open ? 30 : 0 }}
+      className="relative block cursor-pointer text-left" style={{ zIndex: open ? 30 : 0 }}
       aria-label={`${item.book.title} 꺼내 보기`}>
       <StampFolder
         open={open} width={MINI.folderW} height={MINI.folderH}
@@ -190,12 +219,10 @@ function MiniFolder({ item, onSelect }: { item: RecommendationItem; onSelect: ()
           node: <Stamp book={item.book} width={MINI.stampW} notch={PAGE_BG} frame={STAMP_PAPER} />,
         }]}
       />
-      <p className="mt-2.5 font-bold text-sm leading-snug line-clamp-2" style={{ width: MINI.folderW + 24 }}>{item.book.title}</p>
+      <p className="mt-3 line-clamp-2 text-[12px] font-semibold leading-snug" style={{ width: MINI.folderW + 24 }}>{item.book.title}</p>
       {/* 태그 = 이 우표의 요약 이유 (2줄 수용 고정 높이로 카드 높이 정렬) */}
-      <div className="mt-1.5 h-11 flex gap-1 flex-wrap content-start" style={{ width: MINI.folderW + 24 }}>
-        {item.tags.slice(0, 2).map((t) => (
-          <span key={t} className="rounded-full border border-primary/25 px-2 py-0.5 text-[11px] text-gray-500">{t}</span>
-        ))}
+      <div className="mt-2 flex h-[62px] flex-wrap content-start gap-1" style={{ width: MINI.folderW + 24 }}>
+        {item.tags.slice(0, 2).map((t) => <span key={t} className="eo-tag">{t}</span>)}
       </div>
     </button>
   )
