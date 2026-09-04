@@ -65,7 +65,7 @@ L1 추천 후보  누적 대출 "수요 99% 유지" 임계 (현재 72+, 948,537�
 | **`nl_text_clean.csv`** | 595 MB | **정제본 = 임베딩 입력** |
 | `nl_url_text.csv.corrupt` | 643 MB | 백업 — **삭제 가능** |
 | `data4library/holdings.parquet` | 673 MB | 보유 원장 1.21억 행 |
-| `data4library/loans_by_isbn.parquet` | 25 MB | ISBN 합산 (필터·랭킹) |
+| `data4library/books_dedup.parquet` | 153 MB | ISBN 단위 원장 · KDC 95.3% (필터·랭킹) |
 | `data4library/libraries.parquet` | 0.1 MB | 도서관 마스터 |
 
 스키마 상세는 [DATA_INVENTORY.md](DATA_INVENTORY.md) 참조.

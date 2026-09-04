@@ -1,0 +1,14 @@
+[Unit]
+Description=카카오 수집기를 KST 09:00 과 15:00 에 깨운다
+
+[Timer]
+# 카카오 쿼터는 KST 자정에 리셋된다. 오전에 한 번 돌려 하루치를 쓰고,
+# 오후에 한 번 더 깨워 오전 실행이 실패했거나 서버가 느렸던 경우를 메운다.
+# 이미 다 썼으면 키 5개가 즉시 400 을 받고 몇 초 만에 끝나므로 손해가 없다.
+OnCalendar=*-*-* 09,15:00:00 Asia/Seoul
+# 재부팅 등으로 놓친 회차는 부팅 후 5분 뒤 한 번 따라잡는다
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

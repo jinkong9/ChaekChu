@@ -45,7 +45,9 @@ except Exception:
 
 BASE = Path(r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal")
 ENRICHED = BASE / "nl_books_enriched.parquet"
-LOANS = BASE / "data4library" / "loans_by_isbn.parquet"
+# **새 원장(books_dedup)을 쓴다.** 예전 loans_by_isbn 은 4컬럼 축약본에서
+# 나온 것이라 서지·KDC 가 없고, 2026-08-26 자로 두 달 낡았다.
+LOANS = BASE / "data4library" / "books_dedup.parquet"
 OUT = BASE / "data4library" / "enrich_queue.csv"
 
 LOAN_MIN = 72        # L1 후보 임계 (수요 99% 유지)
@@ -58,7 +60,14 @@ def path(p: Path) -> str:
 
 
 def main() -> int:
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--out", default=str(OUT),
+                    help="산출 경로. 기존 큐를 덮지 않고 대조하려면 다른 이름을 준다")
+    args = ap.parse_args()
+    out_path = Path(args.out)
     con = duckdb.connect()
+    con.execute("PRAGMA memory_limit='6GB'")
     con.execute(f"CREATE VIEW e AS SELECT * FROM read_parquet('{path(ENRICHED)}')")
     con.execute(f"CREATE VIEW l AS SELECT * FROM read_parquet('{path(LOANS)}')")
 
@@ -112,7 +121,7 @@ def main() -> int:
             SELECT isbn13, tier, loans, has_nl_text,
                    row_number() OVER (ORDER BY tier, loans DESC, isbn13) AS priority
             FROM tiered ORDER BY priority
-        ) TO '{path(OUT)}' (HEADER, DELIMITER ',')
+        ) TO '{path(out_path)}' (HEADER, DELIMITER ',')
     """)
 
     rows = con.execute("""

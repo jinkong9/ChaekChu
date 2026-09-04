@@ -100,7 +100,9 @@ def main() -> int:
         print(f"    {source:<16}{count:>10,}")
 
     # L1 후보 기준 효과
-    data = BASE / "data4library" / "loans_by_isbn.parquet"
+    # 예전 loans_by_isbn 은 4컬럼 축약본에서 나온 것이라 2026-09-04 에 지웠다.
+    # 새 원장(books_dedup)이 같은 isbn13·loans 를 담고 서지·KDC 까지 준다.
+    data = BASE / "data4library" / "books_dedup.parquet"
     if data.exists():
         row = con.execute(f"""
             SELECT count(*), sum(n.has_usable_text::INT), sum(n.has_text_final::INT)

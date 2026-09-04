@@ -19,8 +19,8 @@ L1 추천 후보 1,082,390종을 만드는 데 실제로 들어가는 파일들�
 | `nl_text_clean.csv` | 595 MB | **국중 회수 텍스트(정제본).** 174,388행 — 목차 79,720 / 소개 74,694 / 요약 19,974. **목차의 유일한 출처** | 완료 |
 | `data4library/d4l_usage.jsonl` | 120 MB | **정보나루 보강분.** 소개문 · 키워드 50개 · **함께대출 10건** · 마니아/다독자 추천 · 월별 대출이력 · 연령×성별 | **수집 중** |
 | `kakao_enriched.jsonl` | 23 MB | **카카오 보강분.** 소개문 250자(줄거리 중심) · 표지 · 판매상태 · 정가 | 일시 중지 |
-| `data4library/loans_by_isbn.parquet` | 25 MB | **ISBN 합산 대출.** 2,791,309종 · 누적 19.7억 건. 필터·랭킹·수집 우선순위의 근거 | 완료 |
-| `data4library/enrich_queue.csv` | 36 MB | **수집 우선순위 큐.** 1,082,390행 (1단계 338,819 / 신간 148,328 / 꼬리 595,243) | 완료 |
+| `data4library/books_dedup.parquet` | 153 MB | **ISBN 단위 원장.** 2,953,587종 · 누적 19.7억 건 · **KDC 95.3%**(소수점 67.4%) · 서지 100%. 필터·랭킹·수집 우선순위의 근거 | 완료 |
+| `data4library/enrich_queue.csv` | 34 MB | **수집 우선순위 큐.** 1,098,550행 (1단계 343,399 / 신간 147,729 / 꼬리 607,422) | 완료 |
 
 <br/>
 
@@ -28,7 +28,7 @@ L1 추천 후보 1,082,390종을 만드는 데 실제로 들어가는 파일들�
 
 | 파일 | 크기 | 내용 |
 | --- | ---: | --- |
-| `data4library/holdings.parquet` | 673 MB | **보유 원장.** 1.21억 행 (관 × ISBN × 대출 × 권수) · 1,660개관 전수. 대출 임계 산출의 원천 |
+| `data4library/holdings_full.parquet` | 4.96 GB | **보유 원장.** 1.42억 행 (관 × ISBN + 원본 12컬럼) · 1,660개관 전수. 근처 도서관 기능·대출 임계의 원천 |
 | `data4library/libraries.parquet` | 0.1 MB | 도서관 마스터 (libCode · 위경도 · 지역) |
 | `data4library/book_joined_sample.parquet` | 6 MB | 4개 소스 조인 검증용 표본 |
 
@@ -42,7 +42,7 @@ L1 추천 후보 1,082,390종을 만드는 데 실제로 들어가는 파일들�
 | `nl_books.parquet` | 275 MB | 원본 39컬럼 그대로 |
 | `nl_books_derived.parquet` | 94 MB | 파생 컬럼 추가 (정규화 ISBN 등) |
 | `nl_url_text.csv` | 621 MB | 회수 **원문**. 정제 규칙이 바뀌면 여기서 다시 만든다 |
-| `data4library/shards/` | 2.85 GB | 정보나루 관별 CSV 1,660개. 보유 원장의 입력 |
+| `data4library/holdings_raw/` | 22 GB | 정보나루 관별 CSV 1,660개 **원본 13컬럼**. 원장의 입력 |
 | `data4library/snap_cache/` | 0.46 GB | 스냅샷 캐시 360개 |
 
 <br/>
@@ -83,21 +83,29 @@ L1 추천 후보 1,082,390종을 만드는 데 실제로 들어가는 파일들�
           │ measure_baseline
           ▼  nl_books_derived.parquet
           │ recover_nl_url_text  →  nl_url_text.csv
-          │ clean_text_for_embedding → nl_text_clean.csv  ← 목차·소개·요약
+          │ clean_text_for_embedding → nl_text_clean.csv   ← 목차·소개·요약
           │ merge_recovered_text
-          ▼  nl_books_enriched.parquet ─┐
-                                        │
-[정보나루] shards/ 1,660개                │
-          │ build_holdings_parquet      │
-          ▼  holdings / loans_by_isbn ──┤
-                                        │ build_enrich_queue
-                                        ▼  enrich_queue.csv
-                                        │
-                     ┌──────────────────┴──────────────────┐
-                     │ enrich_from_data4library            │ enrich_from_kakao
-                     ▼  d4l_usage.jsonl                    ▼  kakao_enriched.jsonl
-                     └──────────────────┬──────────────────┘
-                                        ▼
-                            L1 추천 후보 1,082,390종
-                            (임베딩 · 협업필터링 입력)
+          ▼  nl_books_enriched.parquet ──────┐
+                                             │
+[정보나루 원장]  collect_full_holdings         │
+          ▼  holdings_raw/ 1,660개 (13컬럼)    │
+          │ build_holdings_full               │
+          ▼  holdings_full.parquet  (관 × ISBN · 근처 도서관)
+          ▼  books_dedup.parquet ─────────────┤  (ISBN 단위 · KDC 95.3%)
+                                             │
+                                             │ build_enrich_queue
+                                             ▼  enrich_queue.csv (1,098,550)
+                                             │
+                     ┌───────────────────────┴───────────────────────┐
+                     │ enrich_from_data4library    enrich_from_kakao  │
+                     ▼  d4l_usage.jsonl            ▼  kakao_enriched.jsonl
+                     └───────────────────────┬───────────────────────┘
+                                             ▼
+                                  L1 추천 후보 1,098,550종
+                       임베딩 입력: 제목 + 정보나루 + 키워드 + 카카오 (창 512)
+                       협업필터링: co_loan · mania_rec · reader_rec
 ```
+
+> 2026-09-04 개정. `shards/` · `holdings.parquet` · `loans_by_isbn.parquet` 은
+> 13컬럼 중 3개만 남긴 축약본에서 나온 것이라 삭제했다.
+> `build_holdings_parquet.py` 도 그때 폐기했다 (참고용으로만 남김).

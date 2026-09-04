@@ -14,8 +14,16 @@
   등록일자           MIN        최초로 어느 관엔가 들어온 날
   주제분류번호(KDC)   가장 정밀   `813.62` 가 `813` 보다 낫다. **소수 자릿수가 정보다**
   그 밖의 서지        대표 행     아래 참고
-  번호               버림       관별 CSV 안의 행 번호라 관을 합치면 의미가 없다.
-                               **원본에서 버리는 유일한 컬럼이다**
+  번호               버림       관별 CSV 안의 행 번호라 관을 합치면 의미가 없다
+  부가기호            버림       **원장에서는 쓸 수 있는 값이 하나도 없다.**
+                               실측 2026-09-04: 정상 5자리 0건 · '0' 류 4,250만행 ·
+                               빈 값 4,256만행 · 잡값 5,684만행.
+                               부가기호는 선행 0 이 독자대상(아동/청소년)을 뜻해
+                               추천 필터에 중요한데, 도서관들이 이 칸을 안 채운다.
+                               정보나루 API 의 add_symbol 과 국중 EA_ADD_CODE 가
+                               제대로 된 값을 주므로 그쪽을 쓴다. 여기 담으면
+                               나중에 진짜 부가기호로 착각할 위험만 남는다.
+  등록일자            MIN + 중앙값   1990 이전은 쓰레기라 버린다. 아래 참고
 
 서지를 **컬럼마다 따로** 뽑지 않는 이유
   컬럼별로 최빈값을 고르면 A관의 도서명 + B관의 저자 + C관의 출판사가 섞인
@@ -121,11 +129,19 @@ def build_dedup(con) -> None:
     full = FULL.as_posix()
     con.execute(f"""
         COPY (
-            WITH h AS (SELECT * FROM read_parquet('{full}')),
+            WITH h AS (
+                SELECT *,
+                       -- 정상 범위 밖 날짜는 없는 것으로 본다
+                       CASE WHEN reg_date >= DATE '1990-01-01'
+                             AND reg_date <= current_date
+                             AND reg_date <> DATE '1970-01-01'
+                            THEN reg_date END AS sane
+                FROM read_parquet('{full}')
+            ),
             -- 1) (도서명·저자·출판사) 조합별 빈도. 가장 흔한 조합이 대표다.
             combo AS (
                 SELECT isbn13, title, author, publisher, set_isbn,
-                       add_symbol, vol, pub_year,
+                       vol, pub_year,
                        count(*) AS freq,
                        length(COALESCE(title,'')) + length(COALESCE(author,''))
                          + length(COALESCE(publisher,'')) AS detail
@@ -175,14 +191,33 @@ def build_dedup(con) -> None:
                 SELECT isbn13,
                        CAST(sum(loans)  AS BIGINT) AS loans,
                        CAST(sum(copies) AS BIGINT) AS copies,
-                       min(reg_date)          AS first_reg,
+                       -- **등록일자에는 쓰레기가 섞여 있고 MIN 은 그것에 끌려간다.**
+                       --
+                       -- 자리표시자·오타 실측 2026-09-04:
+                       --   1970-01-01  215만행  (등록일을 모를 때 넣는 값)
+                       --   1111년       2,647행  (채워 넣기용 타자)
+                       --   1900년         238행 · 1875년 1행 · 1200년 1행
+                       -- 정상 구간은 1995년부터다. MIN 이라 한 관만 이래도
+                       -- 그 책 전체가 끌려간다 — 1970 하나로 482,518종(16.3%)이
+                       -- 오염됐고 `나미야 잡화점의 기적` 은 실제 2003-12-06 인데
+                       -- 1970 이 됐다. 그래서 1990 이전은 통째로 버린다.
+                       min(sane) AS first_reg,
+
+                       -- **MIN 하나로는 부족하다.** 10개관 이상 보유한 118만 종에서
+                       -- MIN 과 중앙값이 평균 11.3년 벌어지고, 14.8%는 10년을 넘는다.
+                       -- 옛 책을 한 관이 일찍 사고 나머지가 재판을 늦게 산 경우라
+                       -- 그 자체는 오류가 아니지만, **대출 속도 정규화에는 독이다** —
+                       -- 분모가 15년 길어지면 속도가 그만큼 과소평가된다.
+                       --   first_reg   "언제 세상에 나왔나" (신간 판정)
+                       --   median_reg  "언제부터 흔해졌나"  (대출 속도 분모)
+                       median(sane) AS median_reg,
                        count(DISTINCT lib_id) AS lib_count
                 FROM h GROUP BY isbn13
             )
             SELECT a.isbn13, r.title, r.author, r.publisher, r.pub_year,
-                   r.set_isbn, r.add_symbol, r.vol,
+                   r.set_isbn, r.vol,
                    k.kdc,
-                   a.loans, a.copies, a.first_reg, a.lib_count
+                   a.loans, a.copies, a.first_reg, a.median_reg, a.lib_count
             FROM agg a
             LEFT JOIN rep r      USING (isbn13)
             LEFT JOIN best_kdc k USING (isbn13)
