@@ -1,4 +1,4 @@
-/home/ubuntu/collect.log /home/ubuntu/backup.log {
+/home/ubuntu/collect.log /home/ubuntu/kakao.log /home/ubuntu/backup.log /home/ubuntu/heartbeat.log {
     daily
     rotate 7
     size 20M
