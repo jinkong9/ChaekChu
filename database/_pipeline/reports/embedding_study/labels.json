@@ -1,0 +1,72 @@
+{
+  "pool": 343399,
+  "co_loan": {
+    "books": 284678,
+    "targets": 2584753,
+    "in_pool": 2503768,
+    "per_book": 9.07956708983483,
+    "self": 0
+  },
+  "mania_rec": {
+    "books": 284591,
+    "targets": 2583893,
+    "in_pool": 2157850,
+    "per_book": 9.079320849921466,
+    "self": 0
+  },
+  "reader_rec": {
+    "books": 284528,
+    "targets": 2583284,
+    "in_pool": 2484737,
+    "per_book": 9.07919080020244,
+    "self": 0
+  },
+  "union_books": 284678,
+  "kdc3_books": 343373,
+  "jaccard_co_loan_mania_rec": 0.3719511829790409,
+  "jaccard_co_loan_reader_rec": 0.5634693836242316,
+  "jaccard_mania_rec_reader_rec": 0.33505323231908224,
+  "nature_co_loan": {
+    "pairs": 2503768,
+    "target_top1pct": 0.25724388202101794,
+    "target_top10pct": 0.5177065127439923,
+    "same_series": 0.08775333816871211,
+    "same_author": 0.17473064597039342,
+    "same_kdc3": 0.6675994578999735,
+    "same_kdc1": 0.8485850558216838,
+    "hard_share": 0.8108387039054736
+  },
+  "nature_mania_rec": {
+    "pairs": 2157850,
+    "target_top1pct": 0.03922515466784068,
+    "target_top10pct": 0.20135227193734503,
+    "same_series": 0.10082489515026531,
+    "same_author": 0.20992608383344533,
+    "same_kdc3": 0.7262246115700565,
+    "same_kdc1": 0.8810946714711096,
+    "hard_share": 0.7728679009198971
+  },
+  "nature_reader_rec": {
+    "pairs": 2484737,
+    "target_top1pct": 0.1692267632349017,
+    "target_top10pct": 0.5050067673158165,
+    "same_series": 0.085079024460134,
+    "same_author": 0.1571771982306377,
+    "same_kdc3": 0.6095567403789226,
+    "same_kdc1": 0.815213572081458,
+    "hard_share": 0.8298294749102219
+  },
+  "kdc_agree_l_kdc_d_class_no": {
+    "n": 306838,
+    "agree": 0.804828606626298
+  },
+  "kdc_agree_l_kdc_n_kdc": {
+    "n": 64609,
+    "agree": 0.8724945441037626
+  },
+  "kdc_agree_d_class_no_n_kdc": {
+    "n": 64049,
+    "agree": 0.8896938281628128
+  },
+  "co_loan_symmetry": 0.30222688364097633
+}
