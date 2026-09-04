@@ -111,7 +111,7 @@
 | `unique_isbn` | 그 관의 고유 ISBN 수 |
 | `address` / `lat` / `lon` / `tel` / `homepage` | 참여도서관 XLSX 조인 (성공 95.6%) |
 
-### 2.3 `loans_by_isbn.parquet` — ISBN 합산 (파생)
+### 2.3 `books_dedup.parquet` — ISBN 단위 원장 (파생)
 
 2,791,309행 / 24.9MB
 
@@ -159,7 +159,7 @@ d4l_desc_len, d4l_bookname, kw_count, kw_top, description`
 모든 소스의 결합축 = isbn13 (정규화 ISBN13, 문자열)
 
 nl_books_derived.isbn13_norm
-  ├─ loans_by_isbn.isbn13        (수요·필터·랭킹)
+  ├─ books_dedup.isbn13          (수요·필터·랭킹·KDC)
   ├─ holdings.isbn13             (보유 원장, lib_id 로 libraries 연결)
   ├─ nl_url_text.isbn13          (회수 텍스트)
   └─ 파일럿 jsonl.isbn13         (보강 측정)
@@ -183,7 +183,7 @@ nl_books_derived.isbn13_norm
 | `nl_books_derived.parquet` | 2,047,239 | 93.7 MB |
 | `nl_url_text.csv` | 수집 중 (~17만 예상) | ~500 MB |
 | `holdings.parquet` | **121,135,896** | 672.8 MB |
-| `loans_by_isbn.parquet` | 2,791,309 | 24.9 MB |
+| `books_dedup.parquet` | 2,953,587 | 152.8 MB |
 | `libraries.parquet` | 1,660 | 0.1 MB |
 | 파일럿 jsonl 2종 | 1,332 | 0.8 MB |
 

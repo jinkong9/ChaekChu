@@ -38,7 +38,7 @@ nl_url_text.csv                           │
 nl_books_enriched.parquet
    │ clean_text_for_embedding    →  nl_text_clean.csv (임베딩 입력)
    │
-   │ build_enrich_queue          ← loans_by_isbn 사용
+   │ build_enrich_queue          ← books_dedup 사용
    ▼
 enrich_queue.csv
    ├ enrich_from_data4library  →  d4l_usage.jsonl
@@ -49,7 +49,7 @@ enrich_queue.csv
 정보나루 관별 CSV 샤드
    │ build_holdings_parquet
    ▼
-holdings / loans_by_isbn / libraries .parquet
+holdings_full / books_dedup / libraries .parquet
 ```
 
 <br/>
@@ -144,7 +144,7 @@ Phase 0 전수 기준선. **API 호출 0회** — 전부 로컬 계산이다.
 | 산출 | 내용 |
 | --- | --- |
 | `holdings.parquet` | 1.21억 행. 관 × ISBN × 대출 × 권수 |
-| `loans_by_isbn.parquet` | ISBN 합산. 필터·랭킹·우선순위의 근거 |
+| `books_dedup.parquet` | ISBN 단위 원장 (서지·KDC 포함). 필터·랭킹·우선순위의 근거 |
 | `libraries.parquet` | 도서관 마스터 (libCode, 위경도) |
 
 두 가지 정제가 빌드에 내장돼 있다.

@@ -10,6 +10,8 @@
 | `status.sh` | `~/status.sh` | 감시용 한 줄 상태 |
 | `logrotate-d4l-collector` | `/etc/logrotate.d/d4l-collector` | 로그 회전 |
 | `heartbeat.sh` | `~/heartbeat.sh` | 30분마다 상태 한 줄 (무인 구간 추적용) |
+| `kakao-collector.service` | `/etc/systemd/system/` | 카카오 수집기 (oneshot) |
+| `kakao-collector.timer` | `/etc/systemd/system/` | 카카오를 KST 09:00·15:00 에 깨운다 |
 | `crontab.txt` | `crontab -l` | 백업·하트비트 스케줄 |
 
 <br/>
@@ -37,8 +39,9 @@ OS       Ubuntu 24.04 LTS · Python 3.12.3 (표준 라이브러리만 쓰므로 
 ~/collect.log                                     수집 로그
 ```
 
-`.env` 는 **정보나루 키만** 담는다. 팀 공용 서버라 카카오·구글북스·국중도 키까지
-올릴 이유가 없다. 수집기는 `정보나루` 로 시작하는 줄만 읽는다.
+`.env` 는 **정보나루 키 5개 + 카카오 키 5개**만 담는다 (`chmod 600`).
+구글북스·국중도 키는 올리지 않는다 — 팀 공용 서버라 쓰지 않는 키를 둘 이유가 없다.
+각 수집기는 자기 접두어로 시작하는 줄만 읽는다.
 
 <br/>
 
@@ -205,3 +208,37 @@ grep -v "^$" ~/collect.log | tail -20
 
 - **1시간을 초과하는 장기 장애** — 종료 후 systemd 재기동 경로.
   재기동마다 키 확인 5호출을 태우므로 `RestartSteps` 로 60초 -> 최대 15분 백오프를 걸어 뒀다.
+
+<br/>
+
+## 두 수집기 — 운영 방식이 다르다
+
+| | 정보나루 | 카카오 |
+| --- | --- | --- |
+| 형태 | `Type=simple` · 상시 가동 | `Type=oneshot` · 타이머가 깨움 |
+| 재개 | `--wait` 로 프로세스가 자정까지 대기 | 타이머가 **KST 09:00·15:00** 에 실행 |
+| 정지 | 하루 몫 소진 후 대기 | 하루 몫 소진 후 **종료** |
+
+**카카오에 `--wait` 을 쓰지 않는 이유.**
+그 대기 루프는 상한 정지와 사용자 중단을 구분해야 하는 까다로운 코드다.
+정보나루가 2026-09-02~03 에 바로 그 루프로 **이틀치를 통째로 날렸다**
+(`stop` 깃발을 공유해 한 번도 자지 않고 무한 반복, 로그 175만 줄).
+타이머로 매번 새 프로세스를 띄우면 그 경로를 아예 안 탄다.
+같은 버그가 카카오 쪽에도 있었고 옮기기 전에 고쳤지만, 안 타는 편이 안전하다.
+
+하루 두 번인 이유는 오전 실행이 서버 문제로 실패했을 때 오후가 메우기 때문이다.
+이미 다 썼으면 키 5개가 각각 400 을 받고 **몇 초 만에 끝나므로** 손해가 없다.
+
+```bash
+systemctl list-timers kakao-collector.timer   # 다음 실행 시각
+sudo systemctl start kakao-collector.service  # 지금 한 번 돌리기
+tail -f ~/kakao.log
+```
+
+<br/>
+
+## 백업이 아직 반쪽이다
+
+`backup.sh` 는 **정보나루 수집분만** 대상으로 한다.
+카카오 수집분(`~/pipeline_data/kakao_enriched.jsonl`)은 백업되지 않는다.
+지금은 개발 PC 에 사본이 있어 버티지만, EC2 에서만 늘어나는 구간은 사본이 없다.

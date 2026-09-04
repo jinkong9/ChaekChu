@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """정보나루 관별 샤드 -> 보유 원장 Parquet 3종 빌드.
 
+**폐기됨 (2026-09-04).** 이 스크립트가 만들던 shards/*.csv 는
+13컬럼 중 3개만 남긴 축약본이라 도서명·저자·KDC 를 버렸다.
+collect_full_holdings.py + build_holdings_full.py 로 대체됐고
+입력이던 shards/ 와 산출물 holdings.parquet·loans_by_isbn.parquet 은
+모두 삭제됐다. 참고용으로만 남긴다 — 실행하지 말 것.
+
 입력 (collect_full_holdings.py 산출, 저장소 밖)
   data4library/shards/{lib_id}.csv        lib_id,isbn13,loans,copies
   data4library/lib_index.jsonl            내부id, 이름, 유형, 최신월, 고유ISBN수

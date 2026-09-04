@@ -47,7 +47,9 @@ try:
 except Exception:
     pass
 
-BASE = Path(r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal")
+# 데이터 뿌리. 다른 머신(EC2 등)에서는 PIPELINE_DATA 로 덮어쓴다.
+BASE = Path(os.environ.get("PIPELINE_DATA")
+            or r"C:\Users\SSAFY\ygg\특화프로젝트\project_personal").expanduser()
 ENV = BASE / ".env"
 DATA = BASE / "data4library"
 QUEUE = DATA / "enrich_queue.csv"
@@ -65,6 +67,9 @@ state = {"calls": 0, "hit": 0, "miss": 0, "error": 0, "streak": 0,
          "blocked": False, "stop": False, "block_msg": "",
          # 키를 순차로 소진한다. 한 키가 막히면 다음으로 넘어가고,
          # **전부 막혀야** 종료한다.
+         # **사용자 중단과 상한 정지를 구분해야 한다.** 둘 다 stop 을 세우는데,
+         # 자정 대기 루프가 stop 으로 빠져나가면 상한 정지에서도 즉시 깨어난다.
+         "interrupted": False,
          "keys": [], "per_key": {}, "dead": set()}
 lock = threading.Lock()
 
@@ -364,6 +369,7 @@ def run(args) -> int:
 
     def graceful(signum, frame):
         print("\n중단 신호 — 진행분을 저장하고 종료한다", flush=True)
+        state["interrupted"] = True
         state["stop"] = True
 
     signal.signal(signal.SIGINT, graceful)
@@ -382,13 +388,24 @@ def run(args) -> int:
                 break
             print(f"    KST 자정까지 {wait/3600:.1f}시간 대기 후 자동 재개", flush=True)
             slept = 0.0
-            while slept < wait and not state["stop"]:
+            # **stop 이 아니라 interrupted 를 본다.** 상한 정지도 stop 을 세우므로
+            # stop 으로 빠져나가면 한 번도 자지 않고 즉시 깨어나 무한 루프가 된다.
+            # 정보나루 수집기가 2026-09-02~03 에 이것으로 이틀치를 날렸다.
+            while slept < wait and not state["interrupted"]:
                 time.sleep(min(60, wait - slept))
                 slept += 60
-            if state["stop"] and not state["blocked"]:
+            if state["interrupted"]:
                 break
-            state["blocked"] = False
-            state["stop"] = False
+            # **죽은 키를 되살려야 한다.** 어제 쿼터로 은퇴한 키도 오늘은 쓸 수 있다.
+            # 안 비우면 재개해도 pick_key 가 곧바로 None 을 돌려주고
+            # 다시 상한 -> 다시 대기로 무한 반복한다.
+            with lock:
+                state["blocked"] = False
+                state["stop"] = False
+                state["block_msg"] = ""
+                state["dead"] = set()
+                state["per_key"] = {}
+                state["streak"] = 0
             print(f"\n=== 재개 {datetime.now(KST):%Y-%m-%d %H:%M} KST ===", flush=True)
             continue
         if state["stop"] or not written:
