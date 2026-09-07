@@ -5,8 +5,9 @@
 > 이 문서는 외부 도서 데이터, PostgreSQL 원천 모델, Elasticsearch 읽기 모델,
 > Spring Boot API가 공유하는 필드명과 값 규칙을 정의한다.
 >
-> ERD 표현은 발표와 MVP 구현을 위해 `docs/ERD.md`의 5개 핵심 테이블로 단순화했으며,
-> 외부 원본·배치 feature·분석 이벤트의 상세 계약은 이 문서에서만 참고한다.
+> ERD 는 2026-09-07 에 `docs/ERD.md` 16테이블로 확정했다 (테이블별 DDL·근거는 `docs/DB_TABLE_DESIGN.md`).
+> 이 문서의 모델명은 논리 모델이다 — `BookRating`·`UserSeedBook` 은 `library_items` 로, `Tag`/`UserInterest` 는 `tags`/`user_interests` 로,
+> `BookContentFeatures`·`BookTag`·`BookWork`·`BookSourceRecord` 는 MVP 물리 스키마에 두지 않는다(각각 KDC 파생·`work_key`·파이프라인).
 
 ## 1. 계약의 범위
 
@@ -433,4 +434,4 @@ L0 카탈로그는 국립중앙도서관과 정보나루의 ISBN13 합집합이�
 - `S15P21B102-18`: `BookWork`, `Book`, `BookSourceRecord` 및 사용자 도메인 Flyway schema 작성
 - `S15P21B102-21`: ISBN 정규화·체크섬 검증을 공통 규칙으로 구현
 - `S15P21B102-23`: `Book` 검색 필드와 `isbn13` 문서 식별을 Elasticsearch mapping에 반영
-- `S15P21B102-15`: 응답 envelope·오류 코드·페이지네이션 형식을 API 계약으로 확장
+- `S15P21B102-15`: 응답 envelope·오류 코드·페이지네이션 형식을 API 계약으로 확장 → **`docs/API_SPEC.md` (2026-09-07)** 에서 확정. 엔드포인트별 요청·응답과 프론트 반영 목록(§9)은 그 문서를 본다
