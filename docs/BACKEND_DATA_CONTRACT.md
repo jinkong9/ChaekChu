@@ -433,4 +433,4 @@ L0 카탈로그는 국립중앙도서관과 정보나루의 ISBN13 합집합이�
 - `S15P21B102-18`: `BookWork`, `Book`, `BookSourceRecord` 및 사용자 도메인 Flyway schema 작성
 - `S15P21B102-21`: ISBN 정규화·체크섬 검증을 공통 규칙으로 구현
 - `S15P21B102-23`: `Book` 검색 필드와 `isbn13` 문서 식별을 Elasticsearch mapping에 반영
-- `S15P21B102-15`: 응답 envelope·오류 코드·페이지네이션 형식을 API 계약으로 확장
+- `S15P21B102-15`: 응답 envelope·오류 코드·페이지네이션 형식을 API 계약으로 확장 → **`docs/API_SPEC.md` (2026-09-07)** 에서 확정. 엔드포인트별 요청·응답과 프론트 반영 목록(§9)은 그 문서를 본다
