@@ -132,19 +132,24 @@ BE 공통 기반
 
 ## 5. AI 실행·입력·평가 기반
 
-순서: `#129 -> #130 -> #131`, 이후 `#132`, `#134`, `#133` 병렬 가능
+순서: `#129 -> #130 -> #131`, 이후 `#134`, `#132`, `#133` 진행
 
-- [ ] [#129 Python 3.12 추천 패키지·설정·CLI 실행 기반](https://ssafy.atlassian.net/browse/S15P21B102-129)
+> L1 후보 선정, 원천 정제, 수요 feature 계산과 DB 적재는 데이터 담당 영역이다.
+> AI 담당자는 같은 배치를 다시 구현하지 않고, 적재된 데이터의 계약·건수·버전을
+> 검증해 추천 입력으로 인수한다. 세부 경계는
+> [`AI_IMPLEMENTATION_PLAN.md`](AI_IMPLEMENTATION_PLAN.md)를 따른다.
+
+- [x] [#129 Python 3.12 추천 패키지·설정·CLI 실행 기반](https://ssafy.atlassian.net/browse/S15P21B102-129)
   - 선행: 데이터 계약 확인
   - 완료 확인: 새 환경에서 설치, 설정 검증, CLI 도움말과 최소 실행이 재현된다.
+  - 담당자: 이어진 / 브랜치: `codex/129-ai-python-cli-foundation` / PR: 병합 완료
+- [ ] [#130 DB 추천 입력 계약·결측 검증기](https://ssafy.atlassian.net/browse/S15P21B102-130)
+  - 선행: `#129`, 데이터 적재 스키마 확인
+  - 완료 확인: DB 조회 또는 내보내기 스냅샷의 필수 열·타입·범위·중복·결측 오류가 명시적 메시지와 함께 차단된다.
   - 담당자: / 브랜치: / PR:
-- [ ] [#130 추천 입력 스키마·결측 검증기](https://ssafy.atlassian.net/browse/S15P21B102-130)
-  - 선행: `#129`, `#18`, `#19`
-  - 완료 확인: 필수 열·타입·범위·중복·결측 오류가 명시적 메시지와 함께 차단된다.
-  - 담당자: / 브랜치: / PR:
-- [ ] [#131 L1 후보·수요 feature 생성 배치](https://ssafy.atlassian.net/browse/S15P21B102-131)
-  - 선행: `#130`, `#21`, `#22`
-  - 완료 확인: 동일 입력의 결과가 결정적이고 산출물 건수·해시·버전이 기록된다.
+- [ ] [#131 L1 후보·수요 feature DB 인수 검증](https://ssafy.atlassian.net/browse/S15P21B102-131)
+  - 선행: `#130`, 데이터 적재 완료
+  - 완료 확인: 데이터 담당 산출물을 재계산하지 않고 L1 기준, 건수, 기준월, feature 버전과 주요 수요 계산값을 표본 대조한다.
   - 담당자: / 브랜치: / PR:
 - [ ] [#132 STRUCT 텍스트 생성·inputHash 버전 관리](https://ssafy.atlassian.net/browse/S15P21B102-132)
   - 선행: `#130`; `#133`, `#134`와 병렬 가능
@@ -163,9 +168,9 @@ BE 공통 기반
 
 순서: `#135`와 `#136` 병렬, 이후 `#137 -> #138`
 
-- [ ] [#135 TF-IDF 어휘 후보·정확 조인 생성기](https://ssafy.atlassian.net/browse/S15P21B102-135)
+- [ ] [#135 DB 어휘 검색·정확 조인 후보 생성기](https://ssafy.atlassian.net/browse/S15P21B102-135)
   - 선행: `#132`, `#134`
-  - 완료 확인: 자기 자신과 동일 작품 판본을 제외하고 재현 가능한 top-K를 생성한다.
+  - 완료 확인: `tsvector`/`pg_trgm` 또는 저자·작품 정확 조인으로 자기 자신과 동일 작품 판본을 제외한 재현 가능한 top-K를 생성한다.
   - 담당자: / 브랜치: / PR:
 - [ ] [#136 multilingual-e5-large 임베딩 배치](https://ssafy.atlassian.net/browse/S15P21B102-136)
   - 선행: `#132`
@@ -182,9 +187,9 @@ BE 공통 기반
 
 ## 7. 추천 저장·행동 수집
 
-- [ ] [#144 pgvector 도서 임베딩·feature 저장 마이그레이션](https://ssafy.atlassian.net/browse/S15P21B102-144)
+- [ ] [#144 Qdrant 임베딩 컬렉션·PostgreSQL feature 저장 기반](https://ssafy.atlassian.net/browse/S15P21B102-144)
   - 선행: `#18`, `#136`; `#30`과 병렬 가능
-  - 완료 확인: 모델·입력 버전별 임베딩 저장, 조회, 교체와 인덱스가 검증된다.
+  - 완료 확인: Qdrant의 모델·입력 버전별 임베딩 저장·교체와 PostgreSQL feature 조회·버전 관리가 검증된다.
   - 담당자: / 브랜치: / PR:
 - [ ] [#30 추천 이력·추천 근거 저장 모델](https://ssafy.atlassian.net/browse/S15P21B102-30)
   - 선행: `#19`, `#20`; `#144`와 병렬 가능
