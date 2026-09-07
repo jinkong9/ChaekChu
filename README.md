@@ -19,7 +19,7 @@ SSAFY 15기 2학기 관통 프로젝트 · 서울 1캠퍼스 B반 102팀
 - [개발 일정](docs/PROJECT_SCHEDULE.md)
 - [MVP 구현 계획](docs/MVP_IMPLEMENTATION_PLAN.md)
 - [백엔드 데이터 계약](docs/BACKEND_DATA_CONTRACT.md)
-- [MVP ERD (확정)](docs/ERD.md) · [테이블 설계](docs/DB_TABLE_DESIGN.md) · [실행 DDL](docs/POSTGRES_SCHEMA.sql)
+- [MVP ERD (확정)](docs/ERD.md) · [테이블 설계](docs/DB_TABLE_DESIGN.md) · **[V1 DDL (1차 + 보정)](docs/sql/V1__init.sql)** · [목표 스키마](docs/POSTGRES_SCHEMA.sql)
 - [ERDCloud Import DDL](docs/ERDCLOUD_IMPORT.sql)
 - [백엔드 API 명세](docs/API_SPEC.md)
 - [추천 데이터 기반 서비스 방향](docs/RECOMMENDATION_SERVICE_DIRECTION.md)

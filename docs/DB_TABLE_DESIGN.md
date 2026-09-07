@@ -1,8 +1,26 @@
 # MVP 테이블 설계 — PostgreSQL 16
 
 > 확정 2026-09-07 · 상위 문서 `docs/ERD.md`(관계도) · `docs/BACKEND_DATA_CONTRACT.md`(필드 규칙) · `docs/API_SPEC.md`(엔드포인트)
-> 실행 DDL `docs/POSTGRES_SCHEMA.sql` 은 **이 문서의 SQL 블록을 순서대로 이어붙인 것**이다 (둘이 다르면 이 문서가 기준).
-> 37개 문장 모두 PostgreSQL 방언으로 파싱 검증했고 FK 생성 순서를 확인했다. 실제 DB 실행은 Flyway V1 적용 시.
+
+## 적용 순서 — 1차 스키마 위에 올린다 (2026-09-07 결정)
+
+프론트 초기 구성 때 ERDCloud 에 그린 **1차 스키마(10테이블)를 V1 으로 그대로 가고**, 이 문서의 확장 테이블을 그 위에 V2 로 올린다.
+1차의 테이블·컬럼 이름이 기준이며, 이 문서(및 `POSTGRES_SCHEMA.sql`)의 이름은 V2 작성 시 1차에 맞춰 바꾼다.
+
+| 단계 | 파일 | 내용 |
+| --- | --- | --- |
+| 원본 | `docs/sql/erdcloud_export_20260907.sql` | ERDCloud export 그대로 (수정 금지) |
+| **V1** | **`docs/sql/V1__init.sql`** | 1차 10테이블 + 보정 6건 — 지금 프론트·API 가 깨지는 곳과 UNIQUE·FK·CHECK 만 |
+| V2 | (작성 예정) | 아래 §4~§5 의 `book_texts` `book_keywords` `book_embeddings` `book_relations` `book_demand_features` `kdc_codes` + `books` 확장 컬럼 |
+| 참고 | `docs/POSTGRES_SCHEMA.sql` | 이 문서 전체를 한 번에 만든 **목표 스키마**. V1 이 확정된 뒤로는 참고용 |
+
+V1 보정 6건: ① `users.onboarding_status`·`updated_at` ② `users.nickname` NULL 허용 ③ `user_actions.book_id` NULL + `recommendation_id`·`rank`·`occurred_at`·`client_event_id`
+④ `recommendations.mode`·`fallback`·`based_on_count`·`weights` ⑤ `recommendation_items.reason_type`·`score NUMERIC` ⑥ UNIQUE·FK·CHECK (export 에 PK 만 있었다).
+
+이름 대응: `library_items`↔`user_library` · `user_events`↔`user_actions` · `popular_segments`↔`book_loaned_top20` · `kdc`↔`category_code` · `published_year`↔`pub_year` ·
+`cover_image_url`↔`cover_url` · `applied_tags`↔`input_tags` · `model_version`↔`feature_version` · `is_seed`↔`source`. `book_tags` 는 1차에 있으므로 유지(채우는 주체는 미정).
+
+> 아래 본문은 목표 스키마의 근거 서술이다. 컬럼 주석의 `∵` 는 그 선택의 근거다. 근거가 실측이면 출처 문서를 적었다.
 >
 > 컬럼 주석의 `∵` 는 그 선택의 근거다. 근거가 실측이면 출처 문서를 적었다.
 

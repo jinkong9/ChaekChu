@@ -1,6 +1,9 @@
 # MVP ERD (확정 2026-09-07)
 
-> 프로젝트 S15P21B102 · 테이블별 DDL 과 근거는 `docs/DB_TABLE_DESIGN.md` · 실행 DDL `docs/POSTGRES_SCHEMA.sql` · ERDCloud `docs/ERDCLOUD_IMPORT.sql`
+> 프로젝트 S15P21B102 · 테이블별 DDL 과 근거는 `docs/DB_TABLE_DESIGN.md` · 목표 스키마 `docs/POSTGRES_SCHEMA.sql` · ERDCloud `docs/ERDCLOUD_IMPORT.sql`
+>
+> **적용은 두 단계다.** 프론트 초기 1차 스키마(ERDCloud, 10테이블)를 보정해 **V1** 으로 먼저 가고(`docs/sql/V1__init.sql`), 아래 관계도의 추천 데이터 층은 **V2** 로 그 위에 올린다.
+> 1차 이름(`user_library` `user_actions` `book_loaned_top20` `category_code` …)이 기준이다 — 대응표는 `DB_TABLE_DESIGN.md` 머리.
 >
 > 09-01 의 5테이블 초안을 **16테이블 + 뷰 1** 로 확정했다. 늘어난 것은 추천·상세·홈이 실제로 읽어야 하는 데이터의 자리다
 > (소스별 소개문·키워드·벡터·함께대출 관계·월별 수요·세그먼트 인기·KDC 사전·태그 사전). 근처 도서관 기능은 MVP 에서 뺐다.
