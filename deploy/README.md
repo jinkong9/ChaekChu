@@ -12,7 +12,9 @@ deploy/
     Dockerfile              node:24 로 빌드 → nginx:1.30 에 담음. 컨텍스트는 저장소 루트
     nginx/templates/        http.conf.template(인증서 전) · tls.conf.template(인증서 후). TLS_ENABLED 로 선택
     nginx/snippets/app.conf 라우팅 한 곳: /api/ · /swagger-ui/ · /v3/api-docs → backend, 나머지 SPA
+  docker-compose.local.yml  로컬 전체 스택 override (포트·메모리·TLS 끔). .env.local.example 과 짝
   scripts/
+    local-up.sh             로컬 전체 스택 기동/중지 (팀원용)
     setup-ec2.sh            최초 1회: Docker · 데몬 로그 상한 · 스왑 2G · ufw 80/443 · vm.max_map_count
     deploy.sh               git pull → build → up --wait → 헬스체크 → prune. Jenkins 가 그대로 호출
     issue-cert.sh           Let's Encrypt 최초 발급 (webroot)
@@ -58,6 +60,30 @@ curl -I https://j15b102.p.ssafy.io/nginx-health
 # 5. cron
 ssh b102 '(crontab -l; echo "0 3 * * * $HOME/S15P21B102/deploy/scripts/backup-postgres.sh >> $HOME/backup-postgres.log 2>&1"; echo "0 4 * * * $HOME/S15P21B102/deploy/scripts/renew-cert.sh >> $HOME/certbot.log 2>&1") | crontab -'
 ```
+
+## 로컬에서 전체 스택 띄우기 (팀원용)
+
+JDK·Node 없이 web·backend·PostgreSQL·Elasticsearch 를 컨테이너로 한 번에 띄운다. 운영 compose 위에 `docker-compose.local.yml` 을 덧씌우는 방식이라 운영 설정과 갈라지지 않는다. `backend/docker-compose.yml`(PG+ES 만, 백엔드 개발용) 과 동시에 띄워도 이름·포트가 달라 충돌하지 않는다.
+
+```bash
+bash deploy/scripts/local-up.sh              # 처음엔 deploy/.env.local 을 견본에서 자동 생성. 빌드 3~5분
+bash deploy/scripts/local-up.sh logs -f backend
+bash deploy/scripts/local-up.sh down         # 중지 (데이터 유지)
+bash deploy/scripts/local-up.sh down -v      # 중지 + 데이터 삭제
+```
+
+| 주소 | 용도 |
+| --- | --- |
+| http://localhost:8088 | 웹 (프론트 + `/api/` 프록시) |
+| http://localhost:8088/swagger-ui/index.html | API 문서 |
+| http://localhost:18080/actuator/health | backend 직접 |
+| localhost:15432 | PostgreSQL (`book` / `.env.local` 의 비번 / `bookdb`) |
+| localhost:19200 | Elasticsearch (`elastic` / `.env.local` 의 비번) |
+
+- 소스를 고쳤으면 다시 `local-up.sh` 를 실행하면 바뀐 이미지만 재빌드된다.
+- 캠퍼스 네트워크에서 이미지 pull 이 실패하면 [backend/README](../backend/README.md) 의 미러 방법을 쓴다.
+- **DB 는 비어 있다.** V1 스키마와 seed 데이터가 들어오기 전까지 검색·추천 화면은 빈 결과다. seed 는 EC2 pg_dump 를 잘라 만드는 스크립트로 이후 제공한다.
+- Windows 는 Git Bash 에서 실행한다. PowerShell 이면 `local-up.sh` 안의 `docker compose ...` 명령을 그대로 쳐도 된다.
 
 ## 평소 배포
 

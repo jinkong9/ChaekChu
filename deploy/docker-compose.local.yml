@@ -1,0 +1,52 @@
+# 로컬 전체 스택 override — 운영 compose 위에 덧씌운다. 운영 파일은 건드리지 않는다.
+#   bash deploy/scripts/local-up.sh            # 또는 아래 긴 명령
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.local.yml --env-file deploy/.env.local up -d --build
+# 바뀌는 것: 프로젝트명·컨테이너명(-local), 포트(비특권), 메모리(노트북용), TLS 끔, 로그 DEBUG.
+# backend/docker-compose.yml(PG+ES 만) 과 동시에 띄워도 충돌하지 않는다.
+name: b102-local
+
+services:
+  web:
+    container_name: b102-web-local
+    ports: !override
+      - "8088:80"                          # http://localhost:8088
+    environment:
+      DOMAIN: localhost
+      TLS_ENABLED: "false"
+    volumes: !override []                  # 인증서 볼륨 불필요
+
+  backend:
+    container_name: b102-backend-local
+    ports: !override
+      - "127.0.0.1:18080:8080"             # http://localhost:18080/actuator/health
+    environment:
+      LOG_LEVEL_APP: DEBUG
+      FRONTEND_ORIGIN: http://localhost:8088
+    mem_limit: 1g
+
+  postgres:
+    container_name: b102-postgres-local
+    ports: !override
+      - "127.0.0.1:15432:5432"             # psql -h localhost -p 15432 -U book bookdb
+    command: !override
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - max_connections=30
+    mem_limit: 1g
+
+  elasticsearch:
+    container_name: b102-elasticsearch-local
+    ports: !override
+      - "127.0.0.1:19200:9200"             # curl -u elastic:<ELASTIC_PASSWORD> localhost:19200
+    environment:
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      bootstrap.memory_lock: "false"       # Docker Desktop 에서 memlock 제한이 걸리는 경우 대비
+    mem_limit: 1536m
+
+  qdrant:
+    container_name: b102-qdrant-local
+    ports: !override
+      - "127.0.0.1:16333:6333"
+    mem_limit: 1g
