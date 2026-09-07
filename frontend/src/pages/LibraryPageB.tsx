@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Link } from 'react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { LibraryItem, ShelfStatus } from '../api/types'
+import type { LibraryItem } from '../api/types'
 import { useAuthStore } from '../stores/authStore'
 import { coverPalette } from '../lib/coverPalette'
 import { coverAtWidth } from '../lib/coverUrl'
@@ -196,7 +196,7 @@ function RecordFace({ li, no }: { li: LibraryItem; no: string }) {
           <p className="mt-5 text-[13px] text-primary/40">별점은 목록 뷰에서 남길 수 있어요</p>
         )}
 
-        <p className="text-[13px] text-primary/60 mt-3.5">{ymd(li.finishedDate) ?? '완독일 미기록'} 완독</p>
+        <p className="text-[13px] text-primary/60 mt-3.5">{li.finishedDate ? `${ymd(li.finishedDate)} 완독` : '서비스를 만나기 전에 읽은 책'}</p>
 
         {/* 감상평이 이 장의 주인공이다. 비어 있으면 채우도록 유도한다. */}
         {li.reviewText ? (
@@ -391,8 +391,8 @@ function MyBook({ sheets, read, meta, index, onIndex }: {
 
 /** 완독 연표 — 캘린더 대신. 완독일만으로 그려지고, 책등을 누르면 그 장으로 넘어간다.
  *  (월 캘린더는 넣지 않는다: 서재에는 하루 단위 기록이 없어 31칸 중 한두 칸만 찬다) */
-function Timeline({ read, year, current, readingCount, onJump }: {
-  read: LibraryItem[]; year: number; current: number; readingCount: number; onJump: (i: number) => void
+function Timeline({ read, year, current, onJump }: {
+  read: LibraryItem[]; year: number; current: number; onJump: (i: number) => void
 }) {
   const thisMonth = new Date().getFullYear() === year ? new Date().getMonth() + 1 : 0
   return (
@@ -414,11 +414,6 @@ function Timeline({ read, year, current, readingCount, onJump }: {
                     boxShadow: 'inset 1.5px 0 0 rgba(255,255,255,.30), inset -1.5px 0 0 rgba(0,0,0,.14)',
                   }} />
               ))}
-              {/* 지금 달에는 읽는 중인 책이 앉을 빈 자리를 점선으로 세워 둔다 */}
-              {now && Array.from({ length: Math.min(readingCount, 3) }, (_, k) => (
-                <div key={`g${k}`} className="w-4 rounded-t-sm border-[1.5px] border-dashed border-primary/30 bg-primary/5"
-                  style={{ height: 74 - k * 12 }} />
-              ))}
             </div>
             <div className={`text-center text-[11px] py-1.5 border-t border-primary/15 ${now ? 'bg-primary text-cream font-bold' : 'bg-[#fffdf7] text-primary/45'}`}>
               {m}월
@@ -426,57 +421,6 @@ function Timeline({ read, year, current, readingCount, onJump }: {
           </div>
         )
       })}
-    </div>
-  )
-}
-
-/** 읽는 중 — 책갈피 리본이 내려온 만큼 읽었다. 진행률 숫자를 옆에 같이 둬서 은유를 보정한다. */
-function ReadingCard({ li, onFinish }: { li: LibraryItem; onFinish: () => void }) {
-  const [broken, setBroken] = useState(false)
-  const c = coverPalette(li.book.bookId)
-  const pct = li.progressPage != null && li.book.pageCount
-    ? Math.min(100, Math.round((li.progressPage / li.book.pageCount) * 100)) : null
-  const url = li.book.coverUrl && !broken ? coverAtWidth(li.book.coverUrl, 134) : null
-  return (
-    <div className="flex-1 flex gap-[22px] border-2 border-primary rounded-2xl bg-white p-[22px]">
-      <div className="relative shrink-0 pt-3">
-        <Link to={`/books/${li.book.bookId}`} className="block w-[134px] h-[194px] overflow-hidden rounded-l-sm rounded-r-md"
-          style={{ background: c.bg, color: c.fg, boxShadow: '3px 5px 14px rgba(34,34,74,.3)' }}>
-          {url
-            ? <img src={url} alt={li.book.title} referrerPolicy="no-referrer" onError={() => setBroken(true)} className="w-full h-full object-cover" />
-            : <span className="block p-2 text-[11px] font-bold leading-snug line-clamp-5">{li.book.title}</span>}
-        </Link>
-        {/* 리본 — 길이가 진행률 */}
-        <div className="absolute top-0 right-[22px] w-3.5 bg-accent rounded-t-sm"
-          style={{ height: 12 + 194 * ((pct ?? 0) / 100), boxShadow: '0 2px 7px rgba(34,34,74,.26)' }}>
-          <i className="absolute left-0 right-0 -bottom-[9px] h-2.5 bg-accent"
-            style={{ clipPath: 'polygon(0 0,100% 0,100% 100%,50% 52%,0 100%)' }} />
-        </div>
-      </div>
-      <div className="flex-1 flex flex-col min-w-0">
-        <h3 className="font-display text-lg truncate">{li.book.title}</h3>
-        <p className="text-xs text-primary/50 mt-1 truncate">
-          {li.book.author}{li.book.publisher ? ` · ${li.book.publisher}` : ''}
-        </p>
-        {pct != null ? (
-          <>
-            <div className="flex justify-between text-xs text-primary/60 mt-4">
-              <span>{li.progressPage}쪽까지</span><span>{li.book.pageCount}쪽 중 {pct}%</span>
-            </div>
-            <div className="h-1.5 rounded-full bg-primary/10 mt-1.5 overflow-hidden">
-              <div className="h-1.5 rounded-full bg-accent" style={{ width: `${pct}%` }} />
-            </div>
-          </>
-        ) : (
-          <p className="text-xs text-primary/40 mt-4">읽은 쪽을 남기면 책갈피가 내려와요</p>
-        )}
-        <div className="mt-auto pt-4 flex flex-col gap-2">
-          <button onClick={onFinish} className="self-start border-2 border-primary bg-primary text-white rounded-[10px] px-3 py-2 text-[13px] font-bold">
-            완독으로 옮기기
-          </button>
-          <span className="text-[11px] text-primary/40">완독으로 옮기면 나의 책에 한 장이 늘어요</span>
-        </div>
-      </div>
     </div>
   )
 }
@@ -511,22 +455,16 @@ export default function LibraryPageB() {
   const [view, setView] = useState<'book' | 'list'>('book')
   // 0 = 표지(닫힘). 책은 덮인 채로 시작한다.
   const [index, setIndex] = useState(0)
-  const qc = useQueryClient()
 
   const { data } = useQuery({
     queryKey: ['library'],
     queryFn: async () => (await api.get<{ items: LibraryItem[] }>('/library/me')).data.items,
-  })
-  const patch = useMutation({
-    mutationFn: async (v: { id: number; status: ShelfStatus }) => api.patch(`/library/${v.id}`, { status: v.status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['library'] }),
   })
 
   const all = data ?? []
   // 완독은 오래된 순 — 인덱스가 곧 나의 책의 장 순서가 된다
   const read = all.filter((li) => li.status === 'READ')
     .sort((x, y) => (x.finishedDate ?? '').localeCompare(y.finishedDate ?? ''))
-  const reading = all.filter((li) => li.status === 'READING')
   const wish = all.filter((li) => li.status === 'WISH')
 
   const year = new Date().getFullYear()
@@ -549,7 +487,7 @@ export default function LibraryPageB() {
       {/* ===== 히어로 · 나의 책 ===== */}
       <div className="relative overflow-hidden pt-12 pb-16">
         <p className="text-center text-[11px] tracking-[.22em] text-primary/45">
-          완독 {read.length}권 · 읽는 중 {reading.length}권 · 찜 {wish.length}권 · {year}년의 기록
+          완독 {read.length}권 · 찜 {wish.length}권 · {year}년의 기록
         </p>
 
         <div className="mt-12">
@@ -565,27 +503,9 @@ export default function LibraryPageB() {
             <p className="text-xs text-primary/45">달에 꽂힌 책등을 누르면 그 장으로 넘어가요 — 이 띠가 나의 책 목차입니다</p>
             {otherYears > 0 && <p className="ml-auto text-xs text-primary/40">그 밖의 해 {otherYears}권</p>}
           </div>
-          <Timeline read={read} year={year} current={cursor - 2} readingCount={reading.length}
-            onJump={(i) => setIndex(i + 2)} />
+          <Timeline read={read} year={year} current={cursor - 2} onJump={(i) => setIndex(i + 2)} />
           <div className="mt-2.5 flex gap-5 text-[11px] text-primary/45">
             <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm bg-primary inline-block" />완독 — 책등 높이는 쪽수</span>
-            <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm border-[1.5px] border-dashed border-primary/40 bg-primary/5 inline-block" />읽는 중 — 아직 실리지 않은 자리</span>
-          </div>
-        </section>
-      )}
-
-      {/* ===== 지금 펼쳐둔 책 ===== */}
-      {reading.length > 0 && (
-        <section className="max-w-[1224px] mx-auto px-8 pb-14">
-          <div className="flex items-baseline gap-3.5 mb-4">
-            <h2 className="text-[22px]">지금 펼쳐둔 책</h2>
-            <p className="text-xs text-primary/45">아직 나의 책에 실리지 않은 이야기 — 책갈피가 내려온 만큼 읽었어요</p>
-          </div>
-          <div className="flex gap-5 flex-wrap">
-            {reading.map((li) => (
-              <ReadingCard key={li.libraryItemId} li={li}
-                onFinish={() => patch.mutate({ id: li.libraryItemId, status: 'READ' })} />
-            ))}
           </div>
         </section>
       )}
