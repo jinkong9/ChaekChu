@@ -1,0 +1,7 @@
+.gradle/
+build/
+.env
+*.log
+README.md
+docker-compose.yml
+docker/

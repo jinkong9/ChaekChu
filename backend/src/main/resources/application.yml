@@ -27,6 +27,8 @@ spring:
 
   elasticsearch:
     uris: ${ES_URIS:http://localhost:9200}
+    username: ${ES_USERNAME:}          # 로컬(xpack 꺼짐)은 비움. 운영은 elastic
+    password: ${ES_PASSWORD:}
     connection-timeout: 5s
     socket-timeout: 30s
 
@@ -59,4 +61,4 @@ springdoc:
 logging:
   level:
     root: INFO
-    com.ssafy.b102: DEBUG
+    com.ssafy.b102: ${LOG_LEVEL_APP:DEBUG}   # 운영은 compose 에서 INFO
