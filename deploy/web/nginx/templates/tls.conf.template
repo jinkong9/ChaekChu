@@ -9,6 +9,14 @@ server {
         default_type text/plain;
     }
 
+    # compose healthcheck 는 컨테이너 안에서 http 로 친다. 리다이렉트하지 않고 바로 응답
+    location = /nginx-health {
+        access_log off;
+        return 200 "ok
+";
+        add_header Content-Type text/plain;
+    }
+
     location / {
         return 301 https://$host$request_uri;
     }
