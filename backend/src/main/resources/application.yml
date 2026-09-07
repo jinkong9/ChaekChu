@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: backend
+  config:
+    import: optional:file:.env[.properties]   # backend/.env 가 있으면 읽는다 (KEY=VALUE). 없어도 기동.
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/bookdb}
+    username: ${DB_USERNAME:book}
+    password: ${DB_PASSWORD:book}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate          # 스키마는 Flyway 가 관리한다. Hibernate 가 DDL 을 만들지 않는다.
+    properties:
+      hibernate:
+        default_batch_fetch_size: 100
+        jdbc.time_zone: UTC       # 저장은 UTC, 표시는 클라이언트에서 Asia/Seoul
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  elasticsearch:
+    uris: ${ES_URIS:http://localhost:9200}
+    connection-timeout: 5s
+    socket-timeout: 30s
+
+  jackson:
+    time-zone: UTC
+    default-property-inclusion: non_null
+
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework   # Nginx 뒤에서 X-Forwarded-* 반영
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true             # /actuator/health/liveness, /actuator/health/readiness
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+logging:
+  level:
+    root: INFO
+    com.ssafy.b102: DEBUG
