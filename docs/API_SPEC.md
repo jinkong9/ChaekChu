@@ -446,6 +446,38 @@ LibraryItem {
 
 <br/>
 
+## 10-0. 전수 검증 기록 (2026-09-07) — 18개가 전부인가
+
+프론트 `src/**` 의 네트워크 호출을 grep 으로 전수 확인하고(`api.*(` 16곳 · `fetch(` 2곳), 계획 문서 세 개의 API 언급 16개와 대조했다.
+
+**프론트 호출 → 명세** (호출 13종, 전부 대응)
+
+| 프론트 호출 | 명세 |
+| --- | --- |
+| `GET /auth/oauth/{p}/authorize` · `POST /users/me/profile` · `POST /users/me/preferences` · `GET /books/popular` · `GET /books/search` · `GET /books/{id}` · `GET /recommendations` · `GET /library/me` · `POST /library` · `PATCH /library/{id}` · `POST /events` | 같은 경로로 정의 (§2~§7) |
+| `fetch('/data/popular-ring.json')` ×2 (홈 링 · BOOK DNA) | `GET /books/popular-segments` (2차) · `GET /users/me/dna` |
+| `GET /recommendations/anonymous` (호출자 없음) | 폐기 |
+
+**문서 언급 → 명세** (MVP 계획 §8~§11 · 데이터 계약 §4.6)
+
+| 문서 | 명세 | 비고 |
+| --- | --- | --- |
+| `GET /auth/oauth/{p}/callback` · `GET /users/me` · `GET /recommendations` | 동일 | |
+| `GET /books?query=` | `GET /books/search?q=` | 프론트 경로를 따름 |
+| `GET /library?status=` · `POST /library/books/{bookId}` · `PATCH /library/books/{bookId}/status` · `DELETE /library/books/{bookId}` | `GET /library/me` · `POST /library` · `PATCH /library/{id}` · `DELETE /library/{id}` | 프론트가 `libraryItemId` 기준으로 호출 |
+| `PUT /books/{bookId}/rating` · `DELETE …/rating` | `PATCH /library/{id}` 의 `rating` (null 이면 삭제) | 평점이 서재 행에 통합됨 (ERD) |
+| `GET /users/me/preferences` · `PUT /users/me/preferences` | `GET /users/me`(interestTags) · `POST /users/me/preferences`(멱등) | seed 책 목록을 되돌려 주는 API 는 없다 — 재온보딩 UI 가 없어 보류 |
+
+**결론: 18개로 프론트와 문서를 모두 덮는다.** 다만 두 가지를 적어 둔다.
+
+1. **`GET /tags` 가 없다.** 프론트는 온보딩 장르 14개(`GENRES`)와 기준 조절 태그 16개(`SUGGESTED_TAGS`)를 **하드코딩**하고 있고, 서버는 V1 에 `tags` 표가 있다.
+   라벨이 어긋나면 `appliedTags` 가 거짓이 된다. 프론트가 태그 목록을 서버에서 받도록 바꿀 때 추가한다 — 응답 `{ items: [{ code, label, kind, selectable }] }`.
+   지금은 §3.3 매핑표를 양쪽이 지키는 것으로 대신한다.
+2. **`SKIPPED` 는 프론트에서 만들어지지 않는다.** 온보딩의 「건너뛰기」는 마지막 단계에서 `POST /users/me/preferences` 를 (빈 목록으로라도) 보내고 끝나므로 항상 `COMPLETED` 다.
+   `SKIPPED` 는 계약에 있는 예약 상태로 두고, 서버는 만들지 않는다.
+
+그 외 후보로 검토했지만 필요 없는 것: 로그아웃(무상태 JWT, 클라이언트가 토큰 삭제) · 프로필 수정/조회 화면(없음) · 회원 탈퇴(MVP 범위 밖) · 표지 이미지 프록시(핫링크 `no-referrer` 로 충분) · 헬스체크(`/actuator/health`, 인프라).
+
 ## 10. 아직 정하지 않은 것
 
 | 항목 | 후보 | 결정 시점 |
