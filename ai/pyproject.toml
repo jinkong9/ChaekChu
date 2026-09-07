@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "b102-recommendation"
+version = "0.1.0"
+description = "Reproducible recommendation batch and evaluation CLI for B102"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<9"]
+
+[project.scripts]
+b102-recommendation = "recommendation.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/recommendation"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
