@@ -23,7 +23,7 @@ GitLab MR / dev push
 | | 버전 | 비고 |
 | --- | --- | --- |
 | Jenkins LTS | 2.568.3 | apt hold. 2.555+ 는 Java 21/25 필요 |
-| Java | OpenJDK 21 JRE headless | |
+| Java | OpenJDK 21 JRE (+fontconfig, libharfbuzz) | headless 만 설치하면 AWTProblem 으로 기동 실패 |
 | git | 5.10.1 | |
 | gitlab-branch-source | 743.ve0c8154a_8da_b_ | requiredCore 2.504.3 |
 | junit | 1425.v9c7318dca_96d | requiredCore 2.541.3 |

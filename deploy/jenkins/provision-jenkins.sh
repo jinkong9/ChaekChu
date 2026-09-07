@@ -27,7 +27,8 @@ echo 'deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.
 apt-get update -qq
 
 echo "== 2/6 Java 21 + Jenkins ${JENKINS_VERSION} (버전 고정) =="
-apt-get install -y -qq --no-install-recommends openjdk-21-jre-headless fontconfig curl
+# --no-install-recommends 로 headless 만 깔면 libharfbuzz 가 빠져 Jenkins 가 AWTProblem 으로 기동 실패한다. 공식 안내대로 fontconfig + openjdk-21-jre.
+apt-get install -y -qq fontconfig openjdk-21-jre libharfbuzz0b curl
 # pkg.jenkins.io 는 다운로드를 지역 미러로 리다이렉트하는데 미러가 죽어 있는 경우가 있다(2026-09-07 mirror.ossplanet.net).
 # apt 가 실패하면 원본(archives.jenkins.io)에서 .deb 을 직접 받아 apt 인덱스(서명됨)의 SHA256 과 대조한 뒤 설치한다.
 install_jenkins_deb() {
@@ -62,8 +63,13 @@ MemoryHigh=1280M
 Restart=on-failure
 RestartSec=10
 EOF
+# 상위 디렉터리(secrets/, .cache/)도 jenkins 소유여야 한다. root 로 만들면 Jenkins 가 master.key 등을 못 써서 Jetty 기동에 실패한다.
+install -d -o jenkins -g jenkins -m 0700 /var/lib/jenkins/secrets
+install -d -o jenkins -g jenkins -m 0750 /var/lib/jenkins/.cache
 install -d -o jenkins -g jenkins -m 0700 "$SECRETS_DIR"
 install -d -o jenkins -g jenkins -m 0750 "$CACHE_DIR"
+chown jenkins:jenkins /var/lib/jenkins/secrets /var/lib/jenkins/.cache
+rm -f /var/lib/jenkins/failed-boot-attempts.txt
 umask 077
 [[ -f "$SECRETS_DIR/admin-password" ]] || openssl rand -base64 24 | tr -d '/+=' | cut -c1-24 > "$SECRETS_DIR/admin-password"
 [[ -f "$SECRETS_DIR/webhook-secret" ]]  || openssl rand -hex 32 > "$SECRETS_DIR/webhook-secret"
@@ -79,6 +85,7 @@ fi
 echo "== 5/6 기동 =="
 systemctl daemon-reload
 systemctl enable jenkins.service >/dev/null
+systemctl reset-failed jenkins.service 2>/dev/null || true
 systemctl restart jenkins.service
 for _ in $(seq 1 60); do curl -fs -o /dev/null http://127.0.0.1:8080/login && break; sleep 2; done
 systemctl is-active --quiet jenkins.service || { journalctl -u jenkins -n 30 --no-pager; exit 1; }
