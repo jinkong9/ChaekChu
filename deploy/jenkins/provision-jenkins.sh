@@ -28,15 +28,23 @@ apt-get update -qq
 
 echo "== 2/6 Java 21 + Jenkins ${JENKINS_VERSION} (버전 고정) =="
 apt-get install -y -qq --no-install-recommends openjdk-21-jre-headless fontconfig curl
-if dpkg -s jenkins >/dev/null 2>&1; then
-  installed="$(dpkg-query -W -f='${Version}' jenkins)"
-  if [[ "$installed" != "$JENKINS_VERSION" ]]; then
-    echo "Jenkins $installed 설치됨 → $JENKINS_VERSION 으로 변경"
-    apt-mark unhold jenkins >/dev/null 2>&1 || true
-    apt-get install -y -qq --allow-downgrades "jenkins=$JENKINS_VERSION"
-  fi
-else
-  apt-get install -y -qq "jenkins=$JENKINS_VERSION"
+# pkg.jenkins.io 는 다운로드를 지역 미러로 리다이렉트하는데 미러가 죽어 있는 경우가 있다(2026-09-07 mirror.ossplanet.net).
+# apt 가 실패하면 원본(archives.jenkins.io)에서 .deb 을 직접 받아 apt 인덱스(서명됨)의 SHA256 과 대조한 뒤 설치한다.
+install_jenkins_deb() {
+  local deb="/tmp/jenkins_${JENKINS_VERSION}_all.deb" expected actual
+  expected="$(apt-cache show "jenkins=$JENKINS_VERSION" | awk '/^SHA256:/ {print $2; exit}')"
+  [[ -n "$expected" ]] || { echo "apt 인덱스에서 jenkins=$JENKINS_VERSION 을 찾을 수 없습니다" >&2; return 1; }
+  curl -fL --retry 3 --max-time 600 -o "$deb" "https://archives.jenkins.io/debian-stable/jenkins_${JENKINS_VERSION}_all.deb"
+  actual="$(sha256sum "$deb" | awk '{print $1}')"
+  [[ "$actual" == "$expected" ]] || { echo "SHA256 불일치: $actual != $expected" >&2; rm -f "$deb"; return 1; }
+  apt-get install -y -qq --allow-downgrades "$deb"
+  rm -f "$deb"
+}
+apt-mark unhold jenkins >/dev/null 2>&1 || true
+installed="$(dpkg-query -W -f='${Version}' jenkins 2>/dev/null || true)"
+if [[ "$installed" != "$JENKINS_VERSION" ]]; then
+  [[ -z "$installed" ]] || echo "Jenkins $installed 설치됨 → $JENKINS_VERSION 으로 변경"
+  apt-get install -y -qq --allow-downgrades "jenkins=$JENKINS_VERSION"     || { echo "apt 미러 실패 → archives.jenkins.io 에서 직접 설치"; install_jenkins_deb; }
 fi
 apt-mark hold jenkins >/dev/null
 
