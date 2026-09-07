@@ -177,14 +177,14 @@ const recommendations: RecommendationResponse = {
 /** ============ 서재 (in-memory — 세션 동안 상태 유지) ============ */
 let nextLibraryId = 9
 const library: LibraryItem[] = [
-  { libraryItemId: 1, book: CATALOG[6], status: 'READ', rating: 4, reviewText: '어른이 되기 전에 읽었어야 했다.', finishedDate: '2026-08-20', progressPage: null },
-  { libraryItemId: 2, book: CATALOG[9], status: 'READING', rating: null, reviewText: null, finishedDate: null, progressPage: 142 },
-  { libraryItemId: 3, book: CATALOG[10], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-08-27', progressPage: null },
-  { libraryItemId: 4, book: CATALOG[11], status: 'READ', rating: 3, reviewText: '가볍게 잘 읽힘', finishedDate: '2026-06-11', progressPage: null },
-  { libraryItemId: 5, book: CATALOG[8], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-05-02', progressPage: null },
-  { libraryItemId: 6, book: CATALOG[7], status: 'WISH', rating: null, reviewText: null, finishedDate: null, progressPage: null },
-  { libraryItemId: 7, book: CATALOG[4], status: 'WISH', rating: null, reviewText: null, finishedDate: null, progressPage: null },
-  { libraryItemId: 8, book: CATALOG[0], status: 'READING', rating: null, reviewText: null, finishedDate: null, progressPage: 88 },
+  { libraryItemId: 1, book: CATALOG[6], status: 'READ', rating: 4, reviewText: '어른이 되기 전에 읽었어야 했다.', finishedDate: '2026-08-20' },
+  { libraryItemId: 2, book: CATALOG[9], status: 'READ', rating: null, reviewText: null, finishedDate: '2026-07-19' },
+  { libraryItemId: 3, book: CATALOG[10], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-08-27' },
+  { libraryItemId: 4, book: CATALOG[11], status: 'READ', rating: 3, reviewText: '가볍게 잘 읽힘', finishedDate: '2026-06-11' },
+  { libraryItemId: 5, book: CATALOG[8], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-05-02' },
+  { libraryItemId: 6, book: CATALOG[7], status: 'WISH', rating: null, reviewText: null, finishedDate: null },
+  { libraryItemId: 7, book: CATALOG[4], status: 'WISH', rating: null, reviewText: null, finishedDate: null },
+  { libraryItemId: 8, book: CATALOG[0], status: 'WISH', rating: null, reviewText: null, finishedDate: null },
 ]
 
 /** ============ 핸들러 ============ */
@@ -209,7 +209,24 @@ export const handlers = [
   // 온보딩 — Step 0 프로필(닉네임·생년월일·성별), Step 1~2 취향
   http.post('*/users/me/profile', () => new HttpResponse(null, { status: 204 })),
   http.get('*/books/popular', () => HttpResponse.json({ items: CATALOG.slice(4, 12) })), // 세그먼트 인기 (온보딩 그리드용)
-  http.post('*/users/me/preferences', () => new HttpResponse(null, { status: 204 })),
+  // 온보딩 취향 제출 — 읽은 책은 서재의 완독 기록이 된다 (finished_at NULL = 서비스 이전에 읽음).
+  // genres → user_interests 저장은 서버 몫이고, mock에서는 아직 읽는 화면이 없어 보관하지 않는다 (/tune 초기값은 P1).
+  http.post('*/users/me/preferences', async ({ request }) => {
+    const body = (await request.json()) as { genres: string[]; books: { bookId: number; rating: number }[] }
+    for (const { bookId, rating } of body.books) {
+      const book = CATALOG.find((bk) => bk.bookId === bookId)
+      if (!book) continue
+      const existing = library.find((li) => li.book.bookId === bookId)
+      if (existing) {
+        // 이미 서재에 있으면(찜 등) 완독으로 승격만 — 중복 행을 만들지 않는다
+        existing.status = 'READ'
+        existing.rating = rating
+        continue
+      }
+      library.unshift({ libraryItemId: nextLibraryId++, book, status: 'READ', rating, reviewText: null, finishedDate: null })
+    }
+    return new HttpResponse(null, { status: 204 })
+  }),
 
   // 검색
   http.get('*/books/search', ({ request }) => {
@@ -251,7 +268,7 @@ export const handlers = [
     const existing = library.find((li) => li.book.bookId === body.bookId)
     if (existing) { existing.status = body.status } else {
       library.unshift({ libraryItemId: nextLibraryId++, book, status: body.status, rating: null, reviewText: null,
-        finishedDate: body.status === 'READ' ? new Date().toISOString().slice(0, 10) : null, progressPage: null })
+        finishedDate: body.status === 'READ' ? new Date().toISOString().slice(0, 10) : null })
     }
     return new HttpResponse(null, { status: 201 })
   }),

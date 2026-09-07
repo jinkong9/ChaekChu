@@ -56,7 +56,6 @@ export default function LibraryList({ items }: { items: LibraryItem[] }) {
                 <span className="mt-1 block truncate text-[10px] tabular-nums text-ink-faint">
                   {categoryKey(li)}
                   {li.status === 'READ' && li.finishedDate && ` · 완독 ${li.finishedDate}`}
-                  {li.status === 'READING' && li.progressPage != null && ` · 읽는 중 ${li.progressPage}p`}
                   {li.status === 'WISH' && ' · 읽고 싶은 책'}
                 </span>
               </span>
@@ -74,7 +73,7 @@ export default function LibraryList({ items }: { items: LibraryItem[] }) {
             <select className="eo-field eo-field--sm w-[86px] shrink-0" value={li.status}
               aria-label={`${li.book.title} 상태`}
               onChange={(e) => patch.mutate({ id: li.libraryItemId, status: e.target.value as ShelfStatus })}>
-              <option value="WISH">찜</option><option value="READING">읽는 중</option><option value="READ">읽음</option>
+              <option value="WISH">찜</option><option value="READ">읽음</option>
             </select>
           </div>
 

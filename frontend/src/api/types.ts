@@ -89,7 +89,7 @@ export const SUGGESTED_TAGS = [
   '#짧은호흡',   // page_count 하위 구간 — 가볍게 읽는 책
 ]
 
-export type ShelfStatus = 'WISH' | 'READING' | 'READ' // 찜 / 읽는 중 / 읽음
+export type ShelfStatus = 'WISH' | 'READ' // 찜 / 읽음 — 2단 확정(9/2), 읽는 중 폐기
 
 export interface LibraryItem {
   libraryItemId: number
@@ -99,7 +99,6 @@ export interface LibraryItem {
   /** 한 줄 감상평 — 본인 기록 전용, 최대 300자, 공백만이면 null (계약 §4.3) */
   reviewText: string | null
   finishedDate: string | null  // 읽음일 때만, 미입력 시 서버가 오늘로
-  progressPage: number | null  // 읽는 중 표시용 (선택 — ERD 반영 대기)
 }
 
 export interface SearchResponse {

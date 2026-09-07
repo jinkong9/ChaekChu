@@ -8,7 +8,6 @@ import { coverPalette } from '../lib/coverPalette'
 
 const TABS: { key: ShelfStatus | 'ALL'; label: string }[] = [
   { key: 'ALL', label: '전체' },
-  { key: 'READING', label: '읽는 중' },
   { key: 'READ', label: '읽음' },
   { key: 'WISH', label: '찜' },
 ]
@@ -46,8 +45,6 @@ function Cover({ li, size = 'md' }: { li: LibraryItem; size?: 'md' | 'sm' }) {
 /** hover 팝오버 — position:fixed 라 overflow 컨테이너에 잘리지 않음.
  *  마우스가 책 → 팝오버로 이동할 시간을 주기 위해 닫기는 지연(150ms) 처리 */
 function BookPop({ li, x, y, onEnter, onLeave }: { li: LibraryItem; x: number; y: number; onEnter: () => void; onLeave: () => void }) {
-  const progress = li.status === 'READING' && li.progressPage != null && li.book.pageCount
-    ? Math.round((li.progressPage / li.book.pageCount) * 100) : null
   return (
     <div onMouseEnter={onEnter} onMouseLeave={onLeave}
       className="eo-panel fixed z-50 w-60 p-3.5 text-left"
@@ -55,12 +52,6 @@ function BookPop({ li, x, y, onEnter, onLeave }: { li: LibraryItem; x: number; y
       <p className="text-[13px] font-semibold leading-snug">{li.book.title}</p>
       <p className="mt-1 text-[10px] text-ink-faint">{li.book.author} · {categoryKey(li)}</p>
       {li.rating != null && <p className="mt-2 text-[13px] text-ink">{'★'.repeat(li.rating)}<span className="text-rule-soft">{'★'.repeat(5 - li.rating)}</span> <span className="ml-1 text-[11px] font-semibold tabular-nums">{li.rating}.0</span></p>}
-      {progress != null && (
-        <div className="mt-1.5">
-          <div className="flex justify-between text-[10px] tabular-nums text-ink-muted"><span>읽는 중 {progress}%</span><span>{li.progressPage}p / {li.book.pageCount}p</span></div>
-          <div className="eo-meter mt-1.5"><span style={{ width: `${progress}%` }} /></div>
-        </div>
-      )}
       {li.status === 'READ' && li.finishedDate && <p className="mt-2 text-[10px] tabular-nums text-ink-faint">완독 · {li.finishedDate}</p>}
       {li.reviewText && <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-ink-muted">{li.reviewText}</p>}
       <Link to={`/books/${li.book.bookId}`} className="eo-link mt-3">상세 보기</Link>
@@ -150,7 +141,7 @@ export default function LibraryPageShelf() {
         {[
           { label: '보유한 책', value: `${all.length}권` },
           { label: '완독', value: `${readItems.length}권` },
-          { label: '읽는 중', value: `${byStatus('READING').length}권` },
+          { label: '찜', value: `${byStatus('WISH').length}권` },
           { label: '평균 별점', value: `★ ${avgRating}` },
         ].map((s) => (
           <div key={s.label} className="py-1.5">
@@ -178,7 +169,6 @@ export default function LibraryPageShelf() {
       <div className="mt-7 space-y-9">
         {tab === 'ALL' ? (
           <>
-            <Shelf title="읽는 중" items={byStatus('READING')} onBookEnter={showPop} onBookLeave={hidePop} />
             <Shelf title="이번 달 완독" items={readThisMonth} onBookEnter={showPop} onBookLeave={hidePop} />
             <Shelf title="찜한 책" items={byStatus('WISH')} onBookEnter={showPop} onBookLeave={hidePop} />
 
