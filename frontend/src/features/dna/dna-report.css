@@ -96,7 +96,8 @@
 
 .dnar-hero__display {
   font-family: var(--font-wordmark);
-  font-size: clamp(56px, 8vw, 104px);
+  /* DESIGN.md typography.display — 워드마크 전용 스텝을 그대로 쓴다 */
+  font-size: clamp(48px, 7.4vw, 116px);
   font-weight: 600;
   line-height: 0.88;
   letter-spacing: -0.01em;
@@ -305,8 +306,9 @@
   stroke-width: 1.5;
   animation: dnar-reveal 420ms ease-out both;
 }
-.dnar-radar__label { font-size: 10.5px; font-weight: 650; fill: var(--eo-ink); }
-.dnar-radar__value { font-size: 9.5px; font-weight: 450; fill: var(--eo-ink-faint); }
+/* 축 이름은 label, 괄호 안 수치는 utility — DESIGN.md 스텝 그대로 */
+.dnar-radar__label { font-size: 11px; font-weight: 650; fill: var(--eo-ink); }
+.dnar-radar__value { font-size: 10px; font-weight: 450; fill: var(--eo-ink-faint); }
 @keyframes dnar-reveal { from { opacity: 0; } to { opacity: 1; } }
 
 /* 키워드 */
