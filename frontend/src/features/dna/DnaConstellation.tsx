@@ -120,7 +120,7 @@ function buildField(w: number, h: number, tones: string[] | null, dpr: number): 
   }
 
   // 폭에 맞춰 촘촘함만 조절한다. 구조(가닥 2 + 가로대)는 크기와 무관하게 같다
-  const strandDots = Math.max(64, Math.min(170, Math.round(w / 4.6)))
+  const strandDots = Math.max(80, Math.min(220, Math.round(w / 3.4)))
   const rungs = Math.max(7, Math.min(18, Math.round(w / 44)))
 
   // 두 가닥 — 균일 간격이라야 끊김 없는 선으로 읽힌다
@@ -169,9 +169,11 @@ export default function DnaConstellation({ tones }: { tones: string[] | null }) 
       ctx.clearRect(0, 0, w, h)
       const cy = h / 2
       // 나선은 가로로 눕힌다 — 상자가 세로보다 넓어서, 세운 나선은 마스크에 잘린다
-      const padX = w * 0.04
-      const spanX = w * 0.92
-      const amp = h * 0.31
+      const padX = w * 0.015
+      const spanX = w * 0.97
+      // 상자 높이의 ±42% — 글리프 반지름까지 더하면 위아래를 거의 다 쓴다.
+      // 0.5를 넘기면 가닥 꼭대기가 상자 밖으로 나가 잘린다.
+      const amp = h * 0.42
       const spin = t * SPIN
 
       for (const p of field) {
