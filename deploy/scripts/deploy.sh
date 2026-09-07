@@ -22,7 +22,7 @@ if $PULL; then
 fi
 RELEASE="$(git -C "$REPO_ROOT" rev-parse --short=12 HEAD)"
 export RELEASE
-echo "== release $RELEASE ($BRANCH) =="
+echo "== release $RELEASE ($(git -C "$REPO_ROOT" branch --show-current)) =="
 
 exec 9>"$REPO_ROOT/deploy/.deploy.lock"; flock -n 9 || { echo "다른 배포가 진행 중" >&2; exit 1; }
 
