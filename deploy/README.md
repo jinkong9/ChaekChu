@@ -28,7 +28,8 @@ deploy/
 | elasticsearch | `b102-elasticsearch-nori:8.19.21` (빌드, xpack 켜짐) | 4g (힙 2g) | 127.0.0.1:9200 |
 | qdrant | `qdrant/qdrant:v1.18.3`, `--profile recsys` | 3g | 127.0.0.1:6333 |
 
-합계 11.6g + 수집기 상한 3g. 컨테이너 로그는 데몬 전역 10m×3.
+기본 합계 8.6g, Qdrant 를 켜면 11.6g. 여기에 수집기 systemd 상한 3g 와 Jenkins(도입 후) 1~1.5g 가 더해진다.
+Qdrant 를 켜기 전에 수집기 상한을 내려야 한다. CPU 상한은 걸지 않았다(수집기와 실측 후 결정). 컨테이너 로그는 데몬 전역 10m×3.
 
 ## 최초 배포 순서
 

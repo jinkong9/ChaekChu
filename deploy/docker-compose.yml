@@ -3,8 +3,11 @@
 #   서버:  cd ~/S15P21B102 && docker compose -f deploy/docker-compose.yml up -d --build --wait
 #   .env:  deploy/.env (deploy/.env.example 참고, chmod 600, 커밋 금지)
 #
-# 메모리 배분 (합계 ≈ 11.6g, 수집기 3g 별도, 나머지 OS·페이지캐시)
-#   web 128m · backend 1.5g · postgres 3g · elasticsearch 4g(힙 2g) · qdrant 3g(profile)
+# 메모리 상한 (16GiB 서버)
+#   web 128m · backend 1.5g · postgres 3g · elasticsearch 4g(힙 2g)   = 기본 8.6g
+#   qdrant 3g (--profile recsys)                                     = 켜면 11.6g
+#   여기에 수집기 systemd 상한 3g 와 (도입 후) Jenkins 1~1.5g 가 더해진다. Qdrant 를 켜기 전에 수집기 상한을 내린다.
+#   CPU 상한은 걸지 않는다. 수집기와 함께 실측한 뒤 필요하면 추가.
 # 외부 노출은 web 의 80/443 만. 나머지는 127.0.0.1 에만 바인딩한다.
 # =====================================================================
 name: b102
@@ -38,6 +41,8 @@ services:
     depends_on:
       - backend
     mem_limit: 128m
+    security_opt:
+      - no-new-privileges:true
     logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/nginx-health >/dev/null || exit 1"]
@@ -82,6 +87,9 @@ services:
       elasticsearch:
         condition: service_healthy
     mem_limit: 1536m
+    stop_grace_period: 30s               # Spring graceful shutdown 이 요청을 끝낼 시간 (compose 기본 10s)
+    security_opt:
+      - no-new-privileges:true
     logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health/readiness | grep -q UP || exit 1"]

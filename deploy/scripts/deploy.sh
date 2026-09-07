@@ -13,7 +13,10 @@ PULL=true
 [[ "${1:-}" == "--no-pull" ]] && PULL=false
 
 [[ -f "$REPO_ROOT/deploy/.env" ]] || { echo "deploy/.env 가 없습니다. deploy/.env.example 을 복사해 채우세요." >&2; exit 1; }
-[[ "$(stat -c %a "$REPO_ROOT/deploy/.env")" == "600" ]] || echo "경고: deploy/.env 권한이 600 이 아닙니다"
+[[ "$(stat -c %a "$REPO_ROOT/deploy/.env")" == "600" ]] || { echo "deploy/.env 권한이 600 이 아닙니다: chmod 600 deploy/.env" >&2; exit 1; }
+
+# 락은 소스를 건드리기(fetch/reset) 전에 잡는다. 동시 배포가 서로 다른 소스를 섞어 빌드하지 않도록.
+exec 9>"$REPO_ROOT/deploy/.deploy.lock"; flock -n 9 || { echo "다른 배포가 진행 중" >&2; exit 1; }
 
 if $PULL; then
   git -C "$REPO_ROOT" fetch -q origin "$BRANCH"
@@ -23,8 +26,6 @@ fi
 RELEASE="$(git -C "$REPO_ROOT" rev-parse --short=12 HEAD)"
 export RELEASE
 echo "== release $RELEASE ($(git -C "$REPO_ROOT" branch --show-current)) =="
-
-exec 9>"$REPO_ROOT/deploy/.deploy.lock"; flock -n 9 || { echo "다른 배포가 진행 중" >&2; exit 1; }
 
 echo "== build =="
 "${COMPOSE[@]}" build --pull=false web backend elasticsearch
