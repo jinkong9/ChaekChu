@@ -5,8 +5,9 @@
 > 이 문서는 외부 도서 데이터, PostgreSQL 원천 모델, Elasticsearch 읽기 모델,
 > Spring Boot API가 공유하는 필드명과 값 규칙을 정의한다.
 >
-> ERD 표현은 발표와 MVP 구현을 위해 `docs/ERD.md`의 5개 핵심 테이블로 단순화했으며,
-> 외부 원본·배치 feature·분석 이벤트의 상세 계약은 이 문서에서만 참고한다.
+> ERD 는 2026-09-07 에 `docs/ERD.md` 16테이블로 확정했다 (테이블별 DDL·근거는 `docs/DB_TABLE_DESIGN.md`).
+> 이 문서의 모델명은 논리 모델이다 — `BookRating`·`UserSeedBook` 은 `library_items` 로, `Tag`/`UserInterest` 는 `tags`/`user_interests` 로,
+> `BookContentFeatures`·`BookTag`·`BookWork`·`BookSourceRecord` 는 MVP 물리 스키마에 두지 않는다(각각 KDC 파생·`work_key`·파이프라인).
 
 ## 1. 계약의 범위
 

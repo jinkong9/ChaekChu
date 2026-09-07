@@ -19,8 +19,9 @@ SSAFY 15기 2학기 관통 프로젝트 · 서울 1캠퍼스 B반 102팀
 - [개발 일정](docs/PROJECT_SCHEDULE.md)
 - [MVP 구현 계획](docs/MVP_IMPLEMENTATION_PLAN.md)
 - [백엔드 데이터 계약](docs/BACKEND_DATA_CONTRACT.md)
-- [백엔드 ERD 초안](docs/ERD.md)
+- [MVP ERD (확정)](docs/ERD.md) · [테이블 설계](docs/DB_TABLE_DESIGN.md) · [실행 DDL](docs/POSTGRES_SCHEMA.sql)
 - [ERDCloud Import DDL](docs/ERDCLOUD_IMPORT.sql)
+- [백엔드 API 명세](docs/API_SPEC.md)
 - [추천 데이터 기반 서비스 방향](docs/RECOMMENDATION_SERVICE_DIRECTION.md)
 - [팀원 소개](#팀원-소개)
 - [협업 규칙](#협업-규칙)
@@ -118,7 +119,7 @@ SSAFY 15기 2학기 관통 프로젝트 · 서울 1캠퍼스 B반 102팀
 
 ## ERD
 
-초안은 [백엔드 ERD 초안](docs/ERD.md)에서 확인할 수 있으며, ERDCloud에서는 [Import용 DDL](docs/ERDCLOUD_IMPORT.sql)을 가져오면 됩니다.
+확정 ERD 는 [MVP ERD](docs/ERD.md)(관계도)와 [테이블 설계](docs/DB_TABLE_DESIGN.md)(DDL 과 근거)에 있고, ERDCloud 에서는 [Import용 DDL](docs/ERDCLOUD_IMPORT.sql)을 가져오면 됩니다.
 
 <br/>
 

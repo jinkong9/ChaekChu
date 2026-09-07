@@ -1,56 +1,145 @@
-# MVP ERD
+# MVP ERD (확정 2026-09-07)
 
-> 프로젝트: S15P21B102
+> 프로젝트 S15P21B102 · 테이블별 DDL 과 근거는 `docs/DB_TABLE_DESIGN.md` · 실행 DDL `docs/POSTGRES_SCHEMA.sql` · ERDCloud `docs/ERDCLOUD_IMPORT.sql`
 >
-> MVP 서비스에 실제로 필요한 핵심 도메인만 남긴 단순화 버전이다. 비회원 추천은 제공하지 않으며, 모든 추천과 개인 데이터는 로그인한 사용자 기준으로 처리한다. 내부 PK는 BIGINT 자동 증가, FK는 BIGINT를 사용한다.
+> 09-01 의 5테이블 초안을 **16테이블 + 뷰 1** 로 확정했다. 늘어난 것은 추천·상세·홈이 실제로 읽어야 하는 데이터의 자리다
+> (소스별 소개문·키워드·벡터·함께대출 관계·월별 수요·세그먼트 인기·KDC 사전·태그 사전). 근처 도서관 기능은 MVP 에서 뺐다.
 
 ## 설계 원칙
 
-- `books`는 검색·상세·추천에 필요한 표준 도서 정보만 가진다.
-- 외부 API 원본, 작품 그룹, 대출 원장, 추천용 중간 feature는 ERD에서 제외한다. 해당 데이터는 수집·배치 영역에서 관리한다.
-- 초기 관심 분야는 `users.interest_tags`, 도서 태그는 `books.tags` JSONB에 저장해 별도 태그 연결 테이블을 만들지 않는다.
-- 서재 상태·평점·한 줄 감상은 한 도서에 대한 사용자 기록이므로 `library_items`에 함께 저장한다.
-- 추천 결과의 도서별 순위와 추천 이유는 `recommendation_items`에 저장한다.
+- **ISBN13 은 논리 키, PK 는 BIGINT.** API 는 `bookId` 를 불투명 문자열로 노출한다.
+- **소스별 원문은 행, 화면 대표값은 컬럼.** `book_texts` 에 정보나루·카카오 소개문을 소스별로, `books.description` 에 대표값 하나와 출처.
+- **책당 벡터 1개.** 임베딩 입력은 저장하지 않고 조립한다(`STRUCT` 템플릿). 소스별 평균 벡터는 폐기(임베딩 연구 09-07).
+- **어휘 색인이 주 추천 신호.** `books` 의 tsvector(제목·저자·출판사·소개) + `book_keywords` 정확 조인 → 밀집 벡터와 역순위 융합.
+- **작품 단위 묶기.** `books.work_key`(세트 ISBN → 제목 어간+저자) 로 추천·검색 결과에서 작품당 1권.
+- **서비스 DB 에 두지 않는 것**: 도서관 원장 1.4억 행·1,660관(파케이), 수집 원본 JSON(파이프라인), 책별 태그 점수(KDC 파생으로 대체).
 
 ## 관계도
 
 ```mermaid
 erDiagram
+    KDC_CODES ||--o{ KDC_CODES : parent
+    KDC_CODES ||--o{ BOOKS : classifies
+    BOOKS ||--o{ BOOK_TEXTS : has
+    BOOKS ||--o{ BOOK_KEYWORDS : has
+    BOOKS ||--o| BOOK_EMBEDDINGS : vector
+    BOOKS ||--o{ BOOK_RELATIONS : source
+    BOOKS o|--o{ BOOK_RELATIONS : target
+    BOOKS ||--o{ BOOK_DEMAND_FEATURES : monthly
+    BOOKS ||--o{ BOOK_DEMOGRAPHICS : monthly
+    BOOKS ||--o{ POPULAR_SEGMENTS : ranked
+    TAGS ||--o{ USER_INTERESTS : chosen
+    USERS ||--o{ USER_INTERESTS : has
     USERS ||--o{ LIBRARY_ITEMS : owns
     BOOKS ||--o{ LIBRARY_ITEMS : saved_in
     USERS ||--o{ RECOMMENDATIONS : receives
     RECOMMENDATIONS ||--o{ RECOMMENDATION_ITEMS : contains
     BOOKS ||--o{ RECOMMENDATION_ITEMS : recommended
+    USERS ||--o{ USER_EVENTS : acts
+    RECOMMENDATIONS o|--o{ USER_EVENTS : measured
+    BOOKS o|--o{ USER_EVENTS : about
 
-    USERS {
-        bigint id PK
-        varchar oauth_provider
-        varchar oauth_subject UK
-        varchar nickname
-        smallint birth_year
-        varchar gender
-        varchar onboarding_status
-        jsonb interest_tags
-        timestamptz created_at
-        timestamptz updated_at
+    KDC_CODES {
+        varchar code PK
+        varchar label
+        varchar parent_code FK
+        smallint depth
     }
-
+    TAGS {
+        varchar code PK
+        varchar label UK
+        varchar tag_type
+        text_array kdc_prefixes
+        boolean is_selectable
+    }
     BOOKS {
         bigint id PK
         char isbn13 UK
+        char set_isbn
+        varchar work_key
         varchar title
-        jsonb authors
+        text_array authors
+        text authors_text
         varchar publisher
-        date published_date
-        text description
-        jsonb tags
-        text cover_image_url
+        smallint published_year
+        varchar kdc FK
+        varchar category_path
+        char audience_code
         integer page_count
-        decimal popularity_score
-        timestamptz created_at
+        text cover_image_url
+        text description
+        varchar description_source
+        varchar content_status
+        bigint loans_total
+        numeric popularity_score
+    }
+    BOOK_TEXTS {
+        bigint id PK
+        bigint book_id FK
+        varchar source
+        varchar text_type
+        text content
+        char content_hash
         timestamptz updated_at
     }
-
+    BOOK_KEYWORDS {
+        bigint book_id PK_FK
+        varchar keyword PK
+        numeric weight
+        smallint rank
+    }
+    BOOK_EMBEDDINGS {
+        bigint book_id PK_FK
+        varchar model PK
+        smallint dim
+        bytea vector_fp16
+        char input_hash
+        timestamptz built_at
+    }
+    BOOK_RELATIONS {
+        bigint id PK
+        bigint source_book_id FK
+        bigint target_book_id FK
+        char target_isbn13
+        varchar relation_type
+        smallint rank
+    }
+    BOOK_DEMAND_FEATURES {
+        bigint book_id PK_FK
+        char as_of_month PK
+        bigint loan_cum
+        integer loan_3m
+        integer loan_24m
+        numeric trending_score
+        numeric steady_score
+    }
+    BOOK_DEMOGRAPHICS {
+        bigint book_id PK_FK
+        char as_of_month PK
+        varchar age_group PK
+        char gender PK
+        integer loan_count
+    }
+    POPULAR_SEGMENTS {
+        varchar segment_id PK
+        date period_start PK
+        smallint rank PK
+        bigint book_id FK
+        integer loan_count
+    }
+    USERS {
+        bigint id PK
+        varchar oauth_provider UK
+        varchar oauth_subject UK
+        varchar nickname
+        smallint birth_year
+        char gender
+        varchar onboarding_status
+    }
+    USER_INTERESTS {
+        bigint user_id PK_FK
+        varchar tag_code PK_FK
+    }
     LIBRARY_ITEMS {
         bigint id PK
         bigint user_id FK
@@ -58,64 +147,77 @@ erDiagram
         varchar status
         smallint rating
         varchar review_text
-        date finished_at
-        timestamptz created_at
-        timestamptz updated_at
+        date finished_date
+        integer progress_page
+        boolean is_seed
     }
-
     RECOMMENDATIONS {
         bigint id PK
         bigint user_id FK
         varchar mode
         varchar model_version
+        varchar embedding_model
         jsonb weights
         jsonb applied_tags
+        smallint based_on_count
         boolean fallback
         timestamptz generated_at
     }
-
     RECOMMENDATION_ITEMS {
-        bigint recommendation_id PK,FK
-        bigint book_id PK,FK
-        integer rank
-        decimal score
+        bigint recommendation_id PK_FK
+        bigint book_id PK_FK
+        smallint rank
+        numeric score
         jsonb feature_scores
         jsonb tags
         varchar reason_type
         varchar reason_text
     }
+    USER_EVENTS {
+        bigint id PK
+        bigint user_id FK
+        bigint recommendation_id FK
+        bigint book_id FK
+        varchar event_type
+        smallint rank
+        varchar client_event_id
+        timestamptz occurred_at
+    }
 ```
 
-## 테이블 설명
+## 테이블 역할
 
-| 테이블 | 역할 | 핵심 내용 |
-| --- | --- | --- |
-| `users` | 회원·취향 | OAuth 계정, 프로필, 온보딩 상태, 관심 태그 |
-| `books` | 도서 카탈로그 | ISBN, 서지 정보, 검색용 태그, 인기 점수 |
-| `library_items` | 개인 서재 | 찜·읽는 중·완독, 평점, 감상 기록 |
-| `recommendations` | 추천 결과 묶음 | 사용자별 추천 모드와 생성 시점 |
-| `recommendation_items` | 추천 도서 | 순위, 점수, 추천 이유 |
+| 층 | 테이블 | 역할 | 채우는 주체 |
+| --- | --- | --- | --- |
+| 사전 | `kdc_codes` | KDC 코드→이름·상위 | 1회 적재 |
+| | `tags` | 관심·추천 태그 사전, KDC 접두로 장르 파생 | 1회 적재 |
+| 카탈로그 | `books` | ISBN 1행 — 서지·KDC·작품키·대표 소개·표지·인기 | 월 배치 (원장 → usage → 카카오) |
+| 콘텐츠 | `book_texts` | 소스별 소개문 원문 (+국중 목차 표시용) | 수집기 |
+| | `book_keywords` | 정보나루 키워드·가중치 (1단계 48%) | 수집기 |
+| | `book_embeddings` | 책당 e5-large 벡터 1개, 입력 해시 | 임베딩 배치 (변경분) |
+| 파생 | `book_relations` | 함께대출·마니아·다독자 (1단계 83%, **주 추천 신호**) | 수집기 |
+| | `book_demand_features` | 월별 누적·3개월·24개월·모멘텀 | 월 배치 (원장) |
+| | `book_demographics` | 연령·성별 대출 분포 (3.2%) | 수집기 |
+| | `popular_segments` | 세그먼트 인기 상위 100 (홈 링·온보딩) | 월 배치 |
+| 사용자 | `users` · `user_interests` · `library_items` | OAuth 계정·관심 태그·서재(찜/읽는 중/완독+평점·감상) | 서비스 |
+| 결과 | `recommendations` · `recommendation_items` · `user_events` · MV | 추천 스냅샷·순위·이유·행동 로그·일별 지표 | 서비스 |
 
 ## 주요 제약
 
-- `users (oauth_provider, oauth_subject)`는 유일해야 한다.
-- `books.isbn13`은 유일한 검증 ISBN-13이다.
-- `library_items (user_id, book_id)`는 유일하다. 같은 책의 상태·평점·감상을 한 행에서 관리한다.
-- `library_items.status`는 `WISH`, `READING`, `READ` 중 하나다.
-- `library_items.rating`은 선택값이며 1~5점이다.
-- `recommendations.user_id`는 필수다. 비회원 추천 스냅샷은 저장하지 않는다.
-- `recommendations.mode`는 `COLD_START`, `PERSONALIZED` 중 하나다.
-- `recommendation_items.rank`는 추천 묶음 안에서 유일하며 1 이상이다.
+- `books.isbn13` UNIQUE, `^(978|979)[0-9]{10}$`. `work_key` NOT NULL.
+- `book_texts (book_id, source, text_type)` UNIQUE — 소스별 최신 한 행.
+- `book_relations (source_book_id, relation_type, target_isbn13)` UNIQUE. `target_book_id` 는 카탈로그 미적재면 NULL.
+- `users (oauth_provider, oauth_subject)` UNIQUE.
+- `library_items (user_id, book_id)` UNIQUE. `READ` ⇔ `finished_date NOT NULL`.
+- `recommendation_items (recommendation_id, rank)` UNIQUE, `rank ≥ 1`, `score 0~100`.
+- `user_events (user_id, client_event_id)` UNIQUE — 재전송 중복 방지.
 
-## 제외한 테이블과 이유
+## 제외한 것과 이유
 
-| 제외 대상 | 이유 |
+| 제외 | 이유 |
 | --- | --- |
-| `book_works` | 작품-판본 그룹은 MVP 기능에 필요하지 않음 |
-| `book_source_records` | 외부 원본 추적은 수집 파이프라인 영역임 |
-| `book_demand_features` | 대출 원장 기반 배치 산출물임 |
-| `book_content_features` | 초기에는 `books.tags`로 충분함 |
-| `tags`, `book_tags`, `user_interests` | 태그를 JSONB로 단순화함 |
-| `user_seed_books` | 초기 선택 도서는 `library_items`로 통합함 |
-| `book_ratings` | 평점을 `library_items`로 통합함 |
-| `user_events` | 분석 로그 영역이며 핵심 서비스 ERD에서 제외함 |
+| `libraries` · `holdings` | 근처 도서관 기능 MVP 배제 (09-07). 원장은 파케이에서 카탈로그·인기 지표의 원천으로만 |
+| `book_source_records` · `ingestion_runs` | 원본 JSON 3GB+, 파이프라인 영역 |
+| `book_series` · `book_identifiers` · `book_classifications` | `books.work_key` · `set_isbn` · `kdc` 컬럼으로 흡수 |
+| `book_tags` | 책 태그는 `tags.kdc_prefixes` 로 KDC 에서 결정적으로 파생 |
+| `book_ratings` · `user_seed_books` | `library_items.rating` · `is_seed` 로 통합 |
