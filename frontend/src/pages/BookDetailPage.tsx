@@ -5,7 +5,7 @@ import { api } from '../api/client'
 import type { BookDetail, ShelfStatus } from '../api/types'
 import { trackEvent } from '../lib/events'
 
-const MY_STATUS_LABEL: Record<ShelfStatus, string> = { WISH: '찜', READING: '읽는 중', READ: '읽음' }
+const MY_STATUS_LABEL: Record<ShelfStatus, string> = { WISH: '찜', READ: '읽음' }
 
 /** BOOK-001 도서 상세 — 통합 서지 + 출처별 지표 + 이유 카드(추천 경유 시) + 연령 분포 + 내 기록.
  *  '다음에 읽을 책'(BOOK-002)은 별도 페이지 대신 하단 비슷한 책/함께 대출 섹션으로 흡수 */
@@ -72,7 +72,6 @@ export default function BookDetailPage() {
               : <span className="eo-cover-fallback">{book.title}</span>}
             <div className="mt-5 flex flex-col items-start gap-3.5">
               <button className="eo-button w-full" onClick={() => save('WISH')}>찜하기</button>
-              <button className="eo-text-button text-[13px]" onClick={() => save('READING')}>읽는 중으로 담기</button>
               <button className="eo-text-button text-[13px]" onClick={() => save('READ')}>완독 표시</button>
             </div>
 

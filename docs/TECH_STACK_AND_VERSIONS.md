@@ -2,7 +2,7 @@
 
 > 도서 추천·개인 서재 서비스의 구현 기준 버전 문서입니다.
 >
-> 기준일: 2026-08-25
+> 기준일: 2026-08-25 · 최근 검토: 2026-09-07
 >
 > 상태: MVP 개발 기준 확정
 
@@ -13,16 +13,16 @@
 | 구분 | 기술 | 기준 버전 | 적용 기준 |
 | --- | --- | --- | --- |
 | 언어 | Java | 21 LTS | 백엔드 주 언어 |
-| 프레임워크 | Spring Boot | 3.5.16 | Spring Boot 3.5 계열로 고정 |
+| 프레임워크 | Spring Boot | 3.5.16 | 3.5 계열 최종 버전. OSS 지원은 2026-06-30 종료(아래 §2 참고) |
 | 빌드 | Gradle | 8.14.x | `gradle-wrapper`로 팀 전체 동일 버전 사용 |
 | ORM | Spring Data JPA / Hibernate | Spring Boot 관리 버전 | 개별 Spring 모듈 버전 직접 지정 금지 |
 | 인증·인가 | Spring Security | Spring Boot 관리 버전 | JWT 기반 인증 적용 |
 | 관계형 DB | PostgreSQL | 16.15 | 회원, 서재, 평가, 도서 원천 데이터 저장 |
 | DB 마이그레이션 | Flyway | 11.x | 운영 DB 스키마 변경 이력 관리 |
-| 검색 엔진 | Elasticsearch | 8.18.1 | 도서 검색·유사 도서 조회·검색어 분석 |
-| Elasticsearch 연동 | Spring Data Elasticsearch | 5.5.x | Spring Boot 3.5와 호환되는 2025.0 라인 사용 |
+| 검색 엔진 | Elasticsearch | 8.19.21 | 8.x 마지막 마이너(지원 2027-07). 8.18은 2025-10 EOL. `analysis-nori` 플러그인 포함 |
+| Elasticsearch 연동 | Spring Data Elasticsearch | 5.5.x | Boot 3.5가 관리(2025.0 라인). 내장 클라이언트 8.18.8은 8.19 서버에 정방향 호환 |
 | 캐시 | Redis | 7.4.x | 선택 사항. 최신 추천 응답 캐시 용도이며 PostgreSQL 결과 스냅샷을 대체하지 않음 |
-| API 문서 | springdoc-openapi | 2.8.x | Swagger UI 제공 |
+| API 문서 | springdoc-openapi | 2.9.x | Boot 3.5용 라인(3.x는 Boot 4용). Swagger UI 제공 |
 
 ### Frontend
 
@@ -54,7 +54,7 @@
 | --- | --- | --- | --- |
 | 컨테이너 | Docker Engine | 27.x 이상 | 로컬·배포 환경 실행 기준 |
 | 컨테이너 관리 | Docker Compose | v2.x | PostgreSQL·Elasticsearch·Redis 로컬 구성 |
-| 리버스 프록시 | Nginx | 1.27.x | 프론트엔드 정적 파일 및 API 프록시 |
+| 리버스 프록시 | Nginx | 1.30.x | stable 라인. 프론트엔드 정적 파일 및 API 프록시 |
 | CI/CD | GitLab CI/CD | GitLab 제공 기능 | 테스트·빌드·이미지 배포 자동화 |
 | JDK 배포판 | Eclipse Temurin | 21 | 로컬·CI·컨테이너에서 동일하게 사용 |
 
@@ -64,7 +64,13 @@
 
 Java 21은 LTS 버전이며, Spring Boot 3.5.16은 Java 17 이상을 요구하므로 Java 21을 사용해 안정적인 장기 지원 기반을 확보한다. Spring Boot가 관리하는 Spring Framework, Spring Security, JPA/Hibernate 버전은 개별적으로 덮어쓰지 않는다.
 
-Spring Boot 4.x도 사용할 수 있지만, 현재 프로젝트는 추천·검색·개인 서재의 핵심 기능을 빠르게 완성하는 것이 우선이다. 따라서 Jakarta 전환과 Spring Framework 7 전환에 따른 초기 마이그레이션 비용을 피하기 위해 Boot 3.5 계열을 선택한다.
+Spring Boot 3.5의 OSS 지원은 2026-06-30에 끝났고 3.5.16이 마지막 공개 패치다. 그럼에도 3.5를 유지하는 이유는 다음과 같다.
+
+- 프로젝트 종료(2026-09-28)까지 3주라 보안 패치 부재가 운영 리스크로 이어지지 않는다.
+- Spring Data Elasticsearch 5.5, springdoc 2.9, 학습 자료가 모두 3.5 기준으로 맞춰져 있다.
+- Boot 4.x는 Spring Framework 7·Jackson 3·스타터 모듈 분리로 바뀌고, Spring Data Elasticsearch 6.x가 Elasticsearch 9.x 클라이언트를 요구해 검색 스택까지 연쇄로 바뀐다.
+
+이 선택은 인지한 상태에서 내린 결정이며, 서비스를 장기 운영하게 되면 Boot 4.x 이관을 별도 이슈로 진행한다.
 
 참고: [Spring Boot 3.5 System Requirements](https://docs.spring.io/spring-boot/3.5/system-requirements.html), [Spring Boot 공식 프로젝트 페이지](https://spring.io/projects/spring-boot/)
 
@@ -72,7 +78,9 @@ Spring Boot 4.x도 사용할 수 있지만, 현재 프로젝트는 추천·검�
 
 PostgreSQL은 서비스의 원천 데이터 저장소로 사용한다. 도서·회원·서재·평가·추천 이력처럼 정합성이 중요한 데이터는 PostgreSQL을 기준으로 관리하고, Elasticsearch에는 검색과 추천 조회에 필요한 문서 형태의 읽기 모델을 저장한다.
 
-Spring Data Elasticsearch의 공식 호환표에서 Spring Data 2025.0 라인은 Elasticsearch 8.18.1 및 Spring Framework 6.2.x와 조합된다. 따라서 Spring Boot 3.5와 Elasticsearch 8.18.1을 사용한다. Elasticsearch 9.x는 Spring Data 6.x·Spring Framework 7.x 조합에 해당하므로 이번 기준에서는 선택하지 않는다.
+Spring Data Elasticsearch의 공식 호환표에서 Spring Data 2025.0 라인은 Elasticsearch 8.18 클라이언트 및 Spring Framework 6.2.x와 조합된다. 8.18은 2025-10에 EOL이므로 서버는 8.x 마지막 마이너인 8.19.21을 쓴다. Elasticsearch 클라이언트는 같은 메이저의 상위 마이너 서버에 정방향 호환되므로 8.18 클라이언트로 8.19 서버에 붙는 데 문제가 없다. Elasticsearch 9.x는 Spring Data 6.x·Spring Framework 7.x 조합에 해당하므로 이번 기준에서는 선택하지 않는다.
+
+한국어 검색은 nori 형태소 분석(BM25)과 bigram 부분일치를 제목·저자 multi-field로 결합한다. 세부 설계는 `docs/SEARCH_INDEX_COMPARISON.md`의 비교 결과를 바탕으로 백엔드 검색 담당이 정리한다.
 
 참고: [Spring Data Elasticsearch 버전 호환표](https://docs.spring.io/spring-data/elasticsearch/reference/elasticsearch/versions.html), [PostgreSQL 버전 정책](https://www.postgresql.org/support/versioning/)
 
@@ -159,7 +167,7 @@ Node.js 24 LTS는 Vite 7의 Node.js 요구사항을 충족하며, 로컬 확인 
 
 1. `backend`에 Java 21·Spring Boot 3.5.16·Gradle 8.14.x 기준 프로젝트를 생성한다.
 2. PostgreSQL 스키마와 Flyway 마이그레이션을 먼저 구성한다.
-3. Elasticsearch 8.18.1 인덱스 매핑과 도서 검색 API를 구성한다.
+3. Elasticsearch 8.19.21(nori) 인덱스 매핑과 도서 검색 API를 구성한다.
 4. Python 수집·정제 스크립트의 실행 결과를 공통 도서 모델에 맞춘다.
 5. React·TypeScript·Vite 프론트엔드를 생성하고 API 계약에 맞춰 화면을 연결한다.
 6. 추천 MVP를 해시태그·콘텐츠 기반으로 구현한 뒤 사용자 행동과 수요 feature의 가중치를 조정한다.
@@ -169,3 +177,4 @@ Node.js 24 LTS는 Vite 7의 Node.js 요구사항을 충족하며, 로컬 확인 
 | 날짜 | 내용 |
 | --- | --- |
 | 2026-08-25 | 프로젝트 기준 기술 스택 및 버전 확정 |
+| 2026-09-07 | 실제 릴리스 대조. Elasticsearch 8.18.1→8.19.21(8.18 EOL), springdoc 2.8→2.9, Nginx 1.27→1.30. Boot 3.5 OSS 지원 종료 사실과 유지 사유 기록. `backend/` 골격 생성 |

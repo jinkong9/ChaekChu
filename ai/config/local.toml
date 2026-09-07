@@ -1,0 +1,6 @@
+[runtime]
+seed = 20260907
+output_dir = "output"
+log_level = "INFO"
+log_file = "logs/recommendation.log"
+
