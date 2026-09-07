@@ -55,8 +55,10 @@ ssh b102 'sudo bash ~/S15P21B102/deploy/jenkins/provision-jenkins.sh'
 ssh b102 'sudo bash ~/S15P21B102/deploy/jenkins/install-plugins.sh'
 
 # 2. GitLab 에서 Project Access Token 2개 생성 (Settings > Access Tokens). 생성 즉시 서버에 넣는다. 채팅·메모에 남기지 않는다.
-#    b102-jenkins-checkout : role Reporter,  scope read_repository
-#    b102-jenkins-status   : role Developer, scope api                (커밋 상태 기록)
+#    b102-jenkins-checkout : role Reporter,   scope read_repository
+#    b102-jenkins-status   : role Maintainer, scope api   (커밋 상태 기록. SSAFY GitLab 은 Developer 토큰이 보호 브랜치·MR 상태 기록에 403 을 내므로 Maintainer — 이전 프로젝트에서 실측)
+#    발급 위치: 프로젝트 → Settings → Access Tokens → Add new token  (Maintainer 이상만 만들 수 있다)
+#    https://lab.ssafy.com/s15-bigdata-recom-sub1/S15P21B102/-/settings/access_tokens
 ssh -t b102 'read -rsp "checkout token: " t; echo; printf %s "$t" | sudo install -o jenkins -g jenkins -m 600 /dev/stdin /var/lib/jenkins/secrets/b102/gitlab-checkout-token'
 ssh -t b102 'read -rsp "status token: " t;   echo; printf %s "$t" | sudo install -o jenkins -g jenkins -m 600 /dev/stdin /var/lib/jenkins/secrets/b102/gitlab-status-token'
 

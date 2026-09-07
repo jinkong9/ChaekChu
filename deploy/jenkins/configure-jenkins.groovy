@@ -3,7 +3,7 @@
 //   admin-password          관리자 계정 비밀번호 (provision 이 생성)
 //   webhook-secret          GitLab 웹훅 Secret token (provision 이 생성, GitLab 에 수동 등록)
 //   gitlab-checkout-token   Project Access Token, Reporter + read_repository   (사람이 생성해서 넣음)
-//   gitlab-status-token     Project Access Token, Developer + api (커밋 상태 기록) (사람이 생성해서 넣음)
+//   gitlab-status-token     Project Access Token, Maintainer + api (커밋 상태 기록. Developer 는 SSAFY GitLab 에서 403) (사람이 생성해서 넣음)
 //   gitlab-project-id       숫자 프로젝트 ID (apply-config.sh 가 API 로 조회해 기록)
 import com.cloudbees.hudson.plugins.folder.computed.DefaultOrphanedItemStrategy
 import com.cloudbees.hudson.plugins.folder.computed.PeriodicFolderTrigger
