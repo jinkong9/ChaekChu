@@ -22,6 +22,7 @@ SSAFY 15기 2학기 관통 프로젝트 · 서울 1캠퍼스 B반 102팀
 - [백엔드 ERD 초안](docs/ERD.md)
 - [ERDCloud Import DDL](docs/ERDCLOUD_IMPORT.sql)
 - [추천 데이터 기반 서비스 방향](docs/RECOMMENDATION_SERVICE_DIRECTION.md)
+- [AI 추천 구현 계획](docs/AI_IMPLEMENTATION_PLAN.md)
 - [팀원 소개](#팀원-소개)
 - [협업 규칙](#협업-규칙)
 
