@@ -1,0 +1,6 @@
+# 서버(Linux)와 컨테이너에서 실행되는 파일은 항상 LF
+*.sh text eol=lf
+*.template text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

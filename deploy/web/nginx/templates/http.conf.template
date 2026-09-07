@@ -1,0 +1,13 @@
+# TLS_ENABLED=false — 인증서 발급 전. 80 에서 전부 서비스한다.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type text/plain;
+    }
+
+    include /etc/nginx/snippets/app.conf;
+}

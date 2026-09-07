@@ -1,0 +1,184 @@
+# =====================================================================
+# 배포용 compose — EC2 (T3.xlarge 16GiB) 한 대. 로컬 개발은 backend/docker-compose.yml 을 쓴다.
+#   서버:  cd ~/S15P21B102 && docker compose -f deploy/docker-compose.yml up -d --build --wait
+#   .env:  deploy/.env (deploy/.env.example 참고, chmod 600, 커밋 금지)
+#
+# 메모리 배분 (합계 ≈ 11.6g, 수집기 3g 별도, 나머지 OS·페이지캐시)
+#   web 128m · backend 1.5g · postgres 3g · elasticsearch 4g(힙 2g) · qdrant 3g(profile)
+# 외부 노출은 web 의 80/443 만. 나머지는 127.0.0.1 에만 바인딩한다.
+# =====================================================================
+name: b102
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+        VITE_ENABLE_MSW: "false"
+    image: b102-web:${RELEASE:-latest}
+    container_name: b102-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN 필요}
+      TLS_ENABLED: ${TLS_ENABLED:-false}     # 인증서 발급 전 false → 발급 후 true 로 바꾸고 재기동
+    volumes:
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+    depends_on:
+      - backend
+    mem_limit: 128m
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/nginx-health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    build:
+      context: ../backend
+    image: b102-backend:${RELEASE:-latest}
+    container_name: b102-backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18080:8080"           # 호스트에서 헬스체크·디버그용. 외부 공개 아님
+    environment:
+      SERVER_PORT: "8080"
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-bookdb}
+      DB_USERNAME: ${POSTGRES_USER:-book}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 필요}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      ES_URIS: http://elasticsearch:9200
+      ES_USERNAME: elastic
+      ES_PASSWORD: ${ELASTIC_PASSWORD:?ELASTIC_PASSWORD 필요}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-1800}
+      JWT_REFRESH_TTL_SECONDS: ${JWT_REFRESH_TTL_SECONDS:-1209600}
+      OAUTH_KAKAO_CLIENT_ID: ${OAUTH_KAKAO_CLIENT_ID:-}
+      OAUTH_KAKAO_CLIENT_SECRET: ${OAUTH_KAKAO_CLIENT_SECRET:-}
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID:-}
+      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET:-}
+      FRONTEND_ORIGIN: https://${DOMAIN}
+      KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-}
+      ALADIN_TTB_KEY: ${ALADIN_TTB_KEY:-}
+      LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
+      TZ: UTC
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    mem_limit: 1536m
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health/readiness | grep -q UP || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  postgres:
+    image: postgres:16.15
+    container_name: b102-postgres
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"   # psql·pg_dump·수집기 적재용. 외부 공개 아님
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bookdb}
+      POSTGRES_USER: ${POSTGRES_USER:-book}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 필요}
+      TZ: UTC
+    command:
+      - postgres
+      - -c
+      - shared_buffers=768MB
+      - -c
+      - effective_cache_size=2GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_connections=50
+      - -c
+      - log_min_duration_statement=1000
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    mem_limit: 3g
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-book} -d ${POSTGRES_DB:-bookdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  elasticsearch:
+    build:
+      context: ../backend/docker/elasticsearch
+    image: b102-elasticsearch-nori:8.19.21
+    container_name: b102-elasticsearch
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9200:9200"            # 색인 스크립트·Kibana 없음. 외부 공개 아님
+    environment:
+      discovery.type: single-node
+      cluster.name: b102
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "false"   # 컨테이너 네트워크 내부 통신. TLS 는 nginx 에서 종단
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?ELASTIC_PASSWORD 필요}
+      ES_JAVA_OPTS: ${ES_JAVA_OPTS:--Xms2g -Xmx2g}
+      bootstrap.memory_lock: "true"
+      TZ: UTC
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    mem_limit: 4g
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs -u elastic:$$ELASTIC_PASSWORD http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 90s
+
+  qdrant:
+    profiles: ["recsys"]                 # 추천 담당이 붙일 때: docker compose --profile recsys up -d
+    image: qdrant/qdrant:v1.18.3
+    container_name: b102-qdrant
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6333:6333"
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY 필요}
+      QDRANT__STORAGE__ON_DISK_PAYLOAD: "true"
+      TZ: UTC
+    volumes:
+      - qdrant-data:/qdrant/storage
+    mem_limit: 3g
+    logging: *default-logging
+
+volumes:
+  pgdata:
+  esdata:
+  qdrant-data:
+  letsencrypt:
+  certbot-www:
