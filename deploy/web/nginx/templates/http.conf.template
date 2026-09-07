@@ -9,5 +9,6 @@ server {
         default_type text/plain;
     }
 
+    include /etc/nginx/snippets/security-headers.conf;
     include /etc/nginx/snippets/app.conf;
 }
