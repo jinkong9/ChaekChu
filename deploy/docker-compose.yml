@@ -38,6 +38,8 @@ services:
     volumes:
       - letsencrypt:/etc/letsencrypt:ro
       - certbot-www:/var/www/certbot:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # /gitlab-webhook/post → 호스트 Jenkins
     depends_on:
       - backend
     mem_limit: 128m

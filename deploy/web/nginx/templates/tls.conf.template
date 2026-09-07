@@ -15,6 +15,7 @@ server {
         return 200 "ok
 ";
         add_header Content-Type text/plain;
+        include /etc/nginx/snippets/security-headers.conf;
     }
 
     location / {
