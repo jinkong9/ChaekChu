@@ -42,8 +42,9 @@ fi
 
 echo "== 검증 =="
 auth="admin:$(cat "$S/admin-password")"
-curl -fs -u "$auth" "http://127.0.0.1:8080/job/b102/api/json?tree=name,sources[source[serverName,projectPath]]" | python3 -m json.tool
-curl -fs -u "$auth" "http://127.0.0.1:8080/computer/api/json?tree=totalExecutors" ; echo
+# tree= 의 [ ] 는 curl URL globbing 에 걸린다 → --globoff
+curl -fs --globoff -u "$auth" "http://127.0.0.1:8080/job/b102/api/json?tree=name,sources[source[serverName,projectPath]]" | python3 -m json.tool
+curl -fs --globoff -u "$auth" "http://127.0.0.1:8080/computer/api/json?tree=totalExecutors" ; echo
 echo "익명 접근(401/403 이어야): $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/json)"
 echo
 echo "다음 (GitLab UI, Settings > Webhooks):"
