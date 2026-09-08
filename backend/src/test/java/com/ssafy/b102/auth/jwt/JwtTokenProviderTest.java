@@ -9,7 +9,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import java.time.Instant;
+
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.test.context.ActiveProfiles;
@@ -20,6 +27,7 @@ class JwtTokenProviderTest {
 
 	@Autowired JwtTokenProvider provider;
 	@Autowired JwtDecoder decoder;
+	@Autowired JwtEncoder encoder;
 
 	@Test
 	@DisplayName("발급한 토큰은 HS256 으로 검증되고 sub=userId, iss=b102, exp-iat=ttl")
@@ -39,6 +47,20 @@ class JwtTokenProviderTest {
 		String token = provider.issue(42L);
 		String tampered = token.substring(0, token.length() - 2) + "xx";
 		assertThatThrownBy(() -> decoder.decode(tampered)).isInstanceOf(JwtException.class);
+	}
+
+	@Test
+	@DisplayName("같은 키로 서명했어도 iss 가 다르거나 만료된 토큰은 거부")
+	void wrongIssuerOrExpired_rejected() {
+		Instant now = Instant.now();
+		String otherIssuer = encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(),
+			JwtClaimsSet.builder().issuer("someone-else").subject("1").issuedAt(now).expiresAt(now.plusSeconds(60)).build()))
+			.getTokenValue();
+		String expired = encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(),
+			JwtClaimsSet.builder().issuer(JwtTokenProvider.ISSUER).subject("1").issuedAt(now.minusSeconds(7200)).expiresAt(now.minusSeconds(3600)).build()))
+			.getTokenValue();
+		assertThatThrownBy(() -> decoder.decode(otherIssuer)).isInstanceOf(JwtException.class);
+		assertThatThrownBy(() -> decoder.decode(expired)).isInstanceOf(JwtException.class);
 	}
 
 	@Test

@@ -29,6 +29,7 @@ public class JsonAuthenticationEntryPoint implements AuthenticationEntryPoint {
 		throws IOException {
 		ErrorCode code = ErrorCode.UNAUTHORIZED;
 		response.setStatus(code.status().value());
+		response.setHeader("WWW-Authenticate", "Bearer");
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 		response.setCharacterEncoding("UTF-8");
 		objectMapper.writeValue(response.getWriter(), ErrorResponse.of(code));

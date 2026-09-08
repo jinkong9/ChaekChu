@@ -2,6 +2,7 @@ package com.ssafy.b102.auth;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -32,6 +33,7 @@ class ApiSecurityTest {
 		mvc.perform(get("/api/v1/users/me"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+			.andExpect(header().string("WWW-Authenticate", "Bearer"))
 			.andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
 			.andExpect(jsonPath("$.message").isString());
 	}

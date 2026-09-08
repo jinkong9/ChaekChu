@@ -1,5 +1,7 @@
 package com.ssafy.b102.auth.oauth;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
@@ -50,6 +52,17 @@ public class OAuthStateCookie {
 			.path(PATH)
 			.maxAge(0)
 			.build();
+	}
+
+	/** 쿠키의 state 와 콜백 파라미터가 같은지 — 길이·내용을 상수 시간으로 비교한다. */
+	public boolean matches(HttpServletRequest request, String stateParam) {
+		if (stateParam == null || stateParam.isBlank()) {
+			return false;
+		}
+		return read(request)
+			.map(expected -> MessageDigest.isEqual(
+				expected.getBytes(StandardCharsets.UTF_8), stateParam.getBytes(StandardCharsets.UTF_8)))
+			.orElse(false);
 	}
 
 	public Optional<String> read(HttpServletRequest request) {

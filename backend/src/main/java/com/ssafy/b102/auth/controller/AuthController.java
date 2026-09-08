@@ -117,16 +117,15 @@ public class AuthController {
 		String clearCookie = stateCookie.clear(request.isSecure()).toString();
 
 		if (error != null) {
-			log.warn("OAuth {} 제공자 오류: {}", p, error);
+			log.warn("OAuth {} 제공자 오류: {}", p, sanitizeForLog(error));
 			return redirect(errorLocation(), clearCookie);
 		}
 		if (code == null || code.isBlank() || state == null || state.isBlank()) {
 			log.warn("OAuth {} 콜백에 code/state 없음", p);
 			return redirect(errorLocation(), clearCookie);
 		}
-		String expected = stateCookie.read(request).orElse(null);
-		if (expected == null || !expected.equals(state)) {
-			log.warn("OAuth {} state 불일치 (cookie={}, param={})", p, expected != null, state.length());
+		if (!stateCookie.matches(request, state)) {
+			log.warn("OAuth {} state 불일치 (cookie 존재={})", p, stateCookie.read(request).isPresent());
 			return redirect(errorLocation(), clearCookie);
 		}
 
@@ -144,7 +143,16 @@ public class AuthController {
 	private static OAuthProvider parseProvider(String raw) {
 		return OAuthProvider.fromPath(raw)
 			.orElseThrow(() -> new BusinessException(ErrorCode.UNSUPPORTED_PROVIDER,
-				Map.of("provider", raw == null ? "" : raw)));
+				Map.of("provider", raw == null ? "" : truncate(raw, 30))));
+	}
+
+	/** 외부 입력을 로그에 남길 때 줄바꿈·제어문자를 지워 로그 위조를 막고 길이를 제한한다. */
+	private static String sanitizeForLog(String s) {
+		return truncate(s.replaceAll("[\\p{Cntrl}]", "_"), 100);
+	}
+
+	private static String truncate(String s, int max) {
+		return s.length() <= max ? s : s.substring(0, max) + "…";
 	}
 
 	/** 콜백 주소 = base + /api/v1/auth/oauth/{provider}/callback. base 는 설정값, 없으면 현재 요청의 origin. */
