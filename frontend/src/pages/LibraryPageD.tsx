@@ -499,7 +499,31 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
 
 /* ══════════════════ 완독 연표 (B안) — 책 아래 한 띠 ══════════════════ */
 
-/** 캘린더 대신 열두 달의 띠. 완독일만으로 그려지고, 책등을 누르면 그 장으로 넘어간다.
+/** 한 달 칸에 꽂힌 책 한 권 — 홈처럼 표지를 눕혀 겹친다.
+ *  높이는 쪽수(두꺼운 책이 크게 선다), 기울기는 자리 순서로 정해 부채처럼 퍼진다. */
+function TimelineBook({ li, lean, on, onPick }: {
+  li: LibraryItem; lean: number; on: boolean; onPick: () => void
+}) {
+  const [broken, setBroken] = useState(false)
+  const c = coverPalette(li.book.bookId)
+  const height = Math.round(Math.min(104, 48 + (li.book.pageCount ?? 260) * 0.11))
+  const url = li.book.coverUrl && !broken ? coverAtWidth(li.book.coverUrl, 140) : null
+
+  return (
+    <button type="button" onClick={onPick}
+      title={`${li.book.title}${li.book.pageCount ? ` · ${li.book.pageCount}쪽` : ''}`}
+      aria-label={`${li.book.title} 장으로 넘기기`}
+      className={`libd-timeline__book ${on ? 'is-on' : ''}`}
+      style={{ '--lean': `${lean}deg`, '--h': `${height}px`, background: c.bg } as CSSProperties}>
+      {url
+        ? <img src={url} alt="" referrerPolicy="no-referrer" loading="lazy" decoding="async"
+            draggable={false} onError={() => setBroken(true)} />
+        : <span style={{ color: c.fg }}>{li.book.title}</span>}
+    </button>
+  )
+}
+
+/** 캘린더 대신 열두 달의 띠. 완독일만으로 그려지고, 표지를 누르면 그 장으로 넘어간다.
  *  (월 캘린더는 넣지 않는다: 서재에는 하루 단위 기록이 없어 31칸 중 한두 칸만 찬다) */
 function Timeline({ read, year, current, onJump }: {
   read: LibraryItem[]; year: number; current: number; onJump: (bookIndex: number) => void
@@ -511,7 +535,7 @@ function Timeline({ read, year, current, onJump }: {
     <section className="libd-timeline">
       <div className="libd-timeline__head">
         <h3>완독 연표 · {year}</h3>
-        <p>달에 꽂힌 책등을 누르면 그 장으로 넘어가요 — 책등 높이는 쪽수입니다</p>
+        <p>달에 놓인 표지를 누르면 그 장으로 넘어가요 — 표지 높이는 쪽수입니다</p>
         {otherYears > 0 && <p className="libd-timeline__other">그 밖의 해 {otherYears}권</p>}
       </div>
       <div className="libd-timeline__grid">
@@ -521,16 +545,10 @@ function Timeline({ read, year, current, onJump }: {
             .filter(({ li }) => li.finishedDate?.startsWith(`${year}-${String(m).padStart(2, '0')}`))
           return (
             <div className="libd-timeline__month" key={m}>
-              <div className="libd-timeline__spines">
-                {spines.map(({ li, i }) => (
-                  <button type="button" key={li.libraryItemId} onClick={() => onJump(i)}
-                    title={`${li.book.title}${li.book.pageCount ? ` · ${li.book.pageCount}쪽` : ''}`}
-                    aria-label={`${li.book.title} 장으로 넘기기`}
-                    className={`libd-timeline__spine ${i === current ? 'is-on' : ''}`}
-                    style={{
-                      height: Math.round(Math.min(96, 42 + (li.book.pageCount ?? 260) * 0.13)),
-                      background: coverPalette(li.book.bookId).bg,
-                    }} />
+              <div className="libd-timeline__books">
+                {spines.map(({ li, i }, k) => (
+                  <TimelineBook key={li.libraryItemId} li={li} on={i === current}
+                    lean={Math.max(-9, Math.min(7, -9 + k * 4))} onPick={() => onJump(i)} />
                 ))}
               </div>
               <div className={`libd-timeline__label ${m === thisMonth ? 'is-now' : ''}`}>{m}월</div>

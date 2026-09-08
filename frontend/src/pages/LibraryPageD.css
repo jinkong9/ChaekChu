@@ -886,7 +886,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .libd-shelf__book,
-  .libd-timeline__spine,
+  .libd-timeline__book,
   .libd-record { transition-duration: 0.01ms; animation-duration: 0.01ms; }
 }
 
@@ -914,27 +914,73 @@
 .libd-timeline__month { display: flex; flex-direction: column; justify-content: flex-end; }
 .libd-timeline__month + .libd-timeline__month { border-left: 1px solid rgba(23, 32, 57, 0.08); }
 
-.libd-timeline__spines {
+.libd-timeline__books {
   display: flex;
-  height: 104px;
+  height: 132px;
   align-items: flex-end;
   justify-content: center;
-  gap: 5px;
-  padding: 0 4px;
+  padding: 0 5px;
+  /* 표지를 비스듬히 꽂아 두려면 원근이 있어야 한다 — 홈의 링이 표지를 줄여 세우는 것과 같다 */
+  perspective: 460px;
+  perspective-origin: 50% 82%;
+  transform-style: preserve-3d;
 }
 
-/* 책등 — 높이는 쪽수, 색은 다른 화면과 같은 자리색(coverPalette) */
-.libd-timeline__spine {
-  width: 16px;
-  border-radius: 2px 2px 0 0;
-  box-shadow: inset 1.5px 0 0 rgba(255, 255, 255, 0.3), inset -1.5px 0 0 rgba(0, 0, 0, 0.14);
+/* 선반에 비스듬히 꽂힌 한 권. 높이는 쪽수, 폭은 표지 비율(2:3)에서 따라오고,
+   Y축으로 돌린 만큼 가로로 줄어들며 옆 책 뒤로 들어간다. */
+.libd-timeline__book {
+  position: relative;
+  flex: none;
+  height: var(--h);
+  width: calc(var(--h) / 1.5);
+  padding: 0;
+  border: 0;
+  border-radius: 1px 2px 2px 1px;
+  box-shadow: 3px 6px 14px rgba(23, 32, 57, 0.28), 0 0 0 1px rgba(23, 32, 57, 0.08);
   cursor: pointer;
-  transition: transform 140ms ease;
+  transform: rotateY(-42deg) rotate(var(--lean));
+  /* 오른쪽 아래 모서리가 선반에 닿은 채로 돈다 */
+  transform-origin: 100% 100%;
+  transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
-.libd-timeline__spine:hover { transform: translateY(-6px); }
-.libd-timeline__spine.is-on { outline: 2px solid var(--cobalt); outline-offset: 2px; }
-.libd-timeline__spine:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+/* 겹침 — 꽂힌 각도만큼 줄어든 폭을 다시 당겨 서로 기대게 한다 */
+.libd-timeline__book + .libd-timeline__book { margin-left: -9px; }
+
+/* 집으면 정면으로 돌려 세운다 */
+.libd-timeline__book:hover,
+.libd-timeline__book:focus-visible {
+  z-index: 3;
+  transform: translateY(-7px) rotateY(-10deg) rotate(calc(var(--lean) * 0.3));
+  box-shadow: 5px 12px 24px rgba(23, 32, 57, 0.32), 0 0 0 1px rgba(23, 32, 57, 0.08);
+}
+
+.libd-timeline__book.is-on { z-index: 2; outline: 2px solid var(--cobalt); outline-offset: 2px; }
+.libd-timeline__book:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+
+.libd-timeline__book img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  /* 쪽수만큼 늘린 틀이라 표지가 잘린다 — 제목이 있는 위쪽을 남긴다 */
+  object-position: top;
+}
+
+/* 표지가 없거나 깨진 책 — 자리색 위에 제목만 */
+.libd-timeline__book span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  padding: 5px 4px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: left;
+  word-break: keep-all;
+}
 
 .libd-timeline__label {
   padding: 6px 0;
@@ -950,8 +996,8 @@
 
 @media (max-width: 900px) {
   .libd-timeline { padding: 0 20px 60px; }
-  .libd-timeline__spines { height: 88px; gap: 4px; }
-  .libd-timeline__spine { width: 13px; }
+  .libd-timeline__books { height: 116px; }
+  .libd-timeline__book + .libd-timeline__book { margin-left: -12px; }
 }
 
 @media (max-width: 640px) {
@@ -959,7 +1005,8 @@
   .libd-timeline__head { flex-wrap: wrap; gap: 6px; }
   .libd-timeline__head p { font-size: 10px; }
   .libd-timeline__other { margin-left: 0; }
-  .libd-timeline__spines { height: 68px; gap: 2px; padding: 0 2px; }
-  .libd-timeline__spine { width: 8px; }
+  .libd-timeline__books { height: 84px; padding: 0 2px; }
+  .libd-timeline__book { height: calc(var(--h) * 0.62); width: calc(var(--h) * 0.62 / 1.5); }
+  .libd-timeline__book + .libd-timeline__book { margin-left: -9px; }
   .libd-timeline__label { padding: 4px 0; font-size: 9px; }
 }
