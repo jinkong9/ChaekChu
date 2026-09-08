@@ -7,7 +7,7 @@ import sys
 from typing import Sequence
 
 from recommendation.config import ConfigError, load_config
-from recommendation.baseline import evaluate_content, recommend_content, recommend_popular
+from recommendation.baseline import evaluate_d4l, evaluate_content, recommend_content, recommend_popular
 from recommendation.d4l import DataError, load_d4l_jsonl
 from recommendation.normalization import NormalizationError
 from recommendation.runtime import build_artifact, configure_logging, refresh_artifact_hash, set_seed, write_artifact
@@ -40,8 +40,8 @@ def create_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--query-isbn")
             command_parser.add_argument("--limit", type=int, default=10)
         if command == "evaluate":
-            command_parser.add_argument("--k", type=int, default=10)
-            command_parser.add_argument("--recall-k", type=int, default=20)
+            command_parser.add_argument("--k", type=int, default=5)
+            command_parser.add_argument("--recall-k", type=int, default=10)
     return parser
 
 
@@ -71,7 +71,7 @@ def run(arguments: argparse.Namespace) -> Path:
         else:
             books = load_d4l_jsonl(input_path)
         if arguments.command == "evaluate" and books is not None:
-            artifact["evaluation"] = evaluate_content(books, k=arguments.k, recall_k=arguments.recall_k)
+            artifact["evaluation"] = evaluate_d4l(books, k=arguments.k, recall_k=arguments.recall_k)
         elif arguments.command == "recommend" and books is not None:
             query_isbn = arguments.query_isbn or books[0].isbn13
             artifact["algorithm"] = "tfidf-content-v1"

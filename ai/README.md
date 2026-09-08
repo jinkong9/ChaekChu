@@ -54,6 +54,12 @@ uv run uvicorn recommendation.api:app --host 0.0.0.0 --port 8000
 대출량·대출 이력 통계, 관계 ISBN의 스냅샷 내부 커버리지, 아직 제공되지 않은 L1·수요
 feature 상태가 함께 기록된다.
 
+`evaluate`는 세 D4L 관계(`co_loan`, `mania_rec`, `reader_rec`)를 정답으로 사용해
+`popularBaseline`, `embeddingOnly`(현재는 재현 가능한 TF-IDF 내용 유사도 proxy),
+`hybrid`를 비교한다. 결과에는 P@5, R@10, 관계 대상 coverage, 분류 기준 diversity와
+관계 대상의 색인 밖 개수·후보 부족·빈 관계·결측 대출이력 케이스가 포함된다. 모든
+분모는 결과 JSON에 기록되며, 대용량 원본과 벡터는 저장소에 넣지 않는다.
+
 ## 내부 추천 API
 
 백엔드와 FastAPI 사이의 책임, DTO, 추천 계산 방식은
