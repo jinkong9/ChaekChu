@@ -148,8 +148,6 @@ export default function CardSpreadPage() {
     navigator.clipboard?.writeText(window.location.href).then(() => setCopied(true)).catch(() => {})
   }
 
-  const byline = [book.author, book.publisher, book.publicationYear, book.pageCount && `${book.pageCount}쪽`]
-    .filter(Boolean).join(' · ')
   const loans = book.loanByAge ?? []
   // 막대는 값이 아니라 서로의 비율이 읽혀야 한다 — 최댓값을 100%로 잡는다
   const peakRatio = Math.max(...loans.map((a) => a.ratio), 1)
@@ -163,11 +161,11 @@ export default function CardSpreadPage() {
     ['쪽수', book.pageCount ? `${book.pageCount}쪽` : ''],
     ['분류', book.category ?? ''],
   ]
-  // 지표 세 칸 — 출처별 지표 두 개 + 분류. 아이콘은 항목 성격에 하나씩만 붙인다
-  const facts = [
-    ...book.metrics.map((m, i) => ({ key: `${m.source}-${m.name}`, name: m.name, value: m.value, icon: i === 0 ? PATH.chart : PATH.star })),
-    ...(book.category ? [{ key: 'category', name: '분류', value: book.category, icon: PATH.book }] : []),
-  ]
+  // 출처별 지표 — 카드에 없는 것만. 분류는 카드에 적혀 있으므로 여기서 빼고 출처·기준일을 붙인다
+  const facts = book.metrics.map((m, i) => ({
+    key: `${m.source}-${m.name}`, name: m.name, value: m.value,
+    source: `${m.source} · ${m.asOf}`, icon: i === 0 ? PATH.chart : PATH.star,
+  }))
 
   return (
     <main className="eo-page bd-page">
@@ -237,18 +235,18 @@ export default function CardSpreadPage() {
 
           {/* ---- 오른쪽: 표제·지표·읽을거리 ---- */}
           <section>
+            {/* 카드에 적힌 서지(지은이·출판사·출판연도·쪽수·분류·ISBN)는 여기서 되풀이하지 않는다.
+                제목만 예외로 둔다 — 지면의 표제이자 이 화면의 h1이라 카드의 제목 칸과 겹쳐도 값이 있다 */}
             <p className="bd-eyebrow">
               {fromRec ? '추천으로 들어왔을 때만 보이는 이유 한 줄' : '조금 더 나은 나를 위한 한 권'}
             </p>
             <h1 className="bd-headline">{book.title}</h1>
-            {byline && <p className="bd-byline">{byline}</p>}
-            {book.isbn13 && <p className="bd-isbn">ISBN {book.isbn13}</p>}
 
             {facts.length > 0 && (
               <dl className="bd-facts">
                 {facts.map((f) => (
                   <div key={f.key}>
-                    <dt>{f.name}</dt>
+                    <dt>{f.name}<em>{f.source}</em></dt>
                     <dd><span title={f.value}>{f.value}</span><Icon d={f.icon} width="16" height="16" /></dd>
                   </div>
                 ))}

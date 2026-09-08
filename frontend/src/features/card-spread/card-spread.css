@@ -54,7 +54,9 @@
 .bd-spread {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  /* 레퍼런스의 두 면은 폭이 다르다 — 표지 면 : 카드 ≒ 1.2 : 1.
+     같은 폭으로 두면 표지가 자기 면 안에서 붕 떠 위아래 여백이 크게 남는다 */
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: clamp(14px, 2vw, 30px);
   padding: clamp(18px, 2.8vw, 40px);
   border-radius: 2px;
@@ -119,7 +121,7 @@
   align-self: stretch;
   display: grid;
   place-items: center;
-  padding: clamp(12px, 1.7vw, 21px);
+  padding: clamp(11px, 1.3vw, 17px);
   border-radius: 2px;
   background: var(--bd-sheet);
   box-shadow:
@@ -145,12 +147,9 @@
   display: grid;
   width: 100%;
   aspect-ratio: 0.7;
-  background: var(--eo-placeholder);
-}
-
-.bd-mount span {
   padding: 16px 12px;
   place-items: center;
+  background: var(--eo-placeholder);
   color: var(--bd-ink-2);
   font-size: 13px;
   line-height: 1.45;
@@ -164,7 +163,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: clamp(17px, 2vw, 26px) clamp(15px, 1.8vw, 24px);
+  /* 머리 활자는 뷰포트가 아니라 '카드 폭'에 따라 줄어야 한다 (아래 @container) */
+  container-type: inline-size;
+  padding: clamp(13px, 1.3vw, 18px) clamp(13px, 1.5vw, 19px);
   border-radius: 2px;
   background: var(--bd-card);
   box-shadow:
@@ -178,8 +179,8 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding-bottom: clamp(12px, 1.4vw, 19px);
+  gap: 10px;
+  padding-bottom: clamp(10px, 1.1vw, 15px);
   border-bottom: 1px solid var(--eo-ink);
 }
 
@@ -189,6 +190,7 @@
   font-weight: 700;
   line-height: 1.35;
   letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 /* 'LIBRARY' 같은 인쇄용 소문자 — 자간을 넓혀 새긴 활자처럼 둔다 */
@@ -200,15 +202,24 @@
   font-style: normal;
   font-weight: 500;
   line-height: 1.5;
-  letter-spacing: 0.22em;
+  /* 자간이 더 넓으면 'FOR A BRIGHTER YOU'가 석 줄로 접혀 머리가 그만큼 길어진다 */
+  letter-spacing: 0.13em;
   text-transform: uppercase;
 }
 
-.bd-card__stamp { text-align: right; }
+.bd-card__stamp { text-align: right; white-space: nowrap; }
+
+/* 좁은 카드에서는 머리 활자만 한 단계 줄인다 — 뷰포트가 아니라 카드 폭이 기준이라
+   지면 폭이 달라져도 '책추책책추'가 접히거나 스탬프가 석 줄이 되지 않는다 */
+@container (max-width: 250px) {
+  .bd-card__brand { font-size: 11px; }
+  .bd-card__brand em,
+  .bd-card__stamp { font-size: 9.5px; letter-spacing: 0.05em; }
+}
 
 /* 항목 — 라벨은 선 밖에, 값만 괘선 위에 앉는다 */
 .bd-card__rows {
-  padding: clamp(10px, 1.2vw, 16px) 0;
+  padding: clamp(7px, 0.8vw, 12px) 0;
 }
 
 .bd-card__rows > div {
@@ -227,7 +238,7 @@
 
 .bd-card__rows dd {
   min-width: 0;
-  padding: clamp(8px, 0.9vw, 12px) 2px;
+  padding: clamp(4px, 0.5vw, 6px) 2px;
   border-bottom: 1px solid var(--eo-rule-soft);
   overflow: hidden;
   color: var(--eo-ink);
@@ -242,7 +253,7 @@
 /* 카드에 인쇄된 한 줄 — 지금은 서비스의 문장이다 */
 .bd-card__quote {
   margin-top: auto;
-  padding: clamp(14px, 1.7vw, 22px) 4px clamp(14px, 1.7vw, 22px);
+  padding: clamp(8px, 0.85vw, 10px) 4px;
   border-top: 1px solid var(--eo-ink);
   color: var(--eo-ink);
   font-size: clamp(11.5px, 0.95vw, 13px);
@@ -258,13 +269,13 @@
 .bd-barcode {
   display: block;
   width: 100%;
-  height: clamp(38px, 4.6vw, 56px);
+  height: clamp(30px, 3vw, 38px);
 }
 
 .bd-barcode rect { fill: var(--eo-ink); }
 
 .bd-card__isbn {
-  margin-top: 9px;
+  margin-top: 7px;
   color: var(--bd-ink-2);
   font-size: 10px;
   font-weight: 500;
@@ -365,7 +376,7 @@
   word-break: keep-all;
 }
 
-/* 이 시안의 표제 — 홈 워드마크보다 작고 공통 headline보다 크다.
+/* 이 시안의 표제 — 카드에 적힌 서지 가운데 제목만 여기서 한 번 더 크게 받는다.
    펼침면과 나란히 서야 해서 지면 절반을 혼자 버틴다 */
 .bd-headline {
   margin-top: 10px;
@@ -378,28 +389,13 @@
   word-break: keep-all;
 }
 
-.bd-byline {
-  margin-top: clamp(10px, 1.2vw, 16px);
-  color: var(--eo-ink);
-  font-size: 14px;
-  line-height: 1.5;
-  word-break: keep-all;
-  font-variant-numeric: tabular-nums;
-}
-
-.bd-isbn {
-  margin-top: 5px;
-  color: var(--eo-ink-faint);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-}
-
 /* ---------- 지표 세 칸 ---------- */
 
+/* 카드에 없는 출처별 지표만 남는다 — 분류는 카드에 적혀 있어 여기서 뺐다 */
 .bd-facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  margin-top: clamp(18px, 2.2vw, 28px);
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin-top: clamp(16px, 2vw, 26px);
   padding: clamp(16px, 1.8vw, 22px) 0;
   border-top: 1px solid var(--eo-rule-soft);
   border-bottom: 1px solid var(--eo-rule-soft);
@@ -429,6 +425,16 @@
   color: var(--bd-ink-2);
   font-size: 11.5px;
   line-height: 1.3;
+}
+
+/* 출처·기준일 — 카드에는 없는 정보다. 항목명 아래 작게 붙인다 */
+.bd-facts dt em {
+  display: block;
+  margin-top: 3px;
+  color: var(--eo-ink-faint);
+  font-size: 10px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
 }
 
 .bd-facts dd {
