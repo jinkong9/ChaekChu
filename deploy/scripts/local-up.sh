@@ -10,7 +10,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="$REPO_ROOT/deploy/.env.local"
 [[ -f "$ENV_FILE" ]] || { cp "$REPO_ROOT/deploy/.env.local.example" "$ENV_FILE"; echo "deploy/.env.local 을 견본에서 생성했습니다."; }
 
-C=(docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" -f "$REPO_ROOT/deploy/docker-compose.local.yml" --env-file "$ENV_FILE" ${PROFILES:-})
+read -r -a profile_args <<< "${PROFILES:-}"
+C=(docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" -f "$REPO_ROOT/deploy/docker-compose.local.yml" --env-file "$ENV_FILE" "${profile_args[@]}")
 if [[ $# -eq 0 ]]; then
   "${C[@]}" up -d --build --wait --wait-timeout 300
   echo
