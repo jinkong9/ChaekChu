@@ -10,7 +10,7 @@
 #   CPU 상한은 걸지 않는다. 수집기와 함께 실측한 뒤 필요하면 추가.
 # 외부 노출은 web 의 80/443 만. 나머지는 127.0.0.1 에만 바인딩한다.
 # =====================================================================
-name: b102
+name: brbbr
 
 x-logging: &default-logging
   driver: json-file
@@ -186,9 +186,16 @@ services:
     mem_limit: 3g
     logging: *default-logging
 
+# 볼륨 이름은 고정한다. compose 프로젝트명(brbbr)이 바뀌어도 서버에 이미 있는 b102_* 볼륨(PG 데이터·ES 인덱스·인증서)을 그대로 쓴다.
+# 스크립트(issue-cert.sh, renew-cert.sh)도 이 이름을 참조한다.
 volumes:
   pgdata:
+    name: b102_pgdata
   esdata:
+    name: b102_esdata
   qdrant-data:
+    name: b102_qdrant-data
   letsencrypt:
+    name: b102_letsencrypt
   certbot-www:
+    name: b102_certbot-www

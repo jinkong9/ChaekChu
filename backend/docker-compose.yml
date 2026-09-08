@@ -1,6 +1,8 @@
 # 로컬 개발용 인프라. 앱은 IDE 나 ./gradlew bootRun 으로 따로 띄운다.
 #   docker compose up -d
 #   docker compose down -v   # 데이터까지 초기화
+name: brbbr
+
 services:
   postgres:
     image: postgres:16.15
