@@ -23,3 +23,6 @@ frontend/scripts/*
 # 홈 화면 시각 QA 산출물 — 로컬 검증용이며 제품 번들에는 포함하지 않음
 frontend/qa-*.png
 frontend/design-qa.md
+.cache/
+__pycache__/
+*.pyc

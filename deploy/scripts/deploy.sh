@@ -7,7 +7,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-COMPOSE=(docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" ${PROFILES:-})
+read -r -a profile_args <<< "${PROFILES:-}"     # 예: PROFILES="--profile recsys"
+COMPOSE=(docker compose -f "$REPO_ROOT/deploy/docker-compose.yml" "${profile_args[@]}")
 BRANCH="${BRANCH:-dev}"
 PULL=true
 [[ "${1:-}" == "--no-pull" ]] && PULL=false
