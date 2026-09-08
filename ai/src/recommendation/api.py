@@ -112,6 +112,7 @@ class RecommendationResponse(BaseModel):
     generatedAt: datetime
     mode: RecommendationMode
     modelVersion: str
+    indexVersion: str | None = None
     fallback: bool
     basedOnCount: int = Field(ge=0)
     weights: RecommendationWeights
@@ -254,6 +255,7 @@ def generate_recommendations(request: RecommendationRequest) -> RecommendationRe
         generatedAt=datetime.now(timezone.utc),
         mode=mode,
         modelVersion="d4l-relations-v1",
+        indexVersion=None,
         fallback=fallback,
         basedOnCount=len(seeds),
         weights=request.weights,

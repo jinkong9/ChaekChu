@@ -78,6 +78,15 @@ tagMatch, coLoan, trending, steady를 각각 0~100으로 계산하고, 백엔드
 임의의 0점 근거로 해석하지 않으며, 최종 score·featureScores·기여 feature를 함께
 기록할 수 있다. 같은 점수는 ISBN13 오름차순으로 정렬해 실행 간 결과를 재현한다.
 
+검색 장애와 결측 feature fallback은 `recommendation.fallback`의
+`RecommendationFallbackPolicy`가 담당한다. 태그가 없으면 tagMatch를 결측으로 두고
+semantic·수요 feature만으로 계산한다. 후보 부족은 가능한 결과만 반환하면서
+`CANDIDATE_SHORTAGE`와 `fallback=true`를 기록하고, Vector DB timeout·색인 없음은
+제외 ISBN을 적용한 수요 후보로 전환한다. 수요 후보조차 없으면 빈 결과와
+`canPersist=false`를 반환해 장애 중간 결과를 정상 추천으로 저장하지 않는다. 후보
+부족도 가능한 결과를 화면에 반환하되 `canPersist=false`로 표시한다. 모든
+fallback 결과에는 modelVersion과 indexVersion을 함께 보존한다.
+
 임베딩 배치는 `recommendation.embedding_batch`의 `EmbeddingBatchRunner`로 실행한다.
 입력은 서지·분류 필드만 조합하고, 관계·대출이력은 Qdrant payload metadata로 저장한다.
 Qdrant에서는 index version별 staging collection에 upsert한 뒤 `books_active` alias를
