@@ -140,7 +140,7 @@ JWT: `sub=userId`, `exp` 24시간, HS256. 갱신 토큰은 MVP 에서 두지 않
 }
 ```
 
-`onboardingStatus` ∈ `PENDING` | `COMPLETED` | `SKIPPED`. 프론트의 `onboarded` = `status !== 'PENDING'`. `birthYear`·`gender` 는 본인에게만 돌려준다.
+`onboardingStatus` ∈ `PENDING` | `COMPLETED` | `SKIPPED`. 프론트의 `onboarded` = `status !== 'PENDING'`. `birthYear`·`gender` 는 본인에게만 돌려준다. `interestTags` 는 태그 **표시명**(`#소설`) — `tags.label` 그대로.
 새로고침 뒤 상태 복원과 콜백 직후 닉네임 확보에 쓴다. 지금 프론트는 로그인 응답의 `nickname` 만 믿고 다시 묻지 않는다 — §9-3.
 
 ### 3.2 `POST /users/me/profile` ●
@@ -172,7 +172,7 @@ JWT: `sub=userId`, `exp` 24시간, HS256. 갱신 토큰은 MVP 에서 두지 않
 
 | 필드 | 규칙 |
 | --- | --- |
-| `genres` | 0~5개. 온보딩 화면의 한글 라벨(아래 표). 서버가 태그 코드로 바꿔 `users.interest_tags` 에 저장. 표에 없는 값은 무시 |
+| `genres` | 0~5개. 온보딩 화면의 한글 라벨(아래 표). 서버가 태그 코드로 바꿔 `user_interests` 에 **전체 교체** 저장. `#소설`(태그 표시명)·`FICTION`(코드)도 받는다. 표에 없는 값은 무시 (V1.1 seed) |
 | `books[].bookId` | 존재하는 도서. 없으면 `404 BOOK_NOT_FOUND` |
 | `books[].rating` | 필수 1~5 정수 (계약 §4.1.2: 고른 책마다 반드시) |
 

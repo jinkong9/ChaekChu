@@ -3,6 +3,7 @@
 파일명 규칙: `V{번호}__{설명}.sql` (예: `V1__init.sql`). 밑줄 두 개.
 
 - `V1__init.sql` 은 `docs/sql/V1__init.sql`(1차 ERDCloud 10테이블 + 보정 7건)을 그대로 복사한 것이다. 설계 근거는 `docs/DB_TABLE_DESIGN.md` 머리와 `docs/ERD.md`.
+- `V1_1__seed_tags.sql` 은 `tags` seed(온보딩 장르 12개). `docs/sql/` 에 같은 파일을 둔다.
 - 한 번 적용된 파일은 수정하지 않는다(Flyway 체크섬). 변경은 새 버전 파일로 추가하고, 설계 문서도 같이 고친다.
   추천 데이터 층(`book_texts` `book_keywords` `book_embeddings` `book_relations` `book_demand_features` `kdc_codes` + `books` 확장)은 V2 로 올린다.
 - `ddl-auto: validate` 이므로 엔티티와 마이그레이션이 어긋나면 기동 시 실패한다.
