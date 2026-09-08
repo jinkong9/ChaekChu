@@ -14,9 +14,11 @@ deploy/
     nginx/snippets/app.conf 라우팅 한 곳: /api/ · /swagger-ui/ · /v3/api-docs → backend, 나머지 SPA
   docker-compose.local.yml  로컬 전체 스택 override (포트·메모리·TLS 끔). .env.local.example 과 짝
   scripts/
+    common.sh               공통: env·락·상태 경로 (/etc/b102, /var/lib/b102 우선), envval, 락
     local-up.sh             로컬 전체 스택 기동/중지 (팀원용)
     setup-ec2.sh            최초 1회: Docker · 데몬 로그 상한 · 스왑 2G · ufw 80/443 · vm.max_map_count
-    deploy.sh               git pull → build → up --wait → 헬스체크 → prune. Jenkins 가 그대로 호출
+    setup-cd.sh             최초 1회: 그룹 b102, /etc/b102/{deploy.env,deploy.lock,git-credentials}, /var/lib/b102, Jenkins 그룹 반영
+    deploy.sh               (pull) → 배포 전 pg_dump → build → up --wait → 헬스 → 상태 기록. 실패 시 조건부 자동 복구. Jenkins 도 호출
     issue-cert.sh           Let's Encrypt 최초 발급 (webroot)
     renew-cert.sh           갱신 cron
     backup-postgres.sh      pg_dump gzip 7세대 cron
@@ -85,14 +87,42 @@ bash deploy/scripts/local-up.sh down -v      # 중지 + 데이터 삭제
 - **DB 는 비어 있다.** V1 스키마와 seed 데이터가 들어오기 전까지 검색·추천 화면은 빈 결과다. seed 는 EC2 pg_dump 를 잘라 만드는 스크립트로 이후 제공한다.
 - Windows 는 Git Bash 에서 실행한다. PowerShell 이면 `local-up.sh` 안의 `docker compose ...` 명령을 그대로 쳐도 된다.
 
+## 자동 배포 (Jenkins CD) 와 운영 스위치
+
+`dev` 의 Jenkins CI 가 전부 통과하면 `deploy (dev)` 스테이지가 **`/etc/b102/cd-enabled` 파일이 있을 때만** 같은 workspace 의 SHA 로 `deploy.sh --no-pull` 을 실행한다.
+파일이 없으면 CI 성공 뒤 "cd-gate-closed" 로 끝나고 서버는 바뀌지 않는다. 문서만 바뀐 커밋(`docs-only`)은 배포하지 않는다.
+
+```bash
+sudo touch /etc/b102/cd-enabled   # 자동 배포 켬
+sudo rm /etc/b102/cd-enabled      # 끔 (장애 대응·수동 작업 중에는 끈다)
+```
+
+수동 배포와 Jenkins 배포는 `setup-cd.sh` 가 만든 같은 파일을 쓴다. 그래서 둘이 겹치지 않는다.
+
+| | 경로 | 권한 |
+| --- | --- | --- |
+| 운영 비밀값 | `/etc/b102/deploy.env` | root:b102 640 |
+| 배포 락 | `/etc/b102/deploy.lock` | root:b102 660 |
+| 릴리스 상태 | `/var/lib/b102/current-release`, `previous-release` | root:b102 2770 |
+| GitLab pull 인증 | `/etc/b102/git/credentials` (Jenkins checkout 토큰 재사용, 읽기 전용) | root:b102 640 |
+
+### 배포 전 백업과 롤백 규칙
+
+- `deploy.sh` 는 `up` 직전에 `pg_dump` 를 `pre_<sha>_*.sql.gz` 로 남긴다(5세대). 일일 백업(`bookdb_*`, 7세대)과 별도.
+- 마이그레이션 지문(`db/migration/*.sql` 의 sha256)을 릴리스마다 기록한다.
+- 새 릴리스 기동이 실패하면: **지문이 직전 성공 릴리스와 같을 때만** 코드를 직전 SHA 로 자동 복구한다. **지문이 다르면(이번 배포에 migration 이 있으면) 자동 복구하지 않는다.** Flyway 는 전진 전용이라 DB 를 자동으로 되돌리면 데이터가 유실될 수 있다. 사람이 `pre_<sha>` dump 를 보고 판단한다.
+- 배포 = 마이그레이션 실행이다. migration 이 든 MR 은 머지 전에 스키마 담당 리뷰를 거친다.
+
 ## 평소 배포
 
 ```bash
-ssh b102 'bash ~/S15P21B102/deploy/scripts/deploy.sh'          # dev 최신
+ssh b102 'bash ~/S15P21B102/deploy/scripts/deploy.sh'          # origin/dev 최신을 pull 해서 배포 (git-credentials 로 인증)
 ssh b102 'BRANCH=feature/x bash ~/S15P21B102/deploy/scripts/deploy.sh'   # 특정 브랜치
+ssh b102 'bash ~/S15P21B102/deploy/scripts/deploy.sh --no-pull'          # 현재 체크아웃 그대로
 ```
 
-배포 잠금(`deploy/.deploy.lock`)이 있어 동시 실행은 거부된다. Jenkins 도입 후에는 Jenkins 가 이 스크립트를 호출한다.
+수동 배포는 Jenkins 가 죽었을 때의 fallback 이다. 평상시에는 `dev` 머지가 곧 배포다(gate 가 열려 있을 때).
+공용 락(`/etc/b102/deploy.lock`)이 있어 수동·자동이 겹치면 뒤에 온 쪽이 거부된다.
 
 ## 운영
 
