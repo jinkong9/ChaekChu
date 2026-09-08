@@ -146,8 +146,10 @@ CREATE TABLE books (
     -- ∵ 가장 큰 변형(알라딘 cover500 등)을 저장. 축소는 프론트 lib/coverUrl.ts 가 한다.
     description        TEXT,
     description_source VARCHAR(20),
-    -- ∵ 대표 소개문 하나. 정보나루 desc(86.7%) → 카카오 contents(68%) 순. 원문은 book_texts 에 소스별로.
-    --   NULL = 둘 다 없음(1단계 0.3%). 빈 문자열로 두지 않는다 — content_status 판정이 흐려진다.
+    -- ∵ 대표 소개문 하나. 정보나루 desc(86.7%) → 카카오 contents(68%) → **SIBLING**(같은 세트 형제 권의 소개) 순. 원문은 book_texts 에 소스별로.
+    --   SIBLING: 소개 없는 책의 정체가 서점 비유통 전집 낱권이라(연구 §3.3), 제목 어간+출판사가 같은 형제 권에 소개가 있으면 빌려온다.
+    --   1단계 소개 없음 41,541권 중 6,649권(16%) 회복. 비용 0.
+    --   NULL = 둘 다 없음. 빈 문자열로 두지 않는다 — content_status 판정이 흐려진다.
     content_status     VARCHAR(15)  NOT NULL DEFAULT 'PENDING',
     -- ∵ PENDING / TEXT_RICH / TEXT_SHORT / TEXT_NONE. PENDING 이 필요한 이유: "아직 안 긁음"과
     --   "긁었는데 없음"을 섞으면 쿼터 소진을 결측으로 기록했던 사고(19,472건)와 같은 구조가 된다.
@@ -226,7 +228,8 @@ CREATE TABLE book_keywords (
     keyword VARCHAR(100) NOT NULL,
     weight  NUMERIC(8,2),
     rank    SMALLINT     NOT NULL,
-    -- ∵ API 가 준 순서. 임베딩 입력은 상위 30개만 쓴다.
+    -- ∵ API 가 준 순서(가중치 내림차순 99.4%). 50개 전부 저장한다 — 어휘 색인은 50개까지 단조 증가(+0.74%p).
+    --   밀집 임베딩 입력은 상위 30개(20~30 에서 포화, 50 vs 30 은 잡음). 결측은 채우지 않는다 — 소개문에서 뽑은 키워드는 −0.25%p (연구 §6.6).
     PRIMARY KEY (book_id, keyword),
     CONSTRAINT fk_bk_book FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE
 );
