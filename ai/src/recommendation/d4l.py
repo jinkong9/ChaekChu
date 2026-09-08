@@ -122,8 +122,7 @@ def _open_text(path: Path) -> Iterator[TextIO]:
         yield file
 
 
-def load_d4l_jsonl(path: Path) -> list[D4LBook]:
-    books: list[D4LBook] = []
+def iter_d4l_jsonl(path: Path) -> Iterator[D4LBook]:
     seen: set[str] = set()
     try:
         with _open_text(path) as file:
@@ -138,9 +137,13 @@ def load_d4l_jsonl(path: Path) -> list[D4LBook]:
                 if book.isbn13 in seen:
                     raise DataError(f"line {line_number}: duplicate isbn13 {book.isbn13}")
                 seen.add(book.isbn13)
-                books.append(book)
+                yield book
     except OSError as error:
         raise DataError(f"input could not be read: {error.strerror or 'I/O error'}") from error
+
+
+def load_d4l_jsonl(path: Path) -> list[D4LBook]:
+    books = list(iter_d4l_jsonl(path))
     if not books:
         raise DataError("input contains no book records")
     return books
