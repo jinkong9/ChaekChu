@@ -70,3 +70,8 @@ tasks.withType(JavaCompile).configureEach {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+// bootRun 이 Gradle 데몬의 기본 인코딩(Windows 한글 로캘 = MS949)을 앱 JVM 에 물려주는 것을 막는다. 운영 컨테이너와 같은 UTF-8 로 고정.
+tasks.named('bootRun') {
+	jvmArgs '-Dfile.encoding=UTF-8'
+}

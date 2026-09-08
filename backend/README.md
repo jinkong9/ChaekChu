@@ -53,7 +53,21 @@ docker tag mirror.gcr.io/library/postgres:16.15 postgres:16.15
 ```
 src/main/java/com/ssafy/b102/
   BackendApplication.java
-  global/config/SecurityConfig.java   # 헬스체크·Swagger 만 공개, 나머지 인증 필요
+  global/
+    config/SecurityConfig.java        # 무상태 JWT(oauth2ResourceServer). 공개: 헬스체크·Swagger·/auth/oauth/*
+    config/WebMvcConfig.java          # @CurrentUserId 리졸버
+    config/OpenApiConfig.java         # Swagger Bearer 인증 버튼
+    error/                            # ErrorCode · ErrorResponse{code,message,details} · BusinessException · GlobalExceptionHandler
+    security/                         # 401/403 JSON EntryPoint·Handler · @CurrentUserId
+    web/ApiPaths.java                 # "/api/v1" (context-path 를 쓰지 않는 이유는 주석)
+  auth/
+    jwt/                              # JwtProperties(app.jwt) · JwtConfig(HS256 Nimbus encoder/decoder) · JwtTokenProvider
+    oauth/                            # OAuthProperties(app.oauth) · Kakao/GoogleOAuthClient(RestClient) · OAuthStateCookie
+    service/OAuthLoginService.java    # 코드 교환 → 사용자 조회·생성 → JWT
+    controller/AuthController.java    # GET /auth/oauth/{provider}/authorize · /callback (API_SPEC §2)
+  user/
+    entity/                           # User · Tag · UserInterest · enum(OAuthProvider, Gender, OnboardingStatus)
+    repository/ · service/ · dto/ · controller/UserController.java   # GET /users/me
 src/main/resources/
   application.yml                     # 환경변수 ${VAR:기본값} 방식. 프로필 파일 없음
   db/migration/V1__init.sql           # Flyway. docs/sql/V1__init.sql 복사본 (1차 10테이블 + 보정 7건). V2 = 추천 데이터 층
@@ -71,3 +85,8 @@ Dockerfile                            # 앱 배포 이미지 (multi-stage, temur
 - 스키마 변경은 Flyway 마이그레이션 파일로만 한다. `ddl-auto` 는 `validate` 고정.
 - 설정값은 `application.yml` 의 `${ENV:기본값}` 으로 받고, 비밀값은 `.env` 에만 둔다. `.env` 는 커밋하지 않는다.
 - API 기본 경로는 `/api/v1`. 응답 시각은 UTC `Instant`, 표시 변환은 프론트에서.
+- Swagger 설명은 **한글로, 동작·상태 코드·왜 그런지까지** 적는다(`@Operation` description + `@ApiResponses`). 프론트가 명세 대신 읽는 문서다.
+- 인증은 OAuth(카카오·Google)만. 자체 가입·비밀번호 없음. 로컬에서 실제 로그인을 해 보려면 `.env` 에 `JWT_SECRET`·`OAUTH_*`·`FRONTEND_ORIGIN` 을 채운다(`.env.example` 참고).
+- 테스트는 실제 PostgreSQL 이 필요하다(CI 는 compose 로 띄움). 로컬은 `deploy/scripts/local-up.sh` 의 PG(15432)를 쓰면 된다:
+  `DB_URL=jdbc:postgresql://localhost:15432/bookdb DB_PASSWORD=<deploy/.env.local 값> ES_URIS=http://localhost:19200 ES_USERNAME=elastic ES_PASSWORD=<값> ./gradlew test`
+- 한글 경로에서 `./gradlew test` 가 테스트 클래스를 못 찾으면 `"-Dorg.gradle.jvmargs=-Dfile.encoding=MS949 -Xmx1g"` 를 명령에 붙인다(아래 「Windows 에서 한글 경로일 때」).

@@ -1,3 +1,19 @@
+# 테스트 프로필. DB·ES 접속은 CI(scripts/ci/run-backend-ci.sh) 가 DB_URL 등 환경변수로 넘긴다.
+# 로컬은 deploy 로컬 스택(15432) 을 쓰려면: DB_URL=jdbc:postgresql://localhost:15432/bookdb DB_PASSWORD=<.env.local> ./gradlew test
+app:
+  frontend-origin: http://localhost:5173
+  jwt:
+    secret: test-only-secret-not-for-production-0123456789abcdef
+    ttl-seconds: 3600
+  oauth:
+    redirect-base-url: ""
+    kakao:
+      client-id: test-kakao-client-id
+      client-secret: test-kakao-client-secret
+    google:
+      client-id: test-google-client-id
+      client-secret: test-google-client-secret
+
 logging:
   level:
     root: WARN
