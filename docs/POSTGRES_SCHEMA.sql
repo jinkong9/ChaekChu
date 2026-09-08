@@ -260,28 +260,24 @@ CREATE TABLE library_items (
     user_id       BIGINT       NOT NULL,
     book_id       BIGINT       NOT NULL,
     status        VARCHAR(10)  NOT NULL,
-    -- ∵ WISH / READING / READ. 좋아요는 별도 표가 아니라 status = WISH.
+    -- ∵ WISH / READ — 09-02 회의에서 2단 확정(「읽는 중」폐기). 좋아요는 별도 표가 아니라 status = WISH.
     rating        SMALLINT,
     -- ∵ NULL = 미평가. 상태와 무관하게 둘 수 있다(찜만 하고 별점 주기 가능).
     review_text   VARCHAR(300),
     -- ∵ 본인 기록 전용. 추천·검색·임베딩에 쓰지 않는다. 공백만이면 NULL.
     finished_date DATE,
-    -- ∵ READ 일 때만. 서버가 오늘로 채운다.
-    progress_page INTEGER,
-    -- ∵ READING 표시용. 프론트가 그리지만 아직 쓰는 UI 는 없다(API_SPEC §9-11). 컬럼은 둔다.
+    -- ∵ READ 일 때만. 서재 API 로 READ 가 되면 서버가 오늘로 채운다. 온보딩 seed 는 READ 인데 NULL(서비스 이전에 읽은 책) — 프론트가 연표·통계에서 뺀다.
     is_seed       BOOLEAN      NOT NULL DEFAULT FALSE,
     -- ∵ 온보딩에서 고른 책(POST /users/me/preferences books[]). 콜드스타트 prior 와 이후 평점을 구분.
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
     PRIMARY KEY (id),
     CONSTRAINT uq_li_user_book UNIQUE (user_id, book_id),
-    CONSTRAINT ck_li_status CHECK (status IN ('WISH','READING','READ')),
+    CONSTRAINT ck_li_status CHECK (status IN ('WISH','READ')),
     CONSTRAINT ck_li_rating CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
     CONSTRAINT ck_li_review CHECK (review_text IS NULL OR btrim(review_text) <> ''),
-    CONSTRAINT ck_li_progress CHECK (progress_page IS NULL OR progress_page >= 0),
-    CONSTRAINT ck_li_finished CHECK (
-        (status = 'READ' AND finished_date IS NOT NULL) OR
-        (status <> 'READ' AND finished_date IS NULL)),
+    CONSTRAINT ck_li_finished CHECK (status = 'READ' OR finished_date IS NULL),
+    -- ∵ WISH 면 완독일 없음. READ 는 있어도(서재 API) 없어도(온보딩 seed) 된다
     CONSTRAINT fk_li_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_li_book FOREIGN KEY (book_id) REFERENCES books (id)
 );

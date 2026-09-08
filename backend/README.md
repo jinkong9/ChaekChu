@@ -56,7 +56,7 @@ src/main/java/com/ssafy/b102/
   global/config/SecurityConfig.java   # 헬스체크·Swagger 만 공개, 나머지 인증 필요
 src/main/resources/
   application.yml                     # 환경변수 ${VAR:기본값} 방식. 프로필 파일 없음
-  db/migration/                       # Flyway. V1 은 ERD 확정 후 docs/POSTGRES_SCHEMA.sql 에서
+  db/migration/V1__init.sql           # Flyway. docs/sql/V1__init.sql 복사본 (1차 10테이블 + 보정 7건). V2 = 추천 데이터 층
 docker/elasticsearch/Dockerfile       # elasticsearch:8.19.21 + analysis-nori
 docker-compose.yml                    # 로컬 인프라만. 앱은 포함하지 않음
 Dockerfile                            # 앱 배포 이미지 (multi-stage, temurin 21)
