@@ -8,6 +8,8 @@ from typing import Any, Literal
 from fastapi import FastAPI
 from pydantic import BaseModel, Field, model_validator
 
+from recommendation.dedup import deduplicate_candidates, join_relation_isbns
+
 
 RecommendationMode = Literal["COLD_START", "PERSONALIZED"]
 ReasonType = Literal["CO_LOAN", "MANIA_REC", "READER_REC", "SAME_AUTHOR", "SAME_CATEGORY", "DEMAND_POPULAR"]
@@ -124,9 +126,13 @@ def _relation_map(book: D4LBookInput, isbn: str) -> dict[str, float]:
     scores: dict[str, float] = {}
     field_weights = {"co_loan": 1.0, "mania_rec": 0.75, "reader_rec": 0.5}
     for field, field_weight in field_weights.items():
-        for rank, item in enumerate(getattr(book, field), start=1):
-            if item[0] == isbn:
+        relation = getattr(book, field)
+        if isbn not in join_relation_isbns(relation, {isbn}):
+            continue
+        for rank, item in enumerate(relation, start=1):
+            if item[0].strip() == isbn:
                 scores[field] = field_weight / rank
+                break
     return scores
 
 
@@ -186,16 +192,17 @@ def _reason(
 
 
 def generate_recommendations(request: RecommendationRequest) -> RecommendationResponse:
-    books_by_isbn = {book.isbn13: book for book in request.books}
+    books = deduplicate_candidates(request.books)
+    books_by_isbn = {book.isbn13: book for book in books}
     excluded = set(request.excludeIsbns) | set(request.seedIsbns)
     seeds = [books_by_isbn[isbn] for isbn in request.seedIsbns if isbn in books_by_isbn]
     fallback = not seeds
     mode: RecommendationMode = "COLD_START" if fallback else request.mode
-    max_total = max((book.loan_total for book in request.books), default=0)
-    max_latest = max((_latest_loan(book) for book in request.books), default=0)
+    max_total = max((book.loan_total for book in books), default=0)
+    max_latest = max((_latest_loan(book) for book in books), default=0)
     ranked: list[tuple[float, D4LBookInput, dict[str, float | None], ReasonType, list[str], str]] = []
 
-    for candidate in request.books:
+    for candidate in books:
         if candidate.isbn13 in excluded:
             continue
         relation_scores: dict[str, float] = {}
