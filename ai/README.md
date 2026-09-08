@@ -44,9 +44,11 @@ uv run uvicorn recommendation.api:app --host 0.0.0.0 --port 8000
 실제 feature, 평가 지표, 추천 알고리즘은 후속 Jira 작업에서 각 command handler를
 확장한다. CLI와 결과 envelope는 호환성을 위해 유지한다.
 
-`validate`는 EC2 `d4l_usage.jsonl` 원천 스냅샷의 `d4l-usage-v1` 계약을 검사한다.
-필수 식별자·제목·대출량의 오류, ISBN 중복, 관계 목록·월별 대출 이력의 타입과 범위
-오류는 차단하고, 소개문·키워드·분류처럼 nullable인 결측은 경고와 예시로 남긴다.
+`validate`는 EC2 `d4l_usage.jsonl` 또는 `.gz` 원천 스냅샷의 `d4l-usage-v1` 계약을
+검사한다. 필수 식별자·제목·대출량의 오류, ISBN 중복, 관계 목록·월별 대출 이력의 타입과
+범위 오류는 차단하고, 선택 필드 결측과 문서에 없는 필드는 경고로 남긴다. 결과에는
+대출량·대출 이력 통계, 관계 ISBN의 스냅샷 내부 커버리지, 아직 제공되지 않은 L1·수요
+feature 상태가 함께 기록된다.
 
 ## 내부 추천 API
 
