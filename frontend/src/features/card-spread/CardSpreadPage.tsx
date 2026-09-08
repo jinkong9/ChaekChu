@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
@@ -38,8 +38,7 @@ function Icon({ d, ...rest }: { d: string } & React.SVGProps<SVGSVGElement>) {
 }
 const PATH = {
   bookmark: 'M4 2h8v12l-4-3-4 3V2z',
-  share: 'M11 4.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM4 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM11 14.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM5.3 7.2l4.4-2.4M5.3 8.8l4.4 2.4',
-  arrow: 'M2.5 8h11M9.5 4l4 4-4 4',
+  check: 'M3 8.4l3.2 3.1L13 4.8',
   chart: 'M2.5 13.5v-4M6.5 13.5v-8M10.5 13.5v-5M14 13.5v-10',
   star: 'M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6L8 1.8z',
   book: 'M2 3.2h4.2c1 0 1.8.8 1.8 1.8v8c0-1-.8-1.8-1.8-1.8H2v-8zM14 3.2H9.8c-1 0-1.8.8-1.8 1.8v8c0-1 .8-1.8 1.8-1.8H14v-8z',
@@ -80,7 +79,6 @@ export default function CardSpreadPage() {
   const { bookId } = useParams()
   const [params] = useSearchParams()
   const fromRec = params.get('from') === 'rec' // 추천 경유 시에만 이유 문구 노출
-  const [copied, setCopied] = useState(false)
 
   const qc = useQueryClient()
   const { data: book, isPending, isError, refetch } = useQuery({
@@ -107,13 +105,6 @@ export default function CardSpreadPage() {
       trackEvent('BOOK_VIEW', { bookId: book.bookId })
     }
   }, [book])
-
-  // 복사 안내는 스스로 사라진다 — 누른 자리에서 짧게 알리고 흐름을 막지 않는다
-  useEffect(() => {
-    if (!copied) return
-    const t = setTimeout(() => setCopied(false), 2000)
-    return () => clearTimeout(t)
-  }, [copied])
 
   if (isError) {
     return (
@@ -144,10 +135,6 @@ export default function CardSpreadPage() {
       .catch(() => {})
   }
 
-  const share = () => {
-    navigator.clipboard?.writeText(window.location.href).then(() => setCopied(true)).catch(() => {})
-  }
-
   const loans = book.loanByAge ?? []
   // 막대는 값이 아니라 서로의 비율이 읽혀야 한다 — 최댓값을 100%로 잡는다
   const peakRatio = Math.max(...loans.map((a) => a.ratio), 1)
@@ -174,9 +161,6 @@ export default function CardSpreadPage() {
           {/* ---- 왼쪽: 펼친 지면(표지 + 도서 카드)과 그 아래 행동 ---- */}
           <section>
             <div className="bd-spread">
-              <span className="bd-spread__fold bd-spread__fold--top" aria-hidden="true" />
-              <span className="bd-spread__fold bd-spread__fold--bottom" aria-hidden="true" />
-
               <div className="bd-mount">
                 {book.coverUrl
                   ? <img src={coverAtWidth(book.coverUrl, COVER_W.spread)!} alt={`${book.title} 표지`}
@@ -206,30 +190,17 @@ export default function CardSpreadPage() {
               </article>
             </div>
 
+            {/* 행동은 이 둘뿐이다 — 서재 2단(READ/WISH)과 하나씩 짝이 맞는다.
+                라벨은 상태에 따라 바뀌지 않고, 기록된 쪽에 체크가 붙어 지금 무엇이 담겨 있는지 알린다 */}
             <div className="bd-cta">
               <button className="eo-button" onClick={() => save('READ')} aria-pressed={book.myLibraryStatus === 'READ'}>
-                {book.myLibraryStatus === 'READ' ? '읽은 책' : CTA_LABEL.READ}
+                {book.myLibraryStatus === 'READ' && <Icon d={PATH.check} />}
+                {CTA_LABEL.READ}
               </button>
               <button className="bd-button-ghost" onClick={() => save('WISH')} aria-pressed={book.myLibraryStatus === 'WISH'}>
-                <Icon d={PATH.bookmark} />
-                {book.myLibraryStatus === 'WISH' ? '찜해 둠' : CTA_LABEL.WISH}
+                <Icon d={book.myLibraryStatus === 'WISH' ? PATH.check : PATH.bookmark} />
+                {CTA_LABEL.WISH}
               </button>
-            </div>
-
-            <div className="bd-links">
-              <button onClick={share}>
-                <Icon d={PATH.share} />
-                {copied ? '링크를 복사했어요' : '공유하기'}
-              </button>
-              {book.myLibraryStatus && (
-                <>
-                  <span className="bd-links__rule" aria-hidden="true" />
-                  <Link to="/library">
-                    <Icon d={PATH.arrow} />
-                    서재에서 수정
-                  </Link>
-                </>
-              )}
             </div>
           </section>
 
