@@ -238,12 +238,16 @@ export const handlers = [
   // 로그인 사용자 추천·상세
   http.get('*/recommendations', ({ request }) => requireAuth(request) ?? HttpResponse.json(recommendations)),
   http.get('*/books/:id', ({ params }) => {
-    const found = CATALOG.find((bk) => bk.bookId === Number(params.id)) ?? CATALOG[0]
+    // withCategory로 감싸야 상세도 목록·서재와 같은 표지·분류를 준다 (CATALOG를 그대로 쓰면 coverUrl이 null이다)
+    const found = withCategory(CATALOG.find((bk) => bk.bookId === Number(params.id)) ?? CATALOG[0])
     const mine = library.find((li) => li.book.bookId === found.bookId) // 계약 §6: 본인 상태 join
     return HttpResponse.json({
-      ...found, isbn13: '9791100000000',
+      // 체크디짓이 맞는 미배정 ISBN — 도서 카드 시안이 이 값을 EAN-13 바코드로 실제 인코딩한다
+      ...found, isbn13: '9791100000007',
       description: '자기 자신을 잃어버린 채 어른들의 기대 속에서 소진되어 가는 한 소년의 이야기. 성장과 자아 탐색이라는 주제를 정면으로 다룬다.',
-      toc: '1부\n2부\n3부', category: '문학 > 한국소설',
+      toc: '1부\n2부\n3부',
+      /** 시안용 — 'AI 추천 키워드'. 계약에 아직 없다 (docs/BACKEND_DATA_CONTRACT.md 합의 대기) */
+      keywords: ['#성장소설', '#청소년의 고민', '#자기 탐색', '#고전의 힘', '#짧은 호흡'],
       metrics: [
         { source: '정보나루', name: '전국 대출 순위', value: '상위 3%', asOf: '2026-06' },
         { source: '알라딘', name: '평균 별점', value: '4.2 · 128명', asOf: '2026-08' },
@@ -256,6 +260,26 @@ export const handlers = [
       myRating: mine?.rating ?? null,
       myReviewText: mine?.reviewText ?? null,
     })
+  }),
+
+  /** 시안용 — 비슷한 책(소개 임베딩) · 함께 대출된 책(정보나루). 둘 다 계약에 없는 임시 경로다.
+   *  무작위를 쓰지 않는다: 같은 책을 새로 열어도 같은 목록이 나와야 시안을 비교할 수 있다. */
+  http.get('*/books/:id/similar', ({ params }) => {
+    const self = CATALOG.find((bk) => bk.bookId === Number(params.id)) ?? CATALOG[0]
+    // 같은 저자 → 같은 분류 → 나머지 순
+    const rank = (bk: BookSummary) =>
+      (bk.author === self.author ? 0 : 2) + (CATEGORY[bk.bookId] === CATEGORY[self.bookId] ? 0 : 1)
+    const items = CATALOG.filter((bk) => bk.bookId !== self.bookId)
+      .sort((a, z) => rank(a) - rank(z) || a.bookId - z.bookId)
+      .slice(0, 4).map(withCategory)
+    return HttpResponse.json({ items })
+  }),
+  http.get('*/books/:id/co-loans', ({ params }) => {
+    const self = Number(params.id)
+    // 함께 대출은 취향이 아니라 '같이 빌려 간' 신호다 — 저자·분류를 맞추지 않고 덱에서 고른다
+    const pool = CATALOG.filter((bk) => bk.bookId !== self)
+    const start = (self * 7) % Math.max(pool.length - 4, 1)
+    return HttpResponse.json({ items: pool.slice(start, start + 4).map(withCategory) })
   }),
 
   // 서재 CRUD

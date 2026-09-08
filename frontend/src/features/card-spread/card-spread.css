@@ -1,0 +1,629 @@
+/* ==== 도서 상세 B안 — 도서 카드 펼침면 ====
+   왼쪽에 책 뒤표지를 펼친 지면(표지 한 장 + 도서 카드 한 장), 오른쪽에 읽을 것을 세운다.
+   Editorial Orbit의 종이·잉크·규칙선을 그대로 쓰고, 이 화면에만 '펼침면의 회색 판'과
+   '카드 용지' 두 재질을 더한다 — 색조를 새로 들이지 않고 종이의 명도만 나눈 것이다.
+
+   시안이 물건처럼 보이게 하는 것 넷:
+   1) 펼침면 오른쪽 두 모서리를 접어 둔다(clip-path + 접힌 안쪽 삼각형).
+   2) 카드의 항목은 값 아래에만 괘선을 둔다 — 라벨은 선 밖에 남는다.
+   3) 바코드는 ISBN-13을 EAN-13으로 실제 인코딩한다(ean13.ts). 읽히지 않으면 그리지 않는다.
+   4) 표지·카드는 종이 결 한 겹을 곱해 인쇄물의 결을 남긴다.
+
+   대비: 회색 판 #edece8 위 --bd-ink-2(rgba(11,11,11,.62))가 5.9:1,
+   카드 용지 #fdfcf8 위에서는 7.3:1이다. 정보를 나르는 작은 글자는 여기까지만 쓴다. */
+
+.bd-page {
+  --bd-file: #eceae5;        /* 파일 대지 — 서류를 끼워 두는 두꺼운 종이 */
+  --bd-file-lit: #f4f2ee;
+  --bd-sheet: #fdfdfc;       /* 대지에 얹힌 종이 — 표지 대지 */
+  --bd-card: #fbfaf6;        /* 그 옆의 도서 카드 */
+  --bd-ink-2: rgba(11, 11, 11, 0.62);
+  --bd-fold: 34px;           /* 접힌 모서리 크기 */
+}
+
+.bd-page ::selection { background: var(--eo-ink); color: var(--eo-paper); }
+
+.bd-shell {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 26px clamp(16px, 3.4vw, 58px) 76px;
+}
+
+/* ---------- 위쪽 두 단 ---------- */
+
+.bd-top {
+  display: grid;
+  grid-template-columns: minmax(0, 47fr) minmax(0, 53fr);
+  align-items: start;
+  gap: clamp(26px, 3.4vw, 50px);
+}
+
+/* 파일 대지는 '물건'이다 — 한 단으로 내려가도 지면 폭만큼 늘어나면 축척이 무너지고
+   카드 안쪽에 빈 자리가 크게 남는다. 왼쪽 단은 어느 폭에서도 이 크기를 넘지 않는다 */
+.bd-top > section:first-child { max-width: 620px; }
+
+@media (max-width: 1000px) {
+  .bd-top { grid-template-columns: minmax(0, 1fr); gap: 34px; }
+}
+
+/* ---------- 펼침면 ---------- */
+
+/* 대지는 종이 두 장을 끼워 둔 파일이다 — 두께가 있어야 위의 두 장이 '얹힌' 것으로 읽힌다.
+   두께를 만드는 것 셋: 바닥에 떨어지는 넓은 그림자, 가장자리를 눌러 주는 inset 음영,
+   그리고 오른쪽 두 모서리의 접힌 자리. */
+.bd-spread {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(14px, 2vw, 30px);
+  padding: clamp(18px, 2.8vw, 40px);
+  border-radius: 2px;
+  background:
+    radial-gradient(120% 90% at 22% 8%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 62%),
+    linear-gradient(152deg, var(--bd-file-lit), var(--bd-file) 58%);
+  box-shadow:
+    inset 0 0 0 1px rgba(11, 11, 11, 0.05),
+    inset 0 -24px 34px -28px rgba(11, 11, 11, 0.3),
+    0 20px 44px rgba(11, 11, 11, 0.11);
+  /* 오른쪽 위·아래 모서리를 접어 둔 대지 */
+  clip-path: polygon(
+    0 0,
+    calc(100% - var(--bd-fold)) 0,
+    100% var(--bd-fold),
+    100% calc(100% - var(--bd-fold)),
+    calc(100% - var(--bd-fold)) 100%,
+    0 100%
+  );
+}
+
+/* 접힌 자리 — 넘긴 종이의 뒷면. 대각선에 1px 접힘선을 두고 그 아래로 그림자를 흘린다 */
+.bd-spread__fold {
+  position: absolute;
+  right: 0;
+  z-index: 2;
+  width: var(--bd-fold);
+  height: var(--bd-fold);
+  background: linear-gradient(to bottom left, #fbfaf7 42%, var(--bd-file) 100%);
+  box-shadow: 0 0 10px rgba(11, 11, 11, 0.16);
+}
+
+.bd-spread__fold--top { top: 0; clip-path: polygon(0 0, 100% 100%, 0 100%); }
+.bd-spread__fold--bottom { bottom: 0; clip-path: polygon(0 0, 100% 0, 0 100%); }
+
+/* 종이 결 — 알갱이 한 겹 + 구름처럼 번지는 얼룩 한 겹.
+   한 겹만 쓰면 균일한 모래처럼 보여서 종이로 안 읽힌다 */
+.bd-spread::after,
+.bd-mount::after,
+.bd-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--paper-noise), var(--book-mottle);
+  background-size: 180px 180px, 420px 420px;
+  mix-blend-mode: multiply;
+  opacity: 0.3;
+}
+
+@media (max-width: 560px) {
+  .bd-spread { grid-template-columns: minmax(0, 1fr); }
+  /* 한 단으로 쌓이면 표지가 첫 화면을 다 먹는다 — 폭을 묶고 가운데로 */
+  .bd-mount { max-width: 250px; margin: 0 auto; }
+}
+
+/* ---------- 왼쪽 면: 표지 ---------- */
+
+/* 표지는 파일에 끼운 한 장이다 — 넉넉한 흰 여백이 인쇄물을 대지에서 들어 올린다 */
+.bd-mount {
+  position: relative;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  padding: clamp(12px, 1.7vw, 21px);
+  border-radius: 2px;
+  background: var(--bd-sheet);
+  box-shadow:
+    0 0 0 1px rgba(11, 11, 11, 0.045),
+    0 10px 24px rgba(11, 11, 11, 0.13);
+}
+
+/* 결은 대지의 흰 여백에만 남긴다 — 표지 그림 위로 곱해지면 색이 탁해진다 */
+.bd-mount > * { position: relative; z-index: 1; }
+
+/* 표지는 대지 높이를 채우고 원본 비율을 지킨다 — 카드와 키를 맞추려고 표지를 자르지 않는다.
+   판형이 책마다 다르므로 0.7로 고정하지 않고 contain으로 둔다 */
+.bd-mount img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.bd-mount span {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 0.7;
+  background: var(--eo-placeholder);
+}
+
+.bd-mount span {
+  padding: 16px 12px;
+  place-items: center;
+  color: var(--bd-ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+  word-break: keep-all;
+}
+
+/* ---------- 오른쪽 면: 도서 카드 ---------- */
+
+.bd-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(17px, 2vw, 26px) clamp(15px, 1.8vw, 24px);
+  border-radius: 2px;
+  background: var(--bd-card);
+  box-shadow:
+    0 0 0 1px rgba(11, 11, 11, 0.045),
+    0 10px 24px rgba(11, 11, 11, 0.13);
+}
+
+.bd-card > * { position: relative; z-index: 1; }
+
+.bd-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: clamp(12px, 1.4vw, 19px);
+  border-bottom: 1px solid var(--eo-ink);
+}
+
+.bd-card__brand {
+  color: var(--eo-ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+/* 'LIBRARY' 같은 인쇄용 소문자 — 자간을 넓혀 새긴 활자처럼 둔다 */
+.bd-card__brand em,
+.bd-card__stamp {
+  display: block;
+  color: var(--bd-ink-2);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.bd-card__stamp { text-align: right; }
+
+/* 항목 — 라벨은 선 밖에, 값만 괘선 위에 앉는다 */
+.bd-card__rows {
+  padding: clamp(10px, 1.2vw, 16px) 0;
+}
+
+.bd-card__rows > div {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+}
+
+.bd-card__rows dt {
+  color: var(--bd-ink-2);
+  font-size: 11.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.bd-card__rows dd {
+  min-width: 0;
+  padding: clamp(8px, 0.9vw, 12px) 2px;
+  border-bottom: 1px solid var(--eo-rule-soft);
+  overflow: hidden;
+  color: var(--eo-ink);
+  font-size: clamp(12px, 1vw, 14px);
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 카드에 인쇄된 한 줄 — 지금은 서비스의 문장이다 */
+.bd-card__quote {
+  margin-top: auto;
+  padding: clamp(14px, 1.7vw, 22px) 4px clamp(14px, 1.7vw, 22px);
+  border-top: 1px solid var(--eo-ink);
+  color: var(--eo-ink);
+  font-size: clamp(11.5px, 0.95vw, 13px);
+  font-style: normal;
+  line-height: 1.75;
+  text-align: center;
+  white-space: pre-line;  /* 줄바꿈 자리는 문장이 정한다 (CARD_LINE) */
+  word-break: keep-all;
+}
+
+/* ---------- 바코드 ---------- */
+
+.bd-barcode {
+  display: block;
+  width: 100%;
+  height: clamp(38px, 4.6vw, 56px);
+}
+
+.bd-barcode rect { fill: var(--eo-ink); }
+
+.bd-card__isbn {
+  margin-top: 9px;
+  color: var(--bd-ink-2);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-align: center;
+  text-indent: 0.2em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 행동 ---------- */
+
+.bd-cta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(10px, 1.4vw, 18px);
+  margin-top: clamp(18px, 2.2vw, 30px);
+}
+
+.bd-cta .eo-button { width: 100%; }
+
+/* 두 번째 행동은 같은 캡슐에 테두리만 — 무게만 다르고 자리는 같다 */
+.bd-button-ghost {
+  display: inline-flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 17px;
+  border: 1px solid var(--eo-rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--eo-ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--eo-motion) ease-out, transform var(--eo-motion) ease-out;
+}
+
+.bd-button-ghost:hover,
+.bd-button-ghost:focus-visible { border-color: var(--eo-ink); transform: translateY(-1px); }
+
+.bd-button-ghost[aria-pressed='true'] { border-color: var(--eo-ink); background: rgba(11, 11, 11, 0.06); }
+
+.bd-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 2vw, 26px);
+  margin-top: clamp(12px, 1.6vw, 20px);
+}
+
+.bd-links button,
+.bd-links a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--bd-ink-2);
+  font-size: 12.5px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--eo-motion) ease-out;
+}
+
+.bd-links button:hover,
+.bd-links a:hover,
+.bd-links button:focus-visible,
+.bd-links a:focus-visible { color: var(--eo-ink); }
+
+/* 두 행동 사이의 칸막이 — 점이나 아이콘이 아니라 1px 선 하나 */
+.bd-links__rule {
+  width: 1px;
+  height: 15px;
+  background: var(--eo-rule-soft);
+}
+
+@media (max-width: 640px) {
+  .bd-cta { grid-template-columns: minmax(0, 1fr); }
+  .bd-cta .eo-button,
+  .bd-button-ghost { min-height: 44px; }
+  .bd-links button,
+  .bd-links a { min-height: 44px; }
+}
+
+/* ---------- 오른쪽 단 ---------- */
+
+.bd-eyebrow {
+  color: var(--eo-ink-faint);
+  font-size: 12.5px;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+/* 이 시안의 표제 — 홈 워드마크보다 작고 공통 headline보다 크다.
+   펼침면과 나란히 서야 해서 지면 절반을 혼자 버틴다 */
+.bd-headline {
+  margin-top: 10px;
+  color: var(--eo-ink);
+  font-size: clamp(30px, 4.1vw, 58px);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.055em;
+  text-wrap: balance;
+  word-break: keep-all;
+}
+
+.bd-byline {
+  margin-top: clamp(10px, 1.2vw, 16px);
+  color: var(--eo-ink);
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: keep-all;
+  font-variant-numeric: tabular-nums;
+}
+
+.bd-isbn {
+  margin-top: 5px;
+  color: var(--eo-ink-faint);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 지표 세 칸 ---------- */
+
+.bd-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-top: clamp(18px, 2.2vw, 28px);
+  padding: clamp(16px, 1.8vw, 22px) 0;
+  border-top: 1px solid var(--eo-rule-soft);
+  border-bottom: 1px solid var(--eo-rule-soft);
+}
+
+.bd-facts > div {
+  min-width: 0;
+  padding: 2px clamp(12px, 1.6vw, 22px);
+}
+
+.bd-facts > div:first-child { padding-left: 0; }
+.bd-facts > div + div { border-left: 1px solid var(--eo-rule-soft); }
+
+/* 두 단으로 접히면 세로 칸선이 줄 맨 앞에 남고 값이 눌린다 — 좁은 화면은 한 단으로 눕힌다 */
+@media (max-width: 700px) {
+  .bd-facts { grid-template-columns: minmax(0, 1fr); }
+  .bd-facts > div { padding: 0; }
+  .bd-facts > div + div {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--eo-rule-soft);
+    border-left: 0;
+  }
+}
+
+.bd-facts dt {
+  color: var(--bd-ink-2);
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.bd-facts dd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--eo-ink);
+  font-size: clamp(15px, 1.3vw, 18px);
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.bd-facts dd span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bd-facts svg {
+  flex: none;
+  color: var(--eo-ink-faint);
+}
+
+/* ---------- 오른쪽 단의 절 ---------- */
+
+.bd-block {
+  padding: clamp(18px, 2.2vw, 26px) 0;
+  border-bottom: 1px solid var(--eo-rule-soft);
+}
+
+/* 오른쪽 단의 마지막 절은 선을 생략한다 — 바로 아래 세 단이 자기 규칙선을 갖는다 */
+.bd-block:last-child { border-bottom: 0; }
+
+.bd-block__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bd-block__head > span,
+.bd-block__head > summary {
+  color: var(--eo-ink-faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.bd-prose {
+  max-width: 66ch;
+  margin-top: 14px;
+  color: var(--eo-ink);
+  font-size: 14px;
+  line-height: 1.78;
+  word-break: keep-all;
+  text-wrap: pretty;
+}
+
+/* 목차는 접혀 있다 — 펼치면 같은 본문 리듬 위에 줄이 쌓인다.
+   summary에 display를 다시 잡으면 .bd-block__head의 space-between이 죽어
+   제목과 '펼쳐보기'가 붙어 버린다 — 그래서 여기서는 표시 방식을 건드리지 않는다 */
+.bd-block summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.bd-block summary::-webkit-details-marker { display: none; }
+
+.bd-block summary > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.bd-block summary:hover > span { color: var(--eo-ink); }
+.bd-block summary svg { transition: transform 160ms ease-out; }
+.bd-block[open] summary svg { transform: rotate(180deg); }
+
+.bd-toc {
+  max-width: 66ch;
+  margin-top: 14px;
+  color: var(--eo-ink);
+  font-size: 13.5px;
+  line-height: 2;
+  white-space: pre-line;
+}
+
+.bd-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+/* 레퍼런스의 키워드는 둥근 알약이다. 공통 .eo-tag는 각진 태그라서 이 자리에서만 덮는다 —
+   읽기 전용 표시이므로 캡슐이 결정적 행동처럼 읽힐 위험이 없다 */
+.bd-tags .eo-tag {
+  border-color: transparent;
+  border-radius: 999px;
+  background: rgba(11, 11, 11, 0.05);
+  color: var(--eo-ink);
+  font-size: 11.5px;
+}
+
+.bd-note {
+  margin-top: 13px;
+  color: var(--eo-ink-faint);
+  font-size: 11.5px;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+/* ---------- 아래쪽 세 단 ---------- */
+
+.bd-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.06fr) minmax(0, 1.06fr);
+  gap: clamp(20px, 2.6vw, 38px);
+  margin-top: clamp(30px, 3.6vw, 52px);
+  padding-top: clamp(22px, 2.6vw, 32px);
+  border-top: 1px solid var(--eo-rule);
+}
+
+.bd-bottom > * + * {
+  padding-left: clamp(20px, 2.6vw, 38px);
+  border-left: 1px solid var(--eo-rule-soft);
+  margin-left: calc(clamp(20px, 2.6vw, 38px) * -1);
+}
+
+@media (max-width: 1000px) {
+  .bd-bottom { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .bd-bottom > * + * {
+    margin-left: 0;
+    padding-top: clamp(22px, 2.6vw, 32px);
+    padding-left: 0;
+    border-top: 1px solid var(--eo-rule-soft);
+    border-left: 0;
+  }
+}
+
+/* 연령대 막대 — 값이 아니라 서로의 비율을 읽는 자리 */
+.bd-ages {
+  display: flex;
+  height: 150px;
+  align-items: flex-end;
+  gap: clamp(6px, 1vw, 16px);
+  margin-top: 22px;
+}
+
+.bd-ages > div {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.bd-ages b {
+  color: var(--eo-ink);
+  font-size: 11.5px;
+  font-weight: 650;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.bd-ages i {
+  display: block;
+  width: clamp(18px, 2vw, 28px);
+  margin: 0 auto;
+  background: var(--eo-ink);
+}
+
+.bd-ages small {
+  color: var(--bd-ink-2);
+  font-size: 11px;
+  text-align: center;
+}
+
+/* 표지 넷 — 목록의 리듬은 홈 타일과 같게 두고 폭만 이 단에 맞춘다 */
+.bd-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(8px, 1.1vw, 15px);
+  margin-top: 22px;
+}
+
+.bd-list__empty {
+  margin-top: 20px;
+  color: var(--eo-ink-faint);
+  font-size: 11.5px;
+  line-height: 1.55;
+  word-break: keep-all;
+}
