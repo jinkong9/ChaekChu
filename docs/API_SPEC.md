@@ -1,6 +1,6 @@
 # 백엔드 API 명세 (v1) — 현재 프론트 기준
 
-> 작성 2026-09-07 · 기준 브랜치 `dev` · 상위 계약 `docs/BACKEND_DATA_CONTRACT.md` · 화면 `frontend/src/**`
+> 작성 2026-09-07 · **갱신 2026-09-08** (서재 상태 `WISH`/`READ` 2단 · `progressPage` 제거 · 온보딩 seed 완독일 `null`) · 기준 브랜치 `dev` · 상위 계약 `docs/BACKEND_DATA_CONTRACT.md` · 화면 `frontend/src/**`
 >
 > 이 문서는 **지금 구현된 프론트가 실제로 호출하거나 자리만 비워 둔 것**을 기준으로 엔드포인트 하나하나의 요청·응답·규칙을 정한다.
 > 필드명과 값 규칙은 `BACKEND_DATA_CONTRACT.md` 를 따르고, 그 문서가 「S15P21B102-15 에서 확장」으로 미뤄 둔
@@ -176,7 +176,10 @@ JWT: `sub=userId`, `exp` 24시간, HS256. 갱신 토큰은 MVP 에서 두지 않
 | `books[].bookId` | 존재하는 도서. 없으면 `404 BOOK_NOT_FOUND` |
 | `books[].rating` | 필수 1~5 정수 (계약 §4.1.2: 고른 책마다 반드시) |
 
-처리: `books` 를 `library_items` 에 `status=READ, rating` 으로 넣는다(ERD 가 seed book 을 서재로 통합). 이미 있으면 평점만 갱신.
+처리: `books` 를 서재(`user_library`)에 `status=READ`, `rating`, **`finished_at=NULL`**, `source=ONBOARDING` 으로 넣는다(ERD 가 seed book 을 서재로 통합).
+완독일이 없는 `READ` = **서비스를 만나기 전에 읽은 책**이다. 프론트는 이 항목을 완독 연표·월별 통계에서 빼고 「서비스를 만나기 전에 읽은 책」으로 표시한다
+(09-07 `feature/FE-onboarding-library` 머지). 서버는 여기서 `finishedDate` 를 오늘로 채우지 **않는다** — 그 규칙은 서재 API(§6.2·§6.3)에만 적용된다.
+이미 서재에 있는 책이면 평점만 갱신하고 상태·완독일은 건드리지 않는다.
 `genres` 가 비어도 요청이 오면 `onboardingStatus=COMPLETED`. 온보딩을 건너뛰는 별도 호출은 없다 — 프론트가 「건너뛰기」로 빈 배열을 보낸다. **204.**
 
 온보딩 라벨 ↔ 태그 코드 (프론트 `GENRES` 14개 ↔ `Tag.code`):
@@ -208,7 +211,8 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 }
 ```
 
-`books` 는 `finishedDate` 내림차순, 최대 200권. `rating` 이 없는 완독 책은 `null`. `declaredTags` = `interestTags`.
+`books` 는 `finishedDate` 내림차순(**`null` 은 마지막**), 최대 200권. 온보딩 seed(`finishedDate=null`, §3.3)도 `books`·`readCount` 에 **포함**한다 —
+장르 비율·작가 빈도는 언제 읽었든 취향이다. 연표·월별 통계에서 빼는 것은 프론트가 `finishedDate` 로 거른다. `rating` 이 없는 완독 책은 `null`. `declaredTags` = `interestTags`.
 
 <br/>
 
@@ -269,8 +273,8 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
   ],
   "loanByAge": [ { "ageGroup": "10대", "ratio": 8 }, … ] | null,
   "my": null | {
-    "libraryItemId": "li_9021", "status": "READING",
-    "rating": null, "reviewText": null, "finishedDate": null, "progressPage": 120
+    "libraryItemId": "li_9021", "status": "READ",
+    "rating": 4, "reviewText": null, "finishedDate": "2026-09-01"
   }
 }
 ```
@@ -336,7 +340,7 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 
 ## 6. 서재
 
-`ShelfStatus` ∈ `WISH` | `READING` | `READ`. 찜 = `WISH` (별도 좋아요 없음).
+`ShelfStatus` ∈ `WISH` | `READ` — **2단 확정(09-02 회의, 「읽는 중」폐기)**. 찜 = `WISH` (별도 좋아요 없음). 프론트 `types.ts` 도 09-07 머지로 2단이다.
 
 ```ts
 LibraryItem {
@@ -345,8 +349,7 @@ LibraryItem {
   status: ShelfStatus
   rating: number | null        // 1~5 정수. 상태와 무관하게 둘 수 있다
   reviewText: string | null    // 본인 전용, ≤300자, 공백만이면 null
-  finishedDate: string | null  // READ 일 때만. 미지정 시 서버가 오늘
-  progressPage: number | null  // READING 표시용. 0 ≤ 값 ≤ pageCount
+  finishedDate: string | null  // READ 일 때만. 서재 API 로 READ 가 되면 미지정 시 서버가 오늘. 온보딩 seed 는 null(§3.3)
   createdAt: string
   updatedAt: string
 }
@@ -369,23 +372,23 @@ LibraryItem {
 부분 갱신. 보낸 필드만 바꾼다.
 
 ```json
-{ "status": "READ", "rating": 4, "reviewText": "전개가 빠르다.", "finishedDate": "2026-09-01", "progressPage": null }
+{ "status": "READ", "rating": 4, "reviewText": "전개가 빠르다.", "finishedDate": "2026-09-01" }
 ```
 
 | 규칙 | |
 | --- | --- |
 | `READ` 로 바꾸며 `finishedDate` 가 없으면 | 오늘 |
-| `READ` 가 아닌 상태로 바꾸면 | `finishedDate=null` |
+| `WISH` 로 바꾸면 | `finishedDate=null` |
+| `status` 없이 보내면(평점·감상평만) | `finishedDate` 유지 — 온보딩 seed 의 `null` 도 그대로. `finishedDate` 를 직접 보내면 `READ` 항목에 한해 반영 |
 | `reviewText` | 앞뒤 공백 제거, 빈 문자열 → `null`, 300자 초과 `400` |
 | `rating` | 1~5 정수 또는 `null`(삭제) |
-| `progressPage` | `null` 또는 0 ≤ 값 ≤ `book.pageCount`. ERD 에 컬럼 추가 필요(프론트 표시만 있고 쓰는 곳 없음) |
 | 타인 항목 | `403` |
 
 **200 + `LibraryItem`.**
 
 ### 6.4 `DELETE /library/{libraryItemId}` ●
 
-**204.** 찜 해제·서재에서 빼기. 계약 §4.2 「`READING`/`READ` 는 WISH 취소만으로 삭제하지 않는다」는 *상태 변경*의 규칙이고, 명시적 삭제는 허용한다. 프론트에 버튼이 없다 — §9-10.
+**204.** 찜 해제·서재에서 빼기. 계약 §4.2 「`READ` 는 WISH 취소만으로 삭제하지 않는다」는 *상태 변경*의 규칙이고, 명시적 삭제는 허용한다. 프론트에 버튼이 없다 — §9-10.
 
 <br/>
 
@@ -442,7 +445,7 @@ LibraryItem {
 | 8 | 홈이 정적 `popular-ring.json` | `GET /books/popular-segments` (2차). `gender` `M/F`, `publicationYear` 숫자 | 월 갱신을 배포 없이 |
 | 9 | mock `GET /books/popular` 가 `coverUrl`·`category` 를 비움 | 서버는 반드시 채움 | 온보딩 그리드가 글자로 뜬다 |
 | 10 | 찜 해제·서재 삭제 버튼 없음 | `DELETE /library/{id}` + 버튼 | 실수로 담은 책을 뺄 수 없다 |
-| 11 | `progressPage` 표시만, 쓰는 UI 없음, ERD 미반영 | `PATCH` 가 받음, ERD 컬럼 추가 | 읽는 중 리본이 힌트 문자열로 퇴화 중 |
+| 11 | ~~`progressPage` 표시만, 쓰는 UI 없음, ERD 미반영~~ **해소(09-08)** — 서재 상태는 09-02 회의에서 `WISH`/`READ` 2단으로 확정, FE 는 09-07 머지에서 `READING`·`progressPage` 제거 | 명세·V1 DDL 에서도 제거. 컬럼 추가 없음 | 문서-코드 일치 |
 | 12 | `/onboarding` 이 `ProtectedRoute` 밖 | 안으로 옮기거나 토큰 없으면 `/` 로 | 프로필·취향 POST 가 토큰 없이 나갈 수 있다 |
 | 13 | `GET /recommendations/anonymous` 코드 잔존 | 삭제 | 비회원 추천 없음 (08-31 결정) |
 | 14 | BOOK DNA 가 정적 JSON 재가공 | `GET /users/me/dna` 연결 | 필드는 §3.4 로 확정 |

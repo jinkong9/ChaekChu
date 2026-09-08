@@ -216,8 +216,8 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 | `libraryItemId` | `string` | O | 서재 항목 식별자 |
 | `userId` | `string` | O | 소유 사용자 |
 | `bookId` | `string` | O | canonical 도서 |
-| `status` | `enum` | O | `WISH`, `READING`, `READ` |
-| `finishedAt` | `date \| null` |  | `READ`일 때만 저장 |
+| `status` | `enum` | O | `WISH`, `READ` — 09-02 회의에서 2단 확정(`READING` 폐기) |
+| `finishedAt` | `date \| null` |  | `READ`일 때만. 온보딩 seed 는 `READ`이면서 `null`(서비스 이전에 읽은 책, API_SPEC §3.3) |
 | `createdAt` | `datetime` | O | 생성 시각 |
 | `updatedAt` | `datetime` | O | 수정 시각 |
 
@@ -225,11 +225,11 @@ canonical 필드에 출처가 다른 값을 병합하더라도 source record는 
 
 - `(userId, bookId)`는 unique다.
 - `WISH`는 좋아요·읽고 싶은 책 등록을 함께 의미한다. 별도 Like 모델을 만들지 않는다.
-- 상태의 기본 흐름은 `WISH → READING → READ`다.
+- 상태의 기본 흐름은 `WISH → READ`다 (09-02 회의에서 `READING` 폐기).
 - 사용자는 상태를 직접 변경할 수 있다.
-- `READ`로 변경할 때 `finishedAt`이 없으면 서버 기준 오늘 날짜를 저장한다.
+- 서재 API 로 `READ`로 변경할 때 `finishedAt`이 없으면 서버 기준 오늘 날짜를 저장한다. 온보딩 seed 는 예외로 `null`을 둔다.
 - `READ`가 아닌 상태로 변경하면 `finishedAt`을 null로 만든다.
-- `READING` 또는 `READ`인 항목은 WISH 취소만으로 삭제하지 않는다.
+- `READ`인 항목은 WISH 취소만으로 삭제하지 않는다.
 
 ### 4.3 `BookRating`
 
@@ -304,7 +304,7 @@ GET /api/v1/recommendations
 Authorization: Bearer <token>
 ```
 
-로그인 사용자는 서버가 `BOOK_VIEW`, `WISH`, `READING`, `READ`, 평점, seed book을 읽어 `PERSONALIZED` 또는 `COLD_START` 결과를 생성한다. 한 번의 도서 상세 조회만으로 취향을 크게 바꾸지 않도록 `BOOK_VIEW`는 평점·좋아요보다 낮은 영향으로 처리한다.
+로그인 사용자는 서버가 `BOOK_VIEW`, `WISH`, `READ`, 평점, seed book을 읽어 `PERSONALIZED` 또는 `COLD_START` 결과를 생성한다. 한 번의 도서 상세 조회만으로 취향을 크게 바꾸지 않도록 `BOOK_VIEW`는 평점·좋아요보다 낮은 영향으로 처리한다.
 
 추천 API는 인증 헤더가 없는 요청을 거부한다. 로그인 사용자의 초기 취향이 부족하면 `COLD_START`, 행동 데이터가 쌓이면 `PERSONALIZED` 모드로 응답한다.
 
@@ -423,7 +423,7 @@ L0 카탈로그는 국립중앙도서관과 정보나루의 ISBN13 합집합이�
 - [x] Book을 판본 단위로 정의하고 BookWork와 분리
 - [x] Book/User/LibraryItem/BookRating/Recommendation/UserEvent 필드와 타입 확정
 - [x] 좋아요를 `WISH`로 통합하고 별도 Like 모델을 배제
-- [x] `WISH → READING → READ`, `finishedAt` 규칙 확정
+- [x] `WISH → READ`(09-02 2단 확정), `finishedAt` 규칙 확정
 - [x] 외부 API별 canonical 필드 매핑과 출처 우선순위 확정
 - [x] 결측·중복·ISBN·날짜·원문 보존 규칙 확정
 - [x] 검색·상세 응답에서 공개할 필드와 제외할 필드 확정

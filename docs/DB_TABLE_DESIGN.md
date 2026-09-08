@@ -10,12 +10,12 @@
 | 단계 | 파일 | 내용 |
 | --- | --- | --- |
 | 원본 | `docs/sql/erdcloud_export_20260907.sql` | ERDCloud export 그대로 (수정 금지) |
-| **V1** | **`docs/sql/V1__init.sql`** | 1차 10테이블 + 보정 6건 — 지금 프론트·API 가 깨지는 곳과 UNIQUE·FK·CHECK 만 |
+| **V1** | **`docs/sql/V1__init.sql`** | 1차 10테이블 + 보정 7건 — 지금 프론트·API 가 깨지는 곳과 UNIQUE·FK·CHECK 만 |
 | V2 | (작성 예정) | 아래 §4~§5 의 `book_texts` `book_keywords` `book_embeddings` `book_relations` `book_demand_features` `kdc_codes` + `books` 확장 컬럼 |
 | 참고 | `docs/POSTGRES_SCHEMA.sql` | 이 문서 전체를 한 번에 만든 **목표 스키마**. V1 이 확정된 뒤로는 참고용 |
 
-V1 보정 6건: ① `users.onboarding_status`·`updated_at` ② `users.nickname` NULL 허용 ③ `user_actions.book_id` NULL + `recommendation_id`·`rank`·`occurred_at`·`client_event_id`
-④ `recommendations.mode`·`fallback`·`based_on_count`·`weights` ⑤ `recommendation_items.reason_type`·`score NUMERIC` ⑥ UNIQUE·FK·CHECK (export 에 PK 만 있었다).
+V1 보정 7건: ① `users.onboarding_status`·`updated_at` ② `users.nickname` NULL 허용 ③ `user_actions.book_id` NULL + `recommendation_id`·`rank`·`occurred_at`·`client_event_id`
+④ `recommendations.mode`·`fallback`·`based_on_count`·`weights` ⑤ `recommendation_items.reason_type`·`score NUMERIC` ⑥ UNIQUE·FK·CHECK (export 에 PK 만 있었다) ⑦ 서재 상태 2단(`WISH`/`READ`, 09-02 회의)·`READ` 의 `finished_at` NULL 허용(온보딩 seed, 09-08).
 
 이름 대응: `library_items`↔`user_library` · `user_events`↔`user_actions` · `popular_segments`↔`book_loaned_top20` · `kdc`↔`category_code` · `published_year`↔`pub_year` ·
 `cover_image_url`↔`cover_url` · `applied_tags`↔`input_tags` · `model_version`↔`feature_version` · `is_seed`↔`source`. `book_tags` 는 1차에 있으므로 유지(채우는 주체는 미정).
@@ -410,7 +410,7 @@ CREATE TABLE user_interests (
 
 이전 ERD 의 `users.interest_tags JSONB` 를 행으로 바꿨다. FK 가 있어야 없는 태그 코드가 저장되지 않고, 「이 태그를 고른 사용자」집계가 인덱스를 탄다. 최대 5개는 애플리케이션이 막는다.
 
-### 6.3 `library_items` — 서재 (찜·읽는 중·완독 + 평점·감상)
+### 6.3 `library_items` — 서재 (찜·완독 + 평점·감상)
 
 ```sql
 CREATE TABLE library_items (
@@ -419,28 +419,24 @@ CREATE TABLE library_items (
     user_id       BIGINT       NOT NULL,
     book_id       BIGINT       NOT NULL,
     status        VARCHAR(10)  NOT NULL,
-    -- ∵ WISH / READING / READ. 좋아요는 별도 표가 아니라 status = WISH.
+    -- ∵ WISH / READ — 09-02 회의에서 2단 확정(「읽는 중」폐기). 좋아요는 별도 표가 아니라 status = WISH.
     rating        SMALLINT,
     -- ∵ NULL = 미평가. 상태와 무관하게 둘 수 있다(찜만 하고 별점 주기 가능).
     review_text   VARCHAR(300),
     -- ∵ 본인 기록 전용. 추천·검색·임베딩에 쓰지 않는다. 공백만이면 NULL.
     finished_date DATE,
-    -- ∵ READ 일 때만. 서버가 오늘로 채운다.
-    progress_page INTEGER,
-    -- ∵ READING 표시용. 프론트가 그리지만 아직 쓰는 UI 는 없다(API_SPEC §9-11). 컬럼은 둔다.
+    -- ∵ READ 일 때만. 서재 API 로 READ 가 되면 서버가 오늘로 채운다. 온보딩 seed 는 READ 인데 NULL(서비스 이전에 읽은 책) — 프론트가 연표·통계에서 뺀다.
     is_seed       BOOLEAN      NOT NULL DEFAULT FALSE,
     -- ∵ 온보딩에서 고른 책(POST /users/me/preferences books[]). 콜드스타트 prior 와 이후 평점을 구분.
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
     PRIMARY KEY (id),
     CONSTRAINT uq_li_user_book UNIQUE (user_id, book_id),
-    CONSTRAINT ck_li_status CHECK (status IN ('WISH','READING','READ')),
+    CONSTRAINT ck_li_status CHECK (status IN ('WISH','READ')),
     CONSTRAINT ck_li_rating CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
     CONSTRAINT ck_li_review CHECK (review_text IS NULL OR btrim(review_text) <> ''),
-    CONSTRAINT ck_li_progress CHECK (progress_page IS NULL OR progress_page >= 0),
-    CONSTRAINT ck_li_finished CHECK (
-        (status = 'READ' AND finished_date IS NOT NULL) OR
-        (status <> 'READ' AND finished_date IS NULL)),
+    CONSTRAINT ck_li_finished CHECK (status = 'READ' OR finished_date IS NULL),
+    -- ∵ WISH 면 완독일 없음. READ 는 있어도(서재 API) 없어도(온보딩 seed) 된다
     CONSTRAINT fk_li_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_li_book FOREIGN KEY (book_id) REFERENCES books (id)
 );
@@ -596,7 +592,7 @@ kdc_codes → tags → books → book_texts → book_keywords → book_embedding
 | `books.tags JSONB` | 제거 → `tags.kdc_prefixes` 로 파생 | 책 태그를 저장할 근거가 없다. KDC 에서 결정적으로 나온다 |
 | `books.published_date` 만 | + `published_year` · `kdc` · `category_path` · `set_isbn` · `work_key` · `audience_code` · `loans_total` | 원장·부가기호가 주는 것을 다 쓴다. 작품 묶기·분류 경로·독자대상이 화면과 추천에 필요 |
 | `users.interest_tags JSONB` | `user_interests` | FK 검증 |
-| `library_items.finished_at` | `finished_date` + `progress_page` + `is_seed` | 프론트 필드명 일치, 진행률 표시, seed 구분 |
+| `library_items.finished_at` | `finished_date` + `is_seed` | 프론트 필드명 일치, seed 구분 |
 | `recommendations` | + `based_on_count` `embedding_model` | 프론트 문구, 재현 |
 | 없음 | `book_texts` `book_keywords` `book_embeddings` `book_relations` `book_demand_features` `book_demographics` `popular_segments` `kdc_codes` `tags` | 추천·상세·홈이 읽을 데이터의 자리가 없었다 |
 | ERD v2 초안 20테이블 | 16테이블 | 도서관 2표(MVP 배제) · 수집 원본 2표(파이프라인) · 시리즈/식별자/분류/책태그 4표(`books` 컬럼 흡수) |

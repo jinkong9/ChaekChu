@@ -9,6 +9,8 @@
 --   [4] recommendations.mode · fallback · based_on_count · weights — 프론트가 fallback 문구·basedOnCount 를 그린다
 --   [5] recommendation_items.reason_type 추가 · score NUMERIC    — 계약 §4.4. REAL 은 소수 오차
 --   [6] UNIQUE · FK · CHECK — export 에 PK 만 있었다
+--   [7] user_library.status 2단(WISH/READ) · READ 의 finished_at NULL 허용 (09-08)
+--                                                               — 09-02 회의에서 「읽는 중」폐기, FE 09-07 머지. 온보딩 seed 는 READ + finished_at NULL(서비스 이전에 읽은 책)
 --   그 외: books.created_at/updated_at (재임베딩 대상 판정), gender CHAR(1), 타입 정리
 -- 이름 대응(확정 설계 문서 ↔ 1차): library_items↔user_library · user_events↔user_actions · popular_segments↔book_loaned_top20
 --   kdc↔category_code · published_year↔pub_year · cover_image_url↔cover_url · applied_tags↔input_tags · model_version↔feature_version · is_seed↔source
@@ -112,22 +114,24 @@ CREATE TABLE user_library (
     user_id     BIGINT       NOT NULL,
     book_id     BIGINT       NOT NULL,
     status      VARCHAR(15)  NOT NULL,
+    -- [7] WISH / READ. 09-02 2단 확정 — READING 없음. 찜 = WISH
     rating      SMALLINT,
     review_text VARCHAR(300),
     finished_at DATE,
+    -- [7] READ 일 때만. 서재 API(POST/PATCH /library)로 READ 가 되면 서버가 오늘로 채운다.
+    --     온보딩 seed(POST /users/me/preferences)는 READ 인데 NULL — 서비스 이전에 읽은 책. 프론트가 연표·통계에서 뺀다.
     source      VARCHAR(15)  NOT NULL DEFAULT 'SERVICE',
     -- SERVICE / ONBOARDING. 온보딩에서 고른 책(seed)을 이후 기록과 구분
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
     PRIMARY KEY (id),
     CONSTRAINT uq_ul_user_book UNIQUE (user_id, book_id),
-    CONSTRAINT ck_ul_status CHECK (status IN ('WISH','READING','READ')),
+    CONSTRAINT ck_ul_status CHECK (status IN ('WISH','READ')),
     CONSTRAINT ck_ul_rating CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
     CONSTRAINT ck_ul_review CHECK (review_text IS NULL OR btrim(review_text) <> ''),
     CONSTRAINT ck_ul_source CHECK (source IN ('SERVICE','ONBOARDING')),
-    CONSTRAINT ck_ul_finished CHECK (
-        (status = 'READ' AND finished_at IS NOT NULL) OR
-        (status <> 'READ' AND finished_at IS NULL)),
+    CONSTRAINT ck_ul_finished CHECK (status = 'READ' OR finished_at IS NULL),
+    -- [7] WISH 면 완독일 없음. READ 는 있어도(서재 API) 없어도(온보딩 seed) 된다
     CONSTRAINT fk_ul_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_ul_book FOREIGN KEY (book_id) REFERENCES books (id)
 );

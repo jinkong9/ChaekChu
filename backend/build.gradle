@@ -34,8 +34,13 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
 
-	// Security (JWT/OAuth2 라이브러리는 인증 담당이 추가)
+	// Security — 모두 Spring Boot 관리 버전 (build.gradle 에서 버전을 덮어쓰지 않는다)
+	//   oauth2-client        : 카카오·Google 인가 코드 교환·프로필 조회 (API_SPEC §2). ClientRegistration 은 인증 담당이 application.yml 에 연결
+	//   oauth2-resource-server: Authorization: Bearer <JWT> 검증 필터. 서비스 JWT 는 HS256 24h (API_SPEC §2.2)
+	//   두 스타터가 끌어오는 spring-security-oauth2-jose(Nimbus) 로 JWT 발급(NimbusJwtEncoder)·검증(NimbusJwtDecoder) — jjwt 등 별도 라이브러리 불필요
 	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 
 	// PostgreSQL + JPA + Flyway
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'

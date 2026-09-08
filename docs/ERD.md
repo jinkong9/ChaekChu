@@ -1,4 +1,4 @@
-# MVP ERD (확정 2026-09-07)
+# MVP ERD (확정 2026-09-07 · 갱신 09-08 서재 2단)
 
 > 프로젝트 S15P21B102 · 테이블별 DDL 과 근거는 `docs/DB_TABLE_DESIGN.md` · 목표 스키마 `docs/POSTGRES_SCHEMA.sql` · ERDCloud `docs/ERDCLOUD_IMPORT.sql`
 >
@@ -151,7 +151,6 @@ erDiagram
         smallint rating
         varchar review_text
         date finished_date
-        integer progress_page
         boolean is_seed
     }
     RECOMMENDATIONS {
@@ -202,7 +201,7 @@ erDiagram
 | | `book_demand_features` | 월별 누적·3개월·24개월·모멘텀 | 월 배치 (원장) |
 | | `book_demographics` | 연령·성별 대출 분포 (3.2%) | 수집기 |
 | | `popular_segments` | 세그먼트 인기 상위 100 (홈 링·온보딩) | 월 배치 |
-| 사용자 | `users` · `user_interests` · `library_items` | OAuth 계정·관심 태그·서재(찜/읽는 중/완독+평점·감상) | 서비스 |
+| 사용자 | `users` · `user_interests` · `library_items` | OAuth 계정·관심 태그·서재(찜/완독+평점·감상 — `WISH`/`READ` 2단, 09-02) | 서비스 |
 | 결과 | `recommendations` · `recommendation_items` · `user_events` · MV | 추천 스냅샷·순위·이유·행동 로그·일별 지표 | 서비스 |
 
 ## 주요 제약
@@ -211,7 +210,7 @@ erDiagram
 - `book_texts (book_id, source, text_type)` UNIQUE — 소스별 최신 한 행.
 - `book_relations (source_book_id, relation_type, target_isbn13)` UNIQUE. `target_book_id` 는 카탈로그 미적재면 NULL.
 - `users (oauth_provider, oauth_subject)` UNIQUE.
-- `library_items (user_id, book_id)` UNIQUE. `READ` ⇔ `finished_date NOT NULL`.
+- `library_items (user_id, book_id)` UNIQUE. `status` ∈ `WISH`/`READ`(2단, 09-02). `WISH` ⇒ `finished_date IS NULL`; `READ` 는 완독일이 있어도(서재 API) 없어도(온보딩 seed = 서비스 이전에 읽은 책) 된다.
 - `recommendation_items (recommendation_id, rank)` UNIQUE, `rank ≥ 1`, `score 0~100`.
 - `user_events (user_id, client_event_id)` UNIQUE — 재전송 중복 방지.
 
