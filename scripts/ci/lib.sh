@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # CI 스크립트 공통. 각 run-*-ci.sh 가 source 한다.
 # 원칙: Jenkins 호스트에는 Node·Java·Python 을 깔지 않는다. 전부 고정 버전 docker 이미지 안에서 실행한다.
+# shellcheck disable=SC2034  # 여기서 정의한 변수는 source 하는 run-*-ci.sh 가 쓴다
 set -euo pipefail
 
 ci_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
