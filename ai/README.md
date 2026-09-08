@@ -50,6 +50,10 @@ uv run uvicorn recommendation.api:app --host 0.0.0.0 --port 8000
 
 ## 내부 추천 API
 
+백엔드와 FastAPI 사이의 책임, DTO, 추천 계산 방식은
+[`docs/AI_FASTAPI_RECOMMENDATION_CONTRACT.md`](../docs/AI_FASTAPI_RECOMMENDATION_CONTRACT.md)를
+기준으로 검토한다.
+
 `POST /internal/v1/recommendations`는 백엔드가 정제한 사용자 식별자와 후보 도서 snapshot을
 받아 추천 결과만 반환한다. AI 서비스는 원본 수집 API나 별도 데이터를 호출하지 않는다.
 

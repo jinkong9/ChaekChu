@@ -2,6 +2,11 @@
 
 > 기준: 2026-09-07 `dev` 및 데이터 파이프라인 전체 검토 결과
 
+> 현재 FastAPI와 백엔드 사이의 검토 기준은
+> [`AI_FASTAPI_RECOMMENDATION_CONTRACT.md`](AI_FASTAPI_RECOMMENDATION_CONTRACT.md)다.
+> 이 문서의 일부 `STRUCT`·임베딩·description·keywords 관련 내용은 이전 확장 방향이며,
+> D4L 원본 필드만 사용하기로 한 현재 MVP API 입력 계약보다 우선하지 않는다.
+
 ## 1. 이미 완료된 데이터 담당 영역
 
 다음 작업은 `database/_pipeline`에서 이미 구현·검증됐거나 DB 적재 중이므로 AI가
