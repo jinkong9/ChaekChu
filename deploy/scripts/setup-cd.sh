@@ -6,6 +6,7 @@
 #   - /etc/b102/deploy.env   운영 비밀값. 저장소 안 deploy/.env 를 여기로 옮긴다 (root:b102 640)
 #   - /etc/b102/deploy.lock  공용 배포 락 (root:b102 660)
 #   - /var/lib/b102          릴리스 상태 (current-release, previous-release) (root:b102 2770)
+#   - /var/lib/b102/backups  pg_dump 저장소 (root:b102 2770). ubuntu 크론과 jenkins 배포가 함께 쓴다. /home/ubuntu 는 750 이라 jenkins 가 못 들어간다
 #   - /etc/b102/git/credentials  서버 작업 트리가 GitLab 을 HTTPS 로 pull 할 때 쓰는 읽기 토큰 (Jenkins checkout 토큰 재사용)
 #   - CD gate 는 만들지 않는다. 자동 배포를 켤 때 `sudo touch /etc/b102/cd-enabled`
 set -euo pipefail
@@ -51,6 +52,26 @@ if [[ ! -f "$STATE/current-release" ]] && docker ps --format '{{.Image}}' | grep
   echo "current-release 초기화: $cur $fp"
 fi
 
+echo "== 3b/5 백업 디렉터리 (jenkins 도 써야 하므로 /home/ubuntu 밖) =="
+BACKUP_DIR="$STATE/backups"
+install -d -o root -g b102 -m 2770 "$BACKUP_DIR"
+old_backup_dir=/home/ubuntu/backups/postgres
+if [[ -d "$old_backup_dir" ]] && compgen -G "$old_backup_dir/*.sql.gz" >/dev/null; then
+  mv "$old_backup_dir"/*.sql.gz "$BACKUP_DIR"/ && chgrp b102 "$BACKUP_DIR"/*.sql.gz && chmod 640 "$BACKUP_DIR"/*.sql.gz
+  echo "기존 백업 $(ls -1 "$BACKUP_DIR"/*.sql.gz | wc -l)개를 $BACKUP_DIR 로 이전"
+fi
+if [[ -f "$ETC/deploy.env" ]]; then
+  if grep -qE '^BACKUP_DIR=' "$ETC/deploy.env"; then
+    sed -i "s|^BACKUP_DIR=.*|BACKUP_DIR=$BACKUP_DIR|" "$ETC/deploy.env"
+  else
+    printf '
+BACKUP_DIR=%s
+' "$BACKUP_DIR" >> "$ETC/deploy.env"
+  fi
+  echo "deploy.env BACKUP_DIR=$BACKUP_DIR"
+fi
+sudo -u jenkins test -w "$BACKUP_DIR" && echo "jenkins 쓰기 OK" || echo "jenkins 가 $BACKUP_DIR 에 쓸 수 없음 (그룹 반영 전이면 Jenkins 재시작 후 정상)" >&2
+
 echo "== 4/5 GitLab HTTPS pull 인증 (서버 작업 트리용) =="
 if [[ -s "$JENKINS_TOKEN" ]]; then
   # git credential-store 는 파일 옆에 .lock 을 만들므로 그룹이 쓸 수 있는 하위 디렉터리에 둔다
@@ -81,6 +102,6 @@ else
 fi
 
 echo
-ls -la "$ETC" "$ETC/git" "$STATE"
+ls -la "$ETC" "$ETC/git" "$STATE" "$STATE/backups" | head -40
 echo "CD gate 는 꺼져 있다. 자동 배포를 켤 때:  sudo touch $ETC/cd-enabled   /  끌 때:  sudo rm $ETC/cd-enabled"
 echo "B102_SETUP_CD_COMPLETE"

@@ -77,7 +77,7 @@ if ! "${COMPOSE[@]}" up -d --remove-orphans --wait --wait-timeout 300; then
     echo "마이그레이션 지문이 같아 직전 릴리스 $prev_release 로 코드 자동 복구" >&2
     RELEASE="$prev_release" "${COMPOSE[@]}" up -d --remove-orphans --wait --wait-timeout 300 >&2 || echo "자동 복구도 실패. 수동 조치 필요" >&2
   else
-    backup_dir="$(envval BACKUP_DIR)"; backup_dir="${backup_dir:-/home/ubuntu/backups/postgres}"
+    backup_dir="$(envval BACKUP_DIR)"; backup_dir="${backup_dir:-/var/lib/b102/backups}"
     echo "자동 복구 안 함 (마이그레이션 변경 포함 또는 직전 이미지 없음). 배포 전 백업: ${backup_dir}/pre_${RELEASE}_*.sql.gz" >&2
   fi
   exit 1

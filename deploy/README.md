@@ -104,6 +104,7 @@ sudo rm /etc/b102/cd-enabled      # 끔 (장애 대응·수동 작업 중에는 
 | 운영 비밀값 | `/etc/b102/deploy.env` | root:b102 640 |
 | 배포 락 | `/etc/b102/deploy.lock` | root:b102 660 |
 | 릴리스 상태 | `/var/lib/b102/current-release`, `previous-release` | root:b102 2770 |
+| pg_dump 저장소 | `/var/lib/b102/backups` (`bookdb_*` 일일 7세대, `pre_<sha>_*` 배포 전 5세대) | root:b102 2770 |
 | GitLab pull 인증 | `/etc/b102/git/credentials` (Jenkins checkout 토큰 재사용, 읽기 전용) | root:b102 640 |
 
 ### 배포 전 백업과 롤백 규칙

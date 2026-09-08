@@ -19,7 +19,7 @@ done
 
 require_env_file
 POSTGRES_PASSWORD="$(envval POSTGRES_PASSWORD)"; POSTGRES_USER="$(envval POSTGRES_USER)"; POSTGRES_DB="$(envval POSTGRES_DB)"
-DEST="$(envval BACKUP_DIR)"; DEST="${DEST:-/home/ubuntu/backups/postgres}"
+DEST="$(envval BACKUP_DIR)"; DEST="${DEST:-/var/lib/b102/backups}"    # /home/ubuntu 아래는 jenkins 가 진입 불가
 mkdir -p "$DEST"
 [[ -w "$DEST" ]] || { echo "백업 디렉터리에 쓸 수 없습니다: $DEST" >&2; exit 1; }
 
