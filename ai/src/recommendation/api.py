@@ -1,23 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Literal
-from uuid import uuid4
+import hashlib
+import re
+from typing import Any, Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field, model_validator
 
-from recommendation.baseline import recommend_content, recommend_popular
-from recommendation.d4l import D4LBook
 
-
-FeatureKey = Literal["taste", "coLoan", "trending", "steady", "newField"]
 RecommendationMode = Literal["COLD_START", "PERSONALIZED"]
-ReasonType = Literal[
-    "TEXT_SIMILARITY",
-    "SEGMENT_POPULAR",
-    "DEMAND_POPULAR",
-]
+ReasonType = Literal["CO_LOAN", "MANIA_REC", "READER_REC", "SAME_AUTHOR", "SAME_CATEGORY", "DEMAND_POPULAR"]
+RELATION_FIELDS = ("co_loan", "mania_rec", "reader_rec")
+MONTH_PATTERN = re.compile(r"^\d{4}년 (0[1-9]|1[0-2])월$")
 
 
 class RecommendationWeights(BaseModel):
@@ -28,23 +23,23 @@ class RecommendationWeights(BaseModel):
     newField: float = Field(default=15, ge=0)
 
 
-class LibrarySignal(BaseModel):
-    bookId: str = Field(min_length=1)
-    status: Literal["WISH", "READ"]
-    rating: int | None = Field(default=None, ge=1, le=5)
+class D4LBookInput(BaseModel):
+    """The API boundary mirrors fields present in the D4L source snapshot."""
 
-
-class CandidateBook(BaseModel):
-    bookId: str = Field(min_length=1)
     isbn13: str = Field(pattern=r"^97[89]\d{10}$")
-    title: str = Field(min_length=1)
-    authors: list[str] = Field(default_factory=list)
+    ok: bool | None = None
+    bookname: str = Field(min_length=1)
+    authors: str | None = None
     publisher: str | None = None
-    description: str | None = None
-    keywords: list[str] = Field(default_factory=list)
-    loan24m: int = Field(default=0, ge=0)
-    loan3m: int = Field(default=0, ge=0)
-    rankScore: float | None = Field(default=None, ge=0)
+    pub_year: str | None = None
+    class_no: str | None = None
+    class_nm: str | None = None
+    add_symbol: str | None = None
+    loan_total: int = Field(ge=0)
+    co_loan: list[list[str]] = Field(default_factory=list)
+    mania_rec: list[list[str]] = Field(default_factory=list)
+    reader_rec: list[list[str]] = Field(default_factory=list)
+    loan_history: list[list[Any]] = Field(default_factory=list)
 
 
 class RecommendationRequest(BaseModel):
@@ -52,36 +47,50 @@ class RecommendationRequest(BaseModel):
     userId: str = Field(min_length=1)
     mode: RecommendationMode
     size: int = Field(default=10, ge=1, le=30)
-    candidateVersion: str = Field(min_length=1)
-    interestTags: list[str] = Field(default_factory=list, max_length=5)
-    seedBookIds: list[str] = Field(default_factory=list)
-    excludeBookIds: list[str] = Field(default_factory=list)
-    library: list[LibrarySignal] = Field(default_factory=list)
+    seedIsbns: list[str] = Field(default_factory=list)
+    excludeIsbns: list[str] = Field(default_factory=list)
     weights: RecommendationWeights = Field(default_factory=RecommendationWeights)
-    candidates: list[CandidateBook] = Field(min_length=1)
+    books: list[D4LBookInput] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_unique_candidates(self) -> "RecommendationRequest":
-        book_ids = [book.bookId for book in self.candidates]
-        isbn13s = [book.isbn13 for book in self.candidates]
-        if len(book_ids) != len(set(book_ids)):
-            raise ValueError("candidates.bookId must be unique")
-        if len(isbn13s) != len(set(isbn13s)):
-            raise ValueError("candidates.isbn13 must be unique")
+    def validate_snapshot(self) -> "RecommendationRequest":
+        isbns = [book.isbn13 for book in self.books]
+        if len(isbns) != len(set(isbns)):
+            raise ValueError("books.isbn13 must be unique")
+        for book in self.books:
+            for field in RELATION_FIELDS:
+                for position, item in enumerate(getattr(book, field)):
+                    if len(item) < 2 or not item[0] or not item[1]:
+                        raise ValueError(f"{field}[{position}] must contain isbn13 and title")
+            for position, item in enumerate(book.loan_history):
+                if (
+                    len(item) < 3
+                    or not isinstance(item[0], str)
+                    or MONTH_PATTERN.fullmatch(item[0]) is None
+                    or not isinstance(item[1], int)
+                    or isinstance(item[1], bool)
+                    or item[1] < 0
+                    or not isinstance(item[2], int)
+                    or isinstance(item[2], bool)
+                    or item[2] < 0
+                ):
+                    raise ValueError(f"loan_history[{position}] must be [YYYY년 MM월, non-negative integer, non-negative integer]")
         return self
 
 
-class FeatureScore(BaseModel):
-    key: FeatureKey
-    rawScore: float | None = Field(ge=0, le=100)
-
-
 class RecommendationBook(BaseModel):
-    bookId: str
     isbn13: str
-    title: str
-    authors: list[str]
+    bookname: str
+    authors: str | None
     publisher: str | None
+    pub_year: str | None
+    class_no: str | None
+    class_nm: str | None
+
+
+class FeatureScore(BaseModel):
+    key: Literal["taste", "coLoan", "trending", "steady", "newField"]
+    rawScore: float | None = Field(ge=0, le=100)
 
 
 class RecommendationItem(BaseModel):
@@ -96,6 +105,7 @@ class RecommendationItem(BaseModel):
 
 class RecommendationResponse(BaseModel):
     recommendationId: str
+    requestId: str
     userId: str
     generatedAt: datetime
     mode: RecommendationMode
@@ -107,23 +117,42 @@ class RecommendationResponse(BaseModel):
     items: list[RecommendationItem]
 
 
-app = FastAPI(title="B102 Recommendation API", version="0.1.0")
+app = FastAPI(title="B102 Recommendation API", version="0.2.0")
 
 
-def _to_d4l_book(candidate: CandidateBook) -> D4LBook:
-    return D4LBook(
-        isbn13=candidate.isbn13,
-        title=candidate.title,
-        authors=" ".join(candidate.authors),
-        publisher=candidate.publisher or "",
-        pub_year=None,
-        class_no=None,
-        class_nm=None,
-        description=candidate.description,
-        keywords=tuple(candidate.keywords),
-        loan_total=round(candidate.rankScore or candidate.loan24m + 4 * candidate.loan3m),
-        co_loan=(),
-    )
+def _relation_map(book: D4LBookInput, isbn: str) -> dict[str, float]:
+    scores: dict[str, float] = {}
+    field_weights = {"co_loan": 1.0, "mania_rec": 0.75, "reader_rec": 0.5}
+    for field, field_weight in field_weights.items():
+        for rank, item in enumerate(getattr(book, field), start=1):
+            if item[0] == isbn:
+                scores[field] = field_weight / rank
+    return scores
+
+
+def _latest_loan(book: D4LBookInput) -> int:
+    return max((item[1] for item in book.loan_history), default=0)
+
+
+def _same_author(left: D4LBookInput, right: D4LBookInput) -> bool:
+    return bool(left.authors and right.authors and left.authors.strip() == right.authors.strip())
+
+
+def _same_category(left: D4LBookInput, right: D4LBookInput) -> bool:
+    if left.class_no and right.class_no and left.class_no == right.class_no:
+        return True
+    return bool(left.class_nm and right.class_nm and left.class_nm.split(" > ")[0] == right.class_nm.split(" > ")[0])
+
+
+def _metadata_score(seed: D4LBookInput, candidate: D4LBookInput) -> float:
+    score = 0.0
+    if _same_author(seed, candidate):
+        score += 60.0
+    if _same_category(seed, candidate):
+        score += 40.0
+    elif seed.publisher and candidate.publisher and seed.publisher == candidate.publisher:
+        score += 15.0
+    return min(100.0, score)
 
 
 def _normalized(value: int | float, maximum: int | float) -> float | None:
@@ -132,115 +161,96 @@ def _normalized(value: int | float, maximum: int | float) -> float | None:
     return round(min(100.0, value / maximum * 100), 4)
 
 
-def _feature_scores(
-    candidate: CandidateBook,
-    taste: float | None,
-    candidates: list[CandidateBook],
-) -> dict[FeatureKey, float | None]:
-    max_loan24m = max((book.loan24m for book in candidates), default=0)
-    max_loan3m = max((book.loan3m for book in candidates), default=0)
-    return {
-        "taste": round(taste, 4) if taste is not None else None,
-        "coLoan": None,
-        "trending": _normalized(candidate.loan3m, max_loan3m),
-        "steady": _normalized(candidate.loan24m, max_loan24m),
-        "newField": None,
-    }
-
-
-def _weighted_score(features: dict[FeatureKey, float | None], weights: RecommendationWeights) -> float:
+def _weighted_score(features: dict[str, float | None], weights: RecommendationWeights) -> float:
     weight_values = weights.model_dump()
-    available = [(features[key], weight_values[key]) for key in features if features[key] is not None and weight_values[key] > 0]
+    available = [(value, weight_values[key]) for key, value in features.items() if value is not None and weight_values[key] > 0]
     if not available:
         return 0.0
-    numerator = sum(value * weight for value, weight in available)
-    denominator = sum(weight for _, weight in available)
-    return round(numerator / denominator, 4)
+    return round(sum(value * weight for value, weight in available) / sum(weight for _, weight in available), 4)
 
 
-def _item(
-    candidate: CandidateBook,
-    *,
-    rank: int,
-    taste: float | None,
-    request: RecommendationRequest,
-    reason_type: ReasonType,
-    candidates: list[CandidateBook],
-) -> RecommendationItem:
-    features = _feature_scores(candidate, taste, candidates)
-    score = _weighted_score(features, request.weights)
-    feature_scores = [FeatureScore(key=key, rawScore=value) for key, value in features.items() if value is not None]
-    tags = ["#내취향근접"] if reason_type == "TEXT_SIMILARITY" else ["#지금뜨는"]
-    if features["steady"] is not None and features["steady"] >= 70:
-        tags.append("#스테디셀러")
-    reason_text = (
-        "관심 도서의 콘텐츠와 가까운 책이에요."
-        if reason_type == "TEXT_SIMILARITY"
-        else "최근 대출 수요가 높은 책이에요."
-    )
-    return RecommendationItem(
-        book=RecommendationBook(
-            bookId=candidate.bookId,
-            isbn13=candidate.isbn13,
-            title=candidate.title,
-            authors=candidate.authors,
-            publisher=candidate.publisher,
-        ),
-        rank=rank,
-        score=score,
-        featureScores=feature_scores,
-        tags=tags,
-        reasonText=reason_text,
-        reasonType=reason_type,
-    )
+def _reason(
+    relation_scores: dict[str, float], metadata_score: float, seed: D4LBookInput | None, candidate: D4LBookInput | None
+) -> tuple[ReasonType, list[str], str]:
+    if "co_loan" in relation_scores:
+        return "CO_LOAN", ["#함께대출"], "관심 도서와 함께 대출된 책이에요."
+    if "mania_rec" in relation_scores:
+        return "MANIA_REC", ["#마니아추천"], "관심 도서와 함께 마니아 추천 목록에 있는 책이에요."
+    if "reader_rec" in relation_scores:
+        return "READER_REC", ["#다독자추천"], "관심 도서와 함께 다독자 추천 목록에 있는 책이에요."
+    if seed is not None and candidate is not None and _same_author(seed, candidate):
+        return "SAME_AUTHOR", ["#같은작가"], "관심 도서와 같은 저자의 책이에요."
+    if metadata_score > 0:
+        return "SAME_CATEGORY", ["#같은분류"], "관심 도서와 같은 분류의 책이에요."
+    return "DEMAND_POPULAR", ["#지금뜨는"], "최근 대출 수요가 높은 책이에요."
 
 
 def generate_recommendations(request: RecommendationRequest) -> RecommendationResponse:
-    candidates_by_id = {candidate.bookId: candidate for candidate in request.candidates}
-    candidates_by_isbn = {candidate.isbn13: candidate for candidate in request.candidates}
-    books = [_to_d4l_book(candidate) for candidate in request.candidates]
-    books_by_isbn = {book.isbn13: book for book in books}
-    excluded = set(request.excludeBookIds) | {item.bookId for item in request.library}
-
-    seed = next((candidates_by_id[book_id] for book_id in request.seedBookIds if book_id in candidates_by_id), None)
-    fallback = seed is None
+    books_by_isbn = {book.isbn13: book for book in request.books}
+    excluded = set(request.excludeIsbns) | set(request.seedIsbns)
+    seeds = [books_by_isbn[isbn] for isbn in request.seedIsbns if isbn in books_by_isbn]
+    fallback = not seeds
     mode: RecommendationMode = "COLD_START" if fallback else request.mode
-    if seed is not None:
-        ranked = recommend_content(books, seed.isbn13, limit=len(books))
-        reason_type: ReasonType = "TEXT_SIMILARITY"
-    else:
-        ranked = recommend_popular(books, "", limit=len(books))
-        reason_type = "DEMAND_POPULAR"
+    max_total = max((book.loan_total for book in request.books), default=0)
+    max_latest = max((_latest_loan(book) for book in request.books), default=0)
+    ranked: list[tuple[float, D4LBookInput, dict[str, float | None], ReasonType, list[str], str]] = []
 
-    items: list[RecommendationItem] = []
-    for result in ranked:
-        candidate = candidates_by_isbn[result["isbn13"]]
-        if candidate.bookId in excluded:
+    for candidate in request.books:
+        if candidate.isbn13 in excluded:
             continue
-        taste = result["score"] * 100 if seed is not None else None
+        relation_scores: dict[str, float] = {}
+        metadata_score = 0.0
+        for seed in seeds:
+            for relation, score in _relation_map(seed, candidate.isbn13).items():
+                relation_scores[relation] = max(relation_scores.get(relation, 0.0), score)
+            metadata_score = max(metadata_score, _metadata_score(seed, candidate))
+        relation_score = max(relation_scores.values(), default=0.0) * 100
+        features: dict[str, float | None] = {
+            "taste": metadata_score if seeds else None,
+            "coLoan": relation_score if relation_scores else None,
+            "trending": _normalized(_latest_loan(candidate), max_latest),
+            "steady": _normalized(candidate.loan_total, max_total),
+            "newField": None,
+        }
+        reason_type, tags, reason_text = _reason(relation_scores, metadata_score, seeds[0] if seeds else None, candidate)
+        ranked.append((_weighted_score(features, request.weights), candidate, features, reason_type, tags, reason_text))
+
+    ranked.sort(key=lambda item: (-item[0], -item[1].loan_total, item[1].isbn13))
+    items: list[RecommendationItem] = []
+    for score, candidate, features, reason_type, tags, reason_text in ranked[: request.size]:
         items.append(
-            _item(
-                candidate,
+            RecommendationItem(
+                book=RecommendationBook(
+                    isbn13=candidate.isbn13,
+                    bookname=candidate.bookname,
+                    authors=candidate.authors,
+                    publisher=candidate.publisher,
+                    pub_year=candidate.pub_year,
+                    class_no=candidate.class_no,
+                    class_nm=candidate.class_nm,
+                ),
                 rank=len(items) + 1,
-                taste=taste,
-                request=request,
-                reason_type=reason_type,
-                candidates=request.candidates,
+                score=score,
+                featureScores=[FeatureScore(key=key, rawScore=value) for key, value in features.items()],
+                tags=tags,
+                reasonText=reason_text,
+                reasonType=reason_type,
             )
         )
-        if len(items) >= request.size:
-            break
 
+    recommendation_seed = f"{request.requestId}|{request.userId}|d4l-relations-v1"
+    recommendation_id = f"rec_{hashlib.sha256(recommendation_seed.encode()).hexdigest()[:16]}"
     return RecommendationResponse(
-        recommendationId=f"rec_{uuid4().hex}",
+        recommendationId=recommendation_id,
+        requestId=request.requestId,
         userId=request.userId,
         generatedAt=datetime.now(timezone.utc),
         mode=mode,
-        modelVersion="tfidf-content-v1-api",
+        modelVersion="d4l-relations-v1",
         fallback=fallback,
-        basedOnCount=len(request.seedBookIds) - sum(book_id not in candidates_by_id for book_id in request.seedBookIds),
+        basedOnCount=len(seeds),
         weights=request.weights,
-        appliedTags=request.interestTags,
+        appliedTags=[],
         items=items,
     )
 

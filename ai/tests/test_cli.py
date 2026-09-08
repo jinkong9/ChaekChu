@@ -189,49 +189,52 @@ def test_recommendation_api_returns_backend_contract() -> None:
             "requestId": "req-test-1",
             "userId": "user-test-1",
             "mode": "PERSONALIZED",
-            "candidateVersion": "fixture-v1",
-            "seedBookIds": ["book-1"],
-            "excludeBookIds": ["book-4"],
-            "candidates": [
+            "seedIsbns": ["9780000000001"],
+            "excludeIsbns": ["9780000000004"],
+            "books": [
                 {
-                    "bookId": "book-1",
                     "isbn13": "9780000000001",
-                    "title": "달빛 정원",
-                    "authors": ["김하늘"],
-                    "description": "성장과 정원 이야기",
-                    "keywords": ["성장", "정원"],
-                    "loan24m": 100,
-                    "loan3m": 20,
+                    "bookname": "달빛 정원",
+                    "authors": "김하늘",
+                    "publisher": "샘플출판사",
+                    "class_no": "813.7",
+                    "class_nm": "한국소설",
+                    "loan_total": 100,
+                    "co_loan": [["9780000000002", "바람의 지도"]],
+                    "loan_history": [["2026년 02월", 20, 40]],
                 },
                 {
-                    "bookId": "book-2",
                     "isbn13": "9780000000002",
-                    "title": "바람의 지도",
-                    "authors": ["이바다"],
-                    "description": "여행과 성장 이야기",
-                    "keywords": ["여행", "성장"],
-                    "loan24m": 80,
-                    "loan3m": 15,
+                    "bookname": "바람의 지도",
+                    "authors": "이바다",
+                    "publisher": "샘플출판사",
+                    "class_no": "813.7",
+                    "class_nm": "한국소설",
+                    "loan_total": 80,
+                    "co_loan": [],
+                    "loan_history": [["2026년 02월", 15, 30]],
                 },
                 {
-                    "bookId": "book-3",
                     "isbn13": "9780000000003",
-                    "title": "파도 너머",
-                    "authors": ["박해빛"],
-                    "description": "바다와 우정 이야기",
-                    "keywords": ["바다", "우정"],
-                    "loan24m": 70,
-                    "loan3m": 10,
+                    "bookname": "파도 너머",
+                    "authors": "박해빛",
+                    "publisher": "샘플출판사",
+                    "class_no": "813.7",
+                    "class_nm": "한국소설",
+                    "loan_total": 70,
+                    "co_loan": [],
+                    "loan_history": [["2026년 02월", 10, 20]],
                 },
                 {
-                    "bookId": "book-4",
                     "isbn13": "9780000000004",
-                    "title": "우리가 걷는 길",
-                    "authors": ["최새봄"],
-                    "description": "관계와 회복 이야기",
-                    "keywords": ["관계", "회복"],
-                    "loan24m": 60,
-                    "loan3m": 8,
+                    "bookname": "우리가 걷는 길",
+                    "authors": "최새봄",
+                    "publisher": "샘플출판사",
+                    "class_no": "813.7",
+                    "class_nm": "한국소설",
+                    "loan_total": 60,
+                    "co_loan": [],
+                    "loan_history": [["2026년 02월", 8, 16]],
                 },
             ],
         },
@@ -243,7 +246,8 @@ def test_recommendation_api_returns_backend_contract() -> None:
     assert body["mode"] == "PERSONALIZED"
     assert body["fallback"] is False
     assert len(body["items"]) == 2
-    assert all(item["book"]["bookId"] != "book-4" for item in body["items"])
+    assert all(item["book"]["isbn13"] != "9780000000004" for item in body["items"])
+    assert body["items"][0]["reasonType"] == "CO_LOAN"
     assert [item["rank"] for item in body["items"]] == [1, 2]
 
 
@@ -253,10 +257,9 @@ def test_recommendation_api_rejects_duplicate_candidate_ids() -> None:
         "requestId": "req-test-2",
         "userId": "user-test-2",
         "mode": "COLD_START",
-        "candidateVersion": "fixture-v1",
-        "candidates": [
-            {"bookId": "book-1", "isbn13": "9780000000001", "title": "A"},
-            {"bookId": "book-1", "isbn13": "9780000000002", "title": "B"},
+        "books": [
+            {"isbn13": "9780000000001", "bookname": "A", "loan_total": 1},
+            {"isbn13": "9780000000001", "bookname": "B", "loan_total": 2},
         ],
     }
 

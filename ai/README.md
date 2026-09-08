@@ -50,13 +50,15 @@ uv run uvicorn recommendation.api:app --host 0.0.0.0 --port 8000
 
 ## 내부 추천 API
 
-`POST /internal/v1/recommendations`는 백엔드가 정제한 사용자 신호와 후보 도서를 받아
-추천 결과를 반환한다. AI 서비스는 원본 수집 API나 D4L 원문을 호출하지 않는다.
+`POST /internal/v1/recommendations`는 백엔드가 정제한 사용자 식별자와 후보 도서 snapshot을
+받아 추천 결과만 반환한다. AI 서비스는 원본 수집 API나 별도 데이터를 호출하지 않는다.
 
-요청에는 `userId`, `mode`, `candidateVersion`, `seedBookIds`, `excludeBookIds`,
-`weights`, `candidates`가 포함되며, 응답은 `recommendationId`, `mode`, `fallback`,
-`weights`, `appliedTags`, `items`를 포함한다. 실제 운영에서는 대용량 후보 전체를 매번
-전송하지 않고 candidate snapshot/version 경계를 사용하도록 백엔드와 조정한다.
+요청은 `userId`, `mode`, `size`, `seedIsbns`, `excludeIsbns`, `weights`, `books`를
+사용한다. `books`는 현재 확보된 D4L 필드(`isbn13`, `bookname`, `authors`, `publisher`,
+`pub_year`, `class_no`, `class_nm`, `add_symbol`, `loan_total`, `co_loan`, `mania_rec`,
+`reader_rec`, `loan_history`)만 허용한다. 응답은 `recommendationId`, `mode`, `fallback`,
+`modelVersion`, `items`와 추천 근거를 포함한다. 백엔드는 응답의 ISBN13을 서비스 DB의
+canonical 도서 ID로 매핑해 저장·조회한다.
 
 ## 테스트
 
