@@ -72,6 +72,14 @@ in-memory 인덱스를 사용한다. `seedIsbns`와 `excludeIsbns`는 합쳐서 
 `CANDIDATE_SHORTAGE`, `INDEX_NOT_FOUND`, `TIMEOUT`으로 구분하고 검색 limit·index
 version·제외 수·seed 수를 함께 기록한다.
 
+임베딩 배치는 `recommendation.embedding_batch`의 `EmbeddingBatchRunner`로 실행한다.
+입력은 서지·분류 필드만 조합하고, 관계·대출이력은 Qdrant payload metadata로 저장한다.
+Qdrant에서는 index version별 staging collection에 upsert한 뒤 `books_active` alias를
+교체하므로, 새 버전의 부분 실패가 기존 active index를 덮어쓰지 않는다. 배치 report에는
+inputHash, embedding/feature/tag version, 차원, 성공·실패·재시도·재개·승격 결과를 기록한다.
+테스트 provider는 결정적 hashing embedding이며 실제 GMS embedding provider는 같은
+`TextEmbedder` protocol로 교체할 수 있다.
+
 ## 내부 추천 API
 
 백엔드와 FastAPI 사이의 책임, DTO, 추천 계산 방식은
