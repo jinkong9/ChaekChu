@@ -87,6 +87,13 @@ semantic·수요 feature만으로 계산한다. 후보 부족은 가능한 결�
 부족도 가능한 결과를 화면에 반환하되 `canPersist=false`로 표시한다. 모든
 fallback 결과에는 modelVersion과 indexVersion을 함께 보존한다.
 
+seed와 query vector를 만들 수 없는 COLD_START 요청은
+`recommendation.demand`의 `ColdStartDemandRanker`로 처리한다. `loan_history`의
+최신 월 대출량을 trending, `loan_total`을 steady로 각각 정규화하고 기본 가중치
+0.6·0.4를 적용한다. 두 feature 중 하나만 있으면 해당 feature만 사용하며, 둘 다
+없으면 score 0으로 정렬한다. 결과는 `COLD_START_DEMAND`와 demandScores를 남기고,
+seed·exclude ISBN은 항상 제거한다.
+
 임베딩 배치는 `recommendation.embedding_batch`의 `EmbeddingBatchRunner`로 실행한다.
 입력은 서지·분류 필드만 조합하고, 관계·대출이력은 Qdrant payload metadata로 저장한다.
 Qdrant에서는 index version별 staging collection에 upsert한 뒤 `books_active` alias를

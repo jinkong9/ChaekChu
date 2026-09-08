@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable
 
+from recommendation.demand import ColdStartDemandRanker
 from recommendation.vector_search import CandidateHit, CandidateSearchResponse, SearchStatus
 
 
@@ -60,6 +61,7 @@ class RecommendationFallbackPolicy:
         if not model_version.strip():
             raise ValueError("model_version must not be empty")
         self.model_version = model_version
+        self.demand_ranker = ColdStartDemandRanker()
 
     def resolve(
         self,
@@ -105,12 +107,12 @@ class RecommendationFallbackPolicy:
                 can_persist=False,
             )
 
-        demand_items = _filtered_candidates(
+        demand_items = self.demand_ranker.rank(
             demand_candidates,
+            limit=min(size, 30),
             exclude_isbns=excluded,
             seed_isbns=seeds,
-            limit=size,
-        )
+        ).items
         if demand_items:
             return FallbackResult(
                 status=search.status,
