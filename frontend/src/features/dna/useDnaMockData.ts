@@ -78,8 +78,8 @@ function toDnaBook(b: RawBook, order: number, total: number): DnaBook {
   }
 }
 
-function buildPersonas(raw: RawData): DnaPersona[] {
-  // 로컬 표지가 있는 책만, isbn 중복 제거
+/** 로컬 표지가 있는 책만, isbn 중복 제거 */
+function rawPool(raw: RawData): RawBook[] {
   const seen = new Set<string>()
   const pool: RawBook[] = []
   for (const seg of raw.segments)
@@ -88,7 +88,10 @@ function buildPersonas(raw: RawData): DnaPersona[] {
       seen.add(b.isbn13)
       pool.push(b)
     }
+  return pool
+}
 
+function buildPersonas(pool: RawBook[]): DnaPersona[] {
   const lit = pool.filter((b) => b.classNo.startsWith('813'))
   const jlit = pool.filter((b) => b.classNo.startsWith('833'))
   const essay = pool.filter((b) => /^(81[48]|1)/.test(b.classNo))
@@ -115,14 +118,29 @@ function buildPersonas(raw: RawData): DnaPersona[] {
   ]
 }
 
+interface DnaMock {
+  personas: DnaPersona[]
+  /** 표지가 있는 책 전체 — 이상형 월드컵처럼 페르소나 서재(14권)보다 많은 후보가 필요한 곳에서 쓴다 */
+  pool: DnaBook[]
+}
+
+/** 두 훅이 같은 queryKey를 공유해 fetch는 한 번만 일어난다. 각자 select로 필요한 조각만 본다. */
+const mockQuery = {
+  queryKey: ['dna-mock'] as const,
+  queryFn: async (): Promise<DnaMock> => {
+    const res = await fetch('/data/popular-ring.json', { cache: 'no-cache' })
+    if (!res.ok) throw new Error('mock 재료(인기도서 데이터)를 불러오지 못했습니다.')
+    const pool = rawPool((await res.json()) as RawData)
+    return { personas: buildPersonas(pool), pool: pool.map((b, i, arr) => toDnaBook(b, i, arr.length)) }
+  },
+  staleTime: Infinity,
+}
+
 export function useDnaMockData() {
-  return useQuery({
-    queryKey: ['dna-mock'],
-    queryFn: async () => {
-      const res = await fetch('/data/popular-ring.json', { cache: 'no-cache' })
-      if (!res.ok) throw new Error('mock 재료(인기도서 데이터)를 불러오지 못했습니다.')
-      return buildPersonas((await res.json()) as RawData)
-    },
-    staleTime: Infinity,
-  })
+  return useQuery({ ...mockQuery, select: (d: DnaMock) => d.personas })
+}
+
+/** 이상형 월드컵의 후보 풀 */
+export function useDnaBookPool() {
+  return useQuery({ ...mockQuery, select: (d: DnaMock) => d.pool })
 }
