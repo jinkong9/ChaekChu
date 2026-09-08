@@ -418,6 +418,10 @@ ARMS = {
     "T+KW+D+K":   lambda r: f"{r['title']}. {kws(r)}. {r['desc']} {r['kakao']}",
     "STRUCT":     lambda r: (f"제목: {r['title']}\n저자: {r['author']}\n분류: {r.get('d_class_nm') or ''}\n"
                              f"키워드: {kws(r)}\n소개: {r['desc']} {r['kakao']}"),
+    # 키워드 상위 N 민감도 (09-08). STRUCT 는 N=30. 0 이면 「키워드:」줄이 빈다.
+    **{f"STRUCT_KW{n}": (lambda n: lambda r: (f"제목: {r['title']}\n저자: {r['author']}\n분류: {r.get('d_class_nm') or ''}\n"
+                                              f"키워드: {kws(r, n)}\n소개: {r['desc']} {r['kakao']}"))(n)
+       for n in (0, 5, 10, 20, 30, 50)},
     "MEAN T+D|K|KW":   lambda r: [f"{r['title']}. {r['desc']}", r["kakao"], kws(r)],
     "MEAN T+KW|D|K":   lambda r: [f"{r['title']}. {kws(r)}", r["desc"], r["kakao"]],
     "T+D+KW+K+N": lambda r: f"{r['title']}. {r['desc']} {kws(r)} {r['kakao']} {r['nl_text']}",
