@@ -2,18 +2,20 @@ import { useState } from 'react'
 import LibraryPageShelf from './LibraryPageShelf'
 import LibraryPageB from './LibraryPageB'
 import LibraryPageArchive from './LibraryPageArchive'
+import LibraryPageD from './LibraryPageD'
 
 /** 내 서재 시안 토글 (팀 비교용 — 홈·추천과 같은 방식. 확정되면 한쪽만 남기고 이 파일 정리) */
 const VARIANTS = [
   { key: 'shelf', label: 'A 선반' },
   { key: 'book', label: 'B 나의 책' },
   { key: 'archive', label: 'C 완독 기록' },
+  { key: 'd', label: 'D 완독의 책' },
 ] as const
 
 type Variant = (typeof VARIANTS)[number]['key']
 
 export default function LibraryPage() {
-  const [variant, setVariant] = useState<Variant>('book')
+  const [variant, setVariant] = useState<Variant>('d')
   return (
     <div className="relative flex flex-1 flex-col">
       {/* 시안 전환은 제품 UI가 아니라 팀용 도구다 — 화면 오른쪽 아래에 조용히 띄워
@@ -32,6 +34,7 @@ export default function LibraryPage() {
       {variant === 'shelf' && <LibraryPageShelf />}
       {variant === 'book' && <LibraryPageB />}
       {variant === 'archive' && <LibraryPageArchive />}
+      {variant === 'd' && <LibraryPageD />}
     </div>
   )
 }
