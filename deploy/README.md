@@ -114,3 +114,5 @@ docker exec -it b102-postgres psql -U book -d bookdb
 - `deploy/.env` 의 PostgreSQL 비밀번호는 첫 초기화에만 반영된다. 나중에 바꾸면 `ALTER ROLE`.
 - Swagger 는 팀 내부용으로 열어두었다. 공개 서비스가 되면 `web/nginx/snippets/app.conf` 에서 막는다.
 - 로컬 개발 인프라(`backend/docker-compose.yml`)와 컨테이너 이름이 같다. 한 PC 에서 둘을 동시에 띄우지 않는다.
+- compose 프로젝트명은 `brbbr` 이지만 **볼륨 이름은 `b102_*` 로 고정**되어 있다(`volumes.*.name`). 프로젝트명을 바꿔도 서버의 PG 데이터·ES 인덱스·인증서가 그대로 연결되게 하기 위한 것이니 볼륨 이름은 바꾸지 않는다.
+- 프로젝트명이 바뀐 뒤 첫 배포 전에는 서버에서 옛 프로젝트를 한 번 내려야 한다(컨테이너 이름이 같아 충돌): `docker compose -p b102 -f deploy/docker-compose.yml down` (볼륨은 유지됨) → `deploy.sh`.
