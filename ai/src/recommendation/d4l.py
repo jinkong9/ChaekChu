@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import gzip
 import json
 from pathlib import Path
 import re
-from typing import Any, Iterable
+from contextlib import contextmanager
+from typing import Any, Iterable, Iterator, TextIO
 
 
 class DataError(ValueError):
@@ -24,6 +26,9 @@ class D4LBook:
     keywords: tuple[str, ...]
     loan_total: int
     co_loan: tuple[str, ...]
+    mania_rec: tuple[str, ...]
+    reader_rec: tuple[str, ...]
+    loan_history: tuple[tuple[str, int, int], ...]
 
 
 def _text(value: Any) -> str:
@@ -60,6 +65,24 @@ def _isbn_list(value: Any) -> tuple[str, ...]:
     return tuple(dict.fromkeys(result))
 
 
+def _loan_history(value: Any) -> tuple[tuple[str, int, int], ...]:
+    if not isinstance(value, list):
+        return ()
+    result: list[tuple[str, int, int]] = []
+    for item in value:
+        if (
+            isinstance(item, list)
+            and len(item) >= 3
+            and isinstance(item[0], str)
+            and isinstance(item[1], int)
+            and not isinstance(item[1], bool)
+            and isinstance(item[2], int)
+            and not isinstance(item[2], bool)
+        ):
+            result.append((item[0].strip(), item[1], item[2]))
+    return tuple(result)
+
+
 def _record(raw: Any, line_number: int) -> D4LBook:
     if not isinstance(raw, dict):
         raise DataError(f"line {line_number}: record must be a JSON object")
@@ -83,14 +106,27 @@ def _record(raw: Any, line_number: int) -> D4LBook:
         keywords=_keywords(raw.get("keywords")),
         loan_total=loan_total,
         co_loan=_isbn_list(raw.get("co_loan")),
+        mania_rec=_isbn_list(raw.get("mania_rec")),
+        reader_rec=_isbn_list(raw.get("reader_rec")),
+        loan_history=_loan_history(raw.get("loan_history")),
     )
+
+
+@contextmanager
+def _open_text(path: Path) -> Iterator[TextIO]:
+    if path.name.lower().endswith(".gz"):
+        with gzip.open(path, "rt", encoding="utf-8") as file:
+            yield file
+        return
+    with path.open(encoding="utf-8") as file:
+        yield file
 
 
 def load_d4l_jsonl(path: Path) -> list[D4LBook]:
     books: list[D4LBook] = []
     seen: set[str] = set()
     try:
-        with path.open(encoding="utf-8") as file:
+        with _open_text(path) as file:
             for line_number, line in enumerate(file, start=1):
                 if not line.strip():
                     continue

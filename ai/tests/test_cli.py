@@ -11,7 +11,7 @@ from recommendation.api import app
 from recommendation.cli import create_parser, main, run
 from recommendation.config import ConfigError, load_config
 from recommendation.d4l import load_d4l_jsonl
-from recommendation.baseline import evaluate_content, recommend_content
+from recommendation.baseline import evaluate_content, evaluate_d4l, recommend_content
 from recommendation.normalization import NORMALIZATION_VERSION, normalized_input_hash
 from recommendation.validation import validate_d4l_jsonl
 
@@ -117,7 +117,63 @@ def test_d4l_sample_loads_with_expected_source_fields() -> None:
 
     assert len(books) == 4
     assert sum(bool(book.co_loan) for book in books) == 4
+    assert sum(bool(book.mania_rec) for book in books) == 4
+    assert sum(bool(book.reader_rec) for book in books) == 4
+    assert sum(bool(book.loan_history) for book in books) == 4
     assert sum(bool(book.description) for book in books) == 3
+
+
+def test_d4l_evaluation_compares_baselines_and_is_reproducible() -> None:
+    books = load_d4l_jsonl(D4L_FIXTURE)
+
+    first = evaluate_d4l(books)
+    second = evaluate_d4l(books)
+
+    assert first == second
+    assert first["evaluationVersion"] == "d4l-ranking-evaluation-v1"
+    assert first["targetRelations"] == ["co_loan", "mania_rec", "reader_rec"]
+    assert first["targetDenominator"] == 12
+    assert first["indexedTargetDenominator"] == 12
+    assert first["targetCoverage"] == 1.0
+    assert first["edgeCases"] == {
+        "emptyRelationQueries": 0,
+        "candidateShortageQueries": 4,
+        "missingLoanHistoryQueries": 0,
+    }
+    assert set(first["strategies"]) == {"popularBaseline", "embeddingOnly", "hybrid"}
+    for strategy in first["strategies"].values():
+        assert 0.0 <= strategy["pAt5"] <= 1.0
+        assert 0.0 <= strategy["recallAt10"] <= 1.0
+        assert 0.0 <= strategy["coverage"] <= 1.0
+        assert 0.0 <= strategy["diversityAt5"] <= 1.0
+
+
+def test_d4l_evaluation_reports_out_of_index_targets(tmp_path: Path) -> None:
+    source = tmp_path / "out-of-index.jsonl"
+    source.write_text(
+        '{"isbn13":"9780000000001","bookname":"A","loan_total":1,'
+        '"co_loan":[["9780000000099","Missing"]],"loan_history":[]}'
+        "\n"
+        '{"isbn13":"9780000000002","bookname":"B","loan_total":2,'
+        '"co_loan":[],"loan_history":[]}\n',
+        encoding="utf-8",
+    )
+
+    report = evaluate_d4l(load_d4l_jsonl(source))
+
+    assert report["targetDenominator"] == 1
+    assert report["indexedTargetDenominator"] == 0
+    assert report["outOfIndexTargetCount"] == 1
+    assert report["targetCoverage"] == 0.0
+    assert report["evaluatedQueries"] == 0
+    assert report["relationCoverage"]["co_loan"] == {
+        "targets": 1,
+        "indexedTargets": 0,
+        "outOfIndexTargets": 1,
+        "coverage": 0.0,
+    }
+    assert report["edgeCases"]["emptyRelationQueries"] == 1
+    assert report["edgeCases"]["missingLoanHistoryQueries"] == 2
 
 
 def test_content_recommendation_excludes_query_and_is_deterministic() -> None:
@@ -204,6 +260,17 @@ def test_d4l_contract_validation_reads_gzip_snapshot(tmp_path: Path) -> None:
     assert report["status"] == "PASS"
     assert report["rows"] == 4
     assert report["stats"]["relations"]["reader_rec"]["edges"] == 4
+
+
+def test_d4l_loader_reads_gzip_snapshot(tmp_path: Path) -> None:
+    compressed = tmp_path / "d4l_usage.jsonl.gz"
+    with gzip.open(compressed, "wt", encoding="utf-8") as file:
+        file.write(D4L_FIXTURE.read_text(encoding="utf-8"))
+
+    books = load_d4l_jsonl(compressed)
+
+    assert len(books) == 4
+    assert books[0].loan_history[-1][0] == "2026년 02월"
 
 
 def test_d4l_contract_validation_detects_relation_and_history_quality_errors(tmp_path: Path) -> None:
