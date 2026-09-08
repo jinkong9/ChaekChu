@@ -89,11 +89,12 @@ ssh b102 'docker logs b102-web 2>&1 | grep gitlab-webhook | tail -3'   # 200 이
 
 비밀 파일은 전부 `/var/lib/jenkins/secrets/b102/` 에 `jenkins:jenkins 600`. groovy 가 jenkins 유저로 읽어야 하므로 root 전용으로 두면 안 된다.
 
-## 4단계 전에 정한 것 (구현은 4단계)
+## 4단계 (구현됨): 얇은 CD
 
-- 배포 주체는 **jenkins 유저**. Jenkins workspace 의 검증된 SHA 로 이미지를 빌드하고 `deploy.sh --no-pull` 을 호출한다. 서버 작업 트리의 `git fetch` 와 별도 Git 인증은 필요 없다.
-- 운영 비밀값은 `~/S15P21B102/deploy/.env` 에서 `/etc/b102/deploy.env` 로 옮긴다. `root:b102 640`, 그룹 `b102` 에 `jenkins`·`ubuntu`. `deploy.sh` 는 `ENV_FILE` 로 위치를 받는다.
-- `ubuntu` 의 `~/S15P21B102` 는 Jenkins 장애 시 수동 fallback 으로만 남긴다.
+- 배포 주체는 **jenkins 유저**. `dev` CI 전부 성공 → `deploy (dev)` 스테이지가 `/etc/b102/cd-enabled` 가 있을 때만 workspace 의 SHA 로 `deploy.sh --no-pull` 실행. 배포 직전 최신 dev 를 다시 확인해 더 새 커밋이 있으면 건너뛴다.
+- 운영 비밀값은 `/etc/b102/deploy.env` (`root:b102 640`), 락은 `/etc/b102/deploy.lock`, 릴리스 상태는 `/var/lib/b102`. `deploy/scripts/setup-cd.sh` 가 만든다. jenkins 는 그룹 `b102` 로 읽고 잠근다.
+- 배포 전 pg_dump 와 마이그레이션 지문 기반 조건부 자동 복구는 `deploy.sh` 가 한다 (규칙은 `deploy/README.md`).
+- `ubuntu` 의 `~/S15P21B102` 는 수동 fallback. `/etc/b102/git/credentials` 로 GitLab 을 직접 pull 할 수 있다(bundle 불필요).
 
 ## 문제 해결
 

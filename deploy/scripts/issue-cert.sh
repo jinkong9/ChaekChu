@@ -3,9 +3,9 @@
 #   bash deploy/scripts/issue-cert.sh
 # 성공하면 deploy/.env 의 TLS_ENABLED 를 true 로 바꾸고 web 을 재기동한다.
 set -euo pipefail
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-# deploy/.env 에서 값 하나 읽기. source 는 공백 포함 값(ES_JAVA_OPTS)에서 깨지므로 쓰지 않는다.
-envval() { grep -E "^$1=" "$REPO_ROOT/deploy/.env" | tail -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//"; }
+# shellcheck source=deploy/scripts/common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+require_env_file
 DOMAIN="$(envval DOMAIN)"; LETSENCRYPT_EMAIL="$(envval LETSENCRYPT_EMAIL)"
 : "${DOMAIN:?}" "${LETSENCRYPT_EMAIL:?LETSENCRYPT_EMAIL 필요}"
 
@@ -16,5 +16,5 @@ docker run --rm \
   -d "$DOMAIN" --email "$LETSENCRYPT_EMAIL" --agree-tos --no-eff-email --non-interactive ${CERTBOT_EXTRA:-}
 
 echo "발급 완료. 다음:"
-echo "  sed -i 's/^TLS_ENABLED=.*/TLS_ENABLED=true/' deploy/.env"
+echo "  sudo sed -i 's/^TLS_ENABLED=.*/TLS_ENABLED=true/' $ENV_FILE"
 echo "  docker compose -f deploy/docker-compose.yml up -d web"

@@ -110,6 +110,39 @@ pipeline {
                     options { timeout(time: 40, unit: 'MINUTES') }
                     steps { sh 'bash scripts/ci/run-backend-ci.sh' }
                 }
+
+                // 4단계: 얇은 CD. dev 에서 CI 가 전부 통과했고, 운영 스위치(/etc/b102/cd-enabled)가 있을 때만
+                // 이 workspace 의 SHA 로 이미지를 빌드해 deploy.sh 를 호출한다. 서버 작업 트리의 git 은 건드리지 않는다.
+                // deploy.sh 가 배포 전 pg_dump, 마이그레이션 지문 비교, 실패 시 조건부 자동 복구를 담당한다.
+                stage('deploy (dev)') {
+                    when {
+                        allOf {
+                            branch 'dev'
+                            expression { env.CI_SUPERSEDED != 'true' }
+                            expression { currentBuild.description != 'docs-only' }
+                        }
+                    }
+                    options { timeout(time: 20, unit: 'MINUTES') }
+                    steps {
+                        script {
+                            if (!fileExists('/etc/b102/cd-enabled')) {
+                                echo 'CD gate 닫힘 (/etc/b102/cd-enabled 없음) → 배포 건너뜀. 켜려면: sudo touch /etc/b102/cd-enabled'
+                                currentBuild.description = "${currentBuild.description} · cd-gate-closed"
+                                return
+                            }
+                            // 배포 직전 최신 dev 재확인. 더 새 커밋이 있으면 이 커밋은 배포하지 않는다 (다음 build 가 한다)
+                            sh 'git fetch -q origin dev'
+                            def latestSha = sh(script: 'git rev-parse refs/remotes/origin/dev', returnStdout: true).trim()
+                            if (latestSha != env.CI_SHA) {
+                                echo "더 최신 dev ${latestSha.take(8)} 가 있어 ${env.CI_SHA.take(8)} 은 배포하지 않습니다."
+                                currentBuild.description = "${currentBuild.description} · deploy-skipped-stale"
+                                return
+                            }
+                            sh 'ENV_FILE=/etc/b102/deploy.env bash deploy/scripts/deploy.sh --no-pull'
+                            currentBuild.description = "${currentBuild.description} · deployed ${env.CI_SHA.take(8)}"
+                        }
+                    }
+                }
             }
 
             post {
