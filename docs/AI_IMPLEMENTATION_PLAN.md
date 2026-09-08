@@ -1,91 +1,95 @@
 # AI 추천 구현 범위와 진행 순서
 
-> 기준: 2026-09-07 `dev` 및 데이터 파이프라인 전체 검토 결과
+> 기준: ISBN 중복 제거가 완료된 D4L 도서 약 100만 건과
+> [`AI_FASTAPI_RECOMMENDATION_CONTRACT.md`](AI_FASTAPI_RECOMMENDATION_CONTRACT.md)
 
-## 1. 이미 완료된 데이터 담당 영역
+## 1. 핵심 방향
 
-다음 작업은 `database/_pipeline`에서 이미 구현·검증됐거나 DB 적재 중이므로 AI가
-다시 만들지 않는다.
-
-- L1 후보 기준 확정: 누적 대출 수요 99% 유지 임계(72+)와 신간 트랙 합집합
-- 원천 데이터 수집·정제와 정보나루·카카오 텍스트 보강
-- 24개월·3개월 수요 신호 및 `loan_24m + 4 * loan_3m` 랭킹 정책 확정
-- 임베딩 모델·입력 연구: `multilingual-e5-large`, 1024차원, `STRUCT`
-- 34만 권 전체 풀 오프라인 검증과 P@10·R@50 기준 결과
-
-AI 코드는 데이터 수집 스크립트를 import하거나 L1을 재계산하지 않는다. DB 조회 또는
-버전이 고정된 내보내기 스냅샷을 경계로 데이터를 인수한다.
-
-## 2. AI 담당 범위
-
-AI 담당은 연구 결과를 `ai` 패키지의 재현 가능한 서비스용 배치로 제품화한다.
+AI는 매 요청마다 전체 도서 데이터를 받지 않는다. 오프라인 배치로 도서 임베딩·통제된
+태그·D4L 수요 feature를 생성하고 Vector DB에 색인한다. 백엔드는 온라인 요청마다
+사용자의 `tags`, `weights`, `seedIsbns`, `excludeIsbns`를 FastAPI에 전달한다.
 
 ```text
-DB/스냅샷 계약 검증 #130
-  -> L1·수요 데이터 인수 검증 #131
-  -> 작품·판본 그룹 #134
-  -> STRUCT·inputHash #132
-  -> 회귀 평가 fixture #133
-  -> 어휘 후보 #135 + 임베딩 배치 #136
-  -> dense top-K #137
-  -> RRF·결측 폴백 #138
-  -> 콜드스타트 #139
-  -> 행동 프로필 #140 -> 개인화 #141
-  -> 추천 이유·스냅샷 #142
-  -> 백엔드 통합·품질 회귀 #143
+D4L 100만 건
+  → 필드 정규화
+  → 임베딩 생성 + 태그 생성·매핑
+  → Vector DB / metadata index
+  → query vector 생성
+  → ANN 후보 100~300개
+  → feature 재랭킹·다양성 보정
+  → 상위 5개 + 추천 이유
 ```
 
-`#132`, `#133`, `#134`는 `#130` 이후 병렬로 진행할 수 있다. 다만 같은 작품의
-여러 ISBN이 추천 칸을 중복 점유하지 않도록 `#134` 결과를 후보 검색 전에 적용한다.
+## 2. 데이터 경계
 
-## 3. Jira별 실제 구현 내용
+### 사용하는 입력
 
-| Jira | AI가 구현할 내용 | 하지 않을 내용 |
-| --- | --- | --- |
-| #130 | DB/스냅샷 필드 매핑, 타입·중복·결측·범위 검증, 품질 리포트 | 원천 정제, 텍스트 보강 |
-| #131 | L1 플래그·수요 feature의 건수·기준월·버전·표본 계산값 인수 검증 | L1 후보와 수요 feature 재생성 |
-| #134 | `set_isbn` 우선 작품 그룹, 폴백 정규화, 대표 도서 결정 | 수집 데이터 원본 수정 |
-| #132 | 고정 `STRUCT` 생성, 정규화, `inputHash`, 변경분 판별 | 모델·입력 조합 재연구 |
-| #133 | 기존 정답과 지표 계산을 고정 fixture·회귀 테스트로 제품화 | 대규모 모델 비교 재실행 |
-| #135 | 저자·시리즈 정확 조인 또는 DB 어휘 검색 후보 생성 | 34만 권 전수 TF-IDF 행렬곱 |
-| #136 | e5-large 변경분 임베딩, 재시작·버전·실패 기록 | 다른 임베딩 모델 재선정 |
-| #137 | 벡터 저장소 top-K, 자기 자신·동일 작품 제외 | 별도 추천 모델 학습 |
-| #138 | 어휘·밀집 순위 RRF, 한쪽 결측 폴백 | 원점수의 근거 없는 직접 합산 |
-| #139~#142 | 콜드스타트, 행동 개인화, 제외·다양성, 이유·스냅샷 | 사용자 기반 협업 필터링 |
-| #143 | 품질·결측·성능·백엔드 적재 계약 통합 검증 | 데이터 수집 운영 |
+`isbn13`, `bookname`, `authors`, `publisher`, `pub_year`, `class_no`, `class_nm`,
+`add_symbol`, `loan_total`, `co_loan`, `mania_rec`, `reader_rec`, `loan_history`
 
-## 4. #130 입력 계약 초안
+### 사용하지 않는 입력
 
-최소 입력은 다음 논리 필드를 제공해야 한다. 실제 DB 컬럼명은 어댑터에서 매핑한다.
+- Git에 넣지 않는 대용량 원본 JSONL 자체
+- 사용자 감상평, access token, 개인정보 원문
+- 현재 원본에 보장되지 않는 description, keywords, embedding
+- 온라인 요청 시 GMS LLM 호출
 
-| 구분 | 필드 | 검증 |
-| --- | --- | --- |
-| 식별 | `book_id`, `isbn13` | 필수, 유일성, ISBN 형식 |
-| 서지 | `title`, `author`, `publisher` | 제목 필수, 나머지 nullable 통계 |
-| 분류 | `kdc`, `class_name`, `audience_code` | 코드 범위와 nullable 통계 |
-| 콘텐츠 | `keywords`, `description_d4l`, `description_kakao` | nullable 허용, 출처 구분 유지 |
-| 작품 | `set_isbn`, `volume` | nullable 허용, 그룹 폴백 대상 표시 |
-| 후보 | `is_l1`, `candidate_type` | 허용값과 중복 후보 병합 검증 |
-| 수요 | `base_month`, `loan_24m`, `loan_3m`, `rank_score` | 음수 금지, 기준월·버전 필수, 표본 재계산 |
+일부 원본 행의 `img`는 추천 feature가 아니므로 백엔드 화면 데이터로만 취급한다.
 
-검증기는 잘못된 행을 조용히 버리지 않는다. 규칙별 오류 건수와 제한된 예시를 남기고,
-차단 오류와 허용 가능한 결측 경고를 구분한다.
+## 3. Jira별 AI 구현 범위
 
-## 5. 저장소와 검색 경계
+| Jira | 구현 내용 |
+| --- | --- |
+| #131 | D4L 필드·관계·대출이력 품질 검증과 통계 리포트 |
+| #132 | 고정 필드 정규화, `inputHash`, feature 버전 관리 |
+| #133 | 실제 관계 데이터 기반 P@5/R@10/coverage/diversity 평가 |
+| #134 | ISBN 기준 중복 제거와 작품·저자 편중 완화 규칙 |
+| #135 | Vector DB ANN 후보 검색과 seed/exclude 필터 |
+| #136 | 100만 건 오프라인 임베딩 생성·재시작·실패 기록·색인 |
+| #159 | 통제된 태그 taxonomy 생성·D4L 도서 태그 매핑·confidence 저장 |
+| #137 | semantic·tagMatch·D4L feature 후보 재랭킹 |
+| #138 | feature 결측 처리와 fallback |
+| #139 | seed·태그가 없는 cold-start 수요 추천 |
+| #140 | seed ISBN과 사용자 태그로 query vector 생성 |
+| #141 | 사용자 가중치 적용, 제외, 다양성 보정, top-5 선택 |
+| #142 | FastAPI 응답 DTO와 결정적 추천 이유 |
+| #143 | Spring Boot-FastAPI 통합·timeout·5xx·ISBN 매핑 검증 |
+| #150 | 배치·FastAPI 실행, health check, 배포·운영 계약 |
 
-- PostgreSQL: 서지, 작품 그룹, 수요 feature, 추천 스냅샷의 정본
-- 벡터 저장소: 도서당 e5-large 벡터 1개와 검색에 필요한 최소 payload
-- 어휘 후보: PostgreSQL `tsvector`/`pg_trgm` 또는 저자·`set_isbn` 정확 조인
-- AI 배치: 입력 버전과 마지막 성공 결과를 기록하고 실패 시 기존 정상 스냅샷 유지
+태그 생성·매핑은 #136과 분리된 오프라인 배치 단계로 관리한다. 필요하면 별도 Jira
+하위 작업으로 나누며, 규칙 기반 태그와 GMS LLM 배치 태그를 `source`, `confidence`,
+`tagVersion`으로 구분한다.
 
-벡터 저장 기술은 BE·CI/CD와 최종 합의된 운영 구성을 따른다. AI 로직은 저장소 접근을
-어댑터로 분리해 pgvector와 Qdrant 중 하나에 직접 결합되지 않게 한다.
+## 4. 추천 점수
+
+```text
+finalScore =
+  semantic  × semanticWeight
++ tagMatch  × tagMatchWeight
++ coLoan    × coLoanWeight
++ trending  × trendingWeight
++ steady    × steadyWeight
+```
+
+임베딩은 의미적으로 가까운 후보를 찾는 데 사용하고, 함께대출·대출량·태그는 후보
+재랭킹에 사용한다. 관계 데이터를 임베딩 문장에 섞어 의미 유사도로 오해하지 않는다.
+
+## 5. 실행 순서
+
+1. #131 데이터 품질 검증
+2. #132 정규화·inputHash·버전 규칙
+3. 임베딩 배치와 Vector DB 색인
+4. #159 태그 taxonomy·생성·매핑 배치
+5. #135~#141 검색·재랭킹·fallback 구현
+6. #133 오프라인 평가와 기준선 비교
+7. #143 백엔드 통합 테스트
+8. #150 운영 배포
 
 ## 6. 공통 완료 기준
 
-- 같은 입력·설정·seed에서 같은 결과와 해시를 생성한다.
-- 정상·경계·결측·잘못된 입력 테스트가 있다.
-- 입력, feature, 전처리, 모델 버전이 산출물에 남는다.
-- 대용량 원천 데이터와 재생성 가능한 벡터를 Git에 커밋하지 않는다.
-- 기존 실험 기준보다 품질이 낮아지면 원인과 승인 없이 병합하지 않는다.
-- Jira에 브랜치, 테스트 결과와 다음 작업 인계 사항을 기록한다.
+- 같은 입력·가중치·index version에서 같은 순위를 재현한다.
+- 임베딩·태그·feature·index 버전을 결과와 리포트에 남긴다.
+- 원본 데이터와 대용량 벡터는 Git에 커밋하지 않는다.
+- 태그가 없거나 근거가 부족한 경우 임의로 생성하지 않고 결측으로 기록한다.
+- 추천 이유는 실제 점수에 기여한 feature에서만 생성한다.
+- P@5, R@10, coverage, diversity, p95 latency를 측정한다.

@@ -50,15 +50,17 @@ uv run uvicorn recommendation.api:app --host 0.0.0.0 --port 8000
 
 ## 내부 추천 API
 
-`POST /internal/v1/recommendations`는 백엔드가 정제한 사용자 식별자와 후보 도서 snapshot을
-받아 추천 결과만 반환한다. AI 서비스는 원본 수집 API나 별도 데이터를 호출하지 않는다.
+백엔드와 FastAPI 사이의 책임, DTO, 추천 계산 방식은
+[`docs/AI_FASTAPI_RECOMMENDATION_CONTRACT.md`](../docs/AI_FASTAPI_RECOMMENDATION_CONTRACT.md)를
+기준으로 검토한다.
 
-요청은 `userId`, `mode`, `size`, `seedIsbns`, `excludeIsbns`, `weights`, `books`를
-사용한다. `books`는 현재 확보된 D4L 필드(`isbn13`, `bookname`, `authors`, `publisher`,
-`pub_year`, `class_no`, `class_nm`, `add_symbol`, `loan_total`, `co_loan`, `mania_rec`,
-`reader_rec`, `loan_history`)만 허용한다. 응답은 `recommendationId`, `mode`, `fallback`,
-`modelVersion`, `items`와 추천 근거를 포함한다. 백엔드는 응답의 ISBN13을 서비스 DB의
-canonical 도서 ID로 매핑해 저장·조회한다.
+`POST /internal/v1/recommendations`는 백엔드가 사용자 식별자, seed/exclude ISBN,
+사용자 태그와 추천 가중치만 전달하면 사전 색인된 D4L 도서에서 후보를 검색하고 재랭킹해
+추천 결과만 반환한다. 도서 약 100만 건의 임베딩·태그·D4L feature는 오프라인 배치로
+생성·색인한다. 상세 계약은 [`docs/AI_FASTAPI_RECOMMENDATION_CONTRACT.md`](../docs/AI_FASTAPI_RECOMMENDATION_CONTRACT.md)를 따른다.
+
+AI 서버는 원천 수집 API나 사용자 DB를 호출하지 않으며, 응답의 `isbn13`을 기준으로
+백엔드가 canonical 도서 정보와 화면 데이터를 결합한다.
 
 ## 테스트
 
