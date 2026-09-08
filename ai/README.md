@@ -65,6 +65,13 @@ feature 상태가 함께 기록된다.
 제목·저자·분류가 같더라도 ISBN이 다르면 서로 다른 후보로 유지하며, D4L 관계도
 후보 ISBN과 정확히 일치하는 경우에만 조인한다.
 
+후보 검색은 `recommendation.vector_search`의 `CandidateSearchService`를 통해 수행한다.
+운영 환경은 Qdrant REST 어댑터를 사용하고, 테스트·로컬 smoke check는 동일한 계약의
+in-memory 인덱스를 사용한다. `seedIsbns`와 `excludeIsbns`는 합쳐서 하드 제외하며,
+모든 검색은 활성 `indexVersion`을 metadata filter로 고정한다. 응답 상태는 `OK`,
+`CANDIDATE_SHORTAGE`, `INDEX_NOT_FOUND`, `TIMEOUT`으로 구분하고 검색 limit·index
+version·제외 수·seed 수를 함께 기록한다.
+
 ## 내부 추천 API
 
 백엔드와 FastAPI 사이의 책임, DTO, 추천 계산 방식은
