@@ -40,6 +40,10 @@ uv run uvicorn recommendation.api:app --host 0.0.0.0 --port 8000
 - JSON은 키 정렬과 고정 구분자를 사용해 직렬화한다.
 - 산출물에는 실행 시각이나 절대 경로를 넣지 않는다.
 - 설정 오류에는 환경 변수 값이나 비밀값을 출력하지 않는다.
+- `inputHash`는 추천 입력 feature를 고정 순서로 정규화한 `d4l-feature-normalization-v1`
+  기준으로 계산하며, `description`, `keywords`, `embedding`은 포함하지 않는다.
+- 관계 목록은 식별자·제목 기준으로 중복 제거 후 정렬하고, `loan_history`는 월 기준으로
+  정렬해 원본 배열 순서에 영향을 받지 않게 한다.
 
 실제 feature, 평가 지표, 추천 알고리즘은 후속 Jira 작업에서 각 command handler를
 확장한다. CLI와 결과 envelope는 호환성을 위해 유지한다.

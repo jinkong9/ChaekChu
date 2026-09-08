@@ -9,6 +9,7 @@ from typing import Sequence
 from recommendation.config import ConfigError, load_config
 from recommendation.baseline import evaluate_content, recommend_content, recommend_popular
 from recommendation.d4l import DataError, load_d4l_jsonl
+from recommendation.normalization import NormalizationError
 from recommendation.runtime import build_artifact, configure_logging, refresh_artifact_hash, set_seed, write_artifact
 from recommendation.validation import validate_d4l_jsonl
 
@@ -55,13 +56,13 @@ def run(arguments: argparse.Namespace) -> Path:
 
     output_path = arguments.output or config.output_dir / f"{arguments.command}.json"
     user_id = arguments.user_id if arguments.command == "recommend" else None
-    artifact = build_artifact(
-        command=arguments.command,
-        config=config,
-        input_path=input_path,
-        user_id=user_id,
-    )
     try:
+        artifact = build_artifact(
+            command=arguments.command,
+            config=config,
+            input_path=input_path,
+            user_id=user_id,
+        )
         if arguments.command == "build":
             books = None
         elif arguments.command == "validate":
@@ -77,7 +78,7 @@ def run(arguments: argparse.Namespace) -> Path:
             artifact["queryIsbn"] = query_isbn
             artifact["recommendations"] = recommend_content(books, query_isbn, limit=arguments.limit)
             artifact["popularBaseline"] = recommend_popular(books, query_isbn, limit=arguments.limit)
-    except DataError as error:
+    except (DataError, NormalizationError) as error:
         raise ConfigError(f"input validation failed: {error}") from error
     artifact = refresh_artifact_hash(artifact)
     write_artifact(output_path, artifact)

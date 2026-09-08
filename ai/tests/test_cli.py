@@ -12,6 +12,7 @@ from recommendation.cli import create_parser, main, run
 from recommendation.config import ConfigError, load_config
 from recommendation.d4l import load_d4l_jsonl
 from recommendation.baseline import evaluate_content, recommend_content
+from recommendation.normalization import NORMALIZATION_VERSION, normalized_input_hash
 from recommendation.validation import validate_d4l_jsonl
 
 
@@ -33,6 +34,7 @@ def test_commands_create_artifact(command: str, tmp_path: Path) -> None:
     artifact = json.loads(result.read_text(encoding="utf-8"))
     assert artifact["command"] == command
     assert artifact["schemaVersion"] == 1
+    assert artifact["inputNormalizationVersion"] == NORMALIZATION_VERSION
     assert len(artifact["inputHash"]) == 64
     assert len(artifact["artifactHash"]) == 64
 
@@ -59,6 +61,37 @@ def test_same_seed_and_input_produce_identical_bytes(tmp_path: Path) -> None:
     run(parse("build", "--input", str(FIXTURE), "--output", str(first)))
     run(parse("build", "--input", str(FIXTURE), "--output", str(second)))
     assert first.read_bytes() == second.read_bytes()
+
+
+def test_d4l_input_hash_uses_only_versioned_normalized_features(tmp_path: Path) -> None:
+    first = tmp_path / "first.jsonl"
+    second = tmp_path / "second.jsonl"
+    first.write_text(
+        '{"isbn13":"9780000000001","bookname":" A ","authors":"작가",'
+        '"loan_total":10,"co_loan":[["9780000000003","C"],["9780000000002","B"]],'
+        '"loan_history":[["2026년 02월",2,20],["2026년 01월",1,10]],'
+        '"desc":"이 값은 제외","keywords":[["제외",1]]}\n',
+        encoding="utf-8",
+    )
+    second.write_text(
+        '{"isbn13":"9780000000001","bookname":"A","authors":"작가",'
+        '"loan_total":10,"co_loan":[["9780000000002","B"],["9780000000003","C"]],'
+        '"loan_history":[["2026년 01월",1,10],["2026년 02월",2,20]],'
+        '"desc":"다른 값","keywords":[["다른값",99]]}\n',
+        encoding="utf-8",
+    )
+
+    assert normalized_input_hash(first) == normalized_input_hash(second)
+
+
+def test_d4l_input_hash_is_same_for_plain_and_gzip_input(tmp_path: Path) -> None:
+    plain = tmp_path / "d4l.jsonl"
+    compressed = tmp_path / "d4l.jsonl.gz"
+    plain.write_text(D4L_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    with gzip.open(compressed, "wt", encoding="utf-8") as file:
+        file.write(plain.read_text(encoding="utf-8"))
+
+    assert normalized_input_hash(plain) == normalized_input_hash(compressed)
 
 
 def test_missing_config_does_not_echo_path_or_secret(capsys: pytest.CaptureFixture[str]) -> None:

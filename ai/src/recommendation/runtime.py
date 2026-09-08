@@ -8,6 +8,7 @@ import random
 from typing import Any
 
 from recommendation.config import RuntimeConfig
+from recommendation.normalization import NORMALIZATION_VERSION, normalized_input_hash
 
 
 def configure_logging(config: RuntimeConfig) -> None:
@@ -50,7 +51,8 @@ def build_artifact(
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "command": command,
-        "inputHash": file_hash(input_path),
+        "inputHash": normalized_input_hash(input_path),
+        "inputNormalizationVersion": NORMALIZATION_VERSION,
         "runtime": {"seed": config.seed},
         "schemaVersion": 1,
     }
