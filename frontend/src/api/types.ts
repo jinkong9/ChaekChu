@@ -101,6 +101,19 @@ export interface LibraryItem {
   finishedDate: string | null  // 읽음일 때만, 미입력 시 서버가 오늘로
 }
 
+/** GET /tags?kind=GENRE — 태그 사전(DB tags 테이블이 SSOT). label은 '#소설' 꼴, 화면에선 # 떼고 표시 */
+export interface TagItem {
+  tagCode: string
+  label: string
+  kind: 'GENRE' | 'THEME' | 'SIGNAL'
+}
+
+/** GET /books/popular (§4.2) — 온보딩 그리드. segment=null 이면 전체 인기 폴백 */
+export interface PopularBooksResponse {
+  segment: { age: string; gender: string | null; label: string } | null
+  items: BookSummary[]
+}
+
 export interface SearchResponse {
   total: number
   page: number

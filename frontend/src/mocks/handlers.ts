@@ -97,7 +97,8 @@ const COVER: Record<number, string> = {
   36: 'https://image.aladin.co.kr/product/25509/75/cover500/k132633125_2.jpg',
 }
 const withCategory = (bk: BookSummary): BookSummary =>
-  ({ ...bk, category: CATEGORY[bk.bookId] ?? null, coverUrl: COVER[bk.bookId] ?? null })
+  // 정적 맵에 없는 책(세그먼트 인기에서 편입된 책)은 자기 값을 그대로 유지한다
+  ({ ...bk, category: CATEGORY[bk.bookId] ?? bk.category ?? null, coverUrl: COVER[bk.bookId] ?? bk.coverUrl ?? null })
 
 const fs = (taste: number | null, coLoan: number | null, trending: number | null, steady: number | null, newField: number | null): FeatureScore[] => [
   { key: 'taste', rawScore: taste },
@@ -193,7 +194,71 @@ const requireAuth = (request: Request) =>
     ? null
     : HttpResponse.json({ message: '로그인이 필요합니다.' }, { status: 401 })
 
+/** mock 사용자 상태 — 실서버의 users 행에 해당. authorize/profile/preferences가 갱신하고 GET /users/me가 읽는다 */
+const me = { userId: '1', nickname: null as string | null, onboardingStatus: 'PENDING' as 'PENDING' | 'COMPLETED' | 'SKIPPED', interestTags: [] as string[], birthYear: null as number | null, gender: null as string | null }
+
+/** ---- 세그먼트 인기 (온보딩 그리드, §4.2) ----
+ *  실측 수집분 popular-ring.json(10세그먼트×20권)을 재료로 프로필의 연령·성별에 맞는 top을 준다.
+ *  연령+성별 → 해당 세그먼트 / 연령만 → 그 연령대 남녀 합산 재랭킹 / 그 외 → 전 세그먼트 합산.
+ *  실서버에서는 book_loaned_top20 테이블이 같은 역할을 한다. */
+interface RingBook { title: string; author: string; publisher: string; publicationYear: string; isbn13: string; loanCount: number; classNo: string; coverUrl: string | null }
+interface RingSegment { age: string; gender: '남' | '여'; label: string; items: RingBook[] }
+
+let ringCache: RingSegment[] | null = null
+async function loadRing(): Promise<RingSegment[]> {
+  if (ringCache) return ringCache
+  const res = await fetch('/data/popular-ring.json') // 정적 파일 — 핸들러가 없어 네트워크로 통과된다
+  ringCache = ((await res.json()) as { segments: RingSegment[] }).segments
+  return ringCache
+}
+
+/** KDC → 서재 선반이 쓰는 분류 경로 근사 */
+const ringCategory = (classNo: string) => {
+  if (classNo.startsWith('813')) return '문학 > 한국소설'
+  if (classNo.startsWith('833')) return '문학 > 일본문학'
+  if (classNo.startsWith('818') || classNo.startsWith('814')) return '문학 > 에세이'
+  return { '1': '인문 > 철학', '3': '사회 > 사회과학', '4': '과학 > 자연과학', '5': '기술 > 기술과학', '8': '문학 > 문학', '9': '역사 > 역사' }[classNo[0] ?? ''] ?? '기타'
+}
+
+/** ring 도서를 CATALOG에 편입해 bookId를 부여한다 — 온보딩에서 고른 책이 서재·상세에서도 이어지게 */
+const ringIds = new Map<string, number>()
+let nextRingId = 1001
+function toSummary(b: RingBook): BookSummary {
+  let id = ringIds.get(b.isbn13)
+  if (id == null) {
+    id = nextRingId++
+    ringIds.set(b.isbn13, id)
+    CATALOG.push({ bookId: id, title: b.title, author: b.author, publisher: b.publisher, coverUrl: b.coverUrl,
+      pageCount: null, publicationYear: Number(b.publicationYear) || null, category: ringCategory(b.classNo) })
+  }
+  return CATALOG.find((c) => c.bookId === id)!
+}
+
+/** 여러 세그먼트의 loanCount 합산 재랭킹 — 같은 책이 양쪽에 있으면 자연히 올라온다 */
+function topAcross(segs: RingSegment[], size: number): BookSummary[] {
+  const acc = new Map<string, { b: RingBook; loan: number }>()
+  for (const s of segs) for (const it of s.items) {
+    const cur = acc.get(it.isbn13)
+    if (cur) cur.loan += it.loanCount
+    else acc.set(it.isbn13, { b: it, loan: it.loanCount })
+  }
+  return [...acc.values()].sort((x, y) => y.loan - x.loan).slice(0, size).map((v) => toSummary(v.b))
+}
+
+/** 태그 사전 — 실서버 V1_1__seed_tags.sql과 같은 12개. 목록의 주인은 DB, 여기는 사본 */
+const TAGS = [
+  ['FICTION', '#소설'], ['ESSAY', '#에세이'], ['HUMANITIES', '#인문'], ['HISTORY', '#역사'],
+  ['SCIENCE', '#과학'], ['ART', '#예술'], ['SELF_HELP', '#자기계발'], ['BUSINESS', '#경제·경영'],
+  ['SOCIETY', '#사회'], ['POETRY', '#시'], ['TRAVEL', '#여행'], ['TECH', '#기술·IT'],
+].map(([tagCode, label]) => ({ tagCode, label, kind: 'GENRE' as const }))
+
 export const handlers = [
+  // 태그 사전 — 온보딩 장르 칩·(추후) /tune 해시태그의 단일 원천
+  http.get('*/tags', ({ request }) => {
+    const kind = new URL(request.url).searchParams.get('kind')
+    return HttpResponse.json({ items: kind ? TAGS.filter((t) => t.kind === kind) : TAGS })
+  }),
+
   // 인증 — mock: OAuth authorize 응답으로 callback 이후 상태를 대신한다 (dev 이어진님 구조 채택).
   // 시연 분기: 카카오=신규(온보딩행, 닉네임은 Step 0에서 입력), 구글=기존 회원(홈 직행)
   http.get('*/auth/oauth/:provider/authorize', ({ params }) => {
@@ -201,18 +266,44 @@ export const handlers = [
     if (provider !== 'KAKAO' && provider !== 'GOOGLE') {
       return HttpResponse.json({ message: '지원하지 않는 OAuth provider입니다.' }, { status: 400 })
     }
-    return provider === 'GOOGLE'
-      ? HttpResponse.json({ accessToken: 'mock-token', nickname: 'Google 독자', onboarded: true })
-      : HttpResponse.json({ accessToken: 'mock-token', nickname: null, onboarded: false })
+    if (provider === 'GOOGLE') {
+      Object.assign(me, { nickname: 'Google 독자', onboardingStatus: 'COMPLETED' })
+      return HttpResponse.json({ accessToken: 'mock-token', nickname: me.nickname, onboarded: true })
+    }
+    Object.assign(me, { nickname: null, onboardingStatus: 'PENDING' })
+    return HttpResponse.json({ accessToken: 'mock-token', nickname: null, onboarded: false })
   }),
 
+  // 내 정보 — 실서버 응답 모양(§3.1): userId 문자열, onboardingStatus enum. onboarded 판정은 FE가 != PENDING 으로
+  http.get('*/users/me', ({ request }) => requireAuth(request) ?? HttpResponse.json({ ...me })),
+
   // 온보딩 — Step 0 프로필(닉네임·생년월일·성별), Step 1~2 취향
-  http.post('*/users/me/profile', () => new HttpResponse(null, { status: 204 })),
-  http.get('*/books/popular', () => HttpResponse.json({ items: CATALOG.slice(4, 12) })), // 세그먼트 인기 (온보딩 그리드용)
+  http.post('*/users/me/profile', async ({ request }) => {
+    const body = (await request.json()) as { nickname: string; birthYear: number | null; gender: string | null }
+    Object.assign(me, { nickname: body.nickname, birthYear: body.birthYear ?? null, gender: body.gender ?? null })
+    return new HttpResponse(null, { status: 204 })
+  }),
+  http.get('*/books/popular', async ({ request }) => {
+    const size = Math.min(40, Number(new URL(request.url).searchParams.get('size') ?? 12))
+    const segs = await loadRing()
+    const decade = me.birthYear ? Math.min(50, Math.max(10, Math.floor((new Date().getFullYear() - me.birthYear) / 10) * 10)) : null
+    const ringGender = me.gender === 'F' ? '여' : me.gender === 'M' ? '남' : null
+
+    if (decade != null && ringGender) {
+      const seg = segs.find((s) => s.age.replace(/\D/g, '') === String(decade) && s.gender === ringGender)
+      if (seg) return HttpResponse.json({ segment: { age: String(decade), gender: me.gender, label: seg.label }, items: seg.items.slice(0, size).map(toSummary) })
+    }
+    if (decade != null) {
+      const pair = segs.filter((s) => s.age.replace(/\D/g, '') === String(decade))
+      if (pair.length) return HttpResponse.json({ segment: { age: String(decade), gender: null, label: `${decade}대` }, items: topAcross(pair, size) })
+    }
+    return HttpResponse.json({ segment: null, items: topAcross(segs, size) })
+  }),
   // 온보딩 취향 제출 — 읽은 책은 서재의 완독 기록이 된다 (finished_at NULL = 서비스 이전에 읽음).
   // genres → user_interests 저장은 서버 몫이고, mock에서는 아직 읽는 화면이 없어 보관하지 않는다 (/tune 초기값은 P1).
   http.post('*/users/me/preferences', async ({ request }) => {
     const body = (await request.json()) as { genres: string[]; books: { bookId: number; rating: number }[] }
+    Object.assign(me, { onboardingStatus: 'COMPLETED', interestTags: body.genres ?? [] })
     for (const { bookId, rating } of body.books) {
       const book = CATALOG.find((bk) => bk.bookId === bookId)
       if (!book) continue
