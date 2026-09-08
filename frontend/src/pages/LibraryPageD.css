@@ -107,6 +107,22 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.libd__backdrop-close {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.libd__backdrop-close:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: -8px;
+}
+
 .libd__book-trigger:focus-visible { outline: none; }
 
 .libd__world {
@@ -517,8 +533,8 @@
    책의 재질과 넘김 물리는 건드리지 않고, 그 지면 위에 내용만 얹는다.
    ══════════════════════════════════════════════════════════════════ */
 
-/* 찜 책장은 세로로 길어질 수 있다 — 넘침을 막는 것은 책 무대일 때뿐 */
-.libd-page--shelf { overflow-y: auto; overflow-x: hidden; }
+/* 책 아래로 완독 연표가, 찜에서는 선반이 이어진다 — C안처럼 화면에 가둘 수 없다 */
+.libd-page--scroll { overflow-y: auto; overflow-x: hidden; }
 
 /* 머리말이 상단 버튼 줄 아래로 내려앉는다 (C안은 top: 44px) */
 .libd-page .libd__intro { top: 86px; }
@@ -534,6 +550,10 @@
 }
 
 /* ── 상단 버튼 줄 ─────────────────────────────────────────────── */
+/* 상단 버튼 줄 — 홈(popular-ring)의 툴바와 같은 짜임이다: 왼쪽은 무엇을 볼지 고르는
+   밑줄 세그먼트, 오른쪽 끝은 잉크로 채운 알약 하나. 버튼 자체는 새로 만들지 않고
+   앱 공용 판의 .eo-segment / .eo-button 을 그대로 쓴다 — 홈과 같은 클래스, 같은 잉크다.
+   이 규칙이 맡는 것은 자리뿐이다. */
 .libd__topbar {
   position: absolute;
   left: 34px;
@@ -542,40 +562,12 @@
   z-index: 30;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  /* 버튼 사이 빈 자리로는 아래 무대(책 덮기)가 눌려야 한다 */
+  pointer-events: none;
 }
 
-.libd__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 15px;
-  border: 1px solid rgba(23, 32, 57, 0.14);
-  border-radius: 999px;
-  color: rgba(23, 32, 57, 0.56);
-  font-size: 12px;
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.66);
-  box-shadow: 0 8px 25px rgba(41, 52, 69, 0.08);
-  backdrop-filter: blur(14px);
-  cursor: pointer;
-  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
-}
-
-.libd__pill:hover { color: var(--ink); }
-.libd__pill:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
-.libd__pill b { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; opacity: 0.6; }
-
-/* 지금 보고 있는 쪽 — 색이 아니라 잉크 반전으로 구분한다 */
-.libd__pill.is-on {
-  border-color: var(--ink);
-  color: #fdfdfb;
-  background: var(--ink);
-}
-
-.libd__pill.is-on b { opacity: 0.62; }
-.libd__edit { margin-left: auto; }
-.libd__edit:hover { border-color: var(--cobalt); color: var(--cobalt); }
+.libd__topbar > * { pointer-events: auto; }
 
 /* ── 지면 위의 내용 ───────────────────────────────────────────────
    글자 크기는 책 폭(--book-w)에 매인다. 책이 작아지면 판면도 같이 줄어야
@@ -856,32 +848,29 @@
 .libd-pop p { margin-top: 8px; font-size: 11px; line-height: 1.6; color: rgba(23, 32, 57, 0.6); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .libd-pop a { display: inline-block; margin-top: 10px; font-size: 11px; color: var(--cobalt); border-bottom: 1px solid currentColor; }
 
-/* ── 책 기록 수정 서랍 ───────────────────────────────────────── */
-.libd-drawer { position: fixed; inset: 0; z-index: 60; }
-.libd-drawer__scrim { position: absolute; inset: 0; border: 0; padding: 0; background: rgba(23, 32, 57, 0.26); cursor: pointer; animation: libd-fade 180ms ease; }
-
-.libd-drawer__panel {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  width: min(580px, 94vw);
-  flex-direction: column;
-  background: #fdfdfb;
-  box-shadow: -18px 0 50px rgba(23, 32, 57, 0.2);
-  animation: libd-slide 240ms cubic-bezier(0.32, 0.72, 0, 1);
+/* ── 책 기록 수정 — 전체 화면 ─────────────────────────────────
+   고치는 자리는 보는 자리와 성격이 다르다. C안의 종이·무대를 끌고 오지 않고
+   앱 공용 판(editorial.css 의 eo-*)을 그대로 쓴다. GNB까지 덮는 전체 화면이
+   되려면 .libd-page 의 isolation 밖으로 나가야 해서 body 로 포털한다. */
+.libd-record {
+  position: fixed;
+  /* GNB(54px, Layout.tsx) 아래를 통째로 덮는다. 서재가 있던 자리와 정확히 같은 틀이라
+     '책 기록 수정'과 '서재로 돌아가기'가 같은 자리에 놓인다. */
+  inset: 54px 0 0;
+  z-index: 100;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: libd-rise 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.libd-drawer__head { display: flex; align-items: baseline; gap: 10px; padding: 20px 24px 14px; border-bottom: 1px solid rgba(23, 32, 57, 0.1); }
-.libd-drawer__head h2 { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; }
-.libd-drawer__head p { font-size: 11px; color: rgba(23, 32, 57, 0.45); }
-.libd-drawer__head button { margin-left: auto; font-size: 12px; font-weight: 700; color: rgba(23, 32, 57, 0.5); cursor: pointer; }
-.libd-drawer__head button:hover { color: var(--ink); }
-.libd-drawer__body { flex: 1; overflow-y: auto; padding: 6px 24px 32px; }
+/* 들어올 때 누른 그 자리에 그대로 — .libd__topbar 의 오른쪽 버튼과 같은 좌표 */
+.libd-record__back { position: absolute; top: 22px; right: 34px; z-index: 5; }
 
-@keyframes libd-fade { from { opacity: 0 } to { opacity: 1 } }
-@keyframes libd-slide { from { transform: translateX(24px); opacity: 0 } to { transform: none; opacity: 1 } }
+@media (max-width: 640px) {
+  .libd-record__back { top: 12px; right: 16px; }
+}
+
+@keyframes libd-rise { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
 
 @media (max-width: 900px) {
   .libd__topbar { left: 20px; right: 20px; }
@@ -889,15 +878,88 @@
 }
 
 @media (max-width: 640px) {
-  .libd__topbar { top: 14px; left: 14px; right: 14px; gap: 6px; }
-  .libd__pill { padding: 7px 12px; font-size: 11px; }
+  /* 홈의 좁은 화면 값과 같다 */
+  .libd__topbar { top: 12px; left: 16px; right: 16px; }
   .libd-page .libd__intro { top: 74px; }
   .libd-shelf { padding: 18px 14px 48px; }
-  .libd-drawer__panel { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .libd-shelf__book,
-  .libd-drawer__panel,
-  .libd-drawer__scrim { transition-duration: 0.01ms; animation-duration: 0.01ms; }
+  .libd-timeline__spine,
+  .libd-record { transition-duration: 0.01ms; animation-duration: 0.01ms; }
+}
+
+/* ── 완독 연표 (B안) ─────────────────────────────────────────────
+   책 무대가 화면을 꽉 채우므로 연표는 그 아래 한 화면 뒤에 온다.
+   B안은 흰 종이 위 2px 테두리였지만, 여기는 C안의 차가운 바탕 위라
+   반투명 유리 한 장으로 앉힌다. */
+.libd-timeline { position: relative; z-index: 10; padding: 0 34px 76px; }
+.libd-timeline__head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 11px; }
+.libd-timeline__head h3 { font-size: 13px; font-weight: 800; letter-spacing: 0.01em; }
+.libd-timeline__head p { font-size: 11px; color: rgba(23, 32, 57, 0.45); }
+.libd-timeline__other { margin-left: auto; white-space: nowrap; }
+
+.libd-timeline__grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(23, 32, 57, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 10px 30px rgba(41, 52, 69, 0.07);
+  backdrop-filter: blur(12px);
+}
+
+.libd-timeline__month { display: flex; flex-direction: column; justify-content: flex-end; }
+.libd-timeline__month + .libd-timeline__month { border-left: 1px solid rgba(23, 32, 57, 0.08); }
+
+.libd-timeline__spines {
+  display: flex;
+  height: 104px;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 4px;
+}
+
+/* 책등 — 높이는 쪽수, 색은 다른 화면과 같은 자리색(coverPalette) */
+.libd-timeline__spine {
+  width: 16px;
+  border-radius: 2px 2px 0 0;
+  box-shadow: inset 1.5px 0 0 rgba(255, 255, 255, 0.3), inset -1.5px 0 0 rgba(0, 0, 0, 0.14);
+  cursor: pointer;
+  transition: transform 140ms ease;
+}
+
+.libd-timeline__spine:hover { transform: translateY(-6px); }
+.libd-timeline__spine.is-on { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+.libd-timeline__spine:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+
+.libd-timeline__label {
+  padding: 6px 0;
+  border-top: 1px solid rgba(23, 32, 57, 0.12);
+  color: rgba(23, 32, 57, 0.45);
+  font-size: 11px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 이번 달만 잉크로 반전 — 색을 새로 들이지 않는다 */
+.libd-timeline__label.is-now { background: var(--ink); color: #fdfdfb; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .libd-timeline { padding: 0 20px 60px; }
+  .libd-timeline__spines { height: 88px; gap: 4px; }
+  .libd-timeline__spine { width: 13px; }
+}
+
+@media (max-width: 640px) {
+  .libd-timeline { padding: 0 14px 48px; }
+  .libd-timeline__head { flex-wrap: wrap; gap: 6px; }
+  .libd-timeline__head p { font-size: 10px; }
+  .libd-timeline__other { margin-left: 0; }
+  .libd-timeline__spines { height: 68px; gap: 2px; padding: 0 2px; }
+  .libd-timeline__spine { width: 8px; }
+  .libd-timeline__label { padding: 4px 0; font-size: 9px; }
 }

@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
@@ -261,12 +262,20 @@ function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
   )
 }
 
-function ArchiveBook({ read, meta }: { read: LibraryItem[]; meta: BookMeta }) {
+function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClosed }: {
+  read: LibraryItem[]
+  meta: BookMeta
+  index: number
+  onIndex: (i: number) => void
+  isClosed: boolean
+  onClosed: (closed: boolean) => void
+}) {
   const reducedMotion = useReducedMotion()
-  const [currentIndex, setCurrentIndex] = useState(0)
   const [turn, setTurn] = useState<TurnState | null>(null)
-  const [isClosed, setIsClosed] = useState(true)
   const indexRef = useRef(currentIndex)
+  // 넘김 루프는 한 번 만들어 두고 계속 도는 콜백이라 최신 onIndex 를 ref 로 집는다
+  const onIndexRef = useRef(onIndex)
+  onIndexRef.current = onIndex
   const motionRef = useRef<MotionState>({
     direction: null,
     progress: 0,
@@ -313,7 +322,7 @@ function ArchiveBook({ read, meta }: { read: LibraryItem[]; meta: BookMeta }) {
       if (direction && completed) {
         const nextIndex = Math.max(0, Math.min(lastRef.current, indexRef.current + direction))
         indexRef.current = nextIndex
-        setCurrentIndex(nextIndex)
+        onIndexRef.current(nextIndex)
       }
 
       motion.direction = null
@@ -339,7 +348,7 @@ function ArchiveBook({ read, meta }: { read: LibraryItem[]; meta: BookMeta }) {
 
     if (reducedMotion) {
       indexRef.current = at + direction
-      setCurrentIndex(at + direction)
+      onIndexRef.current(at + direction)
       return
     }
 
@@ -361,15 +370,15 @@ function ArchiveBook({ read, meta }: { read: LibraryItem[]; meta: BookMeta }) {
   }, [isClosed, reducedMotion, settleTurn])
 
   const closeBook = useCallback(() => {
-    if (!turn) setIsClosed(true)
-  }, [turn])
+    if (!turn) onClosed(true)
+  }, [turn, onClosed])
 
   /** 목차에서 곧장 그 장으로 — 넘기는 중에는 받지 않는다 */
   const jumpTo = (sheetIndex: number) => {
     if (turn) return
     const next = Math.max(0, Math.min(lastRef.current, sheetIndex))
     indexRef.current = next
-    setCurrentIndex(next)
+    onIndex(next)
   }
 
   const leftOf = (s: Sheet | undefined): ReactNode =>
@@ -468,7 +477,7 @@ function ArchiveBook({ read, meta }: { read: LibraryItem[]; meta: BookMeta }) {
                 type="button"
                 className="libd-book__hit libd-book__hit--cover"
                 aria-label="표지를 눌러 책 펼치기"
-                onClick={() => setIsClosed(false)}
+                onClick={() => onClosed(false)}
               />
             )}
           </span>
@@ -485,6 +494,51 @@ function ArchiveBook({ read, meta }: { read: LibraryItem[]; meta: BookMeta }) {
         </button>
       </div>
     </div>
+  )
+}
+
+/* ══════════════════ 완독 연표 (B안) — 책 아래 한 띠 ══════════════════ */
+
+/** 캘린더 대신 열두 달의 띠. 완독일만으로 그려지고, 책등을 누르면 그 장으로 넘어간다.
+ *  (월 캘린더는 넣지 않는다: 서재에는 하루 단위 기록이 없어 31칸 중 한두 칸만 찬다) */
+function Timeline({ read, year, current, onJump }: {
+  read: LibraryItem[]; year: number; current: number; onJump: (bookIndex: number) => void
+}) {
+  const thisMonth = new Date().getFullYear() === year ? new Date().getMonth() + 1 : 0
+  const otherYears = read.filter((li) => !li.finishedDate?.startsWith(String(year))).length
+
+  return (
+    <section className="libd-timeline">
+      <div className="libd-timeline__head">
+        <h3>완독 연표 · {year}</h3>
+        <p>달에 꽂힌 책등을 누르면 그 장으로 넘어가요 — 책등 높이는 쪽수입니다</p>
+        {otherYears > 0 && <p className="libd-timeline__other">그 밖의 해 {otherYears}권</p>}
+      </div>
+      <div className="libd-timeline__grid">
+        {Array.from({ length: 12 }, (_, k) => k + 1).map((m) => {
+          const spines = read
+            .map((li, i) => ({ li, i }))
+            .filter(({ li }) => li.finishedDate?.startsWith(`${year}-${String(m).padStart(2, '0')}`))
+          return (
+            <div className="libd-timeline__month" key={m}>
+              <div className="libd-timeline__spines">
+                {spines.map(({ li, i }) => (
+                  <button type="button" key={li.libraryItemId} onClick={() => onJump(i)}
+                    title={`${li.book.title}${li.book.pageCount ? ` · ${li.book.pageCount}쪽` : ''}`}
+                    aria-label={`${li.book.title} 장으로 넘기기`}
+                    className={`libd-timeline__spine ${i === current ? 'is-on' : ''}`}
+                    style={{
+                      height: Math.round(Math.min(96, 42 + (li.book.pageCount ?? 260) * 0.13)),
+                      background: coverPalette(li.book.bookId).bg,
+                    }} />
+                ))}
+              </div>
+              <div className={`libd-timeline__label ${m === thisMonth ? 'is-now' : ''}`}>{m}월</div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
@@ -582,27 +636,82 @@ function WishShelves({ wish }: { wish: LibraryItem[] }) {
 
 /* ══════════════════ 고치는 자리 — 서랍 하나로 ══════════════════ */
 
-function RecordDrawer({ items, onClose }: { items: LibraryItem[]; onClose: () => void }) {
+const SORTS = [
+  { key: 'recent', label: '최신순' },
+  { key: 'rating', label: '별점 높은 순' },
+] as const
+
+type SortKey = (typeof SORTS)[number]['key']
+
+/** 완독일이 빠른 순. 완독일이 없는 책(찜)은 뒤로 밀고, 그 안에서는 나중에 담은 것부터. */
+const byRecent = (x: LibraryItem, y: LibraryItem) =>
+  (y.finishedDate ?? '').localeCompare(x.finishedDate ?? '') || y.libraryItemId - x.libraryItemId
+
+/** 별점이 높은 순. 별점이 없으면 맨 뒤 — 0점과 '아직 안 매김'은 다르다. */
+const byRating = (x: LibraryItem, y: LibraryItem) =>
+  (y.rating ?? -1) - (x.rating ?? -1) || byRecent(x, y)
+
+function RecordScreen({ items, onClose }: { items: LibraryItem[]; onClose: () => void }) {
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<SortKey>('recent')
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // 뒤에 깔린 서재가 같이 스크롤되면 닫았을 때 엉뚱한 자리에 가 있다
+    const scroll = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = scroll
+    }
   }, [onClose])
 
-  return (
-    <div className="libd-drawer" role="dialog" aria-modal="true" aria-label="책 기록 수정">
-      <button type="button" className="libd-drawer__scrim" aria-label="닫기" onClick={onClose} />
-      <div className="libd-drawer__panel">
-        <div className="libd-drawer__head">
-          <h2>책 기록 수정</h2>
-          <p>별점 · 감상평 · 상태</p>
-          <button type="button" onClick={onClose}>닫기</button>
+  const needle = query.trim().toLowerCase()
+  const shown = items
+    .filter((li) => !needle || `${li.book.title} ${li.book.author ?? ''}`.toLowerCase().includes(needle))
+    .sort(sort === 'rating' ? byRating : byRecent)
+
+  return createPortal(
+    <div className="libd-record eo-page" role="dialog" aria-modal="true" aria-label="책 기록 수정">
+      {/* 들어올 때 누른 '책 기록 수정'과 같은 자리, 같은 버튼 */}
+      <button type="button" className="eo-button libd-record__back" onClick={onClose}>서재로 돌아가기</button>
+      <div className="eo-shell">
+        <div>
+          <p className="eo-eyebrow">Library</p>
+          <h1 className="eo-headline">책 기록 수정</h1>
+          <p className="eo-body mt-2.5">별점 · 한 줄 감상평 · 읽음/찜 상태를 여기서 고칩니다</p>
         </div>
-        <div className="libd-drawer__body">
-          <LibraryList items={items} />
+
+        <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-rule pt-3">
+          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
+            className="eo-field eo-field--sm w-full sm:w-[260px]"
+            placeholder="제목 · 저자로 찾기" aria-label="서재에서 책 검색" />
+          <div className="eo-segments">
+            {SORTS.map((s) => (
+              <button key={s.key} type="button" onClick={() => setSort(s.key)} aria-pressed={sort === s.key}
+                className={`eo-segment ${sort === s.key ? 'is-on' : ''}`}>{s.label}</button>
+            ))}
+          </div>
+          <p className="eo-utility ml-auto">
+            {needle ? `찾은 책 ${shown.length}권 · 전체 ${items.length}권` : `전체 ${items.length}권`}
+          </p>
         </div>
+
+        {shown.length > 0 ? (
+          <div className="mt-1"><LibraryList items={shown} /></div>
+        ) : (
+          <div className="eo-empty">
+            <p className="eo-body">
+              {/* 조사(와/과)는 검색어 받침에 따라 달라진다 — 문구에서 아예 뺀다 */}
+              {needle ? `‘${query.trim()}’ — 서재에서 찾지 못했어요.` : '서재가 아직 비어 있어요.'}
+            </p>
+            <Link to="/search" className="eo-button">책 찾으러 가기</Link>
+          </div>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -612,6 +721,9 @@ export default function LibraryPageD() {
   const nickname = useAuthStore((s) => s.nickname)
   const [mode, setMode] = useState<'read' | 'wish'>('read')
   const [editing, setEditing] = useState(false)
+  // 책의 장·덮힘은 연표에서도 움직여야 해서 페이지가 들고 있는다. 0 = 속표지 + 목차.
+  const [index, setIndex] = useState(0)
+  const [isClosed, setIsClosed] = useState(true)
 
   const { data } = useQuery({
     queryKey: ['library'],
@@ -632,20 +744,22 @@ export default function LibraryPageD() {
   }
 
   return (
-    <section className={`libd-page libd-page--book ${mode === 'wish' ? 'libd-page--shelf' : ''}`}
-      aria-labelledby="libd-title">
+    <section className="libd-page libd-page--book libd-page--scroll" aria-labelledby="libd-title">
       <div className="libd__grain" aria-hidden="true" />
 
+      {/* 버튼은 홈과 같은 것을 쓴다 — 밑줄 세그먼트로 고르고, 잉크 알약이 행동을 맡는다 */}
       <div className="libd__topbar">
-        <button type="button" className={`libd__pill ${mode === 'read' ? 'is-on' : ''}`}
-          aria-pressed={mode === 'read'} onClick={() => setMode('read')}>
-          읽음 <b>{read.length}</b>
-        </button>
-        <button type="button" className={`libd__pill ${mode === 'wish' ? 'is-on' : ''}`}
-          aria-pressed={mode === 'wish'} onClick={() => setMode('wish')}>
-          찜 <b>{wish.length}</b>
-        </button>
-        <button type="button" className="libd__pill libd__edit" onClick={() => setEditing(true)}>
+        <div className="eo-segments">
+          <button type="button" className={`eo-segment ${mode === 'read' ? 'is-on' : ''}`}
+            aria-pressed={mode === 'read'} onClick={() => setMode('read')}>
+            읽음 <span className="eo-segment__count">{read.length}</span>
+          </button>
+          <button type="button" className={`eo-segment ${mode === 'wish' ? 'is-on' : ''}`}
+            aria-pressed={mode === 'wish'} onClick={() => setMode('wish')}>
+            찜 <span className="eo-segment__count">{wish.length}</span>
+          </button>
+        </div>
+        <button type="button" className="eo-button" onClick={() => setEditing(true)}>
           책 기록 수정
         </button>
       </div>
@@ -661,14 +775,21 @@ export default function LibraryPageD() {
       </header>
 
       {mode === 'read' ? (
-        <div className="libd__stage libd__stage--book" aria-label="완독 기록을 엮은 책">
-          <ArchiveBook read={read} meta={meta} />
-        </div>
+        <>
+          <div className="libd__stage libd__stage--book" aria-label="완독 기록을 엮은 책">
+            <ArchiveBook read={read} meta={meta} index={index} onIndex={setIndex}
+              isClosed={isClosed} onClosed={setIsClosed} />
+          </div>
+          {read.length > 0 && (
+            <Timeline read={read} year={meta.year} current={index - 1}
+              onJump={(i) => { setIndex(i + 1); setIsClosed(false) }} />
+          )}
+        </>
       ) : (
         <WishShelves wish={wish} />
       )}
 
-      {editing && <RecordDrawer items={all} onClose={() => setEditing(false)} />}
+      {editing && <RecordScreen items={all} onClose={() => setEditing(false)} />}
     </section>
   )
 }
