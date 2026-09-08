@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/authStore'
 
@@ -53,6 +53,8 @@ const CSS = `
 
 export default function LandingPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const oauthFailed = searchParams.get('error') === 'oauth_failed'
   const login = useAuthStore((s) => s.login)
   const ulRef = useRef<HTMLUListElement>(null)
 
@@ -132,7 +134,9 @@ export default function LandingPage() {
               <span aria-hidden>G</span> Google로 시작하기
             </button>
           </div>
-          <span className="land-hint">가입과 로그인이 하나예요 — 3초면 충분해요</span>
+          <span className="land-hint">
+            {oauthFailed ? '로그인이 중간에 끊겼어요 — 다시 시도해 주세요' : '가입과 로그인이 하나예요 — 3초면 충분해요'}
+          </span>
         </div>
       </div>
     </div>

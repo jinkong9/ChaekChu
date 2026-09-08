@@ -2,10 +2,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { BookSummary } from '../api/types'
+import type { PopularBooksResponse, TagItem } from '../api/types'
 import { useAuthStore } from '../stores/authStore'
 
-const GENRES = ['소설', '에세이', '인문', '역사', '과학', '예술', '자기계발', '경제·경영', '사회', '시', '여행', '기술·IT']
 const MAX_GENRES = 5
 const STEP_COUNT = 3
 
@@ -20,9 +19,19 @@ export default function OnboardingPage() {
   const [genres, setGenres] = useState<string[]>([])
   const [picked, setPicked] = useState<Map<number, number | null>>(new Map()) // bookId -> rating
 
+  // 장르 칩 — 태그 사전(DB tags)이 목록의 주인. 라벨의 '#'는 온보딩 화면에서만 뗀다 (§3.3)
+  const { data: tagData } = useQuery({
+    queryKey: ['tags', 'GENRE'],
+    queryFn: async () => (await api.get<{ items: TagItem[] }>('/tags?kind=GENRE')).data.items,
+    staleTime: Infinity,
+  })
+  const GENRES = (tagData ?? []).map((t) => t.label.replace(/^#/, ''))
+
+  // Step 0 프로필 저장 뒤에만 조회 — 연령·성별이 있어야 세그먼트 인기가 나온다 (§4.2)
   const { data } = useQuery({
     queryKey: ['popular'],
-    queryFn: async () => (await api.get<{ items: BookSummary[] }>('/books/popular')).data.items,
+    queryFn: async () => (await api.get<PopularBooksResponse>('/books/popular?size=12')).data,
+    enabled: step === 2,
   })
 
   const canProfile = profile.nickname.trim().length >= 2 && profile.birthDate !== ''
@@ -56,7 +65,8 @@ export default function OnboardingPage() {
       books: [...picked.entries()].map(([bookId, rating]) => ({ bookId, rating: rating as number })),
     })
     completeOnboarding()
-    navigate('/recommend')
+    // 홈으로 — 추천 진입은 홈 경유 단일 경로(GNB 확정 흐름). 첫 화면은 시그니처인 인기도서 링
+    navigate('/home')
   }
 
   return (
@@ -118,8 +128,8 @@ export default function OnboardingPage() {
                 )
               })}
             </div>
-            <div className="mt-10 flex items-center justify-between">
-              <button className="eo-link" onClick={() => setStep(2)}>건너뛰기</button>
+            {/* 0개 선택도 허용이라 건너뛰기 = 다음 — 버튼 하나만 둔다 */}
+            <div className="mt-10 flex items-center justify-end">
               <button className="eo-button" onClick={() => setStep(2)}>다음</button>
             </div>
           </section>
@@ -128,9 +138,11 @@ export default function OnboardingPage() {
         {step === 2 && (
           <section className="mt-9">
             <h1 className="eo-headline">읽어본 책이 있나요?</h1>
-            <p className="eo-body mt-3.5 max-w-[48ch]">별점까지 남기면 첫 추천이 더 정확해져요 · 3권 권장, 0권도 시작 가능</p>
+            <p className="eo-body mt-3.5 max-w-[48ch]">
+              {data?.segment ? `${data.segment.label}이 많이 빌린 책들이에요 — ` : ''}별점까지 남기면 첫 추천이 더 정확해져요 · 3권 권장, 0권도 시작 가능
+            </p>
             <div className="eo-books eo-books--roomy mt-8">
-              {(data ?? []).map((bk) => {
+              {(data?.items ?? []).map((bk) => {
                 const selected = picked.has(bk.bookId)
                 const rating = picked.get(bk.bookId) ?? 0
                 return (
@@ -156,10 +168,10 @@ export default function OnboardingPage() {
                 )
               })}
             </div>
-            <div className="mt-10 flex items-center justify-between">
-              <button className="eo-link" onClick={finish}>건너뛰기</button>
+            {/* 0권도 시작 가능하므로 별도 건너뛰기가 필요 없다 — 버튼 하나가 곧 완료다 */}
+            <div className="mt-10 flex items-center justify-end">
               <button className="eo-button" disabled={!canFinishBooks} onClick={finish}>
-                추천 받기{picked.size > 0 && ` · ${picked.size}권`}
+                책추책책추 시작하기{picked.size > 0 && ` · ${picked.size}권과 함께`}
               </button>
             </div>
             {!canFinishBooks && <p className="eo-body mt-3 text-right text-[11px]">고른 책에 별점을 남기면 넘어갈 수 있어요</p>}
