@@ -72,6 +72,12 @@ in-memory 인덱스를 사용한다. `seedIsbns`와 `excludeIsbns`는 합쳐서 
 `CANDIDATE_SHORTAGE`, `INDEX_NOT_FOUND`, `TIMEOUT`으로 구분하고 검색 limit·index
 version·제외 수·seed 수를 함께 기록한다.
 
+후보 재랭킹은 `recommendation.reranking`의 `HybridReranker`가 담당한다. semantic,
+tagMatch, coLoan, trending, steady를 각각 0~100으로 계산하고, 백엔드가 전달한
+가중치 중 실제 값이 있는 feature만으로 분모를 재계산한다. 따라서 결측 feature를
+임의의 0점 근거로 해석하지 않으며, 최종 score·featureScores·기여 feature를 함께
+기록할 수 있다. 같은 점수는 ISBN13 오름차순으로 정렬해 실행 간 결과를 재현한다.
+
 임베딩 배치는 `recommendation.embedding_batch`의 `EmbeddingBatchRunner`로 실행한다.
 입력은 서지·분류 필드만 조합하고, 관계·대출이력은 Qdrant payload metadata로 저장한다.
 Qdrant에서는 index version별 staging collection에 upsert한 뒤 `books_active` alias를
