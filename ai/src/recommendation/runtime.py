@@ -61,6 +61,12 @@ def build_artifact(
     return {**payload, "artifactHash": artifact_hash}
 
 
+def refresh_artifact_hash(artifact: dict[str, Any]) -> dict[str, Any]:
+    payload = {key: value for key, value in artifact.items() if key != "artifactHash"}
+    artifact_hash = sha256(canonical_json_bytes(payload)).hexdigest()
+    return {**payload, "artifactHash": artifact_hash}
+
+
 def write_artifact(path: Path, artifact: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(canonical_json_bytes(artifact) + b"\n")

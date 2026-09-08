@@ -7,11 +7,14 @@ import sys
 from typing import Sequence
 
 from recommendation.config import ConfigError, load_config
-from recommendation.runtime import build_artifact, configure_logging, set_seed, write_artifact
+from recommendation.baseline import evaluate_content, recommend_content, recommend_popular
+from recommendation.d4l import DataError, load_d4l_jsonl
+from recommendation.runtime import build_artifact, configure_logging, refresh_artifact_hash, set_seed, write_artifact
+from recommendation.validation import validate_d4l_jsonl
 
 
 LOGGER = logging.getLogger(__name__)
-COMMANDS = ("build", "evaluate", "recommend")
+COMMANDS = ("build", "validate", "evaluate", "recommend")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -33,6 +36,11 @@ def create_parser() -> argparse.ArgumentParser:
         command_parser.add_argument("--output", type=Path)
         if command == "recommend":
             command_parser.add_argument("--user-id", required=True)
+            command_parser.add_argument("--query-isbn")
+            command_parser.add_argument("--limit", type=int, default=10)
+        if command == "evaluate":
+            command_parser.add_argument("--k", type=int, default=10)
+            command_parser.add_argument("--recall-k", type=int, default=20)
     return parser
 
 
@@ -53,7 +61,30 @@ def run(arguments: argparse.Namespace) -> Path:
         input_path=input_path,
         user_id=user_id,
     )
+    try:
+        if arguments.command == "build":
+            books = None
+        elif arguments.command == "validate":
+            artifact["validation"] = validate_d4l_jsonl(input_path)
+            books = None
+        else:
+            books = load_d4l_jsonl(input_path)
+        if arguments.command == "evaluate" and books is not None:
+            artifact["evaluation"] = evaluate_content(books, k=arguments.k, recall_k=arguments.recall_k)
+        elif arguments.command == "recommend" and books is not None:
+            query_isbn = arguments.query_isbn or books[0].isbn13
+            artifact["algorithm"] = "tfidf-content-v1"
+            artifact["queryIsbn"] = query_isbn
+            artifact["recommendations"] = recommend_content(books, query_isbn, limit=arguments.limit)
+            artifact["popularBaseline"] = recommend_popular(books, query_isbn, limit=arguments.limit)
+    except DataError as error:
+        raise ConfigError(f"input validation failed: {error}") from error
+    artifact = refresh_artifact_hash(artifact)
     write_artifact(output_path, artifact)
+    if arguments.command == "validate" and artifact["validation"]["blockingErrors"]:
+        raise ConfigError(
+            f"input validation failed: {artifact['validation']['blockingErrors']} blocking error(s); report written to {output_path}"
+        )
     LOGGER.info("command=%s artifactHash=%s", arguments.command, artifact["artifactHash"])
     return output_path
 
