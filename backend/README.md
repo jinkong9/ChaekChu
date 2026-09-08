@@ -67,7 +67,10 @@ src/main/java/com/ssafy/b102/
     controller/AuthController.java    # GET /auth/oauth/{provider}/authorize · /callback (API_SPEC §2)
   user/
     entity/                           # User · Tag · UserInterest · enum(OAuthProvider, Gender, OnboardingStatus)
-    repository/ · service/ · dto/ · controller/UserController.java   # GET /users/me
+    service/UserService · OnboardingService   # 조회·생성 / 프로필·취향(관심 태그 교체, seed 책 → 서재)
+    controller/UserController.java    # GET /users/me · POST /users/me/profile · POST /users/me/preferences (API_SPEC §3)
+  book/entity/Book.java · repository/    # V1 books 읽기 매핑 (채우는 주체는 배치)
+  library/entity/LibraryItem.java · ShelfStatus(WISH/READ) · LibrarySource(SERVICE/ONBOARDING) · repository/
 src/main/resources/
   application.yml                     # 환경변수 ${VAR:기본값} 방식. 프로필 파일 없음
   db/migration/V1__init.sql           # Flyway. docs/sql/V1__init.sql 복사본 (1차 10테이블 + 보정 7건). V2 = 추천 데이터 층

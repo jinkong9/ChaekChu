@@ -11,6 +11,7 @@
 | --- | --- | --- |
 | 원본 | `docs/sql/erdcloud_export_20260907.sql` | ERDCloud export 그대로 (수정 금지) |
 | **V1** | **`docs/sql/V1__init.sql`** | 1차 10테이블 + 보정 7건 — 지금 프론트·API 가 깨지는 곳과 UNIQUE·FK·CHECK 만 |
+| **V1.1** | **`docs/sql/V1_1__seed_tags.sql`** | `tags` seed — 온보딩 장르 12개(GENRE, 라벨 `#소설` 형태). API_SPEC §3.3 표 |
 | V2 | (작성 예정) | 아래 §4~§5 의 `book_texts` `book_keywords` `book_embeddings` `book_relations` `book_demand_features` `kdc_codes` + `books` 확장 컬럼 |
 | 참고 | `docs/POSTGRES_SCHEMA.sql` | 이 문서 전체를 한 번에 만든 **목표 스키마**. V1 이 확정된 뒤로는 참고용 |
 
