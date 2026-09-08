@@ -7,9 +7,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from recommendation.api import app
+from recommendation.api import D4LBookInput, app
 from recommendation.cli import create_parser, main, run
 from recommendation.config import ConfigError, load_config
+from recommendation.dedup import candidate_secondary_key, deduplicate_candidates, join_relation_isbns
 from recommendation.d4l import load_d4l_jsonl
 from recommendation.baseline import evaluate_content, evaluate_d4l, recommend_content
 from recommendation.normalization import NORMALIZATION_VERSION, normalized_input_hash
@@ -402,4 +403,36 @@ def test_recommendation_api_rejects_duplicate_candidate_ids() -> None:
     response = client.post("/internal/v1/recommendations", json=payload)
 
     assert response.status_code == 422
+
+
+def test_candidate_dedup_keeps_richest_representative_per_isbn() -> None:
+    sparse = D4LBookInput(isbn13="9780000000001", bookname="같은 책", loan_total=999)
+    rich = D4LBookInput(
+        isbn13="9780000000001",
+        bookname=" 같은 책 ",
+        authors="작가",
+        publisher="출판사",
+        pub_year="2024",
+        class_no="813.7",
+        class_nm="한국소설",
+        loan_total=10,
+    )
+    same_work_different_isbn = D4LBookInput(isbn13="9780000000002", bookname="같은 책", loan_total=1)
+
+    result = deduplicate_candidates([same_work_different_isbn, sparse, rich])
+
+    assert [book.isbn13 for book in result] == ["9780000000001", "9780000000002"]
+    assert result[0] is rich
+    assert candidate_secondary_key(result[0]) == ("같은 책", "작가", "813.7", "한국소설")
+
+
+def test_candidate_dedup_joins_relations_by_exact_isbn_only() -> None:
+    relation = [
+        [" 9780000000002 ", "같은 책"],
+        ["9780000000003", "다른 책"],
+        ["9780000000002", "중복 관계"],
+    ]
+
+    assert join_relation_isbns(relation, {"9780000000002"}) == ("9780000000002",)
+    assert join_relation_isbns(relation, {"9780000000001"}) == ()
 
