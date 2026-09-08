@@ -59,8 +59,18 @@ class OnboardingApiTest {
 		User user = userRepository.save(User.fromOAuth(OAuthProvider.KAKAO, "onboarding-" + System.nanoTime()));
 		userId = user.getId();
 		bearer = "Bearer " + jwt.issue(userId);
-		book1 = jdbc.queryForObject("insert into books(isbn13, title, author) values ('9788936434120', '소년이 온다', '한강') returning id", Long.class);
-		book2 = jdbc.queryForObject("insert into books(isbn13, title, author) values ('9788937460449', '데미안', '헤르만 헤세') returning id", Long.class);
+		// ISBN 은 매 실행 고유하게 — 로컬 DB 에 샘플 도서가 이미 있어도 uq_books_isbn13 에 걸리지 않게 (CHECK: ^(978|979)[0-9]{10}$)
+		book1 = insertBook(uniqueIsbn(1), "소년이 온다", "한강");
+		book2 = insertBook(uniqueIsbn(2), "데미안", "헤르만 헤세");
+	}
+
+	private Long insertBook(String isbn13, String title, String author) {
+		return jdbc.queryForObject("insert into books(isbn13, title, author) values (?, ?, ?) returning id", Long.class, isbn13, title, author);
+	}
+
+	private static String uniqueIsbn(int n) {
+		long tail = (System.nanoTime() / 10 + n) % 1_000_000_000L;   // 9자리
+		return "979" + n + String.format("%09d", tail);
 	}
 
 	// ── 프로필 ──

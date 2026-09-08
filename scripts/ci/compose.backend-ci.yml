@@ -1,12 +1,13 @@
 # 백엔드 CI 전용 override — backend/docker-compose.yml(PG+ES) 위에 덧씌운다.
 # 운영 컨테이너(b102-postgres 등)와 같은 호스트에서 돌므로 이름·포트를 분리하고 메모리를 작게 잡는다.
 # 포트는 열지 않는다. gradle 컨테이너가 같은 compose 네트워크에 붙어 서비스명으로 접근한다.
+# max_connections: 테스트 컨텍스트가 여러 개(컨텍스트당 Hikari 풀) 떠도 넘치지 않게 40. 테스트 프로필은 풀을 2개로 제한한다(application-test.yml).
 services:
   postgres:
     container_name: b102-ci-postgres
     ports: !override []
     volumes: !override []
-    command: !override ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=20", "-c", "fsync=off", "-c", "synchronous_commit=off"]
+    command: !override ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=40", "-c", "fsync=off", "-c", "synchronous_commit=off"]
     mem_limit: 512m
   elasticsearch:
     container_name: b102-ci-elasticsearch
