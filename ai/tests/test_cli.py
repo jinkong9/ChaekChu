@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 from pathlib import Path
 
@@ -150,6 +151,41 @@ def test_d4l_contract_validation_reports_real_sample_quality() -> None:
     assert report["status"] == "PASS"
     assert report["blockingErrors"] == 0
     assert report["warnings"] > 0
+    assert report["stats"]["loanTotal"]["count"] == 4
+    assert report["stats"]["loanHistory"]["historyRows"] == 8
+    assert report["stats"]["loanHistory"]["monthRange"] == {
+        "min": "2026년 01월",
+        "max": "2026년 02월",
+    }
+    assert report["stats"]["relations"]["co_loan"]["targetCoverage"] == 1.0
+    assert report["derivedFields"]["l1Candidate"] == "not_provided"
+
+
+def test_d4l_contract_validation_reads_gzip_snapshot(tmp_path: Path) -> None:
+    compressed = tmp_path / "d4l_usage.jsonl.gz"
+    with gzip.open(compressed, "wt", encoding="utf-8") as file:
+        file.write(D4L_FIXTURE.read_text(encoding="utf-8"))
+
+    report = validate_d4l_jsonl(compressed)
+
+    assert report["status"] == "PASS"
+    assert report["rows"] == 4
+    assert report["stats"]["relations"]["reader_rec"]["edges"] == 4
+
+
+def test_d4l_contract_validation_detects_relation_and_history_quality_errors(tmp_path: Path) -> None:
+    invalid = tmp_path / "invalid.jsonl"
+    invalid.write_text(
+        '{"isbn13":"9780000000001","bookname":"A","loan_total":1,'
+        '"co_loan":[["bad-isbn","B"]],"loan_history":[["2026년 13월",1,1]]}\n',
+        encoding="utf-8",
+    )
+
+    report = validate_d4l_jsonl(invalid)
+
+    assert report["status"] == "FAIL"
+    assert report["ruleCounts"]["relation_isbn_invalid"] == 1
+    assert report["ruleCounts"]["loan_history_item_invalid"] == 1
 
 
 def test_d4l_contract_validation_detects_duplicate_and_invalid_loan_total(tmp_path: Path) -> None:
