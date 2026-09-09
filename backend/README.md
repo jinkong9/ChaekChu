@@ -70,10 +70,26 @@ src/main/java/com/ssafy/b102/
     service/UserService · OnboardingService   # 조회·생성 / 프로필·취향(관심 태그 교체, seed 책 → 서재)
     controller/UserController.java    # GET /users/me · POST /users/me/profile · POST /users/me/preferences (API_SPEC §3)
   book/entity/Book.java · repository/    # V1 books 읽기 매핑 (채우는 주체는 배치)
+  book/dto/BookSummaryResponse.java      # API_SPEC §1.5 BookSummary — 검색·인기·추천·서재 공통 원소
+  book/entity/KdcMainClass.java          # KDC 대분류 10개 → category 라벨("문학"). kdc_codes 는 V2
   library/entity/LibraryItem.java · ShelfStatus(WISH/READ) · LibrarySource(SERVICE/ONBOARDING) · repository/
+  search/                                # 도서 검색 (Elasticsearch, API_SPEC §4.1). PG 가 원천, ES 는 읽기 모델
+    controller/BookSearchController.java # GET /books/search?q=&page=&size= (로그인 필요). 파라미터 검증 → 400 VALIDATION_FAILED
+    service/BookSearchService.java       # ISBN 분기(하이픈 무시 13자리) → ES 조회 → BookSummary 조립. ES 장애 → 503 SEARCH_UNAVAILABLE
+    dto/BookSearchResponse.java          # { total, page, size, items: BookSummary[] }
+    config/SearchProperties.java         # app.search.* — alias(books) · 물리 인덱스(books_v1) · 기동 시 생성 여부
+    config/SearchIndexInitializer.java   # 기동 시 alias 없으면 인덱스 생성(동기) → index-on-start 에 따라 PG 전체 색인(백그라운드). ES 가 죽어 있어도 기동은 계속
+    document/BookDocument.java           # ES 문서 (V1 books 1행 ↔ 1문서). 매핑은 resources/elasticsearch/*.json 이 진실
+    repository/BookSearchRepository.java # 검색 읽기 인터페이스 (search / findByIsbn13) + BookSearchResult(total, items)
+    repository/ElasticsearchBookSearchRepository.java  # NativeQuery: cross_fields AND(title^3·authors^2·publisher) + ngram phrase + title.keyword×10 · 정렬 _score, id
+    service/BookIndexService.java        # 인덱스 생성·alias 전환 · indexAll / indexUpdatedSince(증분, 삭제 미반영) / reindexInto(완전할 때만 alias 이동, 아니면 IncompleteIndexException). 1000건 keyset bulk
+    service/BookDocumentMapper.java      # Book 엔티티 → BookDocument
+    service/AuthorNameParser.java        # books.author 원문("한강 지음", "지은이: A;그림: B", "A (지은이), B (옮긴이)") → authors 배열. 옮긴이 제외
 src/main/resources/
   application.yml                     # 환경변수 ${VAR:기본값} 방식. 프로필 파일 없음
   db/migration/V1__init.sql           # Flyway. docs/sql/V1__init.sql 복사본 (1차 10테이블 + 보정 7건). V2 = 추천 데이터 층
+  elasticsearch/books_v1-settings.json  # analyzer: korean(nori mixed + 품사 필터) · bigram(공백 제거 후 2-gram). shards 1 / replicas 0
+  elasticsearch/books_v1-mappings.json  # dynamic=strict. title·authors = korean + .ngram(bigram) + .keyword
 docker/elasticsearch/Dockerfile       # elasticsearch:8.19.21 + analysis-nori
 docker-compose.yml                    # 로컬 인프라만. 앱은 포함하지 않음
 Dockerfile                            # 앱 배포 이미지 (multi-stage, temurin 21)

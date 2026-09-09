@@ -90,3 +90,8 @@ app:
       token-uri: https://oauth2.googleapis.com/token
       user-info-uri: https://openidconnect.googleapis.com/v1/userinfo   # sub 만 사용
       scopes: [openid]
+  search:                                                       # 도서 검색 인덱스 (API_SPEC §4.1). 매핑 = resources/elasticsearch/books_v1-*.json
+    alias: ${SEARCH_INDEX_ALIAS:books}                          # 코드는 항상 alias 로 읽고 쓴다
+    index-name: ${SEARCH_INDEX_NAME:books_v1}                   # 처음 만들 물리 인덱스. 재색인은 v2 를 만들어 채운 뒤 alias 만 옮긴다
+    create-index-on-start: ${SEARCH_CREATE_INDEX_ON_START:true} # 기동 시 alias 가 없으면 생성. ES 가 죽어 있으면 경고만 남기고 기동은 계속
+    index-on-start: ${SEARCH_INDEX_ON_START:IF_CREATED}         # PG books → ES 전체 색인(백그라운드). NEVER / IF_CREATED(alias 를 새로 만든 기동만) / ALWAYS

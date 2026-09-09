@@ -1,0 +1,166 @@
+package com.ssafy.b102.search;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.data.elasticsearch.core.IndexOperations;
+import org.springframework.data.elasticsearch.core.document.Document;
+import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+
+import com.ssafy.b102.search.config.SearchProperties;
+import com.ssafy.b102.search.document.BookDocument;
+import com.ssafy.b102.search.service.BookIndexService;
+import com.ssafy.b102.search.service.BookIndexService.IndexReport;
+import com.ssafy.b102.search.service.IncompleteIndexException;
+
+/**
+ * 2단계 — PG books → ES bulk 색인, 증분 색인, 재색인 + alias 전환.
+ * 실제 PostgreSQL + Elasticsearch. 색인기는 자기 트랜잭션으로 PG 를 읽으므로 테스트 데이터는 커밋해 넣고 끝에 지운다(@Transactional 롤백 불가).
+ */
+@SpringBootTest
+@ActiveProfiles("test")
+class BookIndexServiceTest {
+
+	@Autowired BookIndexService indexService;
+	@Autowired ElasticsearchOperations operations;
+	@Autowired SearchProperties props;
+	@Autowired JdbcTemplate jdbc;
+
+	private final List<Long> bookIds = new ArrayList<>();
+	private String tempIndex;
+
+	private Long oldBook;     // updated_at 2020 — 증분 색인 대상 아님
+	private Long freshBook;   // updated_at now
+
+	@BeforeEach
+	void setUp() {
+		oldBook = insertBook(uniqueIsbn(1), "소년이 온다", "한강 지음", "창비", 2014, "813.7", Instant.parse("2020-01-01T00:00:00Z"));
+		insertBook(uniqueIsbn(2), "데미안", "헤르만 헤세 지음 ; 전영애 옮김", "민음사", 2000, "853", Instant.parse("2020-01-01T00:00:00Z"));
+		freshBook = insertBook(uniqueIsbn(3), "구름빵", "글·그림 백희나", "한솔수북", 2004, null, Instant.now());
+	}
+
+	@AfterEach
+	void tearDown() {
+		IndexCoordinates alias = IndexCoordinates.of(props.alias());
+		for (Long id : bookIds) {
+			operations.delete(String.valueOf(id), alias);
+		}
+		indexService.refresh(props.alias());
+		if (!bookIds.isEmpty()) {
+			jdbc.update("delete from books where id in (" + String.join(",", bookIds.stream().map(String::valueOf).toList()) + ")");
+		}
+		if (tempIndex != null) {
+			indexService.switchAlias(props.indexName());   // 원래 물리 인덱스로 되돌리고
+			operations.indexOps(IndexCoordinates.of(tempIndex)).delete();
+		}
+	}
+
+	@Test
+	@DisplayName("indexAll: PG 행이 문서로 들어가고, 저자는 배열로 분해되며, 다시 돌려도 덮어쓴다(멱등)")
+	void indexAll_maps_and_is_idempotent() {
+		IndexReport first = indexService.indexAll();
+		assertThat(first.failed()).isZero();
+		assertThat(first.indexed()).isGreaterThanOrEqualTo(3);
+
+		BookDocument d = get(freshBook);
+		assertThat(d.getTitle()).isEqualTo("구름빵");
+		assertThat(d.getAuthors()).containsExactly("백희나");
+		assertThat(d.getAuthorRaw()).isEqualTo("글·그림 백희나");
+		assertThat(d.getPublisher()).isEqualTo("한솔수북");
+		assertThat(d.getPubYear()).isEqualTo(2004);
+		assertThat(d.getCategoryCode()).isNull();
+		assertThat(d.getUpdatedAt()).isNotNull();
+
+		BookDocument demian = get(bookIds.get(1));
+		assertThat(demian.getAuthors()).containsExactly("헤르만 헤세");   // 옮긴이 제외
+		assertThat(demian.getCategoryCode()).isEqualTo("853");
+
+		IndexReport second = indexService.indexAll();
+		assertThat(second.indexed()).isEqualTo(first.indexed());
+		assertThat(second.failed()).isZero();
+		assertThat(get(freshBook).getTitle()).isEqualTo("구름빵");
+	}
+
+	@Test
+	@DisplayName("indexUpdatedSince: updated_at 이 기준 이후인 책만 색인한다")
+	void indexUpdatedSince_only_recent_rows() {
+		IndexReport report = indexService.indexUpdatedSince(Instant.now().minus(1, ChronoUnit.DAYS));
+		assertThat(report.failed()).isZero();
+		assertThat(report.indexed()).isGreaterThanOrEqualTo(1);
+
+		assertThat(get(freshBook)).isNotNull();
+		assertThat(operations.get(String.valueOf(oldBook), BookDocument.class, IndexCoordinates.of(props.alias()))).isNull();
+	}
+
+	@Test
+	@DisplayName("reindexInto: 새 물리 인덱스를 채우고 alias 를 원자적으로 옮긴다. 옛 인덱스는 남는다")
+	void reindexInto_switches_alias() {
+		tempIndex = props.indexName() + "_reindex_" + System.nanoTime();
+
+		IndexReport report = indexService.reindexInto(tempIndex);
+		assertThat(report.index()).isEqualTo(tempIndex);
+		assertThat(report.indexed()).isGreaterThanOrEqualTo(3);
+
+		assertThat(indexService.aliasTargets()).containsExactly(tempIndex);
+		assertThat(operations.indexOps(IndexCoordinates.of(props.indexName())).exists()).isTrue();   // 옛 인덱스 보존
+		assertThat(get(freshBook).getTitle()).isEqualTo("구름빵");   // alias 로 읽으면 새 인덱스가 보인다
+
+		// 되돌리기 — switchAlias 는 반대 방향도 같은 한 요청
+		assertThat(indexService.switchAlias(props.indexName())).containsExactly(tempIndex);
+		assertThat(indexService.aliasTargets()).containsExactly(props.indexName());
+	}
+
+	@Test
+	@DisplayName("populateAndSwitch: 문서가 거부되면(매핑 불일치) alias 를 옮기지 않고 IncompleteIndexException — 새 인덱스는 조사용으로 남는다")
+	void populateAndSwitch_refuses_partial_index() {
+		tempIndex = props.indexName() + "_bad_" + System.nanoTime();
+		// title 을 integer 로 잡은 인덱스 — 모든 문서가 mapper_parsing_exception 으로 거부된다
+		IndexOperations bad = operations.indexOps(IndexCoordinates.of(tempIndex));
+		bad.create();
+		bad.putMapping(Document.parse("{\"properties\":{\"title\":{\"type\":\"integer\"}}}"));
+
+		assertThatThrownBy(() -> indexService.populateAndSwitch(tempIndex))
+			.isInstanceOf(IncompleteIndexException.class)
+			.satisfies(e -> {
+				IncompleteIndexException ie = (IncompleteIndexException) e;
+				assertThat(ie.report().failed()).isGreaterThanOrEqualTo(3);
+				assertThat(ie.actual()).isLessThan(ie.expected());
+			});
+
+		assertThat(indexService.aliasTargets()).containsExactly(props.indexName());          // alias 그대로
+		assertThat(operations.indexOps(IndexCoordinates.of(tempIndex)).exists()).isTrue();   // 조사용으로 남음
+	}
+
+	// ── helpers ──
+
+	private BookDocument get(Long id) {
+		return operations.get(String.valueOf(id), BookDocument.class, IndexCoordinates.of(props.alias()));
+	}
+
+	private Long insertBook(String isbn13, String title, String author, String publisher, Integer pubYear, String kdc, Instant updatedAt) {
+		Long id = jdbc.queryForObject(
+			"insert into books(isbn13, title, author, publisher, pub_year, category_code, updated_at) values (?, ?, ?, ?, ?, ?, ?) returning id",
+			Long.class, isbn13, title, author, publisher, pubYear, kdc, java.sql.Timestamp.from(updatedAt));
+		bookIds.add(id);
+		return id;
+	}
+
+	private static String uniqueIsbn(int n) {
+		long tail = (System.nanoTime() / 10 + n) % 1_000_000_000L;   // 9자리, CHECK ^(978|979)[0-9]{10}$
+		return "979" + n + String.format("%09d", tail);
+	}
+}
