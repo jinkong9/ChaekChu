@@ -30,6 +30,18 @@ uv run b102-recommendation --config config/local.toml recommend --input tests/fi
 uv run uvicorn recommendation.api:app --host 0.0.0.0 --port 8000
 ```
 
+컨테이너로 실행할 때는 저장소 루트에서 다음 명령을 사용한다.
+
+```bash
+docker build -f ai/Dockerfile -t b102-ai:local ai
+docker run --rm -p 8000:8000 -e AI_PORT=8000 -e AI_LOG_LEVEL=info b102-ai:local
+```
+
+컨테이너는 non-root 사용자로 실행되며 `/health`는 `modelVersion`과 활성
+`indexVersion`을 함께 반환한다. `AI_PORT`, `AI_LOG_LEVEL`, `AI_MODEL_VERSION`,
+`AI_INDEX_VERSION`으로 실행 환경을 주입할 수 있다. 실제 색인이 연결되기 전에는
+추천 API가 빈 결과의 명시적 fallback으로 응답한다.
+
 기본 출력은 `ai/output/<command>.json`에, 로그는 `ai/logs/recommendation.log`에
 생성된다. `--output`으로 명령별 출력 위치를 덮어쓸 수 있다.
 

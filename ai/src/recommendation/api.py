@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import hashlib
+import os
 import re
 from typing import Any, Literal, Protocol
 
@@ -356,8 +357,9 @@ class ContractRecommendationEngine(Protocol):
 class EmptyRecommendationEngine:
     """Safe default until an embedding/index runtime is configured."""
 
-    model_version = "d4l-hybrid-v1"
-    index_version = None
+    def __init__(self) -> None:
+        self.model_version = os.getenv("AI_MODEL_VERSION", "d4l-hybrid-v1")
+        self.index_version = os.getenv("AI_INDEX_VERSION") or None
 
     def recommend(self, request: RecommendationRequest) -> ContractRecommendationResponse:
         return _contract_response(
@@ -496,7 +498,12 @@ def configure_recommendation_engine(engine: ContractRecommendationEngine) -> Non
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    engine = getattr(app.state, "recommendation_engine", None)
+    return {
+        "status": "ok",
+        "modelVersion": getattr(engine, "model_version", "d4l-hybrid-v1"),
+        "indexVersion": getattr(engine, "index_version", None) or "none",
+    }
 
 
 @app.post(
