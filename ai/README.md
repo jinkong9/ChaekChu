@@ -101,6 +101,12 @@ prototype은 사용자 tag weight로 가중 평균한 뒤 요청의 semantic·ta
 결과 metadata에 기록하며, 사용 가능한 벡터가 없으면 `COLD_START`로 전환한다. 이
 경로에서는 매 요청 GMS 호출을 하지 않는다.
 
+최종 top-K 선택은 `recommendation.top_k`의 `TopKRecommendationRanker`가 담당한다.
+요청 size는 기본 5, 최대 10으로 검증하고 seed·exclude ISBN과 중복 ISBN을 먼저 제거한다.
+점수 순서만 고정하지 않고 작품(workKey 또는 서지 기반 fallback)·저자 반복에 선택 penalty를
+적용해 다양성을 보정한다. 응답용 primaryReason과 reasons는 실제로 양수 기여한
+feature만으로 결정적 템플릿을 만들며, 근거가 없는 태그·설명을 추가하지 않는다.
+
 임베딩 배치는 `recommendation.embedding_batch`의 `EmbeddingBatchRunner`로 실행한다.
 입력은 서지·분류 필드만 조합하고, 관계·대출이력은 Qdrant payload metadata로 저장한다.
 Qdrant에서는 index version별 staging collection에 upsert한 뒤 `books_active` alias를
