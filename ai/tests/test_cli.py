@@ -130,6 +130,34 @@ def test_tune_command_writes_weight_report(tmp_path: Path) -> None:
     assert len(artifact["tuning"]["weightConfigs"]) == 4
 
 
+def test_smoke_command_combines_validation_tag_quality_and_tuning(tmp_path: Path) -> None:
+    sidecar = tmp_path / "tags.jsonl"
+    run(parse("tags", "--input", str(D4L_FIXTURE), "--sidecar", str(sidecar)))
+    output = tmp_path / "smoke.json"
+
+    result = run(
+        parse(
+            "smoke",
+            "--input",
+            str(D4L_FIXTURE),
+            "--tag-sidecar",
+            str(sidecar),
+            "--output",
+            str(output),
+        )
+    )
+
+    artifact = json.loads(result.read_text(encoding="utf-8"))
+    smoke = artifact["smoke"]
+    assert smoke["status"] == "PASS"
+    assert smoke["rows"] == 4
+    assert smoke["validation"]["blockingErrors"] == 0
+    assert smoke["tags"]["status"] == "VALID"
+    assert smoke["tags"]["sidecarRows"] == 4
+    assert smoke["tuning"]["inputHash"] == smoke["inputHash"]
+    assert "pAt5" in smoke["recommendedMetrics"]
+
+
 def test_recommend_includes_user_id(tmp_path: Path) -> None:
     output = tmp_path / "recommend.json"
     run(

@@ -54,6 +54,13 @@ uv run b102-recommendation --config config/local.toml tune \
   --tag-sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl \
   --k 5 --recall-k 10
 
+# 로컬/EC2: validation·tag 품질·weight tuning을 하나의 report로 검증
+uv run b102-recommendation --config config/local.toml smoke \
+  --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
+  --tag-sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl \
+  --tag-version d4l-tags-v1 --k 5 --recall-k 10 \
+  --output /home/ubuntu/pipeline_data/data4library/recommendation-smoke.json
+
 # FastAPI/운영: 동시 요청과 timeout·복구 smoke test
 uv run pytest --basetemp .pytest-tmp-164 tests/test_resilience.py
 

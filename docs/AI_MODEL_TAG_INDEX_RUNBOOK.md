@@ -189,6 +189,24 @@ AI runtime의 `QDRANT_TAG_COLLECTION=tags_active`를 반영한다. point key는
 현재 `tune`의 semantic은 TF-IDF proxy이므로, 결과는 배포 승인 근거 중 하나로만
 사용하고 운영 ANN 품질은 staging Qdrant에서 별도로 확인한다.
 
+배치 전후에는 `smoke` 명령으로 원본 validation, sidecar version/coverage, 관계 기반
+weight tuning을 하나의 report에 남긴다. sidecar가 없으면 태그 상태를
+`NOT_PROVIDED`로 기록하면서 semantic·관계 평가를 계속한다.
+
+```bash
+uv run b102-recommendation --config config/local.toml smoke \
+  --input "$SOURCE" \
+  --tag-sidecar "$RUN_DIR/tags.jsonl" \
+  --tag-version "$TAG_VERSION" \
+  --k 5 --recall-k 10 \
+  --output "$RUN_DIR/smoke.json"
+```
+
+`smoke.json`의 `status="PASS"`, `validation.blockingErrors=0`을 확인하고,
+`tags.coverage`, `tags.lowConfidenceRows`, `recommendedMetrics.pAt5`,
+`recommendedMetrics.recallAt10`, `recommendedMetrics.diversityAt5`,
+`recommendedMetrics.candidateShortageQueries`를 기록한다.
+
 ```bash
 uv run b102-recommendation --config config/local.toml tune \
   --input "$SOURCE" \
