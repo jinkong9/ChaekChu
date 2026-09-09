@@ -127,6 +127,11 @@ ssh b102 'bash ~/S15P21B102/deploy/scripts/deploy.sh --no-pull'          # 현�
 
 ## 운영
 
+AI 모델·태그 sidecar·Qdrant index를 갱신하거나 롤백할 때는
+[`AI 모델·태그·임베딩 Index 운영 Runbook`](../docs/AI_MODEL_TAG_INDEX_RUNBOOK.md)의
+version 기록, alias 전환, health smoke test 순서를 따른다. `AI_INDEX_VERSION`만
+되돌리지 말고 `books_active` alias도 같은 이전 index로 복구해야 한다.
+
 ```bash
 cd ~/S15P21B102 && C="docker compose -f deploy/docker-compose.yml"
 $C ps                                  # 상태
