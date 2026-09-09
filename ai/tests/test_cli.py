@@ -404,6 +404,13 @@ def test_recommendation_api_returns_backend_contract() -> None:
     assert [item["rank"] for item in body["items"]] == [1, 2]
 
 
+def test_health_reports_runtime_versions_without_exposing_secrets() -> None:
+    response = TestClient(app).get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "modelVersion": "d4l-hybrid-v1", "indexVersion": "none"}
+
+
 def test_recommendation_api_rejects_duplicate_candidate_ids() -> None:
     client = TestClient(app)
     payload = {

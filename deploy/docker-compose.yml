@@ -62,6 +62,7 @@ services:
       - "127.0.0.1:18080:8080"           # 호스트에서 헬스체크·디버그용. 외부 공개 아님
     environment:
       SERVER_PORT: "8080"
+      AI_RECOMMENDATION_URL: http://ai:${AI_PORT:-8000}
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-bookdb}
       DB_USERNAME: ${POSTGRES_USER:-book}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 필요}
@@ -99,6 +100,37 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+
+  ai:
+    build:
+      context: ../ai
+    image: b102-ai:${RELEASE:-latest}
+    container_name: b102-ai
+    restart: unless-stopped
+    environment:
+      AI_PORT: ${AI_PORT:-8000}
+      AI_LOG_LEVEL: ${AI_LOG_LEVEL:-info}
+      AI_MODEL_VERSION: ${AI_MODEL_VERSION:-d4l-hybrid-v1}
+      AI_INDEX_VERSION: ${AI_INDEX_VERSION:-none}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      TZ: UTC
+    expose:
+      - "${AI_PORT:-8000}"
+    mem_limit: 1g
+    depends_on:
+      qdrant:
+        condition: service_started
+        required: false
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${AI_PORT:-8000}/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   postgres:
     image: postgres:16.15
