@@ -46,6 +46,9 @@ uv run b102-recommendation --config config/local.toml tune \
   --tag-sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl \
   --k 5 --recall-k 10
 
+# FastAPI/운영: 동시 요청과 timeout·복구 smoke test
+uv run pytest --basetemp .pytest-tmp-164 tests/test_resilience.py
+
 uv run uvicorn recommendation.api:app --host 0.0.0.0 --port 8000
 ```
 
@@ -128,6 +131,12 @@ sidecar가 없거나 특정 ISBN의 태그가 없으면 `tagMatch`를 0점으로
 해당 후보의 가중치 분모에서 제외한다. 현재 오프라인 semantic 점수는 재현 가능한
 TF-IDF proxy이며, 운영 100만 건 임베딩 색인과의 검증은 staging Qdrant에서 별도로
 수행한다.
+
+`tests/test_resilience.py`는 in-memory index를 사용해 실제 HTTP DTO 경계에서 32건
+동시 personalized 요청의 응답 격리와 hard exclude를 확인한다. 또한 검색 timeout은
+demand fallback으로 전환되는지, query vector timeout은 500 없이 빈 fallback으로
+응답하는지, 정상 엔진으로 교체한 뒤 다시 추천되는지를 검증한다. 이 테스트는 외부
+Qdrant/GMS를 호출하지 않으므로 CI와 로컬 smoke test에서 반복 실행할 수 있다.
 
 추천 후보는 `isbn13`을 유일한 병합 키로 사용한다. 같은 ISBN이 여러 번 들어오면
 메타데이터 완성도, 누적 대출량, 제목·저자·분류 보조 키 순서로 대표 도서를 결정한다.
