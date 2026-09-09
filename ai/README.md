@@ -39,8 +39,26 @@ docker run --rm -p 8000:8000 -e AI_PORT=8000 -e AI_LOG_LEVEL=info b102-ai:local
 
 컨테이너는 non-root 사용자로 실행되며 `/health`는 `modelVersion`과 활성
 `indexVersion`을 함께 반환한다. `AI_PORT`, `AI_LOG_LEVEL`, `AI_MODEL_VERSION`,
-`AI_INDEX_VERSION`으로 실행 환경을 주입할 수 있다. 실제 색인이 연결되기 전에는
-추천 API가 빈 결과의 명시적 fallback으로 응답한다.
+`AI_INDEX_VERSION`으로 실행 환경을 주입할 수 있다. `QDRANT_URL`과 활성
+`AI_INDEX_VERSION`이 함께 설정되면 FastAPI 시작 시 Qdrant 검색·query vector
+adapter가 연결된다. `QDRANT_COLLECTION`은 `books_active` alias를 기본값으로
+사용하고, `QDRANT_TAG_COLLECTION`은 사전 계산한 태그 prototype collection이
+있을 때만 설정한다. `QDRANT_VECTOR_NAME`은 named vector를 사용할 때 지정한다.
+활성 index가 설정되기 전에는 추천 API가 빈 결과의 명시적 fallback으로 응답한다.
+
+운영 환경에서는 다음 변수만 주입하고 원본 데이터·벡터·API key는 이미지나 Git에
+포함하지 않는다.
+
+```text
+QDRANT_URL=http://qdrant:6333
+QDRANT_API_KEY=<secret>
+QDRANT_COLLECTION=books_active
+QDRANT_TAG_COLLECTION=<optional>
+QDRANT_VECTOR_NAME=<optional>
+QDRANT_TIMEOUT_SECONDS=2.0
+AI_MODEL_VERSION=d4l-hybrid-v1
+AI_INDEX_VERSION=<promoted-index-version>
+```
 
 기본 출력은 `ai/output/<command>.json`에, 로그는 `ai/logs/recommendation.log`에
 생성된다. `--output`으로 명령별 출력 위치를 덮어쓸 수 있다.

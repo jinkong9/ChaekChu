@@ -8,6 +8,7 @@ from recommendation.vector_search import (
     CandidateSearchRequest,
     CandidateSearchService,
     InMemoryVectorIndex,
+    QdrantQueryVectorStore,
     QdrantVectorIndex,
     SearchStatus,
     VectorRecord,
@@ -142,3 +143,51 @@ def test_qdrant_adapter_sends_active_index_and_hard_exclusion_filter() -> None:
     assert response.status is SearchStatus.CANDIDATE_SHORTAGE
     assert response.returned_count == 1
     assert [item.isbn13 for item in response.items] == ["9780000000003"]
+
+
+def test_qdrant_query_vector_store_reads_book_and_named_tag_vectors() -> None:
+    captured: list[str] = []
+
+    class Response:
+        def __init__(self, body: dict):
+            self.body = body
+
+        def read(self) -> bytes:
+            return json.dumps(self.body).encode("utf-8")
+
+    def opener(request, timeout):
+        captured.append(request.full_url)
+        assert timeout == 1.5
+        if "tag" in request.full_url:
+            return Response({"result": {"vector": {"content": [0.0, 1.0]}}})
+        return Response({"result": {"vector": [1.0, 0.0]}})
+
+    store = QdrantQueryVectorStore(
+        base_url="http://qdrant:6333",
+        index_version="d4l-index-v1",
+        book_collection="books_active",
+        tag_collection="tags_active",
+        vector_name="content",
+        timeout_seconds=1.5,
+        opener=opener,
+    )
+
+    assert store.get_book_vector("9780000000001", "d4l-index-v1") == (1.0, 0.0)
+    assert store.get_tag_vector("FANTASY", "d4l-index-v1") == (0.0, 1.0)
+    assert len(captured) == 2
+    assert all("with_vector=true" in endpoint for endpoint in captured)
+
+
+def test_qdrant_query_vector_store_returns_none_for_missing_point() -> None:
+    from urllib.error import HTTPError
+
+    def opener(request, timeout):
+        raise HTTPError(request.full_url, 404, "not found", {}, None)
+
+    store = QdrantQueryVectorStore(
+        base_url="http://qdrant:6333",
+        index_version="d4l-index-v1",
+        opener=opener,
+    )
+
+    assert store.get_book_vector("9780000000001", "d4l-index-v1") is None

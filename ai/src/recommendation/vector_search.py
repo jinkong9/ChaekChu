@@ -6,6 +6,7 @@ import json
 import math
 from typing import Any, Callable, Iterable, Protocol, Sequence
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
@@ -25,6 +26,16 @@ class IndexNotFoundError(VectorSearchError):
 
 
 class SearchTimeoutError(VectorSearchError):
+    status = SearchStatus.TIMEOUT
+
+
+class QueryVectorStoreError(RuntimeError):
+    """Raised when a precomputed query vector cannot be read from Qdrant."""
+
+    status = SearchStatus.INDEX_NOT_FOUND
+
+
+class QueryVectorStoreTimeoutError(QueryVectorStoreError):
     status = SearchStatus.TIMEOUT
 
 
@@ -192,6 +203,95 @@ class QdrantVectorIndex:
             hits.append(CandidateHit(isbn13, round(float(score), 8), dict(payload)))
         hits.sort(key=lambda hit: (-hit.score, hit.isbn13))
         return hits[: request.limit]
+
+
+class QdrantQueryVectorStore:
+    """Read precomputed seed and tag vectors from Qdrant at request time.
+
+    The online API never calls an embedding provider. Book vectors are read from
+    the active book collection by the deterministic point id used by the batch
+    writer. Tag prototypes may live in an optional separate collection; when it
+    is not configured, tag-only requests safely fall back to demand ranking.
+    """
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        index_version: str,
+        book_collection: str = "books_active",
+        tag_collection: str | None = None,
+        vector_name: str | None = None,
+        timeout_seconds: float = 2.0,
+        api_key: str | None = None,
+        opener: Callable[..., Any] = urlopen,
+    ) -> None:
+        if not base_url.strip():
+            raise ValueError("base_url must not be empty")
+        if not index_version.strip():
+            raise ValueError("index_version must not be empty")
+        if timeout_seconds <= 0 or not math.isfinite(timeout_seconds):
+            raise ValueError("timeout_seconds must be positive and finite")
+        self.base_url = base_url.rstrip("/")
+        self.index_version = index_version
+        self.book_collection = book_collection
+        self.tag_collection = tag_collection or None
+        self.vector_name = vector_name or None
+        self.timeout_seconds = timeout_seconds
+        self.api_key = api_key
+        self._opener = opener
+
+    @staticmethod
+    def _point_id(index_version: str, key: str) -> str:
+        import uuid
+
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{index_version}:{key}"))
+
+    def _get_vector(self, collection: str, point_key: str) -> tuple[float, ...] | None:
+        point_id = self._point_id(self.index_version, point_key)
+        endpoint = (
+            f"{self.base_url}/collections/{quote(collection, safe='')}/points/"
+            f"{quote(point_id, safe='')}?with_vector=true"
+        )
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["api-key"] = self.api_key
+        try:
+            response = self._opener(Request(endpoint, headers=headers, method="GET"), timeout=self.timeout_seconds)
+            result = json.loads(response.read().decode("utf-8"))["result"]
+        except HTTPError as error:
+            if error.code == 404:
+                return None
+            if error.code in (408, 429, 500, 502, 503, 504):
+                raise QueryVectorStoreTimeoutError("Qdrant query vector request timed out") from error
+            raise QueryVectorStoreError("Qdrant query vector request failed") from error
+        except (TimeoutError, URLError) as error:
+            raise QueryVectorStoreTimeoutError("Qdrant query vector request timed out") from error
+        except (KeyError, TypeError, json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise QueryVectorStoreError("Qdrant returned an invalid query vector") from error
+
+        raw_vector = result.get("vector") if isinstance(result, dict) else None
+        if isinstance(raw_vector, dict):
+            if self.vector_name:
+                raw_vector = raw_vector.get(self.vector_name)
+            else:
+                raw_vector = next(iter(raw_vector.values()), None)
+        if not isinstance(raw_vector, (list, tuple)):
+            raise QueryVectorStoreError("Qdrant point did not contain a vector")
+        vector = tuple(float(value) for value in raw_vector)
+        if not vector or any(not math.isfinite(value) for value in vector):
+            raise QueryVectorStoreError("Qdrant point vector was not finite")
+        return vector
+
+    def get_book_vector(self, isbn13: str, index_version: str) -> Sequence[float] | None:
+        if index_version != self.index_version:
+            return None
+        return self._get_vector(self.book_collection, isbn13)
+
+    def get_tag_vector(self, code: str, index_version: str) -> Sequence[float] | None:
+        if index_version != self.index_version or not self.tag_collection:
+            return None
+        return self._get_vector(self.tag_collection, f"tag:{code}")
 
 
 class CandidateSearchService:
