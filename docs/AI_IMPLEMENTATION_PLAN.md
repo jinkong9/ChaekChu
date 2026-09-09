@@ -61,6 +61,7 @@ D4L 100만 건
 | #163 | 실데이터 추천 품질·가중치 튜닝 평가 |
 | #164 | FastAPI 추천 동시성·장애 복구 검증 |
 | #165 | 모델·태그·index 갱신 및 alias 롤백 runbook |
+| #166 | 태그 sidecar 검증 및 임베딩 index payload 연동 |
 
 태그 생성·매핑은 #136과 분리된 오프라인 배치 단계로 관리한다. 필요하면 별도 Jira
 하위 작업으로 나누며, 규칙 기반 태그와 GMS LLM 배치 태그를 `source`, `confidence`,
