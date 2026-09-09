@@ -117,11 +117,11 @@ uv run b102-recommendation --config config/local.toml tags \
 - `missingRows`, `gmsFailures`, `lowConfidenceRows`가 허용 기준 이내인지
 - taxonomy 밖의 tag code가 없는지
 
-현재 구현에서 이 단계는 sidecar 파일을 만들 뿐, 자동으로 Qdrant tag prototype
-collection을 만들거나 기존 도서 payload의 `tagCodes`를 채우지는 않는다. 따라서
-sidecar만 생성한 상태에서 `tagMatch`가 운영 추천에 활성화됐다고 판단하지 않는다.
-tagMatch를 활성화하려면 tag prototype 적재 작업과 `QDRANT_TAG_COLLECTION` 설정을
-별도 배포 단계로 완료해야 한다.
+이 단계의 산출물은 tag sidecar다. tag prototype collection은 별도 기능이므로 이
+단계에서 자동 생성하지 않는다. 대신 다음 index 단계에서 sidecar를 전달하면
+`inputHash`·`tagVersion`·taxonomy·ISBN을 검증한 뒤 일치하는 도서 payload에
+`tagCodes`, `tagScores`, `tagConfidence`를 복사한다. sidecar가 없거나 태그가 없는
+ISBN은 결측으로 남기고 임의의 태그를 만들지 않는다.
 
 ### 3.3 임베딩 index 생성 및 promote
 
@@ -136,6 +136,7 @@ export AI_TAG_VERSION="$TAG_VERSION"
 uv run b102-recommendation --config config/local.toml index \
   --input "$SOURCE" \
   --index-version "$INDEX_VERSION" \
+  --tag-sidecar "$RUN_DIR/tags.jsonl" \
   --batch-size 32 \
   --max-retries 2 \
   --output "$RUN_DIR/index-report.json"
@@ -153,6 +154,11 @@ jq -e '.stagedRows == .rows and .indexVersion == "'"$INDEX_VERSION"'"' \
 `PARTIAL_FAILURE`이면 새 index를 active로 사용하지 않는다. 실패 ISBN과 retry 횟수를
 확인해 같은 `indexVersion`으로 재실행하거나, 원인을 해결한 뒤 새 version으로 다시
 시작한다. active alias를 수동으로 덮어쓰지 않는다.
+
+index report의 `tagSidecarRows`, `taggedRows`, `missingTagRows`,
+`outOfInputTagRows`를 확인한다. `outOfInputTagRows`는 색인 대상에 없는 sidecar ISBN이며
+무시되지만, 수가 예상과 다르면 같은 원본 snapshot으로 tags 단계를 다시 실행한다.
+`QDRANT_TAG_COLLECTION`을 사용하는 query vector용 prototype 적재는 별도의 후속 작업이다.
 
 ### 3.4 품질 확인과 runtime 반영
 

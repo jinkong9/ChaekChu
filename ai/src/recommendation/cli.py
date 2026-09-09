@@ -12,10 +12,11 @@ from recommendation.baseline import evaluate_d4l, evaluate_content, recommend_co
 from recommendation.d4l import DataError, load_d4l_jsonl
 from recommendation.embedding import OpenAICompatibleEmbeddingProvider
 from recommendation.embedding_batch import EmbeddingBatchConfig, EmbeddingBatchRunner, QdrantVersionedIndexStore
-from recommendation.normalization import NormalizationError
+from recommendation.normalization import NormalizationError, normalized_input_hash
 from recommendation.quality import evaluate_weight_grid, load_tag_sidecar
 from recommendation.runtime import build_artifact, configure_logging, refresh_artifact_hash, set_seed, write_artifact
 from recommendation.tag_batch import GmsTagProvider, TagBatchRunner, TagGenerator
+from recommendation.tag_index import load_validated_tag_sidecar
 from recommendation.validation import validate_d4l_jsonl
 
 
@@ -49,6 +50,7 @@ def create_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--recall-k", type=int, default=10)
         if command == "index":
             command_parser.add_argument("--index-version", default=None)
+            command_parser.add_argument("--tag-sidecar", type=Path)
             command_parser.add_argument("--batch-size", type=int, default=32)
             command_parser.add_argument("--max-retries", type=int, default=2)
         if command == "tags":
@@ -144,6 +146,18 @@ def _run_embedding_index(arguments: argparse.Namespace, input_path: Path) -> dic
     except ValueError as error:
         raise ConfigError("embedding and Qdrant timeout/dimension configuration is invalid") from error
     model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small").strip()
+    tag_version = os.getenv("AI_TAG_VERSION", "not-generated").strip()
+    tag_sidecar_path = arguments.tag_sidecar.expanduser().resolve() if arguments.tag_sidecar else None
+    tag_sidecar = None
+    if tag_sidecar_path is not None:
+        try:
+            tag_sidecar = load_validated_tag_sidecar(
+                tag_sidecar_path,
+                expected_input_hash=normalized_input_hash(input_path),
+                expected_tag_version=tag_version,
+            )
+        except ValueError as error:
+            raise ConfigError(f"tag sidecar validation failed: {error}") from error
     provider = OpenAICompatibleEmbeddingProvider(
         endpoint=endpoint,
         api_key=api_key,
@@ -166,10 +180,12 @@ def _run_embedding_index(arguments: argparse.Namespace, input_path: Path) -> dic
         config=EmbeddingBatchConfig(
             index_version=index_version,
             feature_version=os.getenv("AI_FEATURE_VERSION", "d4l-feature-v1"),
-            tag_version=os.getenv("AI_TAG_VERSION", "not-generated"),
+            tag_version=tag_version,
             max_retries=arguments.max_retries,
             batch_size=arguments.batch_size,
         ),
+        tag_payloads=tag_sidecar.records if tag_sidecar else None,
+        tag_sidecar_hash=tag_sidecar.file_hash if tag_sidecar else None,
     ).run(input_path)
 
 

@@ -82,6 +82,18 @@ def test_tags_command_writes_sidecar_and_report(tmp_path: Path) -> None:
     assert sidecar.is_file()
 
 
+def test_index_command_accepts_tag_sidecar_option() -> None:
+    arguments = parse(
+        "index",
+        "--input",
+        str(D4L_FIXTURE),
+        "--tag-sidecar",
+        "tags.jsonl",
+    )
+
+    assert arguments.tag_sidecar == Path("tags.jsonl")
+
+
 def test_tune_command_writes_weight_report(tmp_path: Path) -> None:
     output = tmp_path / "tune.json"
 

@@ -32,7 +32,9 @@ uv run b102-recommendation --config config/local.toml tune \
 # EC2/운영: 환경변수의 provider·Qdrant staging index로 실행
 uv run b102-recommendation --config config/local.toml index \
   --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
-  --index-version d4l-2026-09-v1 --batch-size 32 --max-retries 2
+  --index-version d4l-2026-09-v1 \
+  --tag-sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl \
+  --batch-size 32 --max-retries 2
 
 # EC2/운영: rule tag + 선택적 GMS tag sidecar 생성
 uv run b102-recommendation --config config/local.toml tags \
@@ -187,6 +189,9 @@ feature만으로 결정적 템플릿을 만들며, 근거가 없는 태그·설�
 
 임베딩 배치는 `recommendation.embedding_batch`의 `EmbeddingBatchRunner`로 실행한다.
 입력은 서지·분류 필드만 조합하고, 관계·대출이력은 Qdrant payload metadata로 저장한다.
+태그 배치 sidecar를 같은 `inputHash`·`tagVersion`으로 전달하면 ISBN이 일치하는 도서의
+`tagCodes`, `tagScores`, `tagConfidence`도 payload에 함께 저장한다. sidecar에 없는 ISBN은
+태그 결측으로 남기며, 원본에 없는 sidecar ISBN은 report에 기록하고 색인하지 않는다.
 Qdrant에서는 index version별 staging collection에 upsert한 뒤 `books_active` alias를
 교체하므로, 새 버전의 부분 실패가 기존 active index를 덮어쓰지 않는다. 배치 report에는
 inputHash, embedding/feature/tag version, 차원, 성공·실패·재시도·재개·승격 결과를 기록한다.

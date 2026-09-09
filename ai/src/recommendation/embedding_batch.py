@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 from recommendation.d4l import D4LBook, iter_d4l_jsonl
 from recommendation.embedding import TextEmbedder, embedding_text, validate_embedding
 from recommendation.normalization import normalized_input_hash
+from recommendation.tag_index import TagPayload
 from recommendation.vector_search import VectorRecord
 
 
@@ -222,7 +223,14 @@ class EmbeddingBatchConfig:
             raise ValueError("batch_size must be positive")
 
 
-def _book_payload(book: D4LBook, *, embedder: TextEmbedder, config: EmbeddingBatchConfig) -> dict[str, Any]:
+def _book_payload(
+    book: D4LBook,
+    *,
+    embedder: TextEmbedder,
+    config: EmbeddingBatchConfig,
+    tag_payload: TagPayload | None = None,
+) -> dict[str, Any]:
+    tags = tag_payload or TagPayload((), {}, {})
     return {
         "isbn13": book.isbn13,
         "bookname": book.title,
@@ -236,9 +244,9 @@ def _book_payload(book: D4LBook, *, embedder: TextEmbedder, config: EmbeddingBat
         "mania_rec": list(book.mania_rec),
         "reader_rec": list(book.reader_rec),
         "loan_history": [list(item) for item in book.loan_history],
-        "tagCodes": [],
-        "tagScores": {},
-        "tagConfidence": {},
+        "tagCodes": list(tags.tag_codes),
+        "tagScores": dict(tags.tag_scores),
+        "tagConfidence": dict(tags.tag_confidence),
         "embeddingVersion": embedder.model_version,
         "tagVersion": config.tag_version,
         "featureVersion": config.feature_version,
@@ -246,10 +254,20 @@ def _book_payload(book: D4LBook, *, embedder: TextEmbedder, config: EmbeddingBat
 
 
 class EmbeddingBatchRunner:
-    def __init__(self, *, embedder: TextEmbedder, store: VersionedIndexStore, config: EmbeddingBatchConfig) -> None:
+    def __init__(
+        self,
+        *,
+        embedder: TextEmbedder,
+        store: VersionedIndexStore,
+        config: EmbeddingBatchConfig,
+        tag_payloads: dict[str, TagPayload] | None = None,
+        tag_sidecar_hash: str | None = None,
+    ) -> None:
         self.embedder = embedder
         self.store = store
         self.config = config
+        self.tag_payloads = tag_payloads
+        self.tag_sidecar_hash = tag_sidecar_hash
 
     def run(self, input_path: Path) -> dict[str, Any]:
         input_hash = normalized_input_hash(input_path)
@@ -260,10 +278,13 @@ class EmbeddingBatchRunner:
             "dimension": self.embedder.dimension,
             "featureVersion": config.feature_version,
             "tagVersion": config.tag_version,
+            "tagSidecarHash": self.tag_sidecar_hash,
         }
         self.store.begin(config.index_version, metadata)
         active_before = self.store.active_version
         rows = succeeded = failed = skipped = retry_attempts = retried_rows = 0
+        tagged_rows = missing_tag_rows = 0
+        seen_isbns: set[str] = set()
         errors: list[dict[str, str]] = []
         books = iter_d4l_jsonl(input_path)
         while True:
@@ -276,6 +297,12 @@ class EmbeddingBatchRunner:
             if not batch:
                 break
             rows += len(batch)
+            for book in batch:
+                seen_isbns.add(book.isbn13)
+                if self.tag_payloads is not None and self.tag_payloads.get(book.isbn13, TagPayload((), {}, {})).tag_codes:
+                    tagged_rows += 1
+                else:
+                    missing_tag_rows += 1
             pending = [book for book in batch if not self.store.contains(config.index_version, book.isbn13)]
             skipped += len(batch) - len(pending)
             if not pending:
@@ -294,7 +321,12 @@ class EmbeddingBatchRunner:
                         VectorRecord(
                             isbn13=book.isbn13,
                             vector=validate_embedding(vector, dimension=self.embedder.dimension),
-                            payload=_book_payload(book, embedder=self.embedder, config=config),
+                            payload=_book_payload(
+                                book,
+                                embedder=self.embedder,
+                                config=config,
+                                tag_payload=self.tag_payloads.get(book.isbn13) if self.tag_payloads is not None else None,
+                            ),
                             active=True,
                             index_version=config.index_version,
                         )
@@ -327,6 +359,13 @@ class EmbeddingBatchRunner:
             "embeddingVersion": self.embedder.model_version,
             "featureVersion": config.feature_version,
             "tagVersion": config.tag_version,
+            "tagSidecarHash": self.tag_sidecar_hash,
+            "tagSidecarRows": len(self.tag_payloads) if self.tag_payloads is not None else 0,
+            "taggedRows": tagged_rows,
+            "missingTagRows": missing_tag_rows,
+            "outOfInputTagRows": (
+                len(set(self.tag_payloads) - seen_isbns) if self.tag_payloads is not None else 0
+            ),
             "dimension": self.embedder.dimension,
             "activeVersionBefore": active_before,
             "activeVersionAfter": config.index_version if promoted else active_before,
