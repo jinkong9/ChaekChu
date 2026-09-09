@@ -35,7 +35,7 @@ import com.ssafy.b102.search.document.BookDocument;
 /**
  * 도서 검색 인덱스 관리 — 생성·alias 연결, PG books → ES bulk 색인, 재색인·alias 전환.
  *
- * 인덱스 구성은 BookDocument 의 @Setting/@Mapping 이 가리키는 elasticsearch/books_v1-*.json 을 그대로 올린다.
+ * 인덱스 구성은 BookDocument 의 @Setting/@Mapping 이 가리키는 elasticsearch/books-*.json 을 그대로 올린다.
  * 물리 인덱스 이름(app.search.index-name)과 alias(app.search.alias)를 분리해 두어, 매핑을 바꿀 때는
  * 새 물리 인덱스를 만들어 채운 뒤 alias 만 옮긴다(체크리스트 #23 "재색인과 alias 전환"). 옛 인덱스는 지우지 않는다 — 되돌릴 수 있게.
  *
@@ -97,7 +97,7 @@ public class BookIndexService {
 		return true;
 	}
 
-	/** books_v1-settings.json + books_v1-mappings.json 으로 물리 인덱스를 만든다. 이미 있으면 ES 가 400 을 낸다. */
+	/** books-settings.json + books-mappings.json 으로 물리 인덱스를 만든다. 이미 있으면 ES 가 400 을 낸다. */
 	public void createIndex(String indexName) {
 		IndexOperations entityOps = operations.indexOps(BookDocument.class);
 		Settings settings = entityOps.createSettings();
@@ -129,6 +129,31 @@ public class BookIndexService {
 		operations.indexOps(IndexCoordinates.of(newIndex)).alias(new AliasActions(actions.toArray(AliasAction[]::new)));
 		log.info("검색 alias '{}' 전환: {} → {}", props.alias(), previous, newIndex);
 		return previous;
+	}
+
+	public boolean indexExists(String indexName) {
+		return operations.indexOps(IndexCoordinates.of(indexName)).exists();
+	}
+
+	/** alias 가 지금 매핑 버전(app.search.index-name)의 인덱스 하나만 가리키는가. false 면 매핑 버전이 올라간 상태 → rebuild 대상. */
+	public boolean isCurrent() {
+		return aliasTargets().equals(Set.of(props.indexName()));
+	}
+
+	/**
+	 * 매핑 버전 올림: newIndex 를 (남아 있으면 지우고) 새로 만들어 PG 전체로 채운 뒤 완전할 때만 alias 를 옮긴다.
+	 * alias 대상이 아닌 newIndex 가 이미 있다면 지난 번에 중간에 끊긴 빌드라 지우고 다시 만든다 — 검색 트래픽은 alias 의 옛 인덱스가 계속 받는다.
+	 * alias 가 이미 newIndex 를 가리키면(현행) 안전하게 거부한다 — 서비스 중인 인덱스를 지우지 않는다.
+	 */
+	public IndexReport rebuild(String newIndex) {
+		if (aliasTargets().contains(newIndex)) {
+			throw new IllegalStateException("'" + newIndex + "' 는 alias '" + props.alias() + "' 가 서비스 중인 인덱스입니다. rebuild 는 새 이름으로만 합니다.");
+		}
+		if (indexExists(newIndex)) {
+			log.warn("미완성 인덱스 '{}' 가 남아 있어 지우고 다시 만듭니다 (alias 대상 아님)", newIndex);
+			operations.indexOps(IndexCoordinates.of(newIndex)).delete();
+		}
+		return reindexInto(newIndex);
 	}
 
 	/** alias 가 가리키는 물리 인덱스 이름들. 없으면 빈 집합. */

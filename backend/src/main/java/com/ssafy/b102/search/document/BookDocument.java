@@ -21,7 +21,8 @@ import lombok.NoArgsConstructor;
 /**
  * ES 도서 문서 — V1 books 한 행을 검색용으로 옮긴 읽기 모델. PG 가 원천이고 이 문서는 색인기(BookIndexService)가 만든다.
  *
- * 필드 타입·analyzer 는 여기의 어노테이션이 아니라 elasticsearch/books_v1-mappings.json 이 결정한다(@Mapping).
+ * 필드 타입·analyzer 는 여기의 어노테이션이 아니라 elasticsearch/books-mappings.json 이 결정한다(@Mapping).
+ * 매핑을 바꾸면 app.search.index-name 을 올린다(books_v2 → v3). 배포 시 SearchIndexInitializer 가 새 인덱스를 채우고 alias 를 옮긴다.
  * 매핑이 dynamic=strict 라 여기에 필드를 더하면 JSON 도 같이 고쳐야 한다. Spring Data 의 _class 힌트도 그래서 끈다.
  *
  * indexName 은 alias(app.search.alias). 물리 인덱스 이름은 SearchProperties.indexName — 재색인 때 v2, v3 로 바뀌어도 코드는 alias 만 본다.
@@ -31,8 +32,8 @@ import lombok.NoArgsConstructor;
  *          categoryCode ← category_code(KDC) · coverUrl ← cover_url · updatedAt ← updated_at(증분 색인 기준). description 은 색인하지 않는다(검색 대상 아님, bigram 크기).
  */
 @Document(indexName = "#{@environment.getProperty('app.search.alias', 'books')}", createIndex = false, writeTypeHint = WriteTypeHint.FALSE)
-@Setting(settingPath = "elasticsearch/books_v1-settings.json")
-@Mapping(mappingPath = "elasticsearch/books_v1-mappings.json")
+@Setting(settingPath = "elasticsearch/books-settings.json")
+@Mapping(mappingPath = "elasticsearch/books-mappings.json")
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

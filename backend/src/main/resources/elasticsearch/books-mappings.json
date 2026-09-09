@@ -1,0 +1,71 @@
+{
+  "dynamic": "strict",
+  "properties": {
+    "id": {
+      "type": "long"
+    },
+    "isbn13": {
+      "type": "keyword"
+    },
+    "title": {
+      "type": "text",
+      "analyzer": "korean",
+      "fields": {
+        "ngram": {
+          "type": "text",
+          "analyzer": "bigram"
+        },
+        "keyword": {
+          "type": "keyword",
+          "normalizer": "exact",
+          "ignore_above": 512
+        }
+      }
+    },
+    "authors": {
+      "type": "text",
+      "analyzer": "korean",
+      "fields": {
+        "ngram": {
+          "type": "text",
+          "analyzer": "bigram"
+        },
+        "keyword": {
+          "type": "keyword",
+          "normalizer": "exact",
+          "ignore_above": 256
+        }
+      }
+    },
+    "authorRaw": {
+      "type": "keyword",
+      "index": false,
+      "doc_values": false
+    },
+    "publisher": {
+      "type": "text",
+      "analyzer": "korean",
+      "fields": {
+        "keyword": {
+          "type": "keyword",
+          "ignore_above": 256
+        }
+      }
+    },
+    "pubYear": {
+      "type": "short"
+    },
+    "categoryCode": {
+      "type": "keyword"
+    },
+    "coverUrl": {
+      "type": "keyword",
+      "index": false,
+      "doc_values": false
+    },
+    "updatedAt": {
+      "type": "date",
+      "format": "date_time||epoch_millis"
+    }
+  }
+}

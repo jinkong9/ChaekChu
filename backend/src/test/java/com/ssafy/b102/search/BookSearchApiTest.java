@@ -60,6 +60,7 @@ class BookSearchApiTest {
 
 	@BeforeAll
 	void setUp() {
+		SearchTestSupport.ensureCurrentIndex(indexService, props);
 		bearer = "Bearer " + jwt.issue(1L);
 		operations.save(docs, IndexCoordinates.of(props.alias()));
 		indexService.refresh(props.alias());

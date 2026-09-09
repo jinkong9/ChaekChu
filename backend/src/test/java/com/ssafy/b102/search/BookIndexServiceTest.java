@@ -48,6 +48,7 @@ class BookIndexServiceTest {
 
 	@BeforeEach
 	void setUp() {
+		SearchTestSupport.ensureCurrentIndex(indexService, props);
 		oldBook = insertBook(uniqueIsbn(1), "소년이 온다", "한강 지음", "창비", 2014, "813.7", Instant.parse("2020-01-01T00:00:00Z"));
 		insertBook(uniqueIsbn(2), "데미안", "헤르만 헤세 지음 ; 전영애 옮김", "민음사", 2000, "853", Instant.parse("2020-01-01T00:00:00Z"));
 		freshBook = insertBook(uniqueIsbn(3), "구름빵", "글·그림 백희나", "한솔수북", 2004, null, Instant.now());
