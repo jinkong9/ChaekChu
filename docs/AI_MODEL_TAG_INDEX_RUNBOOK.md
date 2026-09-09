@@ -183,7 +183,31 @@ AI runtime의 `QDRANT_TAG_COLLECTION=tags_active`를 반영한다. point key는
 `tag:{code}`이며 query vector reader와 같은 versioned UUID 규칙을 사용한다.
 일부 prototype 생성이 실패하면 기존 `tags_active` alias를 유지한다.
 
-### 3.5 품질 확인과 runtime 반영
+### 3.5 온라인 tag 연동 확인
+
+runtime의 `QDRANT_TAG_COLLECTION`은 prototype을 적재한 alias와 동일하게 설정하고,
+`AI_INDEX_VERSION`은 books/tag prototype 배치에 사용한 값으로 맞춘다. 온라인 reader는
+`tag:{code}` point를 조회해 tag-only query vector를 만들며, 추천 후보의 `tagCodes`는
+임베딩 index payload에서 읽는다.
+
+```bash
+export AI_INDEX_VERSION="$INDEX_VERSION"
+export AI_MODEL_VERSION="$MODEL_VERSION"
+export AI_TAG_VERSION="$TAG_VERSION"
+export QDRANT_TAG_COLLECTION=tags_active
+
+docker compose --env-file ../deploy/.env -f ../deploy/docker-compose.yml up -d --force-recreate ai
+curl -fsS http://127.0.0.1:8000/health
+curl -fsS -X POST http://127.0.0.1:8000/internal/v1/recommendations \
+  -H 'Content-Type: application/json' \
+  -d '{"requestId":"smoke-tag-1","userId":"smoke-user","mode":"PERSONALIZED","size":5,"tags":[{"code":"FANTASY","weight":1}],"weights":{"semantic":0,"tagMatch":1}}'
+```
+
+응답의 `fallback`, `indexVersion`, `items[].matchedTags`,
+`items[].primaryReason`을 확인한다. prototype 결측·version 불일치·Qdrant timeout이면
+GMS/embedding API를 요청 중 호출하지 않고 명시적인 fallback을 반환해야 한다.
+
+### 3.6 품질 확인과 runtime 반영
 
 태그가 운영 index에 실제로 연결된 경우에만 sidecar를 함께 넣어 가중치를 평가한다.
 현재 `tune`의 semantic은 TF-IDF proxy이므로, 결과는 배포 승인 근거 중 하나로만
