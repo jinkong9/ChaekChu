@@ -71,6 +71,7 @@
 | 409 | `LIBRARY_ITEM_EXISTS` | 같은 책을 서재에 두 번 담음 (`details.libraryItemId` 로 기존 항목을 돌려준다) |
 | 409 | `ONBOARDING_REQUIRED` | 온보딩 미완료 사용자가 추천을 요청 |
 | 429 | `RATE_LIMITED` | 이벤트·검색 과다 |
+| 503 | `SEARCH_UNAVAILABLE` | 검색 엔진(Elasticsearch)에 닿지 못함. 검색만 막히고 다른 기능은 정상 — 프론트는 「잠시 후 다시」 안내 |
 | 500 | `INTERNAL_ERROR` | |
 
 ### 1.4 페이지네이션
@@ -227,6 +228,12 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 ```
 
 정렬은 검색 점수 → 대출 인기(`popularity_score`) 순. 필터·정렬 파라미터는 프론트에 없어 두지 않는다.
+
+구현 메모 (2026-09-09, V1 위에서):
+- ISBN 판정 = 하이픈·공백을 뗀 뒤 978/979 로 시작하는 13자리 숫자. 정확 조회라 결과는 0 또는 1건. **카카오 온디맨드 등록은 아직 없다** — 없으면 `total: 0`.
+- 점수 = 제목 완전일치 ×10 > 형태소 일치(nori, `title^3 · authors^2 · publisher`, 모든 단어 필요) > 부분일치(bigram, `title.ngram^1.5 · authors.ngram`). 동점은 `bookId` 오름차순. `popularity_score` 는 V2 컬럼이라 그때 tie-break 로 넣는다.
+- `items[]` 의 `category` 는 KDC 대분류 1단계(`"문학"`)까지, `pageCount` 는 `null`(키는 있다) — V1 `books` 에 해당 컬럼이 없다.
+- 검색 엔진 장애는 `503 SEARCH_UNAVAILABLE`(§1.3).
 
 ### 4.2 `GET /books/popular?size=` ●
 

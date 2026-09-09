@@ -1,0 +1,141 @@
+package com.ssafy.b102.search;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.data.elasticsearch.NoSuchIndexException;
+
+import com.ssafy.b102.book.dto.BookSummaryResponse;
+import com.ssafy.b102.global.error.BusinessException;
+import com.ssafy.b102.global.error.ErrorCode;
+import com.ssafy.b102.search.document.BookDocument;
+import com.ssafy.b102.search.dto.BookSearchResponse;
+import com.ssafy.b102.search.repository.BookSearchRepository;
+import com.ssafy.b102.search.repository.BookSearchResult;
+import com.ssafy.b102.search.service.BookSearchService;
+
+/** 서비스 규칙만 — ISBN 분기, BookSummary 조립, 장애 변환. ES 없이 repository 를 mock 으로. */
+class BookSearchServiceTest {
+
+	private final BookSearchRepository repository = mock(BookSearchRepository.class);
+	private final BookSearchService service = new BookSearchService(repository);
+
+	private static final BookDocument DOC = BookDocument.builder()
+		.id(88123L).isbn13("9788936434120").title("소년이 온다").authors(List.of("한강")).authorRaw("한강 지음")
+		.publisher("창비").pubYear(2014).categoryCode("813.7").coverUrl("https://img/1.jpg").updatedAt(Instant.EPOCH)
+		.build();
+
+	@Test
+	@DisplayName("일반 검색어: repository.search 결과를 BookSummary 로 — bookId 문자열, category 대분류, pageCount null")
+	void maps_document_to_summary() {
+		when(repository.search("소년이 온다", 0, 20)).thenReturn(new BookSearchResult(1, List.of(DOC)));
+
+		BookSearchResponse res = service.search("  소년이 온다  ", 0, 20);
+
+		assertThat(res.total()).isEqualTo(1);
+		assertThat(res.page()).isZero();
+		assertThat(res.size()).isEqualTo(20);
+		BookSummaryResponse s = res.items().get(0);
+		assertThat(s.bookId()).isEqualTo("88123");
+		assertThat(s.isbn13()).isEqualTo("9788936434120");
+		assertThat(s.title()).isEqualTo("소년이 온다");
+		assertThat(s.authors()).containsExactly("한강");
+		assertThat(s.publisher()).isEqualTo("창비");
+		assertThat(s.publicationYear()).isEqualTo(2014);
+		assertThat(s.coverUrl()).isEqualTo("https://img/1.jpg");
+		assertThat(s.pageCount()).isNull();
+		assertThat(s.category()).isEqualTo("문학");
+		assertThat(s.classNo()).isEqualTo("813.7");
+	}
+
+	@Test
+	@DisplayName("하이픈 ISBN 은 하이픈을 떼고 isbn13 정확 조회 — 본문 검색은 부르지 않는다")
+	void isbn_with_hyphens_goes_to_exact_lookup() {
+		when(repository.findByIsbn13("9788936434120")).thenReturn(Optional.of(DOC));
+
+		BookSearchResponse res = service.search("978-89-364-3412-0", 0, 20);
+
+		assertThat(res.total()).isEqualTo(1);
+		assertThat(res.items()).extracting(BookSummaryResponse::bookId).containsExactly("88123");
+		verify(repository, never()).search(anyString(), anyInt(), anyInt());
+	}
+
+	@Test
+	@DisplayName("ISBN 이 카탈로그에 없으면 total 0 (온디맨드 등록은 아직 없다)")
+	void isbn_not_found_is_empty() {
+		when(repository.findByIsbn13("9791160941867")).thenReturn(Optional.empty());
+
+		BookSearchResponse res = service.search("9791160941867", 0, 20);
+
+		assertThat(res.total()).isZero();
+		assertThat(res.items()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("ISBN 결과는 0페이지에만 — 1페이지는 total 1, items []")
+	void isbn_result_only_on_first_page() {
+		when(repository.findByIsbn13("9788936434120")).thenReturn(Optional.of(DOC));
+
+		BookSearchResponse res = service.search("9788936434120", 1, 20);
+
+		assertThat(res.total()).isEqualTo(1);
+		assertThat(res.page()).isEqualTo(1);
+		assertThat(res.items()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("13자리 숫자여도 978/979 로 시작하지 않으면 ISBN 이 아니라 일반 검색어")
+	void thirteen_digits_without_prefix_is_text() {
+		when(repository.search("1234567890123", 0, 20)).thenReturn(BookSearchResult.empty());
+
+		service.search("1234567890123", 0, 20);
+
+		verify(repository).search("1234567890123", 0, 20);
+	}
+
+	@Test
+	@DisplayName("ES 접속 실패 → 503 SEARCH_UNAVAILABLE")
+	void connection_failure_becomes_503() {
+		when(repository.search(anyString(), anyInt(), anyInt())).thenThrow(new DataAccessResourceFailureException("connection refused"));
+
+		assertThatThrownBy(() -> service.search("한강", 0, 20))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException) e).code()).isEqualTo(ErrorCode.SEARCH_UNAVAILABLE);
+	}
+
+	@Test
+	@DisplayName("인덱스가 없어도(기동 때 ES 다운) 503 — 500 으로 새지 않는다")
+	void missing_index_becomes_503() {
+		when(repository.findByIsbn13(anyString())).thenThrow(new NoSuchIndexException("books"));
+
+		assertThatThrownBy(() -> service.search("9788936434120", 0, 20))
+			.isInstanceOf(BusinessException.class)
+			.extracting(e -> ((BusinessException) e).code()).isEqualTo(ErrorCode.SEARCH_UNAVAILABLE);
+	}
+
+	@Test
+	@DisplayName("저자 배열이 null 인 문서도 authors: [] 로 나간다")
+	void null_authors_become_empty_list() {
+		BookDocument noAuthor = BookDocument.builder().id(1L).title("무명").authors(null).build();
+		when(repository.search("무명", 0, 20)).thenReturn(new BookSearchResult(1, List.of(noAuthor)));
+
+		BookSummaryResponse s = service.search("무명", 0, 20).items().get(0);
+
+		assertThat(s.authors()).isEmpty();
+		assertThat(s.category()).isNull();
+		assertThat(s.classNo()).isNull();
+	}
+}
