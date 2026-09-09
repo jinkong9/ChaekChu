@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from recommendation.d4l import load_d4l_jsonl
-from recommendation.embedding import HashingTextEmbedder, embedding_text
+from recommendation.embedding import EmbeddingProviderError, HashingTextEmbedder, OpenAICompatibleEmbeddingProvider, embedding_text
 from recommendation.embedding_batch import (
     EmbeddingBatchConfig,
     EmbeddingBatchRunner,
@@ -39,6 +41,64 @@ def test_hashing_embedder_is_deterministic_and_dimensioned() -> None:
     assert first == second
     assert len(first) == 8
     assert all(-1.0 <= value <= 1.0 for value in first)
+
+
+def test_openai_compatible_embedding_provider_validates_and_restores_response_order() -> None:
+    captured: dict[str, object] = {}
+
+    class Response:
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "data": [
+                        {"index": 1, "embedding": [0.0, 1.0]},
+                        {"index": 0, "embedding": [1.0, 0.0]},
+                    ]
+                }
+            ).encode("utf-8")
+
+    def opener(request, timeout):
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        captured["authorization"] = request.headers["Authorization"]
+        captured["timeout"] = timeout
+        return Response()
+
+    provider = OpenAICompatibleEmbeddingProvider(
+        endpoint="https://gms.example/v1/embeddings",
+        api_key="test-secret",
+        model_version="text-embedding-3-small",
+        dimension=2,
+        timeout_seconds=4.0,
+        batch_size=2,
+        opener=opener,
+    )
+
+    assert provider.embed_many(["first", "second"]) == [(1.0, 0.0), (0.0, 1.0)]
+    assert captured["body"] == {
+        "input": ["first", "second"],
+        "model": "text-embedding-3-small",
+        "dimensions": 2,
+    }
+    assert captured["authorization"] == "Bearer test-secret"
+    assert captured["timeout"] == 4.0
+
+
+def test_openai_compatible_embedding_provider_does_not_expose_provider_body_on_invalid_response() -> None:
+    class Response:
+        def read(self) -> bytes:
+            return b'{"data":[{"index":0,"embedding":[1.0]}]}'
+
+    provider = OpenAICompatibleEmbeddingProvider(
+        endpoint="https://gms.example/v1/embeddings",
+        api_key="test-secret",
+        model_version="test-model",
+        dimension=2,
+        opener=lambda request, timeout: Response(),
+    )
+
+    with pytest.raises(EmbeddingProviderError, match="invalid vector") as error:
+        provider.embed("secret source text")
+    assert "secret source text" not in str(error.value)
 
 
 def test_embedding_batch_writes_metadata_and_promotes_complete_version() -> None:

@@ -28,6 +28,8 @@ class VersionedIndexStore(Protocol):
 
     def upsert(self, version: str, record: VectorRecord) -> None: ...
 
+    def upsert_many(self, version: str, records: list[VectorRecord]) -> None: ...
+
     def promote(self, version: str) -> None: ...
 
     def count(self, version: str) -> int: ...
@@ -55,6 +57,10 @@ class InMemoryVersionedIndexStore:
         if record.index_version not in (None, version):
             raise ValueError("record index_version does not match staging version")
         self._versions.setdefault(version, {})[record.isbn13] = record
+
+    def upsert_many(self, version: str, records: list[VectorRecord]) -> None:
+        for record in records:
+            self.upsert(version, record)
 
     def promote(self, version: str) -> None:
         if version not in self._versions:
@@ -152,17 +158,25 @@ class QdrantVersionedIndexStore:
         return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{version}:{isbn13}"))
 
     def upsert(self, version: str, record: VectorRecord) -> None:
-        if record.index_version not in (None, version):
+        self.upsert_many(version, [record])
+
+    def upsert_many(self, version: str, records: list[VectorRecord]) -> None:
+        if not records:
+            return
+        if any(record.index_version not in (None, version) for record in records):
             raise ValueError("record index_version does not match staging version")
         collection = self._collection_name(version)
-        point_id = self._point_id(version, record.isbn13)
-        payload = {**record.payload, "indexVersion": version, "active": record.active}
+        points = []
+        for record in records:
+            point_id = self._point_id(version, record.isbn13)
+            payload = {**record.payload, "indexVersion": version, "active": record.active}
+            points.append({"id": point_id, "vector": list(record.vector), "payload": payload})
         self._call(
             "PUT",
             f"/collections/{collection}/points?wait=true",
-            {"points": [{"id": point_id, "vector": list(record.vector), "payload": payload}]},
+            {"points": points},
         )
-        self._indexed.setdefault(version, set()).add(record.isbn13)
+        self._indexed.setdefault(version, set()).update(record.isbn13 for record in records)
 
     def promote(self, version: str) -> None:
         collection = self._collection_name(version)
@@ -197,12 +211,15 @@ class EmbeddingBatchConfig:
     feature_version: str = "d4l-feature-v1"
     tag_version: str = "not-generated"
     max_retries: int = 2
+    batch_size: int = 1
 
     def __post_init__(self) -> None:
         if not self.index_version.strip():
             raise ValueError("index_version must not be empty")
         if self.max_retries < 0:
             raise ValueError("max_retries must not be negative")
+        if self.batch_size < 1:
+            raise ValueError("batch_size must be positive")
 
 
 def _book_payload(book: D4LBook, *, embedder: TextEmbedder, config: EmbeddingBatchConfig) -> dict[str, Any]:
@@ -248,39 +265,57 @@ class EmbeddingBatchRunner:
         active_before = self.store.active_version
         rows = succeeded = failed = skipped = retry_attempts = retried_rows = 0
         errors: list[dict[str, str]] = []
-        for book in iter_d4l_jsonl(input_path):
-            rows += 1
-            if self.store.contains(config.index_version, book.isbn13):
-                skipped += 1
+        books = iter_d4l_jsonl(input_path)
+        while True:
+            batch = []
+            try:
+                for _ in range(config.batch_size):
+                    batch.append(next(books))
+            except StopIteration:
+                pass
+            if not batch:
+                break
+            rows += len(batch)
+            pending = [book for book in batch if not self.store.contains(config.index_version, book.isbn13)]
+            skipped += len(batch) - len(pending)
+            if not pending:
                 continue
             last_error = ""
             for attempt in range(config.max_retries + 1):
                 try:
-                    vector = validate_embedding(
-                        self.embedder.embed(embedding_text(book)),
-                        dimension=self.embedder.dimension,
-                    )
-                    self.store.upsert(
-                        config.index_version,
+                    texts = [embedding_text(book) for book in pending]
+                    if config.batch_size > 1 and hasattr(self.embedder, "embed_many"):
+                        vectors = self.embedder.embed_many(texts)  # type: ignore[attr-defined]
+                    else:
+                        vectors = [self.embedder.embed(text) for text in texts]
+                    if len(vectors) != len(pending):
+                        raise ValueError("embedding provider returned an unexpected item count")
+                    records = [
                         VectorRecord(
                             isbn13=book.isbn13,
-                            vector=vector,
+                            vector=validate_embedding(vector, dimension=self.embedder.dimension),
                             payload=_book_payload(book, embedder=self.embedder, config=config),
                             active=True,
                             index_version=config.index_version,
-                        ),
-                    )
-                    succeeded += 1
+                        )
+                        for book, vector in zip(pending, vectors)
+                    ]
+                    if hasattr(self.store, "upsert_many"):
+                        self.store.upsert_many(config.index_version, records)
+                    else:
+                        for record in records:
+                            self.store.upsert(config.index_version, record)
+                    succeeded += len(pending)
                     if attempt:
-                        retried_rows += 1
+                        retried_rows += len(pending)
                     break
                 except Exception as error:  # provider failures are recorded per row and do not abort the batch
                     last_error = str(error) or error.__class__.__name__
                     if attempt < config.max_retries:
                         retry_attempts += 1
                         continue
-                    failed += 1
-                    errors.append({"isbn13": book.isbn13, "error": last_error})
+                    failed += len(pending)
+                    errors.extend({"isbn13": book.isbn13, "error": last_error} for book in pending)
         promoted = failed == 0 and rows > 0
         if promoted:
             self.store.promote(config.index_version)

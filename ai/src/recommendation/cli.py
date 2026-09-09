@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 from pathlib import Path
 import sys
 from typing import Sequence
@@ -9,13 +10,15 @@ from typing import Sequence
 from recommendation.config import ConfigError, load_config
 from recommendation.baseline import evaluate_d4l, evaluate_content, recommend_content, recommend_popular
 from recommendation.d4l import DataError, load_d4l_jsonl
+from recommendation.embedding import OpenAICompatibleEmbeddingProvider
+from recommendation.embedding_batch import EmbeddingBatchConfig, EmbeddingBatchRunner, QdrantVersionedIndexStore
 from recommendation.normalization import NormalizationError
 from recommendation.runtime import build_artifact, configure_logging, refresh_artifact_hash, set_seed, write_artifact
 from recommendation.validation import validate_d4l_jsonl
 
 
 LOGGER = logging.getLogger(__name__)
-COMMANDS = ("build", "validate", "evaluate", "recommend")
+COMMANDS = ("build", "validate", "evaluate", "recommend", "index")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -42,6 +45,10 @@ def create_parser() -> argparse.ArgumentParser:
         if command == "evaluate":
             command_parser.add_argument("--k", type=int, default=5)
             command_parser.add_argument("--recall-k", type=int, default=10)
+        if command == "index":
+            command_parser.add_argument("--index-version", default=None)
+            command_parser.add_argument("--batch-size", type=int, default=32)
+            command_parser.add_argument("--max-retries", type=int, default=2)
     return parser
 
 
@@ -68,9 +75,13 @@ def run(arguments: argparse.Namespace) -> Path:
         elif arguments.command == "validate":
             artifact["validation"] = validate_d4l_jsonl(input_path)
             books = None
+        elif arguments.command == "index":
+            books = None
         else:
             books = load_d4l_jsonl(input_path)
-        if arguments.command == "evaluate" and books is not None:
+        if arguments.command == "index":
+            artifact["index"] = _run_embedding_index(arguments, input_path)
+        elif arguments.command == "evaluate" and books is not None:
             artifact["evaluation"] = evaluate_d4l(books, k=arguments.k, recall_k=arguments.recall_k)
         elif arguments.command == "recommend" and books is not None:
             query_isbn = arguments.query_isbn or books[0].isbn13
@@ -88,6 +99,53 @@ def run(arguments: argparse.Namespace) -> Path:
         )
     LOGGER.info("command=%s artifactHash=%s", arguments.command, artifact["artifactHash"])
     return output_path
+
+
+def _run_embedding_index(arguments: argparse.Namespace, input_path: Path) -> dict:
+    endpoint = os.getenv("EMBEDDING_API_URL", "").strip()
+    api_key = os.getenv("EMBEDDING_API_KEY", "").strip()
+    qdrant_url = os.getenv("QDRANT_URL", "").strip()
+    index_version = (arguments.index_version or os.getenv("AI_INDEX_VERSION", "")).strip()
+    if index_version.lower() == "none":
+        index_version = ""
+    if not endpoint or not api_key or not qdrant_url or not index_version:
+        raise ConfigError("index command requires embedding, Qdrant, and active index configuration")
+    if arguments.batch_size < 1 or arguments.max_retries < 0:
+        raise ConfigError("batch size must be positive and max retries must be non-negative")
+    try:
+        dimension = int(os.getenv("EMBEDDING_DIMENSION", "512"))
+        timeout = float(os.getenv("EMBEDDING_TIMEOUT_SECONDS", "30"))
+        qdrant_timeout = float(os.getenv("QDRANT_TIMEOUT_SECONDS", "10"))
+    except ValueError as error:
+        raise ConfigError("embedding and Qdrant timeout/dimension configuration is invalid") from error
+    model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small").strip()
+    provider = OpenAICompatibleEmbeddingProvider(
+        endpoint=endpoint,
+        api_key=api_key,
+        model_version=model,
+        dimension=dimension,
+        timeout_seconds=timeout,
+        batch_size=arguments.batch_size,
+    )
+    store = QdrantVersionedIndexStore(
+        base_url=qdrant_url,
+        collection_prefix=os.getenv("QDRANT_COLLECTION_PREFIX", "books"),
+        active_alias=os.getenv("QDRANT_COLLECTION", "books_active"),
+        dimension=dimension,
+        timeout_seconds=qdrant_timeout,
+        api_key=os.getenv("QDRANT_API_KEY") or None,
+    )
+    return EmbeddingBatchRunner(
+        embedder=provider,
+        store=store,
+        config=EmbeddingBatchConfig(
+            index_version=index_version,
+            feature_version=os.getenv("AI_FEATURE_VERSION", "d4l-feature-v1"),
+            tag_version=os.getenv("AI_TAG_VERSION", "not-generated"),
+            max_retries=arguments.max_retries,
+            batch_size=arguments.batch_size,
+        ),
+    ).run(input_path)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

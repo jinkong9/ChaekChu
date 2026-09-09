@@ -27,6 +27,11 @@ uv run b102-recommendation --config config/local.toml validate --input tests/fix
 uv run b102-recommendation --config config/local.toml evaluate --input tests/fixtures/books.jsonl
 uv run b102-recommendation --config config/local.toml recommend --input tests/fixtures/books.jsonl --user-id demo-user
 
+# EC2/운영: 환경변수의 provider·Qdrant staging index로 실행
+uv run b102-recommendation --config config/local.toml index \
+  --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
+  --index-version d4l-2026-09-v1 --batch-size 32 --max-retries 2
+
 uv run uvicorn recommendation.api:app --host 0.0.0.0 --port 8000
 ```
 
@@ -53,11 +58,19 @@ adapter가 연결된다. `QDRANT_COLLECTION`은 `books_active` alias를 기본�
 QDRANT_URL=http://qdrant:6333
 QDRANT_API_KEY=<secret>
 QDRANT_COLLECTION=books_active
+QDRANT_COLLECTION_PREFIX=books
 QDRANT_TAG_COLLECTION=<optional>
 QDRANT_VECTOR_NAME=<optional>
 QDRANT_TIMEOUT_SECONDS=2.0
 AI_MODEL_VERSION=d4l-hybrid-v1
 AI_INDEX_VERSION=<promoted-index-version>
+AI_FEATURE_VERSION=d4l-feature-v1
+AI_TAG_VERSION=not-generated
+EMBEDDING_API_URL=<gms-openai-compatible-embeddings-endpoint>
+EMBEDDING_API_KEY=<secret>
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_DIMENSION=512
+EMBEDDING_TIMEOUT_SECONDS=30
 ```
 
 기본 출력은 `ai/output/<command>.json`에, 로그는 `ai/logs/recommendation.log`에
