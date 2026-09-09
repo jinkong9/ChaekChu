@@ -63,6 +63,7 @@ D4L 100만 건
 | #165 | 모델·태그·index 갱신 및 alias 롤백 runbook |
 | #166 | 태그 sidecar 검증 및 임베딩 index payload 연동 |
 | #167 | 태그 prototype 임베딩 생성·Qdrant collection 연동 |
+| #168 | 실데이터 end-to-end 추천 smoke·태그 품질 검증 |
 
 태그 생성·매핑은 #136과 분리된 오프라인 배치 단계로 관리한다. 필요하면 별도 Jira
 하위 작업으로 나누며, 규칙 기반 태그와 GMS LLM 배치 태그를 `source`, `confidence`,

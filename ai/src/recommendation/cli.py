@@ -15,6 +15,7 @@ from recommendation.embedding_batch import EmbeddingBatchConfig, EmbeddingBatchR
 from recommendation.normalization import NormalizationError, normalized_input_hash
 from recommendation.quality import evaluate_weight_grid, load_tag_sidecar
 from recommendation.runtime import build_artifact, configure_logging, refresh_artifact_hash, set_seed, write_artifact
+from recommendation.smoke import run_smoke
 from recommendation.tag_batch import GmsTagProvider, TagBatchRunner, TagGenerator
 from recommendation.tag_index import load_validated_tag_sidecar
 from recommendation.tag_prototype import (
@@ -26,7 +27,7 @@ from recommendation.validation import validate_d4l_jsonl
 
 
 LOGGER = logging.getLogger(__name__)
-COMMANDS = ("build", "validate", "evaluate", "recommend", "index", "tags", "tag-index", "tune")
+COMMANDS = ("build", "validate", "evaluate", "recommend", "index", "tags", "tag-index", "tune", "smoke")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -72,6 +73,11 @@ def create_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--tag-sidecar", type=Path)
             command_parser.add_argument("--k", type=int, default=5)
             command_parser.add_argument("--recall-k", type=int, default=10)
+        if command == "smoke":
+            command_parser.add_argument("--tag-sidecar", type=Path)
+            command_parser.add_argument("--tag-version", default="d4l-tags-v1")
+            command_parser.add_argument("--k", type=int, default=5)
+            command_parser.add_argument("--recall-k", type=int, default=10)
     return parser
 
 
@@ -98,7 +104,7 @@ def run(arguments: argparse.Namespace) -> Path:
         elif arguments.command == "validate":
             artifact["validation"] = validate_d4l_jsonl(input_path)
             books = None
-        elif arguments.command in {"index", "tags", "tag-index"}:
+        elif arguments.command in {"index", "tags", "tag-index", "smoke"}:
             books = None
         else:
             books = load_d4l_jsonl(input_path)
@@ -108,6 +114,17 @@ def run(arguments: argparse.Namespace) -> Path:
             artifact["tags"] = _run_tag_batch(arguments, input_path)
         elif arguments.command == "tag-index":
             artifact["tagIndex"] = _run_tag_prototype_index(arguments)
+        elif arguments.command == "smoke":
+            try:
+                artifact["smoke"] = run_smoke(
+                    input_path,
+                    tag_sidecar_path=arguments.tag_sidecar.expanduser().resolve() if arguments.tag_sidecar else None,
+                    tag_version=arguments.tag_version,
+                    k=arguments.k,
+                    recall_k=arguments.recall_k,
+                )
+            except ValueError as error:
+                raise ConfigError(f"smoke configuration is invalid: {error}") from error
         elif arguments.command == "evaluate" and books is not None:
             artifact["evaluation"] = evaluate_d4l(books, k=arguments.k, recall_k=arguments.recall_k)
         elif arguments.command == "tune" and books is not None:

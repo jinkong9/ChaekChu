@@ -18,6 +18,7 @@ class TagPayload:
     tag_codes: tuple[str, ...]
     tag_scores: dict[str, float]
     tag_confidence: dict[str, float]
+    low_confidence: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,7 +119,7 @@ def load_validated_tag_sidecar(
                 low_confidence = record.get("lowConfidence")
                 if not isinstance(low_confidence, bool):
                     raise _invalid(path, line_number, "lowConfidence must be boolean")
-                records[isbn13] = TagPayload(codes, scores, confidence)
+                records[isbn13] = TagPayload(codes, scores, confidence, low_confidence)
     except (OSError, UnicodeDecodeError) as error:
         raise ValueError(f"tag sidecar could not be read: {path}") from error
 
