@@ -15,9 +15,11 @@
 [완료] 임베딩 모델·입력 연구 — e5-large + STRUCT · 어휘 主 · 벡터 1개          EMBEDDING_STUDY_REPORT.md
 [완료] MVP ERD 확정 — V1 (1차 ERDCloud 10테이블 + 보정) · V2 확장 예정           DB_TABLE_DESIGN.md · sql/V1__init.sql
 [완료] 스냅샷 확정 — snapshots/2026-09-09 (EC2·로컬 동일, SHA256)
-[완료] V1 적재 — books 3,312,467 · book_tags 2,415,073 · book_loaned_top20 1,200   로컬 · EC2 둘 다 (09-09 10:20)
-[다음] V2 추천 데이터 층 — book_texts · book_keywords · book_relations · book_demand_features · book_embeddings · kdc_codes
-[다음] ES 색인 — BM25(nori) + dense_vector int8_hnsw (1단계 34만 → L1)
+[완료] V1 적재 — books 3,312,467 · book_tags 2,023,895 · book_loaned_top20 1,200   로컬 · EC2 둘 다 (09-09)
+[완료] V2 스키마 — V2__recommendation_layer.sql, Flyway CLI 로 로컬·EC2 적용 (09-09 14:40). book_texts 는 books 컬럼 3개로 흡수
+[완료] V2 적재 — kdc_codes 949 · book_keywords 8,784,823 · book_relations 13,699,166 (대상 연결 99.5~99.9%) · book_demand_features 2,749,303   로컬 · EC2 (09-09 16:40)
+[다음] 카카오 완주(09-10) → 스냅샷 → books upsert (소개·표지·description_kakao·text_hash)
+[다음] 임베딩 → book_embeddings(BYTEA) → ES 색인 — BM25(nori) + dense_vector int8_hnsw (1단계 34만 → L1)
 ```
 
 <br/>
@@ -85,11 +87,11 @@ L1 추천 후보  누적 대출 72+ (수요 99%) ∪ 2025+ 신간 = 1,098,550   
 
 ## 6. 다음 작업
 
-1. **카카오 완주(09-10)** → 타이머·heartbeat 중지 → 스냅샷 09-10 → `books` upsert (로컬·EC2)
-2. **V2 마이그레이션** — `DB_TABLE_DESIGN.md` §4~§5 를 1차 이름에 맞춰 `V2__recommendation_layer.sql` 로. 적재 파일: book_texts(정보나루·카카오 소개 원문) · book_keywords(50개 전부) · book_relations(co_loan·mania·reader) · book_demand_features(원장 월별) · kdc_codes
-3. **임베딩** — 1단계 34만 권 STRUCT → e5-large (61분, 캐시 `tmp/study/emb/e5-large/STRUCT__FULL343399.npy` 재사용 가능) → `book_embeddings` BYTEA → ES `int8_hnsw`
-4. **ES 색인** — `books` BM25(nori: 제목·저자·출판사·키워드·소개) + 벡터. 컨테이너 상한 4G → 5G
-5. `ai/` 서비스에 스냅샷 경로 연결 (`d4l-usage-v1` 계약 validate)
+1. **카카오 완주(09-10)** → 타이머·heartbeat 중지 → 스냅샷 09-10 → `build_service_tables.py` 재실행 → `books` upsert (로컬·EC2). 형제 권 소개는 카카오가 채운 만큼 자동으로 줄어든다
+2. **임베딩** — 1단계 34만 권 STRUCT(제목/저자/분류/키워드 30/소개 둘) → e5-large (61분, 캐시 `tmp/study/emb/e5-large/STRUCT__FULL343399.npy` 는 카카오 완주 전 입력이라 재생성) → `book_embeddings` BYTEA + `input_hash = books.text_hash`
+3. **ES 색인** — `books` BM25(nori: 제목·저자·출판사·`book_keywords`·소개 둘) + `dense_vector` int8_hnsw. 컨테이너 상한 4G → 5G
+4. **`book_demand_features` 다음 달** — 10월 원장 스냅샷이 오면 `loan_24m`·`trending_score`·`steady_score` 계산 시작(결정 3). 지금은 누적·3/12개월·소장관만
+5. `ai/` 서비스에 스냅샷 경로 연결 (`d4l-usage-v1` 계약 validate) — 또는 DB(`book_relations` 등)를 읽도록 전환 여부 결정
 
 <br/>
 
@@ -99,7 +101,8 @@ L1 추천 후보  누적 대출 72+ (수요 99%) ∪ 2025+ 신간 = 1,098,550   
 | --- | --- |
 | `books` 범위 | L0 서지 3.3M 으로 적재. **L1 으로 대체될 수 있음** — `--scope L1` 으로 재빌드하면 1,047,435 행 |
 | L1 중 books 에 없는 51,115 ISBN | 국중 전자책(신간 트랙, 제외 결정) + 체크섬 불일치. 추천 후보에서도 빠진다 |
-| `book_tags` 채우는 주체 | KDC 접두 규칙(`KDC_TAGS`)으로 배치가 채움. 사람이 붙이는 태그면 규칙 재검토 |
+| `book_tags` 채우는 주체 | KDC 접두 규칙(`KDC_TAGS`)으로 배치가 채움. 09-09 표본 감사로 51x 의학·52x·59x·69x 스포츠·37x 교육·388·896 제외(40만 행 삭제). 태그 없는 KDC 구간은 비워 둠 |
+| 형제 권 소개(SIBLING) 174,720 | 저자 토큰 일치 160,802 + 어간 6자 이상 13,918. 일반명 교과서 오결합은 차단했지만 완벽하지 않음 — `description_source='SIBLING'` 으로 구분 가능 |
 | `book_loaned_top20` 원천 | 프론트 시안의 `segment_popular_500.json` 은 없었다 → `fetch_segment_popular.py` 로 재수집(월 1회). 창 06-01~08-31, 동률 순위는 재부여 |
 | 벡터 저장소 | ES vs Qdrant 보류 (compose 에 Qdrant 프로필 있음) |
 | 정보나루 재수집 | 하지 않음. 함께대출 목록 갱신이 필요하면 1단계만 하루 |

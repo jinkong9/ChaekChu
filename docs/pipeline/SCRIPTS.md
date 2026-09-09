@@ -382,9 +382,23 @@ API 순위에 동률이 있어 로더가 조인 뒤 `row_number` 로 재부여�
 - ISBN 체크섬 검증(자리표시 ISBN 102,406 제외) · 저자 역할어 제거(SQL 매크로 — Python UDF 는 30분+ 미완) · 소개문 우선순위 정보나루 → 카카오 → **형제 권(SIBLING)** · KDC → 12 태그(`KDC_TAGS`).
 - 약 9분 (평탄화 재사용 시 6분).
 
-### `load_service_tables.sh` · 90줄
+`build_service_tables.py` 는 V2 적재 파일도 함께 낸다 (09-09): `kdc_codes.csv`(class_nm 파생 451행) · `book_keywords.csv.gz`(50개 전부, 중복 단어는 앞 것) ·
+`book_relations.csv.gz`(CO_LOAN·MANIA_REC·READER_REC, 대상 ISBN 보존) · `book_demand_features.csv.gz`(원장 누적·소장관 + loan_history 최근 3/12개월, 기준월 = 이력 마지막 달).
+`books.csv.gz` 에는 `description_source` `description_kakao` `text_hash` 가 더 붙는다. `--limit N` 으로 정보나루 앞 N줄만 써서 연기 시험(`--out` 별도 폴더).
+형제 권 소개는 09-09 감사 뒤 조건을 조였다 — 저자 첫 토큰 상호 포함 또는 어간 6자+, 그룹 200권 이하 (일반명 교과서 오결합 차단). 태그 규칙도 51x·52x·59x·69x·37x·388·896 구간을 제외했다.
+
+**V2 스키마 적용은 Flyway CLI 로** (백엔드 재배포 없이, 이력은 백엔드 Flyway 와 호환):
+```
+docker run --rm --network <compose 네트워크> -v <migration 폴더>:/flyway/sql flyway/flyway:11 \
+  -url=jdbc:postgresql://<pg 컨테이너>:5432/bookdb -user=book -password="$(docker exec <pg 컨테이너> printenv POSTGRES_PASSWORD)" migrate
+```
+로컬 `b102-local_default`/`b102-postgres-local` · EC2 `brbbr_default`/`b102-postgres`. 같은 파일이 `backend/src/main/resources/db/migration/` 에 있어 다음 배포에서 Flyway 가 「이미 적용」으로 지나간다.
+
+### `load_service_tables.sh` · 170줄
 `docker exec -i <PG 컨테이너> psql` 에 stdin 하나로 「SQL → `\copy from stdin` → CSV → `\.` → SQL」을 흘린다 (heredoc + 파이프 혼용 금지).
 books 는 임시 표 → `ON CONFLICT (isbn13) DO UPDATE`(변경 행만) 라 재실행 가능. book_tags · top20 은 isbn13 → books.id 조인. `--only <표>`.
+V2 블록(`kdc_codes` `book_keywords` `book_relations` `book_demand_features`)은 **표가 있을 때만** 돈다 — V1 만 있는 DB 에도 같은 스크립트를 쓸 수 있다.
+`book_tags` `book_keywords` `book_relations` 는 규칙·스냅샷에서 통째로 파생되는 표라 **비우고 다시 넣는다**(사용자 데이터 없음). `book_relations.target_book_id` 는 books 에 없으면 NULL 로 두고 ISBN 을 보존한다.
 로컬 `PG_CONTAINER=b102-postgres-local`, EC2 는 기본값 `b102-postgres`. 09-09 실측: books 3~4분 · tags 2~3분.
 
 ```

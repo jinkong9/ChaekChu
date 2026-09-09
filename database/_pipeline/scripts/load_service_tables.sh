@@ -29,7 +29,21 @@ say "대상 $PGC/$PGD · 적재 전 books=$(count books) book_tags=$(count book_
 
 if want books && [[ -f "$DIR/books.csv.gz" ]]; then
   say "books ← $DIR/books.csv.gz"
-  POST_SQL='
+  # V2 컬럼(description_source · description_kakao · text_hash)이 있는 DB 면 함께 넣는다. V1 만 있으면 8컬럼만.
+  if "${PSQL[@]}" -tAc "select 1 from information_schema.columns where table_name='books' and column_name='text_hash'" | grep -q 1; then
+    POST_SQL='
+insert into books (isbn13, title, author, publisher, pub_year, category_code, description, cover_url, description_source, description_kakao, text_hash)
+select isbn13, title, author, publisher, pub_year, category_code, description, cover_url, description_source, description_kakao, text_hash from stg_books
+on conflict (isbn13) do update set
+  title = excluded.title, author = excluded.author, publisher = excluded.publisher, pub_year = excluded.pub_year,
+  category_code = excluded.category_code, description = excluded.description, cover_url = excluded.cover_url,
+  description_source = excluded.description_source, description_kakao = excluded.description_kakao, text_hash = excluded.text_hash,
+  updated_at = now()
+where (books.title, books.author, books.publisher, books.pub_year, books.category_code, books.description, books.cover_url, books.description_source, books.description_kakao, books.text_hash)
+   is distinct from (excluded.title, excluded.author, excluded.publisher, excluded.pub_year, excluded.category_code, excluded.description, excluded.cover_url, excluded.description_source, excluded.description_kakao, excluded.text_hash);
+analyze books;'
+  else
+    POST_SQL='
 insert into books (isbn13, title, author, publisher, pub_year, category_code, description, cover_url)
 select isbn13, title, author, publisher, pub_year, category_code, description, cover_url from stg_books
 on conflict (isbn13) do update set
@@ -39,15 +53,19 @@ on conflict (isbn13) do update set
 where (books.title, books.author, books.publisher, books.pub_year, books.category_code, books.description, books.cover_url)
    is distinct from (excluded.title, excluded.author, excluded.publisher, excluded.pub_year, excluded.category_code, excluded.description, excluded.cover_url);
 analyze books;'
+  fi
   stream 'create temp table stg_books (isbn13 char(13), title varchar(500), author varchar(300), publisher varchar(200),
-  pub_year smallint, category_code varchar(10), description text, cover_url varchar(500));
+  pub_year smallint, category_code varchar(10), description text, cover_url varchar(500),
+  description_source varchar(20), description_kakao text, text_hash char(64));
 \copy stg_books from stdin with (format csv, header true)' gzip -dc "$DIR/books.csv.gz"
   say "books=$(count books)"
 fi
 
 if want book_tags && [[ -f "$DIR/book_tags.csv.gz" ]]; then
   say "book_tags ← $DIR/book_tags.csv.gz"
+  # ∵ book_tags 는 KDC 규칙으로 통째로 파생되는 표 — 규칙이 바뀌면 옛 태그가 남지 않게 비우고 다시 넣는다 (사용자 데이터 없음)
   POST_SQL='
+truncate book_tags;
 insert into book_tags (book_id, tag_code)
 select b.id, s.tag_code from stg_bt s join books b on b.isbn13 = s.isbn13 join tags t on t.tag_code = s.tag_code
 on conflict (book_id, tag_code) do nothing;'
@@ -72,5 +90,60 @@ select count(*) as "books 에 없어 건너뜀" from stg_top s left join books b
 \copy stg_top from stdin with (format csv, header true)' tr -d '\r' < "$DIR/book_loaned_top20.csv"
   # ∵ tr -d '\r': Windows 에서 만든 CSV(CRLF) 뒤에 "\." 종료 줄(LF)이 오면 COPY 가 "unquoted newline" 으로 거부한다
   say "book_loaned_top20=$(count book_loaned_top20)"
+fi
+
+# ── V2 (표가 있을 때만) ────────────────────────────────────────────────
+has_table() { "${PSQL[@]}" -tAc "select 1 from information_schema.tables where table_name='$1'" | grep -q 1; }
+
+if want kdc_codes && [[ -f "$DIR/kdc_codes.csv" ]] && has_table kdc_codes; then
+  say "kdc_codes ← $DIR/kdc_codes.csv"
+  POST_SQL='
+insert into kdc_codes (code, label, parent_code, depth)
+select code, label, parent_code, depth from stg_kdc order by depth
+on conflict (code) do update set label = excluded.label, parent_code = excluded.parent_code, depth = excluded.depth;'
+  stream 'create temp table stg_kdc (code varchar(10), label varchar(200), parent_code varchar(10), depth smallint);
+\copy stg_kdc from stdin with (format csv, header true)' tr -d '\r' < "$DIR/kdc_codes.csv"
+  say "kdc_codes=$(count kdc_codes)"
+fi
+
+if want book_keywords && [[ -f "$DIR/book_keywords.csv.gz" ]] && has_table book_keywords; then
+  say "book_keywords ← $DIR/book_keywords.csv.gz (비우고 다시)"
+  POST_SQL='
+truncate book_keywords;
+insert into book_keywords (book_id, keyword, weight, rank)
+select b.id, s.keyword, s.weight, s.rank from stg_kw s join books b on b.isbn13 = s.isbn13
+on conflict (book_id, keyword) do nothing;
+analyze book_keywords;'
+  stream 'create temp table stg_kw (isbn13 char(13), keyword varchar(100), weight numeric(8,2), rank smallint);
+\copy stg_kw from stdin with (format csv, header true)' gzip -dc "$DIR/book_keywords.csv.gz"
+  say "book_keywords=$(count book_keywords)"
+fi
+
+if want book_relations && [[ -f "$DIR/book_relations.csv.gz" ]] && has_table book_relations; then
+  say "book_relations ← $DIR/book_relations.csv.gz (비우고 다시)"
+  POST_SQL='
+truncate book_relations;
+insert into book_relations (source_book_id, target_book_id, target_isbn13, relation_type, rank, collected_at)
+select s.id, t.id, r.target_isbn13, r.relation_type, r.rank, current_date
+from stg_rel r join books s on s.isbn13 = r.isbn13 left join books t on t.isbn13 = r.target_isbn13
+on conflict (source_book_id, relation_type, target_isbn13) do nothing;
+analyze book_relations;
+select relation_type, count(*) as rows, count(target_book_id) as linked from book_relations group by 1 order by 1;'
+  stream 'create temp table stg_rel (isbn13 char(13), target_isbn13 char(13), relation_type varchar(12), rank smallint);
+\copy stg_rel from stdin with (format csv, header true)' gzip -dc "$DIR/book_relations.csv.gz"
+  say "book_relations=$(count book_relations)"
+fi
+
+if want book_demand_features && [[ -f "$DIR/book_demand_features.csv.gz" ]] && has_table book_demand_features; then
+  say "book_demand_features ← $DIR/book_demand_features.csv.gz"
+  POST_SQL='
+insert into book_demand_features (book_id, as_of_month, loan_cum, loan_3m, loan_12m, holder_libs, feature_version)
+select b.id, s.as_of_month, s.loan_cum, s.loan_3m, s.loan_12m, s.holder_libs, s.feature_version from stg_dem s join books b on b.isbn13 = s.isbn13
+on conflict (book_id, as_of_month) do update set loan_cum = excluded.loan_cum, loan_3m = excluded.loan_3m, loan_12m = excluded.loan_12m,
+  holder_libs = excluded.holder_libs, feature_version = excluded.feature_version;
+analyze book_demand_features;'
+  stream 'create temp table stg_dem (isbn13 char(13), as_of_month char(7), loan_cum bigint, loan_3m integer, loan_12m integer, holder_libs integer, feature_version varchar(20));
+\copy stg_dem from stdin with (format csv, header true)' gzip -dc "$DIR/book_demand_features.csv.gz"
+  say "book_demand_features=$(count book_demand_features)"
 fi
 say "완료"
