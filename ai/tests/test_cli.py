@@ -13,6 +13,7 @@ from recommendation.api import (
     D4LBookInput,
     RecommendationRequest,
     app,
+    build_runtime_engine,
     configure_recommendation_engine,
 )
 from recommendation.cli import create_parser, main, run
@@ -30,6 +31,8 @@ from recommendation.vector_search import (
     InMemoryVectorIndex,
     SearchStatus,
     VectorRecord,
+    QdrantVectorIndex,
+    QueryVectorStoreTimeoutError,
 )
 
 
@@ -411,6 +414,29 @@ def test_health_reports_runtime_versions_without_exposing_secrets() -> None:
     assert response.json() == {"status": "ok", "modelVersion": "d4l-hybrid-v1", "indexVersion": "none"}
 
 
+def test_runtime_factory_wires_qdrant_only_when_active_index_is_configured() -> None:
+    empty = build_runtime_engine({"QDRANT_URL": "http://qdrant:6333", "AI_INDEX_VERSION": "none"})
+    assert isinstance(empty, EmptyRecommendationEngine)
+
+    configured = build_runtime_engine(
+        {
+            "QDRANT_URL": "http://qdrant:6333",
+            "QDRANT_API_KEY": "secret-is-not-used-during-construction",
+            "QDRANT_COLLECTION": "books_active",
+            "QDRANT_TAG_COLLECTION": "tags_active",
+            "QDRANT_VECTOR_NAME": "content",
+            "QDRANT_TIMEOUT_SECONDS": "1.5",
+            "AI_INDEX_VERSION": "d4l-index-v1",
+            "AI_MODEL_VERSION": "e5-large-v1",
+        }
+    )
+
+    assert isinstance(configured, IndexedRecommendationEngine)
+    assert isinstance(configured.search_service.adapter, QdrantVectorIndex)
+    assert configured.model_version == "e5-large-v1"
+    assert configured.index_version == "d4l-index-v1"
+
+
 def test_recommendation_api_rejects_duplicate_candidate_ids() -> None:
     client = TestClient(app)
     payload = {
@@ -631,6 +657,35 @@ def test_index_timeout_returns_explicit_fallback_response() -> None:
         RecommendationRequest(
             requestId="req-contract-timeout",
             userId="user-contract-timeout",
+            mode="PERSONALIZED",
+            seedIsbns=["9780000000020"],
+        )
+    )
+
+    assert result.fallback is True
+    assert result.items == []
+    assert result.indexVersion == version
+
+
+def test_query_vector_timeout_returns_explicit_fallback_response() -> None:
+    version = "d4l-query-timeout-v1"
+
+    class TimeoutStore:
+        def get_book_vector(self, _isbn13, _index_version):
+            raise QueryVectorStoreTimeoutError("query vector timeout")
+
+        def get_tag_vector(self, _code, _index_version):
+            return None
+
+    engine = IndexedRecommendationEngine(
+        query_builder=QueryVectorBuilder(TimeoutStore(), index_version=version),
+        search_service=CandidateSearchService(InMemoryVectorIndex([], index_version=version)),
+    )
+
+    result = engine.recommend(
+        RecommendationRequest(
+            requestId="req-query-timeout",
+            userId="user-query-timeout",
             mode="PERSONALIZED",
             seedIsbns=["9780000000020"],
         )

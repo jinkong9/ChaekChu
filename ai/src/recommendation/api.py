@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import hashlib
+import math
 import os
 import re
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Mapping, Protocol
 
 from fastapi import FastAPI
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -14,7 +16,17 @@ from recommendation.fallback import RecommendationFallbackPolicy
 from recommendation.query_vector import QueryTagPreference, QueryVectorBuilder
 from recommendation.reranking import HybridWeights
 from recommendation.top_k import TopKRecommendationRanker
-from recommendation.vector_search import CandidateSearchRequest, CandidateSearchResponse, CandidateHit, SearchStatus
+from recommendation.vector_search import (
+    CandidateSearchRequest,
+    CandidateSearchResponse,
+    CandidateHit,
+    CandidateSearchService,
+    QdrantQueryVectorStore,
+    QdrantVectorIndex,
+    QueryVectorStoreError,
+    QueryVectorStoreTimeoutError,
+    SearchStatus,
+)
 
 
 RecommendationMode = Literal["COLD_START", "PERSONALIZED"]
@@ -196,9 +208,6 @@ class RecommendationResponse(BaseModel):
     weights: RecommendationWeights
     appliedTags: list[str]
     items: list[RecommendationItem]
-
-
-app = FastAPI(title="B102 Recommendation API", version="0.3.0")
 
 
 def _relation_map(book: D4LBookInput, isbn: str) -> dict[str, float]:
@@ -398,17 +407,40 @@ class IndexedRecommendationEngine:
 
     def recommend(self, request: RecommendationRequest) -> ContractRecommendationResponse:
         requested_tags = {tag.code: tag.weight for tag in request.tags if tag.weight > 0}
-        query = self.query_builder.build(
-            mode=request.mode,
-            seed_isbns=request.seedIsbns,
-            tags=(QueryTagPreference(code, weight) for code, weight in requested_tags.items()),
-            weights={
-                "semantic": request.weights.semantic,
-                "tagMatch": request.weights.tagMatch,
-            },
-        )
+        try:
+            query = self.query_builder.build(
+                mode=request.mode,
+                seed_isbns=request.seedIsbns,
+                tags=(QueryTagPreference(code, weight) for code, weight in requested_tags.items()),
+                weights={
+                    "semantic": request.weights.semantic,
+                    "tagMatch": request.weights.tagMatch,
+                },
+            )
+        except QueryVectorStoreTimeoutError as error:
+            query = None
+            query_failure = CandidateSearchResponse(
+                status=SearchStatus.TIMEOUT,
+                index_version=self.index_version,
+                requested_limit=request.size,
+                returned_count=0,
+                reason=str(error),
+            )
+        except QueryVectorStoreError as error:
+            query = None
+            query_failure = CandidateSearchResponse(
+                status=SearchStatus.INDEX_NOT_FOUND,
+                index_version=self.index_version,
+                requested_limit=request.size,
+                returned_count=0,
+                reason=str(error),
+            )
+        else:
+            query_failure = None
 
-        if query.query_vector is None:
+        if query_failure is not None:
+            search = query_failure
+        elif query is not None and query.query_vector is None:
             search = CandidateSearchResponse(
                 # No query vector means the personalized path is unavailable;
                 # let the shared policy select the demand fallback.
@@ -419,6 +451,7 @@ class IndexedRecommendationEngine:
                 reason=query.reason.value,
             )
         else:
+            assert query is not None
             candidate_limit = min(300, max(100, request.size * 20))
             search = self.search_service.search(
                 CandidateSearchRequest(
@@ -488,6 +521,83 @@ def _contract_response(
         fallback=fallback,
         items=list(items),
     )
+
+
+def _configured_index_version(environment: Mapping[str, str]) -> str | None:
+    value = environment.get("AI_INDEX_VERSION", "").strip()
+    return None if not value or value.lower() == "none" else value
+
+
+def _timeout_seconds(environment: Mapping[str, str]) -> float:
+    raw = environment.get("QDRANT_TIMEOUT_SECONDS", "2.0")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as error:
+        raise RuntimeError("QDRANT_TIMEOUT_SECONDS must be a positive number") from error
+    if value <= 0 or not math.isfinite(value):
+        raise RuntimeError("QDRANT_TIMEOUT_SECONDS must be a positive number")
+    return value
+
+
+def build_runtime_engine(environment: Mapping[str, str] | None = None) -> ContractRecommendationEngine:
+    """Build the configured online engine without making a network request.
+
+    A missing Qdrant URL or an unset active index intentionally keeps the safe
+    empty engine for local development and deployments before the first promote.
+    """
+
+    settings = os.environ if environment is None else environment
+    index_version = _configured_index_version(settings)
+    qdrant_url = settings.get("QDRANT_URL", "").strip()
+    model_version = settings.get("AI_MODEL_VERSION", "d4l-hybrid-v1").strip() or "d4l-hybrid-v1"
+    if index_version is None or not qdrant_url:
+        return EmptyRecommendationEngine()
+
+    timeout = _timeout_seconds(settings)
+    book_collection = settings.get("QDRANT_COLLECTION", "books_active").strip() or "books_active"
+    tag_collection = settings.get("QDRANT_TAG_COLLECTION", "").strip() or None
+    vector_name = settings.get("QDRANT_VECTOR_NAME", "").strip() or None
+    api_key = settings.get("QDRANT_API_KEY", "").strip() or None
+    query_store = QdrantQueryVectorStore(
+        base_url=qdrant_url,
+        index_version=index_version,
+        book_collection=book_collection,
+        tag_collection=tag_collection,
+        vector_name=vector_name,
+        timeout_seconds=timeout,
+        api_key=api_key,
+    )
+    search_index = QdrantVectorIndex(
+        base_url=qdrant_url,
+        collection=book_collection,
+        index_version=index_version,
+        timeout_seconds=timeout,
+        api_key=api_key,
+    )
+    return IndexedRecommendationEngine(
+        query_builder=QueryVectorBuilder(query_store, index_version=index_version),
+        search_service=CandidateSearchService(search_index),
+        model_version=model_version,
+    )
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Connect the configured Qdrant runtime when the ASGI app starts."""
+
+    previous = getattr(application.state, "recommendation_engine", None)
+    if previous is None:
+        engine = build_runtime_engine()
+        if not isinstance(engine, EmptyRecommendationEngine):
+            application.state.recommendation_engine = engine
+    try:
+        yield
+    finally:
+        if previous is None and hasattr(application.state, "recommendation_engine"):
+            application.state.__dict__.pop("recommendation_engine", None)
+
+
+app = FastAPI(title="B102 Recommendation API", version="0.4.0", lifespan=lifespan)
 
 
 def configure_recommendation_engine(engine: ContractRecommendationEngine) -> None:
