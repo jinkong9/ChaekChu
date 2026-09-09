@@ -17,11 +17,16 @@ from recommendation.quality import evaluate_weight_grid, load_tag_sidecar
 from recommendation.runtime import build_artifact, configure_logging, refresh_artifact_hash, set_seed, write_artifact
 from recommendation.tag_batch import GmsTagProvider, TagBatchRunner, TagGenerator
 from recommendation.tag_index import load_validated_tag_sidecar
+from recommendation.tag_prototype import (
+    QdrantTagPrototypeIndexStore,
+    TagPrototypeBatchConfig,
+    TagPrototypeBatchRunner,
+)
 from recommendation.validation import validate_d4l_jsonl
 
 
 LOGGER = logging.getLogger(__name__)
-COMMANDS = ("build", "validate", "evaluate", "recommend", "index", "tags", "tune")
+COMMANDS = ("build", "validate", "evaluate", "recommend", "index", "tags", "tag-index", "tune")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -58,6 +63,11 @@ def create_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--tag-version", default=None)
             command_parser.add_argument("--max-retries", type=int, default=2)
             command_parser.add_argument("--low-confidence", type=float, default=0.6)
+        if command == "tag-index":
+            command_parser.add_argument("--index-version", default=None)
+            command_parser.add_argument("--tag-version", default=None)
+            command_parser.add_argument("--batch-size", type=int, default=32)
+            command_parser.add_argument("--max-retries", type=int, default=2)
         if command == "tune":
             command_parser.add_argument("--tag-sidecar", type=Path)
             command_parser.add_argument("--k", type=int, default=5)
@@ -88,7 +98,7 @@ def run(arguments: argparse.Namespace) -> Path:
         elif arguments.command == "validate":
             artifact["validation"] = validate_d4l_jsonl(input_path)
             books = None
-        elif arguments.command in {"index", "tags"}:
+        elif arguments.command in {"index", "tags", "tag-index"}:
             books = None
         else:
             books = load_d4l_jsonl(input_path)
@@ -96,6 +106,8 @@ def run(arguments: argparse.Namespace) -> Path:
             artifact["index"] = _run_embedding_index(arguments, input_path)
         elif arguments.command == "tags":
             artifact["tags"] = _run_tag_batch(arguments, input_path)
+        elif arguments.command == "tag-index":
+            artifact["tagIndex"] = _run_tag_prototype_index(arguments)
         elif arguments.command == "evaluate" and books is not None:
             artifact["evaluation"] = evaluate_d4l(books, k=arguments.k, recall_k=arguments.recall_k)
         elif arguments.command == "tune" and books is not None:
@@ -219,6 +231,52 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
         ),
         tag_version=tag_version,
     ).run(input_path, arguments.sidecar.expanduser().resolve())
+
+
+def _run_tag_prototype_index(arguments: argparse.Namespace) -> dict:
+    endpoint = os.getenv("EMBEDDING_API_URL", "").strip()
+    api_key = os.getenv("EMBEDDING_API_KEY", "").strip()
+    qdrant_url = os.getenv("QDRANT_URL", "").strip()
+    index_version = (arguments.index_version or os.getenv("AI_INDEX_VERSION", "")).strip()
+    tag_version = (arguments.tag_version or os.getenv("AI_TAG_VERSION", "d4l-tags-v1")).strip()
+    if index_version.lower() == "none":
+        index_version = ""
+    if not endpoint or not api_key or not qdrant_url or not index_version:
+        raise ConfigError("tag-index command requires embedding, Qdrant, and active index configuration")
+    if not tag_version or arguments.batch_size < 1 or arguments.max_retries < 0:
+        raise ConfigError("tag prototype version and batch configuration are invalid")
+    try:
+        dimension = int(os.getenv("EMBEDDING_DIMENSION", "512"))
+        timeout = float(os.getenv("EMBEDDING_TIMEOUT_SECONDS", "30"))
+        qdrant_timeout = float(os.getenv("QDRANT_TIMEOUT_SECONDS", "10"))
+    except ValueError as error:
+        raise ConfigError("embedding and Qdrant timeout/dimension configuration is invalid") from error
+    provider = OpenAICompatibleEmbeddingProvider(
+        endpoint=endpoint,
+        api_key=api_key,
+        model_version=os.getenv("EMBEDDING_MODEL", "text-embedding-3-small").strip(),
+        dimension=dimension,
+        timeout_seconds=timeout,
+        batch_size=arguments.batch_size,
+    )
+    store = QdrantTagPrototypeIndexStore(
+        base_url=qdrant_url,
+        collection_prefix=os.getenv("QDRANT_TAG_COLLECTION_PREFIX", "tags"),
+        active_alias=os.getenv("QDRANT_TAG_COLLECTION", "tags_active"),
+        dimension=dimension,
+        timeout_seconds=qdrant_timeout,
+        api_key=os.getenv("QDRANT_API_KEY") or None,
+    )
+    return TagPrototypeBatchRunner(
+        embedder=provider,
+        store=store,
+        config=TagPrototypeBatchConfig(
+            index_version=index_version,
+            tag_version=tag_version,
+            batch_size=arguments.batch_size,
+            max_retries=arguments.max_retries,
+        ),
+    ).run()
 
 
 def main(argv: Sequence[str] | None = None) -> int:

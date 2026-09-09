@@ -42,6 +42,12 @@ uv run b102-recommendation --config config/local.toml tags \
   --sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl \
   --tag-version d4l-tags-v1 --max-retries 2
 
+# EC2/운영: taxonomy tag prototype을 Qdrant tags_active alias에 적재
+uv run b102-recommendation --config config/local.toml tag-index \
+  --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
+  --index-version d4l-2026-09-v1 --tag-version d4l-tags-v1 \
+  --batch-size 32 --max-retries 2
+
 # EC2/운영: D4L 관계 정답으로 추천 가중치 후보를 비교
 uv run b102-recommendation --config config/local.toml tune \
   --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
