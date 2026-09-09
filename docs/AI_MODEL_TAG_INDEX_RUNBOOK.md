@@ -17,6 +17,8 @@ D4L snapshot
   └─ index   → Qdrant staging collection(indexVersion)
                     └─ 성공 시 books_active alias promote
                          └─ AI_INDEX_VERSION을 같은 값으로 반영
+  └─ tag-index → Qdrant tag prototype staging collection
+                    └─ 성공 시 tags_active alias promote
 ```
 
 | 버전 | 의미 | 저장 위치 | 변경 시점 |
@@ -160,7 +162,28 @@ index report의 `tagSidecarRows`, `taggedRows`, `missingTagRows`,
 무시되지만, 수가 예상과 다르면 같은 원본 snapshot으로 tags 단계를 다시 실행한다.
 `QDRANT_TAG_COLLECTION`을 사용하는 query vector용 prototype 적재는 별도의 후속 작업이다.
 
-### 3.4 품질 확인과 runtime 반영
+### 3.4 태그 prototype index 생성 및 promote
+
+taxonomy의 code·label prototype은 도서 snapshot과 별도로 임베딩하지만, 동일한
+`indexVersion`을 point ID와 metadata에 사용한다. 성공한 staging collection만
+`tags_active` alias로 promote한다.
+
+```bash
+uv run b102-recommendation --config config/local.toml tag-index \
+  --input "$SOURCE" \
+  --index-version "$INDEX_VERSION" \
+  --tag-version "$TAG_VERSION" \
+  --batch-size 32 \
+  --max-retries 2 \
+  --output "$RUN_DIR/tag-index-report.json"
+```
+
+report의 `status=\"PROMOTED\"`, `failedRows=0`, `stagedRows=rows`를 확인한 뒤에만
+AI runtime의 `QDRANT_TAG_COLLECTION=tags_active`를 반영한다. point key는
+`tag:{code}`이며 query vector reader와 같은 versioned UUID 규칙을 사용한다.
+일부 prototype 생성이 실패하면 기존 `tags_active` alias를 유지한다.
+
+### 3.5 품질 확인과 runtime 반영
 
 태그가 운영 index에 실제로 연결된 경우에만 sidecar를 함께 넣어 가중치를 평가한다.
 현재 `tune`의 semantic은 TF-IDF proxy이므로, 결과는 배포 승인 근거 중 하나로만

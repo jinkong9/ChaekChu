@@ -94,6 +94,22 @@ def test_index_command_accepts_tag_sidecar_option() -> None:
     assert arguments.tag_sidecar == Path("tags.jsonl")
 
 
+def test_tag_index_command_accepts_prototype_options() -> None:
+    arguments = parse(
+        "tag-index",
+        "--input",
+        str(D4L_FIXTURE),
+        "--index-version",
+        "index-v1",
+        "--tag-version",
+        "tags-v1",
+    )
+
+    assert arguments.command == "tag-index"
+    assert arguments.index_version == "index-v1"
+    assert arguments.tag_version == "tags-v1"
+
+
 def test_tune_command_writes_weight_report(tmp_path: Path) -> None:
     output = tmp_path / "tune.json"
 
