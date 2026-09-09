@@ -7,7 +7,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from recommendation.api import D4LBookInput, app
+from recommendation.api import (
+    EmptyRecommendationEngine,
+    IndexedRecommendationEngine,
+    D4LBookInput,
+    RecommendationRequest,
+    app,
+    configure_recommendation_engine,
+)
 from recommendation.cli import create_parser, main, run
 from recommendation.config import ConfigError, load_config
 from recommendation.dedup import candidate_secondary_key, deduplicate_candidates, join_relation_isbns
@@ -15,6 +22,15 @@ from recommendation.d4l import load_d4l_jsonl
 from recommendation.baseline import evaluate_content, evaluate_d4l, recommend_content
 from recommendation.normalization import NORMALIZATION_VERSION, normalized_input_hash
 from recommendation.validation import validate_d4l_jsonl
+from recommendation.query_vector import InMemoryQueryVectorStore, QueryVectorBuilder
+from recommendation.vector_search import (
+    CandidateHit,
+    CandidateSearchResponse,
+    CandidateSearchService,
+    InMemoryVectorIndex,
+    SearchStatus,
+    VectorRecord,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -435,4 +451,185 @@ def test_candidate_dedup_joins_relations_by_exact_isbn_only() -> None:
 
     assert join_relation_isbns(relation, {"9780000000002"}) == ("9780000000002",)
     assert join_relation_isbns(relation, {"9780000000001"}) == ()
+
+
+def test_recommendation_api_accepts_snapshotless_backend_request() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/internal/v1/recommendations",
+        json={
+            "requestId": "req-contract-1",
+            "userId": "user-contract-1",
+            "mode": "PERSONALIZED",
+            "size": 5,
+            "seedIsbns": ["9780000000001"],
+            "excludeIsbns": ["9780000000004"],
+            "tags": [{"code": "FANTASY", "weight": 0.8}],
+            "weights": {"semantic": 0.45, "tagMatch": 0.25, "coLoan": 0.15, "trending": 0.1, "steady": 0.05},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["requestId"] == "req-contract-1"
+    assert body["userId"] == "user-contract-1"
+    assert body["fallback"] is True
+    assert body["items"] == []
+    assert "books" not in body
+
+
+def test_recommendation_api_rejects_invalid_or_sensitive_backend_fields() -> None:
+    client = TestClient(app)
+    invalid_tag = {
+        "requestId": "req-contract-2",
+        "userId": "user-contract-2",
+        "mode": "COLD_START",
+        "tags": [{"code": "fantasy", "weight": 0.5}],
+    }
+    sensitive_field = {
+        "requestId": "req-contract-3",
+        "userId": "user-contract-3",
+        "mode": "COLD_START",
+        "reviewText": "사용자 감상평은 추천 입력에 포함하지 않는다.",
+    }
+
+    assert client.post("/internal/v1/recommendations", json=invalid_tag).status_code == 422
+    assert client.post("/internal/v1/recommendations", json=sensitive_field).status_code == 422
+
+
+def test_indexed_engine_returns_flat_isbn_contract_and_applies_hard_excludes() -> None:
+    version = "d4l-test-v1"
+    store = InMemoryQueryVectorStore(
+        index_version=version,
+        book_vectors={"9780000000001": (1.0, 0.0)},
+        tag_vectors={"FANTASY": (1.0, 0.0)},
+    )
+    index = InMemoryVectorIndex(
+        [
+            VectorRecord(
+                "9780000000001",
+                (1.0, 0.0),
+                {"bookname": "관심 도서", "tagCodes": ["FANTASY"], "loan_total": 100},
+                index_version=version,
+            ),
+            VectorRecord(
+                "9780000000002",
+                (0.99, 0.01),
+                {"bookname": "후보 도서", "tagCodes": ["FANTASY"], "loan_total": 80},
+                index_version=version,
+            ),
+            VectorRecord(
+                "9780000000003",
+                (0.8, 0.2),
+                {"bookname": "두 번째 후보", "tagCodes": [], "loan_total": 60},
+                index_version=version,
+            ),
+        ],
+        index_version=version,
+    )
+    engine = IndexedRecommendationEngine(
+        query_builder=QueryVectorBuilder(store, index_version=version),
+        search_service=CandidateSearchService(index),
+    )
+    previous = getattr(app.state, "recommendation_engine", None)
+    configure_recommendation_engine(engine)
+    try:
+        response = TestClient(app).post(
+            "/internal/v1/recommendations",
+            json={
+                "requestId": "req-contract-4",
+                "userId": "user-contract-4",
+                "mode": "PERSONALIZED",
+                "size": 2,
+                "seedIsbns": ["9780000000001"],
+                "excludeIsbns": ["9780000000003"],
+                "tags": [{"code": "FANTASY", "weight": 1}],
+            },
+        )
+    finally:
+        if previous is None:
+            app.state.__dict__.pop("recommendation_engine", None)
+        else:
+            configure_recommendation_engine(previous)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["fallback"] is True  # only one candidate remains after hard filters
+    assert [item["isbn13"] for item in body["items"]] == ["9780000000002"]
+    assert body["items"][0]["featureScores"]["semantic"] is not None
+    assert body["items"][0]["matchedTags"] == ["FANTASY"]
+    assert body["items"][0]["primaryReason"]["type"] in {"TAG_MATCH", "SEMANTIC"}
+    assert "book" not in body["items"][0]
+
+
+def test_indexed_engine_cold_start_uses_demand_fallback() -> None:
+    version = "d4l-test-v2"
+    demand = (
+        CandidateHit(
+            "9780000000010",
+            0.0,
+            {"bookname": "인기 후보", "loan_total": 100, "loan_history": [["2026년 02월", 20, 20]]},
+        ),
+    )
+    engine = IndexedRecommendationEngine(
+        query_builder=QueryVectorBuilder(InMemoryQueryVectorStore(index_version=version), index_version=version),
+        search_service=CandidateSearchService(InMemoryVectorIndex([], index_version=version)),
+        demand_candidates=demand,
+    )
+    result = engine.recommend(
+        RecommendationRequest(
+            requestId="req-contract-5",
+            userId="user-contract-5",
+            mode="COLD_START",
+            size=1,
+        )
+    )
+
+    assert result.fallback is True
+    assert [item.isbn13 for item in result.items] == ["9780000000010"]
+
+
+def test_snapshotless_retry_keeps_recommendation_id_deterministic() -> None:
+    request = RecommendationRequest(
+        requestId="req-contract-retry",
+        userId="user-contract-retry",
+        mode="COLD_START",
+    )
+    first = EmptyRecommendationEngine().recommend(request)
+    second = EmptyRecommendationEngine().recommend(request)
+
+    assert first.recommendationId == second.recommendationId
+    assert first.requestId == second.requestId
+
+
+def test_index_timeout_returns_explicit_fallback_response() -> None:
+    version = "d4l-timeout-v1"
+    store = InMemoryQueryVectorStore(index_version=version, book_vectors={"9780000000020": (1.0, 0.0)})
+
+    class TimeoutSearch:
+        def search(self, _request):
+            return CandidateSearchResponse(
+                status=SearchStatus.TIMEOUT,
+                index_version=version,
+                requested_limit=100,
+                returned_count=0,
+                reason="vector store timeout",
+            )
+
+    result = IndexedRecommendationEngine(
+        query_builder=QueryVectorBuilder(store, index_version=version),
+        search_service=TimeoutSearch(),
+    ).recommend(
+        RecommendationRequest(
+            requestId="req-contract-timeout",
+            userId="user-contract-timeout",
+            mode="PERSONALIZED",
+            seedIsbns=["9780000000020"],
+        )
+    )
+
+    assert result.fallback is True
+    assert result.items == []
+    assert result.indexVersion == version
 
