@@ -14,7 +14,7 @@ deploy/
     nginx/snippets/app.conf 라우팅 한 곳: /api/ · /swagger-ui/ · /v3/api-docs → backend, 나머지 SPA
   docker-compose.local.yml  로컬 전체 스택 override (포트·메모리·TLS 끔). .env.local.example 과 짝
   scripts/
-    common.sh               공통: env·락·상태 경로 (/etc/b102, /var/lib/b102 우선), envval, 락
+    common.sh               공통: env(deploy/.env)·락(/etc/b102)·상태(/var/lib/b102) 경로, envval, 락
     local-up.sh             로컬 전체 스택 기동/중지 (팀원용)
     setup-ec2.sh            최초 1회: Docker · 데몬 로그 상한 · 스왑 2G · ufw 80/443 · vm.max_map_count
     setup-cd.sh             최초 1회: 그룹 b102, /etc/b102/{deploy.env,deploy.lock,git-credentials}, /var/lib/b102, Jenkins 그룹 반영
@@ -101,7 +101,7 @@ sudo rm /etc/b102/cd-enabled      # 끔 (장애 대응·수동 작업 중에는 
 
 | | 경로 | 권한 |
 | --- | --- | --- |
-| 운영 비밀값 | `/etc/b102/deploy.env` | root:b102 640 |
+| 운영 비밀값 | `~/S15P21B102/deploy/.env` (git 무시). Jenkins 는 `ENV_FILE=/home/ubuntu/S15P21B102/deploy/.env` 로 같은 파일을 읽는다 — 2026-09-09 팀 결정, `/etc/b102/deploy.env` 는 폐기 | ubuntu:b102 640 (`/home/ubuntu` 는 o+x) |
 | 배포 락 | `/etc/b102/deploy.lock` | root:b102 660 |
 | 릴리스 상태 | `/var/lib/b102/current-release`, `previous-release` | root:b102 2770 |
 | pg_dump 저장소 | `/var/lib/b102/backups` (`bookdb_*` 일일 7세대, `pre_<sha>_*` 배포 전 5세대) | root:b102 2770 |

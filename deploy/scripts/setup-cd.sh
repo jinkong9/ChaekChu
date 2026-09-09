@@ -3,7 +3,8 @@
 #   sudo bash deploy/scripts/setup-cd.sh
 # 하는 일:
 #   - 그룹 b102 (ubuntu, jenkins) — 수동 배포와 Jenkins 배포가 같은 파일을 읽고 잠글 수 있게
-#   - /etc/b102/deploy.env   운영 비밀값. 저장소 안 deploy/.env 를 여기로 옮긴다 (root:b102 640)
+#   - deploy/.env            운영 비밀값은 서버 작업 트리 $REPO/deploy/.env 한 곳(팀 결정 2026-09-09). ubuntu:b102 640 으로 맞추고
+#                            jenkins 가 들어올 수 있게 /home/ubuntu 에 o+x 만 준다. 예전 /etc/b102/deploy.env 가 있고 deploy/.env 가 없으면 되돌려 복사한다.
 #   - /etc/b102/deploy.lock  공용 배포 락 (root:b102 660)
 #   - /var/lib/b102          릴리스 상태 (current-release, previous-release) (root:b102 2770)
 #   - /var/lib/b102/backups  pg_dump 저장소 (root:b102 2770). ubuntu 크론과 jenkins 배포가 함께 쓴다. /home/ubuntu 는 750 이라 jenkins 가 못 들어간다
@@ -26,18 +27,20 @@ id -nG jenkins 2>/dev/null | grep -qw b102 || jenkins_needs_restart=true
 for u in ubuntu jenkins; do id "$u" >/dev/null 2>&1 && usermod -aG b102 "$u"; done
 getent group b102
 
-echo "== 2/5 /etc/b102 =="
+echo "== 2/5 /etc/b102 (락·git 인증) + deploy/.env 권한 =="
 install -d -o root -g b102 -m 0750 "$ETC"
-if [[ ! -f "$ETC/deploy.env" ]]; then
-  if [[ -f "$REPO/deploy/.env" ]]; then
-    install -o root -g b102 -m 0640 "$REPO/deploy/.env" "$ETC/deploy.env"
-    mv "$REPO/deploy/.env" "$REPO/deploy/.env.moved-to-etc-b102"
-    echo "deploy/.env → $ETC/deploy.env 로 이동 (원본은 .env.moved-to-etc-b102 로 이름 변경, 확인 후 삭제)"
-  else
-    echo "deploy/.env 가 없어 $ETC/deploy.env 를 만들지 못했습니다. deploy/.env.example 을 참고해 직접 만드세요." >&2
-  fi
+ENV_FILE="$REPO/deploy/.env"
+if [[ ! -f "$ENV_FILE" && -f "$ETC/deploy.env" ]]; then
+  # 예전 위치에서 되돌리기. /etc 쪽은 지우지 않는다 — 내용 확인 뒤 사람이 지운다.
+  install -o ubuntu -g b102 -m 0640 "$ETC/deploy.env" "$ENV_FILE"
+  echo "$ETC/deploy.env → $ENV_FILE 로 복사 (확인 뒤 sudo rm $ETC/deploy.env)"
+fi
+if [[ -f "$ENV_FILE" ]]; then
+  chown ubuntu:b102 "$ENV_FILE"; chmod 0640 "$ENV_FILE"
+  chmod o+x /home/ubuntu          # jenkins(b102)가 경로를 통과만 하게. 목록·읽기는 여전히 막힘
+  sudo -u jenkins cat "$ENV_FILE" >/dev/null 2>&1 && echo "deploy/.env: jenkins 읽기 OK" || echo "jenkins 가 $ENV_FILE 을 못 읽음 (그룹 반영 전이면 Jenkins 재시작 후 정상)" >&2
 else
-  chown root:b102 "$ETC/deploy.env"; chmod 0640 "$ETC/deploy.env"; echo "deploy.env 있음"
+  echo "$ENV_FILE 이 없습니다. deploy/.env.example 을 참고해 만드세요 (ubuntu:b102 640)." >&2
 fi
 [[ -e "$ETC/deploy.lock" ]] || : > "$ETC/deploy.lock"
 chown root:b102 "$ETC/deploy.lock"; chmod 0660 "$ETC/deploy.lock"
@@ -60,15 +63,15 @@ if [[ -d "$old_backup_dir" ]] && compgen -G "$old_backup_dir/*.sql.gz" >/dev/nul
   mv "$old_backup_dir"/*.sql.gz "$BACKUP_DIR"/ && chgrp b102 "$BACKUP_DIR"/*.sql.gz && chmod 640 "$BACKUP_DIR"/*.sql.gz
   echo "기존 백업 $(ls -1 "$BACKUP_DIR"/*.sql.gz | wc -l)개를 $BACKUP_DIR 로 이전"
 fi
-if [[ -f "$ETC/deploy.env" ]]; then
-  if grep -qE '^BACKUP_DIR=' "$ETC/deploy.env"; then
-    sed -i "s|^BACKUP_DIR=.*|BACKUP_DIR=$BACKUP_DIR|" "$ETC/deploy.env"
+if [[ -f "$ENV_FILE" ]]; then
+  if grep -qE '^BACKUP_DIR=' "$ENV_FILE"; then
+    sed -i "s|^BACKUP_DIR=.*|BACKUP_DIR=$BACKUP_DIR|" "$ENV_FILE"
   else
     printf '
 BACKUP_DIR=%s
-' "$BACKUP_DIR" >> "$ETC/deploy.env"
+' "$BACKUP_DIR" >> "$ENV_FILE"
   fi
-  echo "deploy.env BACKUP_DIR=$BACKUP_DIR"
+  echo "deploy/.env BACKUP_DIR=$BACKUP_DIR"
 fi
 sudo -u jenkins test -w "$BACKUP_DIR" && echo "jenkins 쓰기 OK" || echo "jenkins 가 $BACKUP_DIR 에 쓸 수 없음 (그룹 반영 전이면 Jenkins 재시작 후 정상)" >&2
 

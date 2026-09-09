@@ -2,8 +2,10 @@
 # 배포 스크립트 공통. deploy.sh · backup-postgres.sh · issue-cert.sh · renew-cert.sh 가 source 한다.
 # shellcheck disable=SC2034  # 여기서 정의한 변수는 source 하는 쪽이 쓴다
 #
-# 경로 규칙 (setup-cd.sh 가 만든 /etc/b102 가 있으면 그것을, 없으면 저장소 안 파일을 쓴다):
-#   ENV_FILE   운영 비밀값   /etc/b102/deploy.env   (root:b102 640)   ← 없으면 $REPO_ROOT/deploy/.env
+# 경로 규칙:
+#   ENV_FILE   운영 비밀값   $REPO_ROOT/deploy/.env  (ubuntu:b102 640, git 무시) — 팀 결정(2026-09-09): env 는 서버 작업 트리 deploy/ 한 곳.
+#                            Jenkins 는 workspace 에 .env 가 없으므로 Jenkinsfile 이 ENV_FILE=/home/ubuntu/S15P21B102/deploy/.env 로 넘긴다.
+#                            deploy/.env 가 없으면 과거 위치 /etc/b102/deploy.env 로 폴백(이전 환경 호환).
 #   LOCK_FILE  배포 락       /etc/b102/deploy.lock  (root:b102 660)   ← 없으면 $REPO_ROOT/deploy/.deploy.lock
 #   STATE_DIR  릴리스 상태   /var/lib/b102          (root:b102 2770)  ← 없으면 $REPO_ROOT/deploy/.state
 # 수동 배포(ubuntu, ~/S15P21B102)와 Jenkins 배포(jenkins, workspace)가 같은 env·락·상태를 공유하게 하는 것이 목적이다.
@@ -14,7 +16,7 @@ REPO_ROOT="$(cd "$_common_dir/../.." && pwd)"
 B102_ETC="${B102_ETC:-/etc/b102}"
 
 if [[ -z "${ENV_FILE:-}" ]]; then
-  if [[ -f "$B102_ETC/deploy.env" ]]; then ENV_FILE="$B102_ETC/deploy.env"; else ENV_FILE="$REPO_ROOT/deploy/.env"; fi
+  if [[ -f "$REPO_ROOT/deploy/.env" ]]; then ENV_FILE="$REPO_ROOT/deploy/.env"; else ENV_FILE="$B102_ETC/deploy.env"; fi
 fi
 if [[ -z "${LOCK_FILE:-}" ]]; then
   if [[ -d "$B102_ETC" ]]; then LOCK_FILE="$B102_ETC/deploy.lock"; else LOCK_FILE="$REPO_ROOT/deploy/.deploy.lock"; fi
