@@ -6,9 +6,10 @@
 #   PROFILES="--profile recsys" bash deploy/scripts/deploy.sh
 #
 # 순서: env·락 → (pull) → 릴리스 SHA·마이그레이션 지문 → 배포 전 pg_dump → build → up --wait
-#       → 내부 readiness + 외부 HTTPS 헬스 → 상태 기록 → prune
-# 실패 시: 새 릴리스의 마이그레이션 지문이 직전 성공 릴리스와 같으면 코드만 직전 SHA 로 자동 복구한다.
+#       → 내부 readiness + nginx http + (TLS) 공개 도메인 https → 상태 기록 → prune
+# 실패 시(기동 실패든 배포 후 헬스 실패든 같은 경로): 새 릴리스의 마이그레이션 지문이 직전 성공 릴리스와 같으면 코드만 직전 SHA 로 자동 복구한다.
 #          지문이 다르면(=이번 배포에 migration 이 있었으면) 자동 복구하지 않는다. Flyway 는 전진 전용이라 DB 는 사람이 dump 를 보고 판단한다.
+#          상태 파일(current-release)은 헬스까지 통과한 뒤에만 갱신한다. 실패는 last-failed-release 에 남긴다.
 set -euo pipefail
 # shellcheck source=deploy/scripts/common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -56,6 +57,39 @@ if [[ -n "$prev_fingerprint" && "$prev_fingerprint" != "$migration_fingerprint" 
   echo "이번 배포에 DB 마이그레이션 변경이 포함됨 → 실패 시 자동 롤백하지 않음"
 fi
 
+# 내부 readiness → nginx http → (TLS 켜져 있으면) 공개 도메인 https. 하나라도 실패하면 1.
+check_health() {
+  curl -fsS --max-time 10 http://127.0.0.1:18080/actuator/health/readiness | grep -q '"UP"' || { echo "backend readiness 실패" >&2; return 1; }
+  echo "backend readiness UP"
+  curl -fsS --max-time 10 -o /dev/null -w "web http %{http_code}\n" http://127.0.0.1/nginx-health || { echo "web http 헬스 실패" >&2; return 1; }
+  if [[ "$(envval TLS_ENABLED)" == "true" ]]; then
+    local domain; domain="$(envval DOMAIN)"
+    curl -fsS --max-time 10 -o /dev/null -w "web https %{http_code} (${domain})\n" --resolve "${domain}:443:127.0.0.1" "https://${domain}/nginx-health" \
+      || { echo "web https 헬스 실패 (${domain})" >&2; return 1; }
+  fi
+}
+
+# 기동·헬스 실패 공통 처리. 지문이 직전 성공 릴리스와 같고 그 이미지가 남아 있으면 코드만 되돌린다.
+# 복구 시도 자체가 실패하면 상태 파일은 건드리지 않고(무엇이 돌고 있는지 확신할 수 없다) last-failed-release 만 남긴다.
+rollback_or_explain() {
+  local why="$1"
+  echo "배포 실패 ($why): $RELEASE" >&2
+  "${COMPOSE[@]}" ps >&2 || true
+  echo "$RELEASE $migration_fingerprint $(date -Is) $(id -un) $why" > "$STATE_DIR/last-failed-release" 2>/dev/null || true
+  if [[ -n "$prev_release" && "$prev_release" != "$RELEASE" && "$prev_fingerprint" == "$migration_fingerprint" ]] \
+     && docker image inspect "b102-backend:$prev_release" "b102-web:$prev_release" >/dev/null 2>&1; then
+    echo "마이그레이션 지문이 같아 직전 릴리스 $prev_release 로 코드 자동 복구" >&2
+    if RELEASE="$prev_release" "${COMPOSE[@]}" up -d --remove-orphans --wait --wait-timeout 300 >&2 && check_health >&2; then
+      echo "직전 릴리스 $prev_release 복구 완료 (current-release 는 그대로 $prev_release)" >&2
+    else
+      echo "자동 복구도 실패. 수동 조치 필요. 현재 무엇이 돌고 있는지 docker compose ps 로 확인" >&2
+    fi
+  else
+    local backup_dir; backup_dir="$(envval BACKUP_DIR)"; backup_dir="${backup_dir:-/var/lib/b102/backups}"
+    echo "자동 복구 안 함 (마이그레이션 변경 포함 또는 직전 이미지 없음). 배포 전 백업: ${backup_dir}/pre_${RELEASE}_*.sql.gz" >&2
+  fi
+}
+
 if $BACKUP; then
   section "배포 전 pg_dump"
   if docker ps --format '{{.Names}}' | grep -qx b102-postgres; then
@@ -70,30 +104,20 @@ section "build"
 
 section "up"
 if ! "${COMPOSE[@]}" up -d --remove-orphans --wait --wait-timeout 300; then
-  echo "새 릴리스 기동 실패: $RELEASE" >&2
-  "${COMPOSE[@]}" ps >&2 || true
-  if [[ -n "$prev_release" && "$prev_release" != "$RELEASE" && "$prev_fingerprint" == "$migration_fingerprint" ]] \
-     && docker image inspect "b102-backend:$prev_release" "b102-web:$prev_release" >/dev/null 2>&1; then
-    echo "마이그레이션 지문이 같아 직전 릴리스 $prev_release 로 코드 자동 복구" >&2
-    RELEASE="$prev_release" "${COMPOSE[@]}" up -d --remove-orphans --wait --wait-timeout 300 >&2 || echo "자동 복구도 실패. 수동 조치 필요" >&2
-  else
-    backup_dir="$(envval BACKUP_DIR)"; backup_dir="${backup_dir:-/var/lib/b102/backups}"
-    echo "자동 복구 안 함 (마이그레이션 변경 포함 또는 직전 이미지 없음). 배포 전 백업: ${backup_dir}/pre_${RELEASE}_*.sql.gz" >&2
-  fi
+  rollback_or_explain "compose up --wait 실패"
   exit 1
 fi
 
 section "health"
-curl -fsS --max-time 10 http://127.0.0.1:18080/actuator/health/readiness | grep -q '"UP"' && echo "backend readiness UP"
-curl -fsS --max-time 10 -o /dev/null -w "web http %{http_code}\n" http://127.0.0.1/nginx-health
-if [[ "$(envval TLS_ENABLED)" == "true" ]]; then
-  domain="$(envval DOMAIN)"
-  curl -fsS --max-time 10 -o /dev/null -w "web https %{http_code} (${domain})\n" --resolve "${domain}:443:127.0.0.1" "https://${domain}/nginx-health"
+if ! check_health; then
+  rollback_or_explain "배포 후 헬스체크 실패"
+  exit 1
 fi
 
 section "state"
 [[ -n "$prev_release" && "$prev_release" != "$RELEASE" ]] && echo "$prev_release $prev_fingerprint" > "$STATE_DIR/previous-release"
 echo "$RELEASE $migration_fingerprint $(date -Is) $(id -un)" > "$STATE_DIR/current-release"
+rm -f "$STATE_DIR/last-failed-release" 2>/dev/null || true
 echo "current: $(cat "$STATE_DIR/current-release")"
 
 section "prune"
