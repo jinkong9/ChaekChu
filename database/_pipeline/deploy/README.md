@@ -1,5 +1,9 @@
 # EC2 수집기 배포
 
+> **2026-09-09 상태.** 정보나루 `d4l-collector` 는 L1 큐 100%(고유 ISBN 1,098,623) 완주 뒤 **`stop` + `disable`** 했다. 재수집이 필요하면 `enable --now`.
+> 카카오 `kakao-collector.timer` 는 09-10 오전 완주까지 유지한 뒤 같은 방식으로 내린다. `backup.sh` · `heartbeat.sh` cron 은 그 뒤 제거.
+> 최종 산출물은 `~/pipeline_data/snapshots/2026-09-09/`(gz + SHA256) 로 고정했고, 서비스 DB 적재는 `~/load/load_service_tables.sh` 가 한다 (`docs/pipeline/SCRIPTS.md` §9).
+
 정보나루 수집기를 EC2 에서 무인으로 돌리는 데 쓰는 파일들이다.
 **EC2 안에만 두면 인스턴스가 사라질 때 같이 없어지므로** 여기에 원본을 둔다.
 

@@ -11,14 +11,19 @@
 
 ## 1. 서비스에 직접 쓰는 것
 
-L1 추천 후보 1,082,390종을 만드는 데 실제로 들어가는 파일들이다.
+L1 추천 후보 1,098,550종과 L0 카탈로그를 만드는 데 실제로 들어가는 파일들이다.
+
+> **2026-09-09 — 스냅샷이 정본이다.** 수집이 끝나 `snapshots/2026-09-09/`(EC2 `~/pipeline_data/`, 로컬 `project_personal/` 동일 · SHA256) 에
+> `d4l_usage.jsonl.gz` 615M · `kakao_enriched.jsonl.gz` 192M · `enrich_queue.csv` 를 고정했다. 빌드는 스냅샷만 읽는다.
+> 적재 파일은 `load/`(`books.csv.gz` 221M · `book_tags.csv.gz` 8M · `book_loaned_top20.csv` · `build_manifest.json`), EC2 사본은 `~/load/`.
 
 | 파일 | 크기 | 내용 | 상태 |
 | --- | ---: | --- | --- |
 | `nl_books_enriched.parquet` | 327 MB | **국중 서지 마스터.** 2,047,239행 · 정규화 ISBN13 · KDC · 부가기호 · 회수 텍스트 병합본 | 완료 |
-| `nl_text_clean.csv` | 595 MB | **국중 회수 텍스트(정제본).** 174,388행 — 목차 79,720 / 소개 74,694 / 요약 19,974. **목차의 유일한 출처** | 완료 |
-| `data4library/d4l_usage.jsonl` | 120 MB | **정보나루 보강분.** 소개문 · 키워드 50개 · **함께대출 10건** · 마니아/다독자 추천 · 월별 대출이력 · 연령×성별 | **수집 중** |
-| `kakao_enriched.jsonl` | 23 MB | **카카오 보강분.** 소개문 250자(줄거리 중심) · 표지 · 판매상태 · 정가 | 일시 중지 |
+| `nl_text_clean.csv` | 595 MB | 국중 회수 텍스트(정제본). 174,388행. **MVP 임베딩에서 제외**(보강재로 −0.11%p, 1단계 대체재 대상 25권) | 완료 |
+| `data4library/d4l_usage.jsonl` | 1.8 GB | **정보나루 보강분.** L1 1,098,623 ISBN(큐 100%). 소개문 · 키워드 50개 · 함께대출 10건 · 마니아/다독자 · 월별 대출이력 | **완료 09-09** |
+| `kakao_enriched.jsonl` | 556 MB | **카카오 보강분.** 906,135 (82%). 소개문 250자 · 표지 · 판매상태 | 09-10 완주 예정 |
+| `data4library/segment_popular_202608.jsonl` | 1 MB | 정보나루 `loanItemSrch` 연령×성별 12세그먼트 × 100 (06~08월) → `book_loaned_top20` | 완료 09-09 |
 | `data4library/books_dedup.parquet` | 153 MB | **ISBN 단위 원장.** 2,953,587종 · 누적 19.7억 건 · **KDC 95.3%**(소수점 67.4%) · 서지 100%. 필터·랭킹·수집 우선순위의 근거 | 완료 |
 | `data4library/enrich_queue.csv` | 34 MB | **수집 우선순위 큐.** 1,098,550행 (1단계 343,399 / 신간 147,729 / 꼬리 607,422) | 완료 |
 
@@ -102,8 +107,14 @@ L1 추천 후보 1,082,390종을 만드는 데 실제로 들어가는 파일들�
                      └───────────────────────┬───────────────────────┘
                                              ▼
                                   L1 추천 후보 1,098,550종
-                       임베딩 입력: 제목 + 정보나루 + 키워드 + 카카오 (창 512)
-                       협업필터링: co_loan · mania_rec · reader_rec
+                                             │
+                                  snapshots/<날짜>/  (gz + SHA256 · EC2·로컬 동일)         ← 09-09
+                                             │ build_service_tables (--scope L0|L1)  + fetch_segment_popular
+                                             ▼  load/books.csv.gz · book_tags.csv.gz · book_loaned_top20.csv
+                                             │ load_service_tables.sh  (docker exec psql \copy · upsert)
+                                             ▼  PostgreSQL bookdb (V1)  — 로컬 b102-postgres-local · EC2 b102-postgres
+                       임베딩 입력: STRUCT(제목/저자/분류/키워드 30/소개) → e5-large 1벡터 (V2 · ES int8_hnsw)
+                       협업필터링: co_loan · mania_rec · reader_rec  (V2 book_relations)
 ```
 
 > 2026-09-04 개정. `shards/` · `holdings.parquet` · `loans_by_isbn.parquet` 은
