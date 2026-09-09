@@ -59,6 +59,29 @@ def test_commands_create_artifact(command: str, tmp_path: Path) -> None:
     assert len(artifact["artifactHash"]) == 64
 
 
+def test_tags_command_writes_sidecar_and_report(tmp_path: Path) -> None:
+    sidecar = tmp_path / "tags.jsonl"
+    output = tmp_path / "tags-report.json"
+
+    result = run(
+        parse(
+            "tags",
+            "--input",
+            str(D4L_FIXTURE),
+            "--sidecar",
+            str(sidecar),
+            "--output",
+            str(output),
+        )
+    )
+
+    artifact = json.loads(result.read_text(encoding="utf-8"))
+    assert artifact["command"] == "tags"
+    assert artifact["tags"]["rows"] == 4
+    assert artifact["tags"]["gmsAttempts"] == 0
+    assert sidecar.is_file()
+
+
 def test_recommend_includes_user_id(tmp_path: Path) -> None:
     output = tmp_path / "recommend.json"
     run(

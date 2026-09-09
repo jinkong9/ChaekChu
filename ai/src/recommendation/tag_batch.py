@@ -7,6 +7,8 @@ import math
 from pathlib import Path
 import re
 from typing import Any, Mapping, Protocol
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from recommendation.d4l import D4LBook, iter_d4l_jsonl
 from recommendation.normalization import normalized_input_hash
@@ -58,8 +60,104 @@ class TagAssignment:
             raise ValueError("tag confidence must be between 0 and 1")
 
 
-class GmsTagProvider(Protocol):
+class TagProvider(Protocol):
     def generate(self, book: D4LBook) -> Mapping[str, float]: ...
+
+
+class GmsTagProvider:
+    """Generate controlled taxonomy suggestions through a GMS chat endpoint."""
+
+    def __init__(
+        self,
+        *,
+        endpoint: str,
+        api_key: str,
+        model_version: str,
+        timeout_seconds: float = 30.0,
+        opener: Any = urlopen,
+    ) -> None:
+        if not endpoint.strip() or not api_key.strip() or not model_version.strip():
+            raise ValueError("endpoint, api_key, and model_version are required")
+        if timeout_seconds <= 0 or not math.isfinite(timeout_seconds):
+            raise ValueError("timeout_seconds must be positive and finite")
+        self.endpoint = endpoint.rstrip("/")
+        self.api_key = api_key
+        self.model_version = model_version
+        self.timeout_seconds = timeout_seconds
+        self._opener = opener
+
+    def generate(self, book: D4LBook) -> Mapping[str, float]:
+        definitions = ", ".join(f"{item.code}: {item.label}" for item in TAXONOMY)
+        source = {
+            "bookname": book.title,
+            "authors": book.authors,
+            "publisher": book.publisher,
+            "pub_year": book.pub_year,
+            "class_no": book.class_no,
+            "class_nm": book.class_nm,
+        }
+        body = {
+            "model": self.model_version,
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "도서 메타데이터를 통제된 taxonomy에 매핑한다. "
+                        "JSON object 하나만 반환하고 tags 배열의 각 원소는 code와 confidence(0~1)를 가진다. "
+                        f"허용 code는 다음뿐이다: {definitions}"
+                    ),
+                },
+                {"role": "user", "content": json.dumps(source, ensure_ascii=False, sort_keys=True)},
+            ],
+        }
+        request = Request(
+            self.endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            response = self._opener(request, timeout=self.timeout_seconds)
+            payload = json.loads(response.read().decode("utf-8"))
+        except HTTPError as error:
+            raise RuntimeError(f"tag provider returned HTTP {error.code}") from error
+        except (TimeoutError, URLError, OSError) as error:
+            raise RuntimeError("tag provider request failed") from error
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise RuntimeError("tag provider returned invalid JSON") from error
+
+        content = None
+        if isinstance(payload, dict):
+            choices = payload.get("choices")
+            if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+                message = choices[0].get("message")
+                content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, str):
+            raise RuntimeError("tag provider response is missing JSON content")
+        try:
+            document = json.loads(content)
+        except json.JSONDecodeError as error:
+            raise RuntimeError("tag provider content is not valid JSON") from error
+        raw_tags = document.get("tags") if isinstance(document, dict) else None
+        if not isinstance(raw_tags, list):
+            raise RuntimeError("tag provider content is missing tags")
+        suggestions: dict[str, float] = {}
+        for item in raw_tags:
+            if not isinstance(item, dict) or not isinstance(item.get("code"), str):
+                continue
+            code = item["code"].strip()
+            confidence = item.get("confidence")
+            if code in TAXONOMY_BY_CODE and isinstance(confidence, (int, float)) and not isinstance(confidence, bool):
+                numeric = float(confidence)
+                if math.isfinite(numeric) and 0 <= numeric <= 1:
+                    suggestions[code] = numeric
+        return suggestions
 
 
 def _text(book: D4LBook) -> str:
@@ -128,7 +226,7 @@ class TagGenerator:
         self,
         *,
         rule_tagger: RuleBasedTagger | None = None,
-        gms_provider: GmsTagProvider | None = None,
+        gms_provider: TagProvider | None = None,
         max_retries: int = 2,
         low_confidence_threshold: float = 0.6,
     ) -> None:
@@ -280,6 +378,7 @@ class TagBatchRunner:
 __all__ = [
     "DEFAULT_TAG_VERSION",
     "GmsTagProvider",
+    "TagProvider",
     "RuleBasedTagger",
     "TAXONOMY",
     "TAXONOMY_VERSION",

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from recommendation.tag_batch import GmsTagProvider
 from recommendation.d4l import load_d4l_jsonl
 from recommendation.tag_batch import (
     RuleBasedTagger,
@@ -42,6 +43,55 @@ def test_gms_suggestions_are_filtered_and_rule_evidence_wins_confidence_ties() -
     assert "UNKNOWN" not in by_code
     assert result.gms_attempts == 1
     assert result.gms_error is None
+
+
+def test_gms_tag_provider_parses_openai_compatible_json_without_leaking_source() -> None:
+    captured: dict[str, object] = {}
+
+    class Response:
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    {
+                                        "tags": [
+                                            {"code": "FANTASY", "confidence": 0.91},
+                                            {"code": "NOT_ALLOWED", "confidence": 1.0},
+                                            {"code": "FIC", "confidence": 1.2},
+                                        ]
+                                    }
+                                )
+                            }
+                        }
+                    ]
+                }
+            ).encode("utf-8")
+
+    def opener(request, timeout):
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        captured["authorization"] = request.headers["Authorization"]
+        captured["timeout"] = timeout
+        return Response()
+
+    book = load_d4l_jsonl(FIXTURE)[0]
+    provider = GmsTagProvider(
+        endpoint="https://gms.example/v1/chat/completions",
+        api_key="test-secret",
+        model_version="gpt-test",
+        timeout_seconds=4.0,
+        opener=opener,
+    )
+
+    assert provider.generate(book) == {"FANTASY": 0.91}
+    assert captured["authorization"] == "Bearer test-secret"
+    assert captured["timeout"] == 4.0
+    request_body = captured["body"]
+    assert request_body["model"] == "gpt-test"
+    assert request_body["temperature"] == 0
+    assert "description" not in request_body["messages"][1]["content"]
 
 
 def test_gms_rate_limit_or_provider_failure_retries_without_losing_rule_tags() -> None:

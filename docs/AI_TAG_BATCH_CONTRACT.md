@@ -38,6 +38,24 @@
 `outputHash`, `sourceDataCommitted=false`를 남긴다. 동일 입력·taxonomy·tag version에서
 같은 결과를 재현할 수 있다.
 
+## GMS provider와 실행
+
+`GmsTagProvider`는 OpenAI 호환 chat completions endpoint에 서지·분류 필드만 보내고,
+`{"tags":[{"code":"FANTASY","confidence":0.91}]}` 형태의 JSON content만 읽는다.
+허용 taxonomy 밖의 code, confidence 범위 밖의 값, 잘못된 응답은 저장하지 않는다. 요청
+본문·응답 원문·API key는 예외 메시지나 로그에 포함하지 않는다. GMS 장애가 나면 설정된
+횟수만큼 재시도하고, 최종 실패 시 rule tag 결과를 유지한다.
+
+운영에서는 다음처럼 `tags` 명령을 실행한다. `TAG_API_URL`과 `TAG_API_KEY`가 모두
+설정된 경우에만 GMS를 호출하고, 둘 다 없으면 rule-only sidecar를 생성한다.
+
+```bash
+uv run b102-recommendation --config config/local.toml tags \
+  --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
+  --sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl \
+  --tag-version d4l-tags-v1 --max-retries 2
+```
+
 ```python
 from recommendation.tag_batch import TagBatchRunner, TagGenerator
 
