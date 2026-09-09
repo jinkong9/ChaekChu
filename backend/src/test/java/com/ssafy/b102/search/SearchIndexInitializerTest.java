@@ -53,14 +53,30 @@ class SearchIndexInitializerTest {
 	}
 
 	@Test
-	@DisplayName("alias 가 현행이고 새로 만든 것도 아니면 IF_CREATED 는 아무것도 안 한다")
-	void current_alias_noop() {
+	@DisplayName("alias 가 현행이고 문서 수가 PG 행수와 같으면 IF_CREATED 는 아무것도 안 한다")
+	void current_and_complete_noop() {
 		when(service.ensureIndex()).thenReturn(false);
 		when(service.aliasTargets()).thenReturn(Set.of("books_v2"));
+		when(service.documentCount("books")).thenReturn(3_312_467L);
+		when(service.sourceCount()).thenReturn(3_312_467L);
 
 		init(IndexOnStart.IF_CREATED).run(noArgs);
 
 		verify(service, never()).indexAll();
+		verify(service, never()).rebuild(anyString());
+	}
+
+	@Test
+	@DisplayName("alias 가 현행인데 문서 수가 PG 행수보다 적으면(채우다 끊김) indexAll 로 보충한다")
+	void current_but_incomplete_fills_up() {
+		when(service.ensureIndex()).thenReturn(false);
+		when(service.aliasTargets()).thenReturn(Set.of("books_v2"));
+		when(service.documentCount("books")).thenReturn(3_139_000L);
+		when(service.sourceCount()).thenReturn(3_312_467L);
+
+		init(IndexOnStart.IF_CREATED).run(noArgs);
+
+		verify(service).indexAll();
 		verify(service, never()).rebuild(anyString());
 	}
 

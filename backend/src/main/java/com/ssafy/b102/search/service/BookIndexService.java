@@ -135,6 +135,16 @@ public class BookIndexService {
 		return operations.indexOps(IndexCoordinates.of(indexName)).exists();
 	}
 
+	/** alias(또는 인덱스)의 문서 수. 기동 시 "채우다 끊긴 인덱스" 판정에 쓴다. */
+	public long documentCount(String indexOrAlias) {
+		return operations.count(Query.findAll(), BookDocument.class, IndexCoordinates.of(indexOrAlias));
+	}
+
+	/** PG books 행수 = 완전한 인덱스가 가져야 할 문서 수. */
+	public long sourceCount() {
+		return bookRepository.count();
+	}
+
 	/** alias 가 지금 매핑 버전(app.search.index-name)의 인덱스 하나만 가리키는가. false 면 매핑 버전이 올라간 상태 → rebuild 대상. */
 	public boolean isCurrent() {
 		return aliasTargets().equals(Set.of(props.indexName()));

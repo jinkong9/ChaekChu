@@ -21,6 +21,7 @@ import com.ssafy.b102.search.service.BookIndexService.IndexReport;
  *      - alias 가 indexName 이 아닌 옛 인덱스를 가리킨다 → 매핑 버전이 올라간 것. rebuild(indexName): 새 인덱스를 채우고 완전할 때만 alias 전환.
  *        그동안 검색은 옛 인덱스로 계속 된다. 옛 인덱스는 지우지 않는다(되돌리기용, 확인 뒤 사람이 지운다).
  *      - ALWAYS 면 위에 더해 현행 인덱스도 indexAll 로 다시 덮어쓴다
+ *      - 그 외(현행 alias)라도 ES 문서 수 < PG 행수면 채우다 끊긴 것으로 보고 indexAll 로 보충한다 (첫 색인 중 재배포 대비)
  *
  * ES 가 죽어 있어도 기동은 계속한다 — 검색 장애가 로그인·서재를 막지 않게 한다(MVP 구현 원칙 8).
  * 그 경우 검색 API 는 SEARCH_UNAVAILABLE 을 내고, ES 가 살아난 뒤 재기동하면 다시 시도한다.
@@ -83,13 +84,28 @@ public class SearchIndexInitializer implements ApplicationRunner {
 			runInBackground("전체 색인", indexService::indexAll);
 			return;
 		}
-		log.info("기동 시 전체 색인 건너뜀 (index-on-start={}, alias 는 현행 '{}')", mode, props.indexName());
+		// 현행 인덱스지만 채우다 끊겼을 수 있다(첫 색인 중 재배포 등 — 2026-09-09 운영에서 3,139,000/3,312,467 로 멈춘 채 발견).
+		// 문서 수가 PG 행수보다 적으면 indexAll 로 보충한다. _id=books.id 라 덮어써도 중복이 없다. 카운트도 백그라운드에서.
+		runInBackground("불완전 인덱스 점검", () -> {
+			long docs = indexService.documentCount(props.alias());
+			long rows = indexService.sourceCount();
+			if (docs >= rows) {
+				log.info("검색 인덱스 완전: ES {}건 / PG {}행 — 기동 시 색인 없음", docs, rows);
+				return null;
+			}
+			log.warn("검색 인덱스 불완전: ES {}건 < PG {}행 — 전체 색인으로 보충합니다", docs, rows);
+			return indexService.indexAll();
+		});
 	}
 
+	/** job 이 null 을 돌려주면 "할 일 없음" — 로그만 건너뛴다. */
 	private void runInBackground(String what, java.util.function.Supplier<IndexReport> job) {
 		taskExecutor.execute(() -> {
 			try {
 				IndexReport report = job.get();
+				if (report == null) {
+					return;
+				}
 				log.info("기동 시 {} 끝: index={} {}건 색인, {}건 실패, {}", what, report.index(), report.indexed(), report.failed(), report.elapsed());
 			} catch (RuntimeException e) {
 				log.error("기동 시 {} 실패 — alias 는 그대로입니다. 로그를 보고 고친 뒤 재기동하면 다시 시도합니다.", what, e);
