@@ -82,6 +82,26 @@ def test_tags_command_writes_sidecar_and_report(tmp_path: Path) -> None:
     assert sidecar.is_file()
 
 
+def test_tune_command_writes_weight_report(tmp_path: Path) -> None:
+    output = tmp_path / "tune.json"
+
+    result = run(
+        parse(
+            "tune",
+            "--input",
+            str(D4L_FIXTURE),
+            "--output",
+            str(output),
+        )
+    )
+
+    artifact = json.loads(result.read_text(encoding="utf-8"))
+    assert artifact["command"] == "tune"
+    assert artifact["tuning"]["weightTuningVersion"] == "d4l-weight-tuning-v1"
+    assert artifact["tuning"]["recommendedConfig"]
+    assert len(artifact["tuning"]["weightConfigs"]) == 4
+
+
 def test_recommend_includes_user_id(tmp_path: Path) -> None:
     output = tmp_path / "recommend.json"
     run(
