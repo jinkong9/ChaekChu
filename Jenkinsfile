@@ -131,7 +131,8 @@ pipeline {
                                 return
                             }
                             // 배포 직전 최신 dev 재확인. 더 새 커밋이 있으면 이 커밋은 배포하지 않는다 (다음 build 가 한다)
-                            sh 'git fetch -q origin dev'
+                            // 평문 `git fetch` 는 Jenkins 크리덴셜이 없어 GitLab 인증에 실패한다(exit 128). checkout scm 이 인증된 fetch 로 refs 를 갱신한다.
+                            checkout scm
                             def latestSha = sh(script: 'git rev-parse refs/remotes/origin/dev', returnStdout: true).trim()
                             if (latestSha != env.CI_SHA) {
                                 echo "더 최신 dev ${latestSha.take(8)} 가 있어 ${env.CI_SHA.take(8)} 은 배포하지 않습니다."
