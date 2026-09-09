@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import type { BookSummary, FeatureScore, LibraryItem, RecommendationResponse, SearchResponse, ShelfStatus } from '../api/types'
+import type { BookSummary, FeatureScore, LibraryItem, RecommendationResponse, ServerBookSummary, ServerSearchResponse, ShelfStatus } from '../api/types'
 
 /** ============ mock 카탈로그 ============ */
 const b = (bookId: number, title: string, author: string, publisher: string, pageCount: number, publicationYear: number): BookSummary =>
@@ -319,11 +319,18 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 })
   }),
 
-  // 검색
+  // 검색 — 실서버 응답 형태(§4.1: bookId 문자열·authors 배열·size)로 돌려준다. 화면 타입으로의 변환은 api/books.ts 가 맡는다
   http.get('*/books/search', ({ request }) => {
-    const q = new URL(request.url).searchParams.get('q')?.trim() ?? ''
-    const items = q.length < 1 ? [] : CATALOG.filter((bk) => bk.title.includes(q) || (bk.author ?? '').includes(q))
-    return HttpResponse.json({ total: items.length, page: 1, items } satisfies SearchResponse)
+    const url = new URL(request.url)
+    const q = url.searchParams.get('q')?.trim() ?? ''
+    const page = Number(url.searchParams.get('page') ?? 0)
+    const size = Math.min(50, Number(url.searchParams.get('size') ?? 20))
+    const hits = q.length < 1 ? [] : CATALOG.filter((bk) => bk.title.includes(q) || (bk.author ?? '').includes(q)).map(withCategory)
+    const items: ServerBookSummary[] = hits.slice(page * size, page * size + size).map((bk) => ({
+      bookId: String(bk.bookId), isbn13: null, title: bk.title, authors: bk.author ? [bk.author] : [], publisher: bk.publisher,
+      publicationYear: bk.publicationYear, coverUrl: bk.coverUrl, pageCount: bk.pageCount, category: bk.category ?? null, classNo: null,
+    }))
+    return HttpResponse.json({ total: hits.length, page, size, items } satisfies ServerSearchResponse)
   }),
 
   // 로그인 사용자 추천·상세

@@ -114,8 +114,34 @@ export interface PopularBooksResponse {
   items: BookSummary[]
 }
 
+/** 서버가 보내는 BookSummary 원형 (API_SPEC §1.5). bookId 는 불투명 문자열, authors 는 역할어를 뗀 배열.
+ *  화면 타입(BookSummary: bookId number · author string)으로 옮기는 일은 api/books.ts 의 toBookSummary 가 한다.
+ *  화면 타입을 계약에 맞춰 바꾸는 일괄 rename 은 별도 MR — 그때 이 어댑터를 없앤다. */
+export interface ServerBookSummary {
+  bookId: string
+  isbn13: string | null
+  title: string
+  authors: string[]
+  publisher: string | null
+  publicationYear: number | null
+  coverUrl: string | null
+  pageCount: number | null
+  category: string | null
+  classNo: string | null
+}
+
+/** GET /books/search 서버 응답 그대로 (§4.1·§1.4) */
+export interface ServerSearchResponse {
+  total: number
+  page: number
+  size: number
+  items: ServerBookSummary[]
+}
+
+/** 화면이 쓰는 검색 결과 — items 는 화면 타입으로 변환된 뒤 */
 export interface SearchResponse {
   total: number
   page: number
+  size: number
   items: BookSummary[]
 }
