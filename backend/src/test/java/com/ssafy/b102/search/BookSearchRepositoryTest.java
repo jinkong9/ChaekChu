@@ -24,7 +24,7 @@ import com.ssafy.b102.search.service.BookIndexService;
 
 /**
  * 3단계 — 검색 쿼리. 문서를 ES 에 직접 넣고(PG 불필요) 순위·부분일치·페이지 경계·ISBN 조회를 본다.
- * 출판사 "지브라북스테스트" 는 이 테스트 문서에만 있어, 그것으로 검색하면 우리 문서만 나온다(다른 테스트 잔여물과 무관하게 total 을 단언).
+ * 출판사 "지브라북스테스트" 는 이 테스트 문서에만 있어, 그것으로 검색하면 우리 문서 8건만 나온다(다른 테스트 잔여물과 무관하게 total 을 단언).
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -46,11 +46,13 @@ class BookSearchRepositoryTest {
 		doc(4, "9791100000042", "채식주의자", List.of("한강"), 2007),
 		doc(5, "9791100000059", "데미안", List.of("헤르만 헤세"), 2000),
 		doc(6, "9791100000066", "데미안 읽기", List.of("이독서"), 2021),
-		doc(7, "9791100000073", "지구별 여행자", List.of("류시화"), 2002)
+		doc(7, "9791100000073", "지구별 여행자", List.of("류시화"), 2002),
+		doc(8, "9791100000080", "어린왕자", List.of("생텍쥐페리"), 1996)   // 붙여 쓴 판본 — 완전일치 그룹이 띄어쓰기에 갈리지 않아야 한다
 	);
 
 	@BeforeAll
 	void indexFixtures() {
+		SearchTestSupport.ensureCurrentIndex(indexService, props);
 		operations.save(docs, alias());
 		indexService.refresh(props.alias());
 	}
@@ -64,16 +66,18 @@ class BookSearchRepositoryTest {
 	}
 
 	@Test
-	@DisplayName("붙여 쓴 '어린왕자' 도 '어린 왕자' 를 찾고, 제목이 정확히 같은 책이 해설서보다 위")
-	void compact_query_matches_spaced_title_exact_first() {
-		BookSearchResult r = repository.search("어린왕자", 0, 10);
-		assertThat(ids(r)).startsWith(BASE_ID + 1, BASE_ID + 2);
+	@DisplayName("완전일치 그룹('어린 왕자'·'어린왕자' 판본)이 맨 위(id 순), 해설서는 그 다음 — 검색어 띄어쓰기와 무관하게 같은 순서 (매핑 v2)")
+	void exact_group_first_regardless_of_whitespace() {
+		List<Long> spaced = ids(repository.search("어린 왕자", 0, 10));
+		List<Long> compact = ids(repository.search("어린왕자", 0, 10));
+		assertThat(spaced).startsWith(BASE_ID + 1, BASE_ID + 8, BASE_ID + 2);
+		assertThat(compact).isEqualTo(spaced);
 	}
 
 	@Test
 	@DisplayName("제목 일부 '왕자' 로도 찾는다 (형태소)")
 	void partial_word_matches() {
-		assertThat(ids(repository.search("왕자", 0, 10))).contains(BASE_ID + 1, BASE_ID + 2);
+		assertThat(ids(repository.search("왕자", 0, 10))).contains(BASE_ID + 1, BASE_ID + 2, BASE_ID + 8);
 	}
 
 	@Test
@@ -101,25 +105,25 @@ class BookSearchRepositoryTest {
 	}
 
 	@Test
-	@DisplayName("페이지: 출판사로 우리 문서 7건만 잡아 size 3 → 3·3·1, 겹침 없음, total 일정")
+	@DisplayName("페이지: 출판사로 우리 문서 8건만 잡아 size 3 → 3·3·2, 겹침 없음, total 일정")
 	void pagination_boundaries() {
 		BookSearchResult p0 = repository.search(PUBLISHER, 0, 3);
 		BookSearchResult p1 = repository.search(PUBLISHER, 1, 3);
 		BookSearchResult p2 = repository.search(PUBLISHER, 2, 3);
 		BookSearchResult p3 = repository.search(PUBLISHER, 3, 3);
 
-		assertThat(p0.total()).isEqualTo(7);
-		assertThat(p1.total()).isEqualTo(7);
+		assertThat(p0.total()).isEqualTo(8);
+		assertThat(p1.total()).isEqualTo(8);
 		assertThat(p0.items()).hasSize(3);
 		assertThat(p1.items()).hasSize(3);
-		assertThat(p2.items()).hasSize(1);
+		assertThat(p2.items()).hasSize(2);
 		assertThat(p3.items()).isEmpty();
-		assertThat(p3.total()).isEqualTo(7);
+		assertThat(p3.total()).isEqualTo(8);
 
 		List<Long> all = new java.util.ArrayList<>(ids(p0));
 		all.addAll(ids(p1));
 		all.addAll(ids(p2));
-		assertThat(all).doesNotHaveDuplicates().hasSize(7);
+		assertThat(all).doesNotHaveDuplicates().hasSize(8);
 	}
 
 	@Test

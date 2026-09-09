@@ -77,8 +77,8 @@ src/main/java/com/ssafy/b102/
     controller/BookSearchController.java # GET /books/search?q=&page=&size= (로그인 필요). 파라미터 검증 → 400 VALIDATION_FAILED
     service/BookSearchService.java       # ISBN 분기(하이픈 무시 13자리) → ES 조회 → BookSummary 조립. ES 장애 → 503 SEARCH_UNAVAILABLE
     dto/BookSearchResponse.java          # { total, page, size, items: BookSummary[] }
-    config/SearchProperties.java         # app.search.* — alias(books) · 물리 인덱스(books_v1) · 기동 시 생성 여부
-    config/SearchIndexInitializer.java   # 기동 시 alias 없으면 인덱스 생성(동기) → index-on-start 에 따라 PG 전체 색인(백그라운드). ES 가 죽어 있어도 기동은 계속
+    config/SearchProperties.java         # app.search.* — alias(books) · 물리 인덱스 = 매핑 버전(books_v2) · 기동 시 생성·색인 모드
+    config/SearchIndexInitializer.java   # 기동 시 alias 없으면 인덱스 생성(동기) → 새 alias 이거나 alias 가 옛 매핑 인덱스를 가리키면 백그라운드 전체 색인·alias 전환. ES 가 죽어 있어도 기동은 계속
     document/BookDocument.java           # ES 문서 (V1 books 1행 ↔ 1문서). 매핑은 resources/elasticsearch/*.json 이 진실
     repository/BookSearchRepository.java # 검색 읽기 인터페이스 (search / findByIsbn13) + BookSearchResult(total, items)
     repository/ElasticsearchBookSearchRepository.java  # NativeQuery: cross_fields AND(title^3·authors^2·publisher) + ngram phrase + title.keyword×10 · 정렬 _score, id
@@ -88,8 +88,8 @@ src/main/java/com/ssafy/b102/
 src/main/resources/
   application.yml                     # 환경변수 ${VAR:기본값} 방식. 프로필 파일 없음
   db/migration/V1__init.sql           # Flyway. docs/sql/V1__init.sql 복사본 (1차 10테이블 + 보정 7건). V2 = 추천 데이터 층
-  elasticsearch/books_v1-settings.json  # analyzer: korean(nori mixed + 품사 필터) · bigram(공백 제거 후 2-gram). shards 1 / replicas 0
-  elasticsearch/books_v1-mappings.json  # dynamic=strict. title·authors = korean + .ngram(bigram) + .keyword
+  elasticsearch/books-settings.json     # analyzer: korean(nori mixed + 품사 필터) · bigram(공백 제거 후 2-gram) · normalizer exact(공백 제거). shards 1 / replicas 0
+  elasticsearch/books-mappings.json     # dynamic=strict. title·authors = korean + .ngram(bigram) + .keyword(normalizer exact). 바꾸면 app.search.index-name 을 올린다(=매핑 버전)
 docker/elasticsearch/Dockerfile       # elasticsearch:8.19.21 + analysis-nori
 docker-compose.yml                    # 로컬 인프라만. 앱은 포함하지 않음
 Dockerfile                            # 앱 배포 이미지 (multi-stage, temurin 21)
