@@ -139,7 +139,9 @@ pipeline {
                                 currentBuild.description = "${currentBuild.description} · deploy-skipped-stale"
                                 return
                             }
-                            sh 'ENV_FILE=/etc/b102/deploy.env bash deploy/scripts/deploy.sh --no-pull'
+                            // 운영 env 는 서버 작업 트리의 deploy/.env 한 곳(팀 결정 2026-09-09). Jenkins workspace 에는 .env 가 없으니 절대 경로로 넘긴다.
+                            // jenkins 는 b102 그룹으로 읽는다 (파일 ubuntu:b102 640, /home/ubuntu 는 o+x). setup-cd.sh 가 맞춰 준다.
+                            sh 'ENV_FILE=/home/ubuntu/S15P21B102/deploy/.env bash deploy/scripts/deploy.sh --no-pull'
                             currentBuild.description = "${currentBuild.description} · deployed ${env.CI_SHA.take(8)}"
                         }
                     }
