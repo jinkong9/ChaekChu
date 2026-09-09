@@ -94,6 +94,13 @@ seed와 query vector를 만들 수 없는 COLD_START 요청은
 없으면 score 0으로 정렬한다. 결과는 `COLD_START_DEMAND`와 demandScores를 남기고,
 seed·exclude ISBN은 항상 제거한다.
 
+seed·사용자 태그 query vector는 `recommendation.query_vector`의
+`QueryVectorBuilder`가 사전 색인 벡터만으로 생성한다. seed 벡터는 평균하고, 태그
+prototype은 사용자 tag weight로 가중 평균한 뒤 요청의 semantic·tagMatch weight로
+두 성분을 결합한다. 알 수 없는 taxonomy, 색인에 없는 seed·태그, index version 불일치는
+결과 metadata에 기록하며, 사용 가능한 벡터가 없으면 `COLD_START`로 전환한다. 이
+경로에서는 매 요청 GMS 호출을 하지 않는다.
+
 임베딩 배치는 `recommendation.embedding_batch`의 `EmbeddingBatchRunner`로 실행한다.
 입력은 서지·분류 필드만 조합하고, 관계·대출이력은 Qdrant payload metadata로 저장한다.
 Qdrant에서는 index version별 staging collection에 upsert한 뒤 `books_active` alias를
