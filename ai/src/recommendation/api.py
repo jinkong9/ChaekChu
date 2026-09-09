@@ -3,12 +3,17 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import re
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from fastapi import FastAPI
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from recommendation.dedup import deduplicate_candidates, join_relation_isbns
+from recommendation.fallback import RecommendationFallbackPolicy
+from recommendation.query_vector import QueryTagPreference, QueryVectorBuilder
+from recommendation.reranking import HybridWeights
+from recommendation.top_k import TopKRecommendationRanker
+from recommendation.vector_search import CandidateSearchRequest, CandidateSearchResponse, CandidateHit, SearchStatus
 
 
 RecommendationMode = Literal["COLD_START", "PERSONALIZED"]
@@ -18,11 +23,43 @@ MONTH_PATTERN = re.compile(r"^\d{4}년 (0[1-9]|1[0-2])월$")
 
 
 class RecommendationWeights(BaseModel):
-    taste: float = Field(default=60, ge=0)
-    coLoan: float = Field(default=0, ge=0)
-    trending: float = Field(default=15, ge=0)
-    steady: float = Field(default=10, ge=0)
-    newField: float = Field(default=15, ge=0)
+    """Weights accepted by both the current contract and the legacy snapshot path."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    semantic: float = Field(default=0.45, ge=0)
+    tagMatch: float = Field(default=0.25, ge=0)
+    coLoan: float = Field(default=0.15, ge=0)
+    trending: float = Field(default=0.10, ge=0)
+    steady: float = Field(default=0.05, ge=0)
+    # Kept only so old snapshot requests remain readable during migration.
+    taste: float | None = Field(default=None, ge=0)
+    newField: float | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_positive_weight(self) -> "RecommendationWeights":
+        if sum(getattr(self, name) for name in ("semantic", "tagMatch", "coLoan", "trending", "steady")) <= 0:
+            if self.taste is None or self.taste <= 0:
+                raise ValueError("at least one recommendation weight must be greater than zero")
+        return self
+
+    def hybrid(self) -> HybridWeights:
+        return HybridWeights.from_mapping(
+            {
+                "semantic": self.semantic,
+                "tagMatch": self.tagMatch,
+                "coLoan": self.coLoan,
+                "trending": self.trending,
+                "steady": self.steady,
+            }
+        )
+
+
+class TagPreference(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=1, pattern=r"^[A-Z][A-Z0-9_]{1,39}$")
+    weight: float = Field(default=1.0, ge=0, le=1)
 
 
 class D4LBookInput(BaseModel):
@@ -45,17 +82,29 @@ class D4LBookInput(BaseModel):
 
 
 class RecommendationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     requestId: str = Field(min_length=1)
     userId: str = Field(min_length=1)
     mode: RecommendationMode
-    size: int = Field(default=10, ge=1, le=30)
+    size: int = Field(default=5, ge=1, le=10)
     seedIsbns: list[str] = Field(default_factory=list)
     excludeIsbns: list[str] = Field(default_factory=list)
+    tags: list[TagPreference] = Field(default_factory=list)
     weights: RecommendationWeights = Field(default_factory=RecommendationWeights)
-    books: list[D4LBookInput] = Field(min_length=1)
+    # Deprecated compatibility input. New Spring Boot requests must omit it.
+    books: list[D4LBookInput] | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def validate_snapshot(self) -> "RecommendationRequest":
+        for field_name in ("seedIsbns", "excludeIsbns"):
+            values = getattr(self, field_name)
+            if any(not re.fullmatch(r"^97[89]\d{10}$", isbn) for isbn in values):
+                raise ValueError(f"{field_name} must contain valid ISBN13 values")
+            if len(values) != len(set(values)):
+                raise ValueError(f"{field_name} must not contain duplicate ISBN13 values")
+        if self.books is None:
+            return self
         isbns = [book.isbn13 for book in self.books]
         if len(isbns) != len(set(isbns)):
             raise ValueError("books.isbn13 must be unique")
@@ -105,6 +154,34 @@ class RecommendationItem(BaseModel):
     reasonType: ReasonType
 
 
+ContractReasonType = Literal["TAG_MATCH", "SEMANTIC", "CO_LOAN", "TRENDING", "STEADY"]
+
+
+class ContractReason(BaseModel):
+    type: ContractReasonType
+    text: str = Field(min_length=1)
+
+
+class ContractRecommendationItem(BaseModel):
+    isbn13: str = Field(pattern=r"^97[89]\d{10}$")
+    rank: int = Field(ge=1)
+    score: float = Field(ge=0, le=100)
+    featureScores: dict[str, float | None]
+    matchedTags: list[str]
+    primaryReason: ContractReason | None
+    reasons: list[ContractReason]
+
+
+class ContractRecommendationResponse(BaseModel):
+    recommendationId: str
+    requestId: str
+    userId: str
+    modelVersion: str
+    indexVersion: str | None
+    fallback: bool
+    items: list[ContractRecommendationItem]
+
+
 class RecommendationResponse(BaseModel):
     recommendationId: str
     requestId: str
@@ -120,7 +197,7 @@ class RecommendationResponse(BaseModel):
     items: list[RecommendationItem]
 
 
-app = FastAPI(title="B102 Recommendation API", version="0.2.0")
+app = FastAPI(title="B102 Recommendation API", version="0.3.0")
 
 
 def _relation_map(book: D4LBookInput, isbn: str) -> dict[str, float]:
@@ -169,7 +246,13 @@ def _normalized(value: int | float, maximum: int | float) -> float | None:
 
 
 def _weighted_score(features: dict[str, float | None], weights: RecommendationWeights) -> float:
-    weight_values = weights.model_dump()
+    weight_values = {
+        "taste": weights.taste if weights.taste is not None else weights.semantic,
+        "coLoan": weights.coLoan,
+        "trending": weights.trending,
+        "steady": weights.steady,
+        "newField": weights.newField if weights.newField is not None else 0.0,
+    }
     available = [(value, weight_values[key]) for key, value in features.items() if value is not None and weight_values[key] > 0]
     if not available:
         return 0.0
@@ -193,6 +276,8 @@ def _reason(
 
 
 def generate_recommendations(request: RecommendationRequest) -> RecommendationResponse:
+    if request.books is None:
+        raise ValueError("books snapshot is required for the legacy recommendation function")
     books = deduplicate_candidates(request.books)
     books_by_isbn = {book.isbn13: book for book in books}
     excluded = set(request.excludeIsbns) | set(request.seedIsbns)
@@ -264,11 +349,162 @@ def generate_recommendations(request: RecommendationRequest) -> RecommendationRe
     )
 
 
+class ContractRecommendationEngine(Protocol):
+    def recommend(self, request: RecommendationRequest) -> ContractRecommendationResponse: ...
+
+
+class EmptyRecommendationEngine:
+    """Safe default until an embedding/index runtime is configured."""
+
+    model_version = "d4l-hybrid-v1"
+    index_version = None
+
+    def recommend(self, request: RecommendationRequest) -> ContractRecommendationResponse:
+        return _contract_response(
+            request,
+            items=(),
+            model_version=self.model_version,
+            index_version=self.index_version,
+            fallback=True,
+        )
+
+
+class IndexedRecommendationEngine:
+    """Connect the online DTO to the already implemented query/search/ranking stages.
+
+    The engine is deliberately injected into the FastAPI app. Production wiring can
+    provide Qdrant and the batch-built vector stores, while tests use in-memory stores.
+    """
+
+    def __init__(
+        self,
+        *,
+        query_builder: QueryVectorBuilder,
+        search_service: Any,
+        demand_candidates: tuple[CandidateHit, ...] = (),
+        model_version: str = "d4l-hybrid-v1",
+    ) -> None:
+        self.query_builder = query_builder
+        self.search_service = search_service
+        self.demand_candidates = tuple(demand_candidates)
+        self.model_version = model_version
+        self.fallback_policy = RecommendationFallbackPolicy(model_version=model_version)
+
+    @property
+    def index_version(self) -> str:
+        return self.query_builder.index_version
+
+    def recommend(self, request: RecommendationRequest) -> ContractRecommendationResponse:
+        requested_tags = {tag.code: tag.weight for tag in request.tags if tag.weight > 0}
+        query = self.query_builder.build(
+            mode=request.mode,
+            seed_isbns=request.seedIsbns,
+            tags=(QueryTagPreference(code, weight) for code, weight in requested_tags.items()),
+            weights={
+                "semantic": request.weights.semantic,
+                "tagMatch": request.weights.tagMatch,
+            },
+        )
+
+        if query.query_vector is None:
+            search = CandidateSearchResponse(
+                # No query vector means the personalized path is unavailable;
+                # let the shared policy select the demand fallback.
+                status=SearchStatus.INDEX_NOT_FOUND,
+                index_version=self.index_version,
+                requested_limit=request.size,
+                returned_count=0,
+                reason=query.reason.value,
+            )
+        else:
+            candidate_limit = min(300, max(100, request.size * 20))
+            search = self.search_service.search(
+                CandidateSearchRequest(
+                    query_vector=query.query_vector,
+                    limit=candidate_limit,
+                    exclude_isbns=frozenset(request.excludeIsbns),
+                    seed_isbns=frozenset(request.seedIsbns),
+                    index_version=self.index_version,
+                )
+            )
+
+        resolved = self.fallback_policy.resolve(
+            search,
+            demand_candidates=self.demand_candidates,
+            exclude_isbns=request.excludeIsbns,
+            seed_isbns=request.seedIsbns,
+            requested_size=request.size,
+        )
+        ranked = TopKRecommendationRanker(request.weights.hybrid()).rank(
+            resolved.items,
+            size=request.size,
+            seed_isbns=request.seedIsbns,
+            exclude_isbns=request.excludeIsbns,
+            requested_tags=requested_tags,
+        )
+        items = tuple(_contract_item(item) for item in ranked.items)
+        return _contract_response(
+            request,
+            items=items,
+            model_version=self.model_version,
+            index_version=resolved.index_version,
+            fallback=resolved.fallback,
+        )
+
+
+def _contract_item(item: Any) -> ContractRecommendationItem:
+    feature_scores = item.feature_scores.as_dict()
+    reasons = [ContractReason(type=reason.type, text=reason.text) for reason in item.reasons]
+    primary = ContractReason(type=item.primary_reason.type, text=item.primary_reason.text) if item.primary_reason else None
+    return ContractRecommendationItem(
+        isbn13=item.isbn13,
+        rank=item.rank,
+        score=item.score,
+        featureScores=feature_scores,
+        matchedTags=list(item.matched_tags),
+        primaryReason=primary,
+        reasons=reasons,
+    )
+
+
+def _contract_response(
+    request: RecommendationRequest,
+    *,
+    items: tuple[ContractRecommendationItem, ...],
+    model_version: str,
+    index_version: str | None,
+    fallback: bool,
+) -> ContractRecommendationResponse:
+    seed = f"{request.requestId}|{request.userId}|{model_version}|{index_version or 'none'}"
+    recommendation_id = f"rec_{hashlib.sha256(seed.encode()).hexdigest()[:16]}"
+    return ContractRecommendationResponse(
+        recommendationId=recommendation_id,
+        requestId=request.requestId,
+        userId=request.userId,
+        modelVersion=model_version,
+        indexVersion=index_version,
+        fallback=fallback,
+        items=list(items),
+    )
+
+
+def configure_recommendation_engine(engine: ContractRecommendationEngine) -> None:
+    """Install the production or test engine without coupling app creation to Qdrant."""
+
+    app.state.recommendation_engine = engine
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/internal/v1/recommendations", response_model=RecommendationResponse)
-def create_recommendations(request: RecommendationRequest) -> RecommendationResponse:
-    return generate_recommendations(request)
+@app.post(
+    "/internal/v1/recommendations",
+    response_model=RecommendationResponse | ContractRecommendationResponse,
+)
+def create_recommendations(request: RecommendationRequest) -> RecommendationResponse | ContractRecommendationResponse:
+    if request.books is not None:
+        return generate_recommendations(request)
+    engine = getattr(app.state, "recommendation_engine", None) or EmptyRecommendationEngine()
+    return engine.recommend(request)
