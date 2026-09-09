@@ -32,6 +32,12 @@ uv run b102-recommendation --config config/local.toml index \
   --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
   --index-version d4l-2026-09-v1 --batch-size 32 --max-retries 2
 
+# EC2/운영: rule tag + 선택적 GMS tag sidecar 생성
+uv run b102-recommendation --config config/local.toml tags \
+  --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
+  --sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl \
+  --tag-version d4l-tags-v1 --max-retries 2
+
 uv run uvicorn recommendation.api:app --host 0.0.0.0 --port 8000
 ```
 
@@ -71,6 +77,10 @@ EMBEDDING_API_KEY=<secret>
 EMBEDDING_MODEL=text-embedding-3-small
 EMBEDDING_DIMENSION=512
 EMBEDDING_TIMEOUT_SECONDS=30
+TAG_API_URL=<gms-openai-compatible-chat-endpoint>
+TAG_API_KEY=<secret>
+TAG_MODEL=gpt-4o-mini
+TAG_API_TIMEOUT_SECONDS=30
 ```
 
 기본 출력은 `ai/output/<command>.json`에, 로그는 `ai/logs/recommendation.log`에

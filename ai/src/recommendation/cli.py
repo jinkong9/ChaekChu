@@ -14,11 +14,12 @@ from recommendation.embedding import OpenAICompatibleEmbeddingProvider
 from recommendation.embedding_batch import EmbeddingBatchConfig, EmbeddingBatchRunner, QdrantVersionedIndexStore
 from recommendation.normalization import NormalizationError
 from recommendation.runtime import build_artifact, configure_logging, refresh_artifact_hash, set_seed, write_artifact
+from recommendation.tag_batch import GmsTagProvider, TagBatchRunner, TagGenerator
 from recommendation.validation import validate_d4l_jsonl
 
 
 LOGGER = logging.getLogger(__name__)
-COMMANDS = ("build", "validate", "evaluate", "recommend", "index")
+COMMANDS = ("build", "validate", "evaluate", "recommend", "index", "tags")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -49,6 +50,11 @@ def create_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--index-version", default=None)
             command_parser.add_argument("--batch-size", type=int, default=32)
             command_parser.add_argument("--max-retries", type=int, default=2)
+        if command == "tags":
+            command_parser.add_argument("--sidecar", type=Path, required=True)
+            command_parser.add_argument("--tag-version", default=None)
+            command_parser.add_argument("--max-retries", type=int, default=2)
+            command_parser.add_argument("--low-confidence", type=float, default=0.6)
     return parser
 
 
@@ -75,12 +81,14 @@ def run(arguments: argparse.Namespace) -> Path:
         elif arguments.command == "validate":
             artifact["validation"] = validate_d4l_jsonl(input_path)
             books = None
-        elif arguments.command == "index":
+        elif arguments.command in {"index", "tags"}:
             books = None
         else:
             books = load_d4l_jsonl(input_path)
         if arguments.command == "index":
             artifact["index"] = _run_embedding_index(arguments, input_path)
+        elif arguments.command == "tags":
+            artifact["tags"] = _run_tag_batch(arguments, input_path)
         elif arguments.command == "evaluate" and books is not None:
             artifact["evaluation"] = evaluate_d4l(books, k=arguments.k, recall_k=arguments.recall_k)
         elif arguments.command == "recommend" and books is not None:
@@ -146,6 +154,38 @@ def _run_embedding_index(arguments: argparse.Namespace, input_path: Path) -> dic
             batch_size=arguments.batch_size,
         ),
     ).run(input_path)
+
+
+def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
+    endpoint = os.getenv("TAG_API_URL", "").strip()
+    api_key = (os.getenv("TAG_API_KEY") or os.getenv("GMS_API_KEY") or "").strip()
+    provider = None
+    if endpoint or api_key:
+        if not endpoint or not api_key:
+            raise ConfigError("TAG_API_URL and tag provider API key must be configured together")
+        try:
+            timeout = float(os.getenv("TAG_API_TIMEOUT_SECONDS", "30"))
+        except ValueError as error:
+            raise ConfigError("TAG_API_TIMEOUT_SECONDS is invalid") from error
+        provider = GmsTagProvider(
+            endpoint=endpoint,
+            api_key=api_key,
+            model_version=os.getenv("TAG_MODEL", "gpt-4o-mini"),
+            timeout_seconds=timeout,
+        )
+    if arguments.max_retries < 0 or not 0 <= arguments.low_confidence <= 1:
+        raise ConfigError("tag retry and confidence configuration is invalid")
+    tag_version = (arguments.tag_version or os.getenv("AI_TAG_VERSION", "d4l-tags-v1")).strip()
+    if not tag_version:
+        raise ConfigError("tag version must not be empty")
+    return TagBatchRunner(
+        generator=TagGenerator(
+            gms_provider=provider,
+            max_retries=arguments.max_retries,
+            low_confidence_threshold=arguments.low_confidence,
+        ),
+        tag_version=tag_version,
+    ).run(input_path, arguments.sidecar.expanduser().resolve())
 
 
 def main(argv: Sequence[str] | None = None) -> int:
