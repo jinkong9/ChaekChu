@@ -55,6 +55,12 @@ D4L 100만 건
 | #142 | FastAPI 응답 DTO와 결정적 추천 이유 |
 | #143 | Spring Boot-FastAPI 통합·timeout·5xx·ISBN 매핑 검증 |
 | #150 | 배치·FastAPI 실행, health check, 배포·운영 계약 |
+| #160 | Qdrant 활성 index·FastAPI 추천 엔진 runtime 연결 |
+| #161 | 운영 임베딩 provider·대규모 index 생성 |
+| #162 | GMS 태그 provider·대규모 배치 운영 검증 |
+| #163 | 실데이터 추천 품질·가중치 튜닝 평가 |
+| #164 | FastAPI 추천 동시성·장애 복구 검증 |
+| #165 | 모델·태그·index 갱신 및 alias 롤백 runbook |
 
 태그 생성·매핑은 #136과 분리된 오프라인 배치 단계로 관리한다. 필요하면 별도 Jira
 하위 작업으로 나누며, 규칙 기반 태그와 GMS LLM 배치 태그를 `source`, `confidence`,

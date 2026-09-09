@@ -195,6 +195,9 @@ inputHash, embedding/feature/tag version, 차원, 성공·실패·재시도·재
 
 ## 내부 추천 API
 
+모델·태그·임베딩 index의 갱신, promote, runtime 반영과 alias 롤백 절차는
+[`AI_MODEL_TAG_INDEX_RUNBOOK.md`](../docs/AI_MODEL_TAG_INDEX_RUNBOOK.md)를 따른다.
+
 백엔드와 FastAPI 사이의 책임, DTO, 추천 계산 방식은
 [`docs/AI_FASTAPI_RECOMMENDATION_CONTRACT.md`](../docs/AI_FASTAPI_RECOMMENDATION_CONTRACT.md)를
 기준으로 검토한다.
