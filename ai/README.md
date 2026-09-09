@@ -26,6 +26,8 @@ uv run b102-recommendation --config config/local.toml build --input tests/fixtur
 uv run b102-recommendation --config config/local.toml validate --input tests/fixtures/d4l_usage.contract.sample.jsonl
 uv run b102-recommendation --config config/local.toml evaluate --input tests/fixtures/books.jsonl
 uv run b102-recommendation --config config/local.toml recommend --input tests/fixtures/books.jsonl --user-id demo-user
+uv run b102-recommendation --config config/local.toml tune \
+  --input tests/fixtures/d4l_usage.contract.sample.jsonl --k 5 --recall-k 10
 
 # EC2/운영: 환경변수의 provider·Qdrant staging index로 실행
 uv run b102-recommendation --config config/local.toml index \
@@ -37,6 +39,12 @@ uv run b102-recommendation --config config/local.toml tags \
   --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
   --sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl \
   --tag-version d4l-tags-v1 --max-retries 2
+
+# EC2/운영: D4L 관계 정답으로 추천 가중치 후보를 비교
+uv run b102-recommendation --config config/local.toml tune \
+  --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
+  --tag-sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl \
+  --k 5 --recall-k 10
 
 uv run uvicorn recommendation.api:app --host 0.0.0.0 --port 8000
 ```
@@ -112,6 +120,14 @@ feature 상태가 함께 기록된다.
 `hybrid`를 비교한다. 결과에는 P@5, R@10, 관계 대상 coverage, 분류 기준 diversity와
 관계 대상의 색인 밖 개수·후보 부족·빈 관계·결측 대출이력 케이스가 포함된다. 모든
 분모는 결과 JSON에 기록되며, 대용량 원본과 벡터는 저장소에 넣지 않는다.
+
+`tune`은 같은 D4L 관계를 정답으로 사용해 semantic, tagMatch, coLoan, trending,
+steady 가중치 후보를 비교한다. P@5, Recall@10, target coverage, diversity를
+기반으로 결정적인 선택 점수를 계산하고 추천 기본 가중치를 결과에 기록한다. 태그
+sidecar가 없거나 특정 ISBN의 태그가 없으면 `tagMatch`를 0점으로 간주하지 않고
+해당 후보의 가중치 분모에서 제외한다. 현재 오프라인 semantic 점수는 재현 가능한
+TF-IDF proxy이며, 운영 100만 건 임베딩 색인과의 검증은 staging Qdrant에서 별도로
+수행한다.
 
 추천 후보는 `isbn13`을 유일한 병합 키로 사용한다. 같은 ISBN이 여러 번 들어오면
 메타데이터 완성도, 누적 대출량, 제목·저자·분류 보조 키 순서로 대표 도서를 결정한다.

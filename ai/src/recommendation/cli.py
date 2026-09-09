@@ -13,13 +13,14 @@ from recommendation.d4l import DataError, load_d4l_jsonl
 from recommendation.embedding import OpenAICompatibleEmbeddingProvider
 from recommendation.embedding_batch import EmbeddingBatchConfig, EmbeddingBatchRunner, QdrantVersionedIndexStore
 from recommendation.normalization import NormalizationError
+from recommendation.quality import evaluate_weight_grid, load_tag_sidecar
 from recommendation.runtime import build_artifact, configure_logging, refresh_artifact_hash, set_seed, write_artifact
 from recommendation.tag_batch import GmsTagProvider, TagBatchRunner, TagGenerator
 from recommendation.validation import validate_d4l_jsonl
 
 
 LOGGER = logging.getLogger(__name__)
-COMMANDS = ("build", "validate", "evaluate", "recommend", "index", "tags")
+COMMANDS = ("build", "validate", "evaluate", "recommend", "index", "tags", "tune")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -55,6 +56,10 @@ def create_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--tag-version", default=None)
             command_parser.add_argument("--max-retries", type=int, default=2)
             command_parser.add_argument("--low-confidence", type=float, default=0.6)
+        if command == "tune":
+            command_parser.add_argument("--tag-sidecar", type=Path)
+            command_parser.add_argument("--k", type=int, default=5)
+            command_parser.add_argument("--recall-k", type=int, default=10)
     return parser
 
 
@@ -91,6 +96,18 @@ def run(arguments: argparse.Namespace) -> Path:
             artifact["tags"] = _run_tag_batch(arguments, input_path)
         elif arguments.command == "evaluate" and books is not None:
             artifact["evaluation"] = evaluate_d4l(books, k=arguments.k, recall_k=arguments.recall_k)
+        elif arguments.command == "tune" and books is not None:
+            try:
+                tag_codes = load_tag_sidecar(arguments.tag_sidecar.expanduser().resolve()) if arguments.tag_sidecar else None
+                artifact["tuning"] = evaluate_weight_grid(
+                    books,
+                    tag_codes_by_isbn=tag_codes,
+                    input_hash=artifact["inputHash"],
+                    k=arguments.k,
+                    recall_k=arguments.recall_k,
+                )
+            except ValueError as error:
+                raise ConfigError(f"tuning configuration is invalid: {error}") from error
         elif arguments.command == "recommend" and books is not None:
             query_isbn = arguments.query_isbn or books[0].isbn13
             artifact["algorithm"] = "tfidf-content-v1"
