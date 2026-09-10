@@ -53,6 +53,10 @@ public class Book {
 	@Column(columnDefinition = "TEXT")
 	private String description;
 
+	/** V2 — 대표 소개문의 출처. DATA4LIBRARY / SIBLING(같은 세트 형제 권) / KAKAO / NULL(소개 없음). */
+	@Column(name = "description_source", length = 20)
+	private String descriptionSource;
+
 	@Column(name = "cover_url", length = 500)
 	private String coverUrl;
 

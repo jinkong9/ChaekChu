@@ -25,10 +25,10 @@ public record LibraryItemResponse(
 	@Schema(description = "마지막 변경 시각(UTC ISO-8601). 목록 정렬 기준", example = "2026-09-07T11:02:10.004Z") Instant updatedAt
 ) {
 
-	public static LibraryItemResponse from(LibraryItem item) {
+	public static LibraryItemResponse from(LibraryItem item, BookSummaryMapper bookMapper) {
 		return new LibraryItemResponse(
 			String.valueOf(item.getId()),
-			BookSummaryMapper.from(item.getBook()),
+			bookMapper.from(item.getBook()),
 			item.getStatus().name(),
 			item.getRating() == null ? null : item.getRating().intValue(),
 			item.getReviewText(),

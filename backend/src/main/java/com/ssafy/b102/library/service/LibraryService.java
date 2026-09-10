@@ -18,6 +18,7 @@ import com.ssafy.b102.book.repository.BookRepository;
 import com.ssafy.b102.global.error.BusinessException;
 import com.ssafy.b102.global.error.ErrorCode;
 import com.ssafy.b102.library.dto.LibraryAddRequest;
+import com.ssafy.b102.book.dto.BookSummaryMapper;
 import com.ssafy.b102.library.dto.LibraryItemResponse;
 import com.ssafy.b102.library.dto.LibraryListResponse;
 import com.ssafy.b102.library.dto.LibraryPatchRequest;
@@ -44,13 +45,15 @@ public class LibraryService {
 	private final LibraryItemRepository libraryItemRepository;
 	private final BookRepository bookRepository;
 	private final UserService userService;
+	private final BookSummaryMapper bookMapper;
 	private final Clock clock;
 
 	public LibraryService(LibraryItemRepository libraryItemRepository, BookRepository bookRepository,
-		UserService userService, Clock clock) {
+		UserService userService, BookSummaryMapper bookMapper, Clock clock) {
 		this.libraryItemRepository = libraryItemRepository;
 		this.bookRepository = bookRepository;
 		this.userService = userService;
+		this.bookMapper = bookMapper;
 		this.clock = clock;
 	}
 
@@ -60,7 +63,7 @@ public class LibraryService {
 		List<LibraryItem> items = status == null
 			? libraryItemRepository.findByUser_IdOrderByUpdatedAtDesc(userId)
 			: libraryItemRepository.findByUser_IdAndStatusOrderByUpdatedAtDesc(userId, status);
-		return new LibraryListResponse(items.stream().map(LibraryItemResponse::from).toList());
+		return new LibraryListResponse(items.stream().map(item -> LibraryItemResponse.from(item, bookMapper)).toList());
 	}
 
 	/**
@@ -84,7 +87,7 @@ public class LibraryService {
 		User user = userService.getUser(userId);
 		try {
 			LibraryItem saved = libraryItemRepository.saveAndFlush(LibraryItem.serviceEntry(user, book, status, today()));
-			return LibraryItemResponse.from(saved);
+			return LibraryItemResponse.from(saved, bookMapper);
 		}
 		catch (DataIntegrityViolationException e) {
 			if (!violates(e, UNIQUE_USER_BOOK)) {
@@ -158,7 +161,7 @@ public class LibraryService {
 		}
 
 		libraryItemRepository.flush();   // @UpdateTimestamp 를 응답에 반영
-		return LibraryItemResponse.from(item);
+		return LibraryItemResponse.from(item, bookMapper);
 	}
 
 	/** §6.4 — 서재에서 빼기(찜 해제 포함). 없는 항목 404, 타인 항목 403. */

@@ -94,7 +94,7 @@ class PopularBooksApiTest {
 			.andExpect(jsonPath("$.items[0].title").value("소년이 온다"))
 			.andExpect(jsonPath("$.items[0].authors").value(contains("한강")))
 			.andExpect(jsonPath("$.items[0].coverUrl").isString())
-			.andExpect(jsonPath("$.items[0].category").value("문학"))
+			.andExpect(jsonPath("$.items[0].category").value(org.hamcrest.Matchers.startsWith("문학")))   // kdc_codes 있으면 "문학 > 한국문학", 없으면 대분류 폴백
 			.andExpect(jsonPath("$.items[0].classNo").value("813.7"))
 			.andExpect(jsonPath("$.items[0].pageCount").value((Object) null));
 	}

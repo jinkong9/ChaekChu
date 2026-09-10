@@ -46,11 +46,14 @@ public class PopularBookService {
 
 	private final PopularBookRepository repository;
 	private final UserService userService;
+	private final BookSummaryMapper summaryMapper;
 	private final Clock clock;
 
-	public PopularBookService(PopularBookRepository repository, UserService userService, Clock clock) {
+	public PopularBookService(PopularBookRepository repository, UserService userService,
+		BookSummaryMapper summaryMapper, Clock clock) {
 		this.repository = repository;
 		this.userService = userService;
+		this.summaryMapper = summaryMapper;
 		this.clock = clock;
 	}
 
@@ -87,7 +90,7 @@ public class PopularBookService {
 			rows = repository.findAggregated(period.get(), List.of(), size);
 			segment = null;
 		}
-		return new PopularBooksResponse(segment, rows.stream().map(PopularBookService::toSummary).toList());
+		return new PopularBooksResponse(segment, rows.stream().map(this::toSummary).toList());
 	}
 
 	@Transactional(readOnly = true)
@@ -144,8 +147,8 @@ public class PopularBookService {
 		return ageLabel + " " + ("F".equals(gender) ? "여성" : "남성");
 	}
 
-	private static BookSummaryResponse toSummary(PopularRow r) {
-		return BookSummaryMapper.of(r.bookId(), r.isbn13(), r.title(), r.author(), r.publisher(), r.pubYear(),
+	private BookSummaryResponse toSummary(PopularRow r) {
+		return summaryMapper.of(r.bookId(), r.isbn13(), r.title(), r.author(), r.publisher(), r.pubYear(),
 			r.categoryCode(), r.coverUrl());
 	}
 }

@@ -90,10 +90,14 @@ src/main/java/com/ssafy/b102/
   book/entity/Book.java · repository/    # V1 books 읽기 매핑 (채우는 주체는 배치)
   book/dto/BookSummaryResponse.java      # API_SPEC §1.5 BookSummary — 검색·인기·추천·서재 공통 원소
   book/entity/KdcMainClass.java          # KDC 대분류 10개 → category 라벨("문학"). kdc_codes 는 V2
-  book/dto/BookSummaryMapper.java        # PG 행(Book·컬럼) → BookSummary. 검색(ES 문서)과 같은 저자·KDC 규칙
+  book/dto/BookSummaryMapper.java        # PG 행(Book·컬럼) → BookSummary. 빈 — KdcCategoryResolver 를 주입해 검색과 같은 2단계 분류 경로를 낸다
   book/repository/PopularBookRepository  # book_loaned_top20 조회(JdbcClient): 세그먼트 1개 · 합산 재랭킹 · 전 세그먼트 상위 N
   book/service/PopularBookService.java   # §4.2 3단 세그먼트 규칙(연령+성별 / 연령만 합산 / 전체 합산) · §4.3 홈 링 조립
   book/controller/BookPopularController  # GET /books/popular?size= · GET /books/popular-segments (로그인 필요, PENDING 가능)
+  book/controller/BookDetailController   # GET /books/{bookId} · /{bookId}/co-loans (§4.4·§4.6). 경로 변수는 \d+ — /search·/popular 와 안 겹친다
+  book/service/BookDetailService.java    # id 또는 ISBN13 조회 · metrics 문자열 조립 · my(본인 서재) 조인
+  book/service/BookDemandRankResolver    # 기준월 경계값 5개(1·3·5·10·25%) 캐시 → "상위 N%". 275만 행 등수 세기를 대체
+  book/repository/BookDetailRepository   # book_demand_features · book_relations 조회(JdbcClient)
   user/controller/TagController.java     # GET /tags — 태그 사전(§10-0). 프론트 GENRES 하드코딩의 원천
   book/service/KdcCategoryResolver.java  # kdc_codes(V2) 949행을 메모리에 올려 category_code → "문학 > 한국문학" 2단계 경로. refresh() 로 재로드
   library/entity/LibraryItem.java · ShelfStatus(WISH/READ) · LibrarySource(SERVICE/ONBOARDING) · repository/
