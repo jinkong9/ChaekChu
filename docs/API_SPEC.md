@@ -24,7 +24,7 @@
 | | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 |
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | 2차 |
 | 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 |
-| 서재 | `GET /library/me` | ● | LibraryPage* | 구현 대상 |
+| 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
 | | `POST /library` | ● | RecommendPage · BookDetailPage | 구현 대상 · **응답 본문 필요** |
 | | `PATCH /library/{libraryItemId}` | ● | LibraryList · LibraryPageB | 구현 대상 |
 | | `DELETE /library/{libraryItemId}` | ● | (없음) | 구현 대상 · FE 버튼 추가 |
