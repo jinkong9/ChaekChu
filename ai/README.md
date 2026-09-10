@@ -83,25 +83,25 @@ adapter가 연결된다. `QDRANT_COLLECTION`은 `books_active` alias를 기본�
 있을 때만 설정한다. `QDRANT_VECTOR_NAME`은 named vector를 사용할 때 지정한다.
 활성 index가 설정되기 전에는 추천 API가 빈 결과의 명시적 fallback으로 응답한다.
 
-운영 환경에서는 다음 변수만 주입하고 원본 데이터·벡터·API key는 이미지나 Git에
-포함하지 않는다.
+운영 환경에서는 온라인 FastAPI에 필요한 변수만 주입하고 원본 데이터·벡터·API key는
+이미지나 Git에 포함하지 않는다. 아래 임베딩·태그 API 변수는 온라인 요청용이 아니라
+오프라인 배치 실행 시에만 사용한다.
 
 ```text
 QDRANT_URL=http://qdrant:6333
 QDRANT_API_KEY=<secret>
 QDRANT_COLLECTION=books_active
-QDRANT_COLLECTION_PREFIX=books
 QDRANT_TAG_COLLECTION=<optional>
 QDRANT_VECTOR_NAME=<optional>
 QDRANT_TIMEOUT_SECONDS=2.0
-AI_MODEL_VERSION=d4l-hybrid-v1
+AI_MODEL_VERSION=gms-text-embedding-3-small-20260909-1000
 AI_INDEX_VERSION=<promoted-index-version>
-AI_FEATURE_VERSION=d4l-feature-v1
-AI_TAG_VERSION=not-generated
+
+# offline batch only
 EMBEDDING_API_URL=<gms-openai-compatible-embeddings-endpoint>
 EMBEDDING_API_KEY=<secret>
 EMBEDDING_MODEL=text-embedding-3-small
-EMBEDDING_DIMENSION=512
+EMBEDDING_DIMENSION=1536
 EMBEDDING_TIMEOUT_SECONDS=30
 TAG_API_URL=<gms-openai-compatible-chat-endpoint>
 TAG_API_KEY=<secret>
@@ -227,6 +227,41 @@ inputHash, embedding/feature/tag version, 차원, 성공·실패·재시도·재
 
 AI 서버는 원천 수집 API나 사용자 DB를 호출하지 않으며, 응답의 `isbn13`을 기준으로
 백엔드가 canonical 도서 정보와 화면 데이터를 결합한다.
+
+### 백엔드 연결
+
+운영 Compose에서 백엔드와 AI가 같은 Docker 네트워크에 있으면 다음 주소를 사용한다.
+
+```text
+AI_RECOMMENDATION_URL=http://ai:8000
+POST http://ai:8000/internal/v1/recommendations
+GET  http://ai:8000/health
+```
+
+AI 포트는 외부에 공개하지 않으므로 백엔드 컨테이너에서 `127.0.0.1:8000`을 사용하지
+않는다. 요청·응답 DTO의 상세 규격은
+[`docs/AI_FASTAPI_RECOMMENDATION_CONTRACT.md`](../docs/AI_FASTAPI_RECOMMENDATION_CONTRACT.md)를
+기준으로 한다. 백엔드는 `items[].isbn13`을 canonical `bookId`와 결합하며, AI는
+도서 상세 정보나 사용자 DB를 반환·저장하지 않는다.
+
+```json
+{
+  "requestId": "request-001",
+  "userId": "user-001",
+  "mode": "PERSONALIZED",
+  "size": 5,
+  "seedIsbns": ["9788950906030"],
+  "excludeIsbns": [],
+  "tags": [{"code": "FANTASY", "weight": 1.0}],
+  "weights": {
+    "semantic": 0.5,
+    "tagMatch": 0.5,
+    "coLoan": 0.0,
+    "trending": 0.0,
+    "steady": 0.0
+  }
+}
+```
 
 ## 테스트
 

@@ -1,8 +1,8 @@
 # AI FastAPI 추천 서버 계약서
 
-> 상태: 초안 v2 — 백엔드·AI 담당자 검토 방향 반영
+> 상태: 구현 기준 v3 — 2026-09-10 `dev` 반영
 > 기준 데이터: ISBN 중복 제거가 완료된 D4L 도서 약 100만 건
-> 관련 Jira: `S15P21B102-131`, `S15P21B102-132`, `S15P21B102-135`~`S15P21B102-143`, `S15P21B102-150`, `S15P21B102-159`
+> 관련 Jira: `S15P21B102-159`~`S15P21B102-170`
 
 이 문서는 백엔드와 FastAPI 추천 서버의 책임, 사전 색인 배치, 요청·응답 DTO,
 추천 계산 방식을 정의한다. FastAPI는 매 요청마다 100만 건의 도서 snapshot을 받지
@@ -39,6 +39,26 @@ Spring Boot
   └─ 추천 결과 저장·조회·화면 응답
 ```
 
+### 1.1 백엔드 개발자 연결 요약
+
+백엔드와 AI가 `deploy/docker-compose.yml`의 같은 네트워크에서 실행되는 운영 환경에서는
+다음 주소를 사용한다.
+
+```text
+AI_RECOMMENDATION_URL=http://ai:8000
+POST http://ai:8000/internal/v1/recommendations
+GET  http://ai:8000/health
+```
+
+AI 서비스의 8000 포트는 현재 Docker 내부에만 노출된다(`expose`). 외부 공개 주소나
+`127.0.0.1:8000`을 백엔드 컨테이너 설정에 사용하지 않는다. 백엔드는 요청 DTO를 보내고,
+응답의 `items[].isbn13`을 canonical 도서 `bookId`·표지·상세 정보와 결합한다.
+
+백엔드 요청에는 deprecated 호환 필드인 `books`를 보내지 않는다. HTTP client에는
+연결·읽기 timeout을 설정한다. `5xx`·네트워크 오류는 백엔드의 마지막 성공 추천 또는
+cold-start 정책으로 처리하고, FastAPI가 반환한 `fallback=true`는 HTTP 오류가 아니므로
+응답의 `fallback`과 `items`를 함께 처리한다.
+
 ## 2. 서비스별 책임
 
 | 주체 | 담당 내용 | 담당하지 않는 내용 |
@@ -50,7 +70,8 @@ Spring Boot
 | 운영·CI/CD | 배치·FastAPI 실행, health check, 배포와 비밀값 관리 | 추천 기준 임의 변경 |
 
 FastAPI는 논리적으로 추천 인덱스를 소유하지만, 100만 개 벡터를 Python 프로세스
-메모리에 직접 보관하지 않는다. Qdrant 또는 pgvector 같은 검색 저장소를 사용한다.
+메모리에 직접 보관하지 않는다. 운영 검색 저장소는 Qdrant이며, Python 코드는 Qdrant
+REST adapter를 사용한다.
 
 ## 3. 오프라인 도서 색인
 
@@ -177,8 +198,9 @@ fixture, 집계 리포트만 저장소에서 관리한다.
 | `tags` | `TagPreference[]` |  | 사용자가 원하는 추천 방향 |
 | `weights` | `RecommendationWeights` |  | 최종 재랭킹 가중치 |
 
-`tags[].code`는 사전에 등록된 taxonomy만 허용한다. 알 수 없는 태그는 전체 요청을
-실패시키기보다 무시하고 경고할지, 422로 거부할지는 백엔드와 추가 결정한다.
+`tags[].code`는 대문자 taxonomy code 형식으로 검증한다. 현재 FastAPI는 taxonomy 목록에
+없는 형식상의 유효한 code를 별도 422로 거부하지 않는다. prototype이 없으면 해당 태그는
+query vector에서 제외되고, 백엔드는 `AI_TAG_BATCH_CONTRACT.md`의 등록 code만 보내야 한다.
 
 ### 4.2 가중치
 
@@ -190,8 +212,9 @@ fixture, 집계 리포트만 저장소에서 관리한다.
 | `trending` | 최신 대출 수요 |
 | `steady` | 누적 대출량 기반 안정 수요 |
 
-가중치 합계는 1.0으로 정규화하거나 서버에서 정규화한다. 특정 feature가 결측이면
-가용한 feature만으로 재계산하며, 결측을 0점으로 오해하지 않는다.
+가중치 합계가 반드시 1.0일 필요는 없다. FastAPI는 실제로 값이 존재하고 요청 가중치가
+양수인 feature만 분모에 포함해 정규화한다. 따라서 특정 feature가 결측이면 가용한
+feature만으로 재계산하며, 결측을 0점으로 오해하지 않는다.
 
 ## 5. 추천 계산 단계
 
@@ -207,13 +230,18 @@ fixture, 집계 리포트만 저장소에서 관리한다.
 
 ### 5.2 후보 검색
 
-Vector DB에서 query vector와 가까운 후보를 100~300개 검색한다. 다음은 하드 필터로
-먼저 제거한다.
+Vector DB에서 query vector와 가까운 후보를 요청 크기에 따라 100~300개 검색한다. 태그가
+있으면 일반 semantic 검색과 별도로 `tagCodes` payload 일치 검색을 수행하고 두 후보군을
+ISBN 기준으로 합친다. tag-only 요청도 이 경로를 사용하므로 semantic 점수가 낮더라도
+요청 태그와 일치하는 도서가 재랭킹 대상에 포함된다. 다음은 하드 필터로 먼저 제거한다.
 
 - `excludeIsbns`
 - `seedIsbns`
 - 색인에 없는 도서
 - 운영 정책상 비활성화된 도서
+
+태그 검색의 여러 code는 OR 조건으로 조회한다. 최종 태그 일치도는 요청 태그 weight와
+도서 payload의 `tagScores`를 사용해 재계산한다.
 
 ### 5.3 후보 재랭킹
 
@@ -252,8 +280,8 @@ STEADY          꾸준히 대출된 책이에요.
   "recommendationId": "rec-abc123",
   "requestId": "req-20260908-001",
   "userId": "user-123",
-  "modelVersion": "d4l-hybrid-v1",
-  "indexVersion": "d4l-2026-07-v1",
+  "modelVersion": "gms-text-embedding-3-small-20260909-1000",
+  "indexVersion": "d4l-small-20260909-1000",
   "fallback": false,
   "items": [
     {
@@ -282,8 +310,9 @@ STEADY          꾸준히 대출된 책이에요.
 ```
 
 AI는 추천 대상 ISBN과 점수·근거를 반환하고, 백엔드는 ISBN13으로 canonical 도서 정보와
-표지를 결합한다. 이렇게 하면 AI 색인과 백엔드 DB의 도서 표시 정보가 달라져도 정본이
-백엔드에 유지된다.
+표지를 결합한다. 현재 온라인 응답에는 `modelVersion`, `indexVersion`만 버전 필드로
+노출되며, `tagVersion`·`featureVersion`은 Qdrant payload와 배치 report에서 관리한다.
+이렇게 하면 AI 색인과 백엔드 DB의 도서 표시 정보가 달라져도 정본이 백엔드에 유지된다.
 
 ## 7. 오류와 장애 처리
 
@@ -291,34 +320,32 @@ AI는 추천 대상 ISBN과 점수·근거를 반환하고, 백엔드는 ISBN13�
 | --- | --- |
 | 정상 요청 | `200`과 최대 5개 추천 반환 |
 | DTO·가중치·ISBN 형식 오류 | `422` |
-| seed·태그 없음 | `fallback = true`, trending/steady 기반 추천 |
-| Vector DB timeout | FastAPI 오류, 백엔드가 마지막 성공 결과 또는 cold-start 사용 |
-| 색인 버전 불일치 | 최신 활성 index로 처리하고 응답에 `indexVersion` 기록 |
+| seed·태그 없음 | `fallback = true`, 수요 feature 기반 추천 또는 빈 결과 |
+| Vector DB timeout·색인 없음 | FastAPI가 `200`과 `fallback=true`로 수요 fallback 또는 빈 결과 반환 |
+| 색인 버전 불일치 | 해당 runtime index를 사용할 수 없어 fallback으로 전환 |
 | 후보 부족 | 가능한 개수만 반환하고 fallback 여부를 명시 |
 
-추천 결과의 재현을 위해 `requestId`, `modelVersion`, `indexVersion`, `tagVersion`,
-`featureVersion`을 로그와 결과에 남긴다.
+추천 결과의 재현을 위해 `requestId`, `modelVersion`, `indexVersion`을 응답과 로그에
+남긴다. `tagVersion`·`featureVersion`은 배치 report와 Qdrant payload에서 추적한다.
 
 ## 8. 남은 결정 사항
 
-1. Vector DB를 Qdrant와 pgvector 중 무엇으로 운영할지
-2. 임베딩 모델·차원·quantization 설정
-3. GMS 태그 생성 적용 범위와 비용·confidence 기준
-4. 태그가 없는 도서의 처리와 알 수 없는 사용자 태그 정책
-5. 응답의 `reasons[]`/`primaryReason` 구조와 프론트 공통 enum
-6. 같은 작품을 식별할 `workKey`가 현재 데이터에 있는지, 없으면 ISBN 단위 diversity만
+1. 운영 Qdrant의 용량·보존·quantization 정책
+2. 임베딩 모델 교체 시점과 재색인 승인 기준
+3. GMS 태그 생성 비용·confidence 기준의 장기 운영값
+4. 태그가 없는 도서의 장기적인 노출 정책
+5. 같은 작품을 식별할 `workKey`가 현재 데이터에 있는지, 없으면 ISBN 단위 diversity만
    적용할지
-7. 백엔드 요청의 사용자 태그·가중치 저장 및 변경 시 추천 캐시 무효화 방식
+6. 백엔드 요청의 사용자 태그·가중치 저장 및 변경 시 추천 캐시 무효화 방식
 
 ## 9. 다음 구현 순서
 
-1. `#131`: 실제 D4L 데이터 품질·대출 이력 의미 검증
-2. `#132`: 고정 필드 정규화와 inputHash
-3. 오프라인 임베딩 생성·Vector DB 색인
-4. `#159`: 오프라인 태그 taxonomy·생성·매핑 배치
-5. `#135`: Vector DB 후보 검색
-6. `#136~#141`: feature 재랭킹·fallback·seed/태그 query·제외·다양성
-7. `#143`: Spring Boot-FastAPI 통합 테스트
-8. `#150`: 배치·FastAPI 실행·health check·배포 계약
+1. `#170`: 태그 후보 보강 및 tag-only 재랭킹 — 완료
+2. 백엔드가 `http://ai:8000`으로 추천 요청을 연결하고 ISBN 매핑·저장 계약을 검증
+3. EC2에서 tag-only·seed-only·seed+tag·exclude smoke를 실행
+4. `#143`: Spring Boot-FastAPI 통합·timeout·5xx·ISBN 매핑 검증
+5. `#150`: AI 컨테이너 이미지·모델 캐시·배포 계약 검증
+6. 1,000건 smoke 통과 후 10만 건, 최종 100만 건으로 단계 확장
 
-이 문서가 합의되면 다음 실제 구현은 D4L 품질 검증 후 임베딩·태그 배치부터 시작한다.
+이 문서는 현재 구현된 온라인 연결 계약의 기준이다. 백엔드 통합 시에는 이 문서의
+요청·응답 DTO와 `ai/README.md`의 실행 예시를 함께 사용한다.
