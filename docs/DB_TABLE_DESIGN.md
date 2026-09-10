@@ -12,7 +12,11 @@
 | 원본 | `docs/sql/erdcloud_export_20260907.sql` | ERDCloud export 그대로 (수정 금지) |
 | **V1** | **`docs/sql/V1__init.sql`** | 1차 10테이블 + 보정 7건 — 지금 프론트·API 가 깨지는 곳과 UNIQUE·FK·CHECK 만 |
 | **V1.1** | **`docs/sql/V1_1__seed_tags.sql`** | `tags` seed — 온보딩 장르 12개(GENRE, 라벨 `#소설` 형태). API_SPEC §3.3 표 |
-| V2 | (작성 예정) | 아래 §4~§5 의 `book_texts` `book_keywords` `book_embeddings` `book_relations` `book_demand_features` `kdc_codes` + `books` 확장 컬럼 |
+| **V2** | **`docs/sql/V2__recommendation_layer.sql`** (09-09 적용 — 로컬·EC2, Flyway CLI) | `kdc_codes` `book_keywords` `book_relations` `book_demand_features` `book_embeddings`(표만) + `books` 컬럼 3개(`description_source` `description_kakao` `text_hash`) |
+
+**`book_texts` 는 만들지 않는다 (09-09 결정).** 소개문 소스가 정보나루·카카오 둘뿐이고 필요한 건 「임베딩 입력이 둘을 다 쓴다」는 것뿐이라, 표 대신
+`books.description_kakao`(두 번째 소개문) + `description_source` + `text_hash` 로 흡수했다. 소스가 셋이 되면(YES24 목차 등) 그때 표로 분리한다 — §4.1 의 DDL 은 그 시점의 참고안.
+`kdc_codes` 는 정보나루 `class_nm`「대 > 중 > 소」에서 파생한다 — 3자리 코드 849개, 코드별 최빈 라벨 점유율 99.9%, 1·2·3자리 451행. 별도 KDC 요목 파일이 필요 없다.
 | 참고 | `docs/POSTGRES_SCHEMA.sql` | 이 문서 전체를 한 번에 만든 **목표 스키마**. V1 이 확정된 뒤로는 참고용 |
 
 V1 보정 7건: ① `users.onboarding_status`·`updated_at` ② `users.nickname` NULL 허용 ③ `user_actions.book_id` NULL + `recommendation_id`·`rank`·`occurred_at`·`client_event_id`

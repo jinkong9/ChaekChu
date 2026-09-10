@@ -17,7 +17,7 @@
 ## 메모리 가드
 
 운영 컨테이너와 같은 서버다. `lib.sh` 의 `ci_check_memory` 가 시작 전에 `MemAvailable` 을 보고(frontend 2.5g, backend 3.5g 필요) 부족하면 중단한다.
-운영 Qdrant(`b102-qdrant`) 가 켜져 있으면 빌드하지 않는다(`B102_ALLOW_BUILD_WITH_QDRANT=true` 로 강제). 빌드 컨테이너에는 `--memory` 상한이 걸려 있다.
+운영 Qdrant(`b102-qdrant`) 가 켜져 있으면 그 컨테이너의 `mem_limit`(3g) 를 필요량에 더해서 본다 — 비어 있는 Qdrant 때문에 멈추지 않되, Qdrant 가 상한까지 자라도 운영이 버틸 때만 빌드한다(`B102_ALLOW_BUILD_WITH_QDRANT=true` 면 더하지 않음). 빌드 컨테이너에는 `--memory` 상한이 걸려 있다.
 Jenkinsfile 은 frontend·data·deploy 만 병렬로 돌리고 backend 는 그 뒤 단독으로 돈다.
 
 ## 변경 범위 규칙 (요약)

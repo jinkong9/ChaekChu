@@ -22,15 +22,20 @@ ci_prepare_docker() {
 }
 
 # 운영 컨테이너와 같은 서버에서 돈다. 빌드 컨테이너가 상한 밖에서 메모리를 먹으므로 시작 전 여유를 확인한다.
+# 운영 Qdrant(b102-qdrant) 가 켜져 있으면 그 컨테이너가 상한(mem_limit)까지 자랄 수 있는 몫을 필요량에 더해서 본다.
+#   ∵ 이름만 보고 무조건 중단하면 Qdrant 가 비어 있어도(09-10 실측 62MiB, 가용 9.8G) CI 가 오탐으로 멈춘다 — MR-120
+#   B102_ALLOW_BUILD_WITH_QDRANT=true 면 Qdrant 몫을 더하지 않는다(강제).
 ci_check_memory() {
-  local need_mb="${1:-3000}" avail_mb
+  local need_mb="${1:-3000}" avail_mb qdrant_limit_mb=0
   avail_mb="$(awk '/MemAvailable/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null || echo 99999)"
-  if (( avail_mb < need_mb )); then
-    echo "가용 메모리 ${avail_mb}MB < 필요 ${need_mb}MB. 운영 컨테이너를 보호하기 위해 CI 를 중단합니다." >&2
-    exit 1
+  if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'b102-qdrant' && [[ "${B102_ALLOW_BUILD_WITH_QDRANT:-false}" != "true" ]]; then
+    # HostConfig.Memory 는 바이트(상한 없으면 0). compose 의 mem_limit: 3g → 3072
+    qdrant_limit_mb="$(docker inspect b102-qdrant --format '{{.HostConfig.Memory}}' 2>/dev/null | awk '{printf "%d", $1/1024/1024}')"
+    qdrant_limit_mb="${qdrant_limit_mb:-0}"
+    echo "운영 Qdrant 가 켜져 있습니다. 상한 ${qdrant_limit_mb}MB 를 필요량에 더해 가용 메모리를 확인합니다 (B102_ALLOW_BUILD_WITH_QDRANT=true 로 생략 가능)." >&2
   fi
-  if docker ps --format '{{.Names}}' | grep -qx 'b102-qdrant' && [[ "${B102_ALLOW_BUILD_WITH_QDRANT:-false}" != "true" ]]; then
-    echo "운영 Qdrant 가 켜져 있습니다. 메모리 과밀을 피하려 CI 를 중단합니다 (B102_ALLOW_BUILD_WITH_QDRANT=true 로 강제 가능)." >&2
+  if (( avail_mb < need_mb + qdrant_limit_mb )); then
+    echo "가용 메모리 ${avail_mb}MB < 필요 ${need_mb}MB + Qdrant 몫 ${qdrant_limit_mb}MB. 운영 컨테이너를 보호하기 위해 CI 를 중단합니다." >&2
     exit 1
   fi
 }
