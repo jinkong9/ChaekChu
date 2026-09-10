@@ -18,7 +18,8 @@
 | | `GET /users/me/dna` | ● | DnaPage (현재 mock) | 구현 대상 · FE 연결 |
 | 도서 | `GET /books/search` | ● | SearchPage | 구현 대상 |
 | | `GET /books/popular` | ● | OnboardingPage 2단계 | 구현 대상 |
-| | `GET /books/popular-segments` | ● | 홈 (현재 정적 JSON) | 2차 · FE 연결 |
+| | `GET /books/popular-segments` | ● | 홈 (현재 정적 JSON) | **구현(09-10)** · FE 연결 |
+| 태그 | `GET /tags` | ● | (없음 — GENRES 하드코딩) | **구현(09-10)** · FE 연결 선택 |
 | | `GET /books/{bookId}` | ● | BookDetailPage · 홈 링 | 구현 대상 · **ISBN13 도 받는다** |
 | | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 |
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | 2차 |
@@ -239,7 +240,10 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 
 ### 4.2 `GET /books/popular?size=` ●
 
-온보딩 2단계의 「알 만한 책」그리드. **로그인 사용자의 세그먼트(연령×성별) 인기** 상위. 세그먼트를 모르면(프로필 전) 전체 인기. `size` 기본 12, 최대 40.
+온보딩 2단계의 「알 만한 책」그리드. **로그인 사용자의 세그먼트(연령×성별) 인기** 상위. `size` 기본 12, 최대 40. **온보딩 중(PENDING)에도 호출 가능.**
+
+세그먼트 규칙(09-10 확정, 프론트 mock 과 동일): ① 출생연도·성별 모두 있음 → 그 세그먼트 순위 ② 출생연도만 → 같은 연령대 남·녀를 책 단위로 `loanCount` 합산해 재정렬(`segment.gender = null`, 라벨 `"20대"`)
+③ 둘 다 없음 → 전 세그먼트 합산(`segment = null`). 연령대 = (올해 − 출생연도)를 10 단위로 내림, **10~60**(60 = 60대 이상 — 원천 `book_loaned_top20` 이 60대를 따로 가진다). 기준월은 표의 최신 `period`.
 
 ```json
 { "segment": { "age": "20", "gender": "F", "label": "20대 여성" } | null,
@@ -248,7 +252,7 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 
 `items` 에는 `coverUrl`·`category` 를 **반드시** 채운다 — mock 이 비워 보내 그리드가 글자로 뜬다(§9-9).
 
-### 4.3 `GET /books/popular-segments` ● (2차)
+### 4.3 `GET /books/popular-segments` ● (09-10 구현)
 
 홈 인기 링. 지금은 `frontend/public/data/popular-ring.json`(09-02 생성, 10세그먼트 × 20권)을 읽는다. 같은 형태로 API 화한다.
 
@@ -263,7 +267,8 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 }
 ```
 
-세그먼트 10개(10·20·30·40·50+ × F/M), 각 20권. 월 1회 배치가 만들어 캐시한다. 정적 파일과의 차이: `gender` 가 `'남'|'여'` → `'M'|'F'`, `publicationYear` 가 문자열 → 숫자, 책 필드가 `BookSummary` 로 정리 — §9-8.
+세그먼트는 원천대로 **최대 12개**(10·20·30·40·50·60 × F/M, 60 = 60대 이상), 각 20권, 기준월에 행이 있는 것만. `period` 는 집계 창(직전 3개월), `generatedAt` 은 기준월 다음 달 1일 00:00Z.
+데이터가 없으면 `segments: []` 에 `period`·`generatedAt` 은 null. 월 1회 적재(`fetch_segment_popular.py` → `load_service_tables.sh --only book_loaned_top20`). 정적 파일과의 차이: `gender` 가 `'남'|'여'` → `'M'|'F'`, `publicationYear` 가 문자열 → 숫자, 책 필드가 `BookSummary` 로 정리 — §9-8.
 
 ### 4.4 `GET /books/{bookId}` ●
 
@@ -486,9 +491,9 @@ LibraryItem {
 
 **결론: 18개로 프론트와 문서를 모두 덮는다.** 다만 두 가지를 적어 둔다.
 
-1. **`GET /tags` 가 없다.** 프론트는 온보딩 장르 14개(`GENRES`)와 기준 조절 태그 16개(`SUGGESTED_TAGS`)를 **하드코딩**하고 있고, 서버는 V1 에 `tags` 표가 있다.
-   라벨이 어긋나면 `appliedTags` 가 거짓이 된다. 프론트가 태그 목록을 서버에서 받도록 바꿀 때 추가한다 — 응답 `{ items: [{ code, label, kind, selectable }] }`.
-   지금은 §3.3 매핑표를 양쪽이 지키는 것으로 대신한다.
+1. **`GET /tags` — 09-10 구현.** 응답 `{ items: [{ code, label, kind, selectable }] }`, `tag_code` 순. 지금 사전은 온보딩 장르 12개(`GENRE`, 라벨 `#소설`)뿐이라
+   프론트 `GENRES` 는 이 목록으로 바꿀 수 있고(라벨의 `#` 는 프론트가 뗀다), TunePage `SUGGESTED_TAGS`(THEME·SIGNAL) 는 추천 구현에서 seed 가 추가될 때까지 하드코딩을 유지한다.
+   `POST /users/me/preferences` 의 `genres` 는 `code`·`label`·`#` 없는 라벨을 모두 받으므로 전환 시점은 프론트가 정한다.
 2. **`SKIPPED` 는 프론트에서 만들어지지 않는다.** 온보딩의 「건너뛰기」는 마지막 단계에서 `POST /users/me/preferences` 를 (빈 목록으로라도) 보내고 끝나므로 항상 `COMPLETED` 다.
    `SKIPPED` 는 계약에 있는 예약 상태로 두고, 서버는 만들지 않는다.
 
