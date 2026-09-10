@@ -294,8 +294,8 @@ BE 공통 기반
   - 담당자: / 브랜치: / PR:
 - [ ] [#147 배포 환경 핵심 흐름 smoke test·운영 runbook](https://ssafy.atlassian.net/browse/S15P21B102-147)
   - 선행: `#153`
-  - 완료 확인: 로그인·검색·서재·추천 핵심 흐름과 장애 대응을 다른 담당자가 문서만 보고 재현한다.
-  - 담당자: / 브랜치: / PR:
+  - 완료 확인: `deploy/scripts/smoke.sh` 한 명령으로 헬스·공개 진입점·선택 인증 API를 검증하고, 실패 시 endpoint/status/traceId/body 일부를 출력한다. `--with-faults`는 AI 중단 후 검색·readiness 확인과 자동 복구를 수행한다. Redis는 현재 Compose 미구성으로 runbook에 명시한다.
+  - 담당자: 이어진 / 브랜치: `feat/147-deployment-smoke-runbook` / PR:
 - [ ] [#40 PostgreSQL 백업·복구와 발표 시연 점검](https://ssafy.atlassian.net/browse/S15P21B102-40)
   - 선행: `#146`, `#147`
   - 완료 확인: `#146`, `#147` 결과를 재사용해 발표 데이터 복구와 시연 동선을 최종 확인한다.

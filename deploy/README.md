@@ -127,6 +127,28 @@ ssh b102 'bash ~/S15P21B102/deploy/scripts/deploy.sh --no-pull'          # 현�
 
 ## 운영
 
+### 배포 후보 smoke test
+
+헬스체크와 공개 진입점은 토큰 없이 확인할 수 있고, 실제 사용자 흐름은 완료된 사용자의 서비스 JWT를 넣어 실행한다. 스크립트는 데이터를 만들거나 수정하지 않는다.
+
+```bash
+cd ~/S15P21B102
+bash deploy/scripts/smoke.sh
+SMOKE_REQUIRE_AUTH=true SMOKE_JWT='완료된_사용자의_JWT' bash deploy/scripts/smoke.sh
+```
+
+각 요청에는 `X-Request-ID`가 붙고, 실패 시 `endpoint`, HTTP 상태, `traceId`, 응답 일부를 한 줄에 남긴다. 같은 `traceId`는 backend 로그의 MDC에도 기록되므로 `docker compose logs backend | grep traceId:<값>`으로 추적할 수 있다.
+
+AI 장애 격리는 검색과 backend readiness가 유지되는지만 확인한 뒤 AI를 자동 복구한다. 운영 중인 컨테이너를 잠시 중단하므로 발표 직전의 별도 점검 시간에만 실행한다.
+
+```bash
+SMOKE_FAULT_INJECTION=true SMOKE_JWT='완료된_사용자의_JWT' bash deploy/scripts/smoke.sh --with-faults
+```
+
+Redis는 현재 운영 Compose에 포함되지 않은 선택 기능이므로 Redis 중단 단계는 실행 대상이 아니다. Redis를 도입하는 MR에서는 동일한 `--with-faults` 패턴으로 캐시 중단 후 PostgreSQL 최신 추천 스냅샷 폴백을 별도 검증해야 한다.
+
+실패 시 순서는 `docker compose -f deploy/docker-compose.yml ps` → `docker compose ... logs --tail 200 <service>` → `bash deploy/scripts/deploy.sh --no-pull` 재기동이다. 코드만 바뀐 배포의 헬스 실패는 deploy script가 직전 릴리스로 복구할 수 있지만, migration 지문이 바뀐 배포는 자동 롤백하지 않으므로 `BACKUP_DIR/pre_<sha>_*.sql.gz`를 확인한 뒤 사람이 판단한다.
+
 AI 모델·태그 sidecar·Qdrant index를 갱신하거나 롤백할 때는
 [`AI 모델·태그·임베딩 Index 운영 Runbook`](../docs/AI_MODEL_TAG_INDEX_RUNBOOK.md)의
 version 기록, alias 전환, health smoke test 순서를 따른다. `AI_INDEX_VERSION`만

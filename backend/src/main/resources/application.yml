@@ -67,6 +67,8 @@ logging:
   level:
     root: INFO
     com.ssafy.b102: ${LOG_LEVEL_APP:DEBUG}   # 운영은 compose 에서 INFO
+  pattern:
+    level: "%5p [traceId:%X{traceId:-}]"
 
 # ── 서비스 설정 (API_SPEC §2) ──
 app:
