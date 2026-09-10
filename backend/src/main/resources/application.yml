@@ -67,6 +67,8 @@ logging:
   level:
     root: INFO
     com.ssafy.b102: ${LOG_LEVEL_APP:DEBUG}   # 운영은 compose 에서 INFO
+  pattern:
+    level: "%5p [traceId:%X{traceId:-}]"
 
 # ── 서비스 설정 (API_SPEC §2) ──
 app:
@@ -95,3 +97,9 @@ app:
     index-name: ${SEARCH_INDEX_NAME:books_v2}                   # 매핑 버전 = 물리 인덱스 이름. resources/elasticsearch/books-*.json 을 바꾸면 여기를 올린다 → 배포 시 자동 재색인·alias 전환
     create-index-on-start: ${SEARCH_CREATE_INDEX_ON_START:true} # 기동 시 alias 가 없으면 생성. ES 가 죽어 있으면 경고만 남기고 기동은 계속
     index-on-start: ${SEARCH_INDEX_ON_START:IF_CREATED}         # PG books → ES 전체 색인(백그라운드). NEVER / IF_CREATED(alias 를 새로 만든 기동만) / ALWAYS
+  recommendation:
+    url: ${AI_RECOMMENDATION_URL:http://localhost:8000}
+    connect-timeout: ${AI_CONNECT_TIMEOUT:2s}
+    read-timeout: ${AI_READ_TIMEOUT:10s}
+    default-size: ${AI_RECOMMENDATION_DEFAULT_SIZE:5}
+    max-size: ${AI_RECOMMENDATION_MAX_SIZE:10}

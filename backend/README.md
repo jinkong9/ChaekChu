@@ -25,6 +25,24 @@ cp .env.example .env      # Spring 과 compose 가 같은 .env 를 읽는다. �
 | http://localhost:9200 | Elasticsearch |
 | localhost:5432 (`book` / `book` / `bookdb`) | PostgreSQL. 호스트에 다른 PG 가 있으면 `.env` 의 `POSTGRES_PORT`·`DB_URL` 을 5433 등으로 |
 
+### 추천 서버 연결
+
+운영 Compose에서는 백엔드가 `AI_RECOMMENDATION_URL=http://ai:8000`으로 FastAPI를 호출한다.
+프론트는 백엔드의 인증 API만 호출하고, AI 주소를 직접 노출하지 않는다.
+
+```text
+GET  /api/v1/recommendations?size=5&tags=소설
+     Authorization: Bearer <service-jwt>
+
+backend -> POST http://ai:8000/internal/v1/recommendations
+           (userId, seedIsbns, excludeIsbns, tags, weights)
+AI 응답 items[].isbn13 -> PostgreSQL books -> items[].book
+```
+
+`GET /api/v1/recommendations`는 로그인 사용자만 사용할 수 있다. `tags`가 없으면 온보딩 관심 태그를 사용하고,
+서재의 `READ` 도서는 seed, 서재의 모든 도서는 exclude로 전달한다. FastAPI 장애는
+`RECOMMENDATION_UNAVAILABLE`로 변환하며, FastAPI가 정상적으로 반환한 `fallback=true`는 오류가 아니다.
+
 ### Windows 에서 한글 경로일 때 (예: `C:\workspace\특화\...`)
 
 `./gradlew test` 가 `ClassNotFoundException: ...BackendApplicationTests` 로 실패하면 경로 인코딩 문제다.
@@ -77,6 +95,7 @@ src/main/java/com/ssafy/b102/
   book/service/PopularBookService.java   # §4.2 3단 세그먼트 규칙(연령+성별 / 연령만 합산 / 전체 합산) · §4.3 홈 링 조립
   book/controller/BookPopularController  # GET /books/popular?size= · GET /books/popular-segments (로그인 필요, PENDING 가능)
   user/controller/TagController.java     # GET /tags — 태그 사전(§10-0). 프론트 GENRES 하드코딩의 원천
+  book/service/KdcCategoryResolver.java  # kdc_codes(V2) 949행을 메모리에 올려 category_code → "문학 > 한국문학" 2단계 경로. refresh() 로 재로드
   library/entity/LibraryItem.java · ShelfStatus(WISH/READ) · LibrarySource(SERVICE/ONBOARDING) · repository/
   search/                                # 도서 검색 (Elasticsearch, API_SPEC §4.1). PG 가 원천, ES 는 읽기 모델
     controller/BookSearchController.java # GET /books/search?q=&page=&size= (로그인 필요). 파라미터 검증 → 400 VALIDATION_FAILED
@@ -90,6 +109,11 @@ src/main/java/com/ssafy/b102/
     service/BookIndexService.java        # 인덱스 생성·alias 전환 · indexAll / indexUpdatedSince(증분, 삭제 미반영) / reindexInto(완전할 때만 alias 이동, 아니면 IncompleteIndexException). 1000건 keyset bulk
     service/BookDocumentMapper.java      # Book 엔티티 → BookDocument
     service/AuthorNameParser.java        # books.author 원문("한강 지음", "지은이: A;그림: B", "A (지은이), B (옮긴이)") → authors 배열. 옮긴이 제외
+  recommendation/                         # GET /recommendations → FastAPI POST /internal/v1/recommendations
+    controller/RecommendationController.java
+    service/RecommendationService.java   # 관심 태그·seed/exclude 구성, AI ISBN → BookSummary 결합
+    client/AiRecommendationClient.java   # RestClient, timeout, AI 장애 변환
+    config/RecommendationProperties.java # app.recommendation.*
 src/main/resources/
   application.yml                     # 환경변수 ${VAR:기본값} 방식. 프로필 파일 없음
   db/migration/V1__init.sql           # Flyway. docs/sql/V1__init.sql 복사본 (1차 10테이블 + 보정 7건). V2 = 추천 데이터 층

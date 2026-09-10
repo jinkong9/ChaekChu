@@ -240,26 +240,36 @@ def fetch(_unused: str, isbn: str) -> dict:
     request = urllib.request.Request(url, headers={
         "Authorization": f"KakaoAK {key}", "User-Agent": "b102-kakao/1.0"})
 
-    for attempt in range(3):
+    # 429 는 **초당 호출 제한**이다 — 일일 쿼터가 아니다 (실측 2026-09-10: 16 워커·326건/초에서 키 1 이 12,941 호출 뒤 429,
+    # 이어 키 3·4 는 0 호출에 429). 예전엔 429 도 키 은퇴로 처리해 키 5개가 40초 만에 전부 「소진」되고 종료됐다.
+    # 429 는 잠깐 쉬고 같은 키로 다시 시도한다. 일일 쿼터 소진은 400 "API limit has been exceeded" 하나로만 판정한다.
+    RATE_LIMIT_ATTEMPTS = 8
+    for attempt in range(RATE_LIMIT_ATTEMPTS):
         if state["stop"]:
             return None
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
                 payload = json.loads(response.read().decode("utf-8", "replace"))
         except HTTPError as error:
+            if error.code == 429:
+                if attempt < RATE_LIMIT_ATTEMPTS - 1:
+                    time.sleep(min(20.0, 0.5 * (2 ** attempt)))   # 0.5 → 1 → 2 → … → 20초
+                    continue
+                note_failure("HTTP 429 지속")
+                return None
             # 카카오는 쿼터 소진을 429 가 아니라 **400** 으로 준다 (실측 2026-08-28).
             #   {"errorType":"BadRequest","message":"API limit has been exceeded.", ...}
             # 400 을 일반 오류로 처리하면 연속 실패만 1,400회 쌓이고 원인을 못 짚는다.
-            if error.code in (400, 429):
+            if error.code == 400:
                 try:
                     detail = error.read().decode("utf-8", "replace")[:200]
                 except Exception:                        # noqa: BLE001
                     detail = ""
-                if error.code == 429 or "limit has been exceeded" in detail:
+                if "limit has been exceeded" in detail:
                     # **전량 정지가 아니라 이 키만 은퇴시킨다.**
                     # 예전에는 declare_block 으로 통째로 멈춰서, 키가 2개인데
                     # 30,000 에서 끝났다 (실측 2026-09-03).
-                    retire_key(key_idx, f"HTTP {error.code} 쿼터 소진")
+                    retire_key(key_idx, "HTTP 400 쿼터 소진")
                     return None
                 note_failure(f"HTTP 400 {detail[:40]}")
                 return None
