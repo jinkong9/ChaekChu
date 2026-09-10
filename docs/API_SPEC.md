@@ -24,10 +24,10 @@
 | | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 |
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | 2차 |
 | 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 |
-| 서재 | `GET /library/me` | ● | LibraryPage* | 구현 대상 |
-| | `POST /library` | ● | RecommendPage · BookDetailPage | 구현 대상 · **응답 본문 필요** |
-| | `PATCH /library/{libraryItemId}` | ● | LibraryList · LibraryPageB | 구현 대상 |
-| | `DELETE /library/{libraryItemId}` | ● | (없음) | 구현 대상 · FE 버튼 추가 |
+| 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
+| | `POST /library` | ● | RecommendPage · BookDetailPage | **구현(09-10)** · FE 연결(응답 본문의 `libraryItemId` 사용) |
+| | `PATCH /library/{libraryItemId}` | ● | LibraryList · LibraryPageB | **구현(09-10)** · FE 연결 |
+| | `DELETE /library/{libraryItemId}` | ● | (없음) | **구현(09-10)** · FE 버튼 추가 |
 | 이벤트 | `POST /events` | ● | `lib/events.ts` | 구현 대상 |
 
 ● = `Authorization: Bearer <JWT>` 필수. 폐기: `GET /recommendations/anonymous`(비회원 추천 없음, FE 도 미호출), `POST /recommendations/tags`(태그 조절은 `GET /recommendations?tags=` 로 흡수).
@@ -372,7 +372,7 @@ LibraryItem {
 
 ### 6.1 `GET /library/me?status=` ●
 
-`status` 없으면 전체. 정렬 `updatedAt` 내림차순. 페이지 없음(사용자 서재는 수백 권 규모) — `{ "items": [ LibraryItem, … ] }`.
+`status` 없으면 전체(`WISH`/`READ`, 대소문자 무관 — 본문과 같은 규칙). 정렬 `updatedAt` 내림차순. 페이지 없음(사용자 서재는 수백 권 규모) — `{ "items": [ LibraryItem, … ] }`.
 
 ### 6.2 `POST /library` ●
 
@@ -380,7 +380,7 @@ LibraryItem {
 { "bookId": "88123", "status": "WISH" }
 ```
 
-**201 + `LibraryItem` 본문.** 지금 mock 은 본문 없이 201 이라 프론트가 새 `libraryItemId` 를 알 수 없다(§9-5). 이미 있으면 `409 LIBRARY_ITEM_EXISTS` + `details.libraryItemId` — 프론트는 그걸로 `PATCH` 하면 된다. `status=READ` 면 `finishedDate=오늘`.
+**201 + `LibraryItem` 본문.** 지금 mock 은 본문 없이 201 이라 프론트가 새 `libraryItemId` 를 알 수 없다(§9-5). 이미 있으면 `409 LIBRARY_ITEM_EXISTS` + `details.libraryItemId` — 프론트는 그걸로 `PATCH` 하면 된다. `status=READ` 면 `finishedDate=오늘`(**Asia/Seoul** 기준, 09-10 확정 — 서버 Clock 은 UTC 라 그대로 쓰면 한국 새벽에 전날이 들어간다). 본문은 `bookId`·`status` 두 필드만(09-10 확정) — 별점·감상은 응답의 `libraryItemId` 로 PATCH.
 
 ### 6.3 `PATCH /library/{libraryItemId}` ●
 
@@ -392,12 +392,18 @@ LibraryItem {
 
 | 규칙 | |
 | --- | --- |
-| `READ` 로 바꾸며 `finishedDate` 가 없으면 | 오늘 |
+| `READ` 로 바꾸며 `finishedDate` 가 없거나 `null` 이면 | 오늘(Asia/Seoul) |
 | `WISH` 로 바꾸면 | `finishedDate=null` |
 | `status` 없이 보내면(평점·감상평만) | `finishedDate` 유지 — 온보딩 seed 의 `null` 도 그대로. `finishedDate` 를 직접 보내면 `READ` 항목에 한해 반영 |
 | `reviewText` | 앞뒤 공백 제거, 빈 문자열 → `null`, 300자 초과 `400` |
 | `rating` | 1~5 정수 또는 `null`(삭제) |
+| 이미 `READ` 인데 `status=READ` 를 다시 보내면 | `finishedDate` 유지(멱등). 온보딩 seed 의 `null` 도 그대로 |
+| `status` 전환 없이 `finishedDate` 에 `null` 을 보내면 | 이미 `READ` 인 항목의 완독일을 지운다(seed 처럼 `null`). `WISH` 항목은 무시 |
+| `rating` | `1~5` 정수 또는 `null`(삭제). 빈 문자열 `""` 은 `400` — 삭제로 오인하지 않는다 |
+| `reviewText` 300자 | 글자(코드포인트) 수 기준 — PG `VARCHAR(300)` 과 같다. 이모지 하나 = 1자 |
+| `status`·`rating`·`reviewText`·`finishedDate` 위반 | 모아서 한 번에 `400 VALIDATION_FAILED`, `details.fields[{field, reason}]` |
 | 타인 항목 | `403` |
+| 없는 항목(숫자가 아닌 id 포함) | `404 LIBRARY_ITEM_NOT_FOUND`, `details.libraryItemId` |
 
 **200 + `LibraryItem`.**
 
