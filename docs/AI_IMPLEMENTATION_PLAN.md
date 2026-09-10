@@ -20,6 +20,10 @@ D4L 100만 건
   → 상위 5개 + 추천 이유
 ```
 
+현재 운영 검증 기준은 GMS `text-embedding-3-small`과 1,536차원 벡터이며, 도서
+임베딩과 태그 prototype은 Qdrant versioned index에 저장한다. 온라인 요청 중에는
+GMS·embedding API를 호출하지 않는다.
+
 ## 2. 데이터 경계
 
 ### 사용하는 입력
@@ -65,6 +69,7 @@ D4L 100만 건
 | #167 | 태그 prototype 임베딩 생성·Qdrant collection 연동 |
 | #168 | 실데이터 end-to-end 추천 smoke·태그 품질 검증 |
 | #169 | Qdrant 태그 prototype·도서 payload 온라인 추천 통합 검증 |
+| #170 | 태그 일치 후보 보강, semantic 후보 병합, tag-only 재랭킹 |
 
 태그 생성·매핑은 #136과 분리된 오프라인 배치 단계로 관리한다. 필요하면 별도 Jira
 하위 작업으로 나누며, 규칙 기반 태그와 GMS LLM 배치 태그를 `source`, `confidence`,
@@ -86,14 +91,11 @@ finalScore =
 
 ## 5. 실행 순서
 
-1. #131 데이터 품질 검증
-2. #132 정규화·inputHash·버전 규칙
-3. 임베딩 배치와 Vector DB 색인
-4. #159 태그 taxonomy·생성·매핑 배치
-5. #135~#141 검색·재랭킹·fallback 구현
-6. #133 오프라인 평가와 기준선 비교
-7. #143 백엔드 통합 테스트
-8. #150 운영 배포
+1. #170 태그 후보 병합·tag-only 재랭킹 — 완료
+2. EC2 1,000건 기준 tag-only·seed-only·seed+tag·exclude smoke
+3. #143 백엔드-FastAPI 통합, timeout·5xx·ISBN 매핑 검증
+4. #150 AI 컨테이너 이미지·모델 캐시·배포 계약 검증
+5. 10만 건 staging 검증 후 100만 건 운영 색인
 
 ## 6. 공통 완료 기준
 

@@ -61,7 +61,7 @@ export QDRANT_TIMEOUT_SECONDS=10
 export EMBEDDING_API_URL=<GMS OpenAI-compatible embeddings endpoint>
 export EMBEDDING_API_KEY=<secret manager에서 주입>
 export EMBEDDING_MODEL=text-embedding-3-small
-export EMBEDDING_DIMENSION=512
+export EMBEDDING_DIMENSION=1536
 ```
 
 Qdrant와 서버 상태를 먼저 확인한다.
@@ -196,16 +196,18 @@ export AI_MODEL_VERSION="$MODEL_VERSION"
 export AI_TAG_VERSION="$TAG_VERSION"
 export QDRANT_TAG_COLLECTION=tags_active
 
-docker compose --env-file ../deploy/.env -f ../deploy/docker-compose.yml up -d --force-recreate ai
-curl -fsS http://127.0.0.1:8000/health
-curl -fsS -X POST http://127.0.0.1:8000/internal/v1/recommendations \
-  -H 'Content-Type: application/json' \
-  -d '{"requestId":"smoke-tag-1","userId":"smoke-user","mode":"PERSONALIZED","size":5,"tags":[{"code":"FANTASY","weight":1}],"weights":{"semantic":0,"tagMatch":1}}'
+COMPOSE="docker compose --env-file ../deploy/.env -f ../deploy/docker-compose.yml"
+$COMPOSE --profile recsys up -d --build --force-recreate qdrant ai
+$COMPOSE exec -T ai python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8000/health", timeout=5).read().decode())'
+$COMPOSE exec -T ai python -c 'import json,urllib.request; p={"requestId":"smoke-tag-1","userId":"smoke-user","mode":"PERSONALIZED","size":5,"tags":[{"code":"FANTASY","weight":1}],"weights":{"semantic":0,"tagMatch":1,"coLoan":0,"trending":0,"steady":0}}; r=urllib.request.Request("http://127.0.0.1:8000/internal/v1/recommendations",data=json.dumps(p).encode(),headers={"Content-Type":"application/json"}); print(urllib.request.urlopen(r,timeout=10).read().decode())'
 ```
 
-응답의 `fallback`, `indexVersion`, `items[].matchedTags`,
-`items[].primaryReason`을 확인한다. prototype 결측·version 불일치·Qdrant timeout이면
-GMS/embedding API를 요청 중 호출하지 않고 명시적인 fallback을 반환해야 한다.
+운영 Compose에서 AI 8000 포트는 Docker 내부에만 노출되므로 호스트의
+`127.0.0.1:8000`으로 직접 호출하지 않는다. 응답의 `fallback`, `indexVersion`,
+`items[].matchedTags`, `items[].primaryReason`을 확인한다. 태그가 있는 요청은
+semantic 후보와 `tagCodes` 필터 후보를 합친 뒤 재랭킹한다. prototype 결측·version
+불일치·Qdrant timeout이면 GMS/embedding API를 요청 중 호출하지 않고 명시적인
+fallback을 반환해야 한다.
 
 ### 3.6 품질 확인과 runtime 반영
 
@@ -293,14 +295,14 @@ export QDRANT_URL=http://127.0.0.1:6333
 export QDRANT_COLLECTION_PREFIX=books
 export QDRANT_COLLECTION=books_active
 export QDRANT_API_KEY=<secret manager에서 주입>
-export EMBEDDING_DIMENSION=512
+export EMBEDDING_DIMENSION=1536
 ```
 
 먼저 이전 collection으로 active alias를 복구한다. 이 명령은 새 데이터를 삭제하지
 않고 alias만 이전 version collection으로 이동한다.
 
 ```bash
-uv run python -c 'import os; from recommendation.embedding_batch import QdrantVersionedIndexStore; QdrantVersionedIndexStore(base_url=os.environ["QDRANT_URL"], collection_prefix=os.environ.get("QDRANT_COLLECTION_PREFIX", "books"), active_alias=os.environ.get("QDRANT_COLLECTION", "books_active"), dimension=int(os.environ.get("EMBEDDING_DIMENSION", "512")), timeout_seconds=10, api_key=os.environ.get("QDRANT_API_KEY") or None).promote(os.environ["PREVIOUS_INDEX_VERSION"])'
+uv run python -c 'import os; from recommendation.embedding_batch import QdrantVersionedIndexStore; QdrantVersionedIndexStore(base_url=os.environ["QDRANT_URL"], collection_prefix=os.environ.get("QDRANT_COLLECTION_PREFIX", "books"), active_alias=os.environ.get("QDRANT_COLLECTION", "books_active"), dimension=int(os.environ.get("EMBEDDING_DIMENSION", "1536")), timeout_seconds=10, api_key=os.environ.get("QDRANT_API_KEY") or None).promote(os.environ["PREVIOUS_INDEX_VERSION"])'
 ```
 
 그 다음 `deploy/.env`를 이전 버전으로 되돌리고 AI만 재생성한다.
