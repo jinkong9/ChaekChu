@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ssafy.b102.book.dto.BookSummaryResponse;
+import com.ssafy.b102.book.dto.PopularBooksResponse;
+import com.ssafy.b102.book.service.PopularBookService;
 import com.ssafy.b102.book.entity.Book;
 import com.ssafy.b102.book.entity.KdcMainClass;
 import com.ssafy.b102.book.repository.BookRepository;
@@ -41,23 +43,28 @@ public class RecommendationService {
 	private static final RecommendationWeights DEFAULT_WEIGHTS = new RecommendationWeights(0.45, 0.25, 0.15, 0.10, 0.05);
 	private static final String DEFAULT_REASON_TYPE = "SEGMENT_POPULAR";
 	private static final String DEFAULT_REASON_TEXT = "지금 추천 후보로 살펴볼 만한 책이에요.";
+	private static final String POPULAR_MODEL_VERSION = "segment-popular-v1";
+	private static final String POPULAR_INDEX_VERSION = "book-loaned-top20";
 
 	private final AiRecommendationClient aiClient;
 	private final UserService userService;
 	private final UserInterestRepository userInterestRepository;
 	private final LibraryItemRepository libraryItemRepository;
 	private final BookRepository bookRepository;
+	private final PopularBookService popularBookService;
 	private final RecommendationProperties properties;
 	private final Clock clock;
 
 	public RecommendationService(AiRecommendationClient aiClient, UserService userService,
 		UserInterestRepository userInterestRepository, LibraryItemRepository libraryItemRepository,
-		BookRepository bookRepository, RecommendationProperties properties, Clock clock) {
+		BookRepository bookRepository, PopularBookService popularBookService,
+		RecommendationProperties properties, Clock clock) {
 		this.aiClient = aiClient;
 		this.userService = userService;
 		this.userInterestRepository = userInterestRepository;
 		this.libraryItemRepository = libraryItemRepository;
 		this.bookRepository = bookRepository;
+		this.popularBookService = popularBookService;
 		this.properties = properties;
 		this.clock = clock;
 	}
@@ -86,12 +93,48 @@ public class RecommendationService {
 			.map(code -> new AiRecommendationRequest.TagPreference(code, 1.0))
 			.toList();
 		String mode = seedIsbns.isEmpty() && tags.isEmpty() ? "COLD_START" : "PERSONALIZED";
+		Instant generatedAt = Instant.now(clock);
+		if ("COLD_START".equals(mode)) {
+			RecommendationResponse popularResponse = fromSegmentPopularity(userId, size, excludeIsbns, generatedAt);
+			if (popularResponse != null) {
+				return popularResponse;
+			}
+		}
 
 		AiRecommendationRequest request = new AiRecommendationRequest(
 			"req-" + UUID.randomUUID(), String.valueOf(userId), mode, size,
 			seedIsbns, excludeIsbns, tags, DEFAULT_WEIGHTS);
 		AiRecommendationResponse aiResponse = aiClient.recommend(request);
-		return toResponse(aiResponse, request, seedIsbns.size(), Instant.now(clock));
+		return toResponse(aiResponse, request, seedIsbns.size(), generatedAt);
+	}
+
+	private RecommendationResponse fromSegmentPopularity(Long userId, int size, List<String> excludeIsbns,
+		Instant generatedAt) {
+		PopularBooksResponse popular = popularBookService.popularFor(userId, PopularBookService.MAX_SIZE);
+		if (popular.items().isEmpty()) {
+			return null;
+		}
+
+		List<BookSummaryResponse> candidates = popular.items().stream()
+			.filter(book -> !excludeIsbns.contains(book.isbn13()))
+			.limit(size)
+			.toList();
+		if (candidates.isEmpty()) {
+			return null;
+		}
+
+		String reasonText = popular.segment() == null
+			? "전체 이용자에게 많이 대출된 책이에요."
+			: popular.segment().label() + "에서 많이 대출된 책이에요.";
+		List<RecommendationResponse.Item> items = new ArrayList<>();
+		for (int i = 0; i < candidates.size(); i++) {
+			items.add(new RecommendationResponse.Item(
+				candidates.get(i), i + 1, 100.0 - i, List.of(), List.of(),
+				DEFAULT_REASON_TYPE, reasonText));
+		}
+		return new RecommendationResponse(
+			"rec-" + UUID.randomUUID(), generatedAt, "COLD_START", true, 0,
+			Map.of(), List.of(), POPULAR_MODEL_VERSION, POPULAR_INDEX_VERSION, items);
 	}
 
 	private RecommendationResponse toResponse(AiRecommendationResponse ai, AiRecommendationRequest request,

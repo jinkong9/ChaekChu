@@ -70,12 +70,22 @@ public class PopularBookService {
 		List<PopularRow> rows;
 		if (age != null && gender != null) {
 			rows = repository.findSegment(period.get(), age, gender, size);
+			if (rows.isEmpty()) {
+				// 특정 성별 세그먼트가 아직 적재되지 않은 경우 같은 연령대 전체로 완화한다.
+				rows = repository.findAggregated(period.get(), List.of(age), size);
+				segment = rows.isEmpty() ? null : new PopularBooksResponse.SegmentInfo(age, null, segmentLabel(age, null));
+			}
 		}
 		else if (age != null) {
 			rows = repository.findAggregated(period.get(), List.of(age), size);
 		}
 		else {
 			rows = repository.findAggregated(period.get(), List.of(), size);
+		}
+		if (rows.isEmpty() && age != null) {
+			// 연령대도 비어 있으면 전체 세그먼트 인기순으로 마지막 완화한다.
+			rows = repository.findAggregated(period.get(), List.of(), size);
+			segment = null;
 		}
 		return new PopularBooksResponse(segment, rows.stream().map(PopularBookService::toSummary).toList());
 	}
