@@ -21,6 +21,7 @@ public enum ErrorCode {
 	ONBOARDING_REQUIRED(HttpStatus.CONFLICT, "온보딩을 먼저 완료해야 합니다."),
 	RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다."),
 	SEARCH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "검색 서비스를 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+	RECOMMENDATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "추천 서비스를 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 
 	private final HttpStatus status;
