@@ -8,7 +8,10 @@ from recommendation.tag_prototype import QdrantTagPrototypeIndexStore
 from recommendation.vector_search import (
     CandidateHit,
     CandidateSearchResponse,
+    CandidateSearchService,
+    InMemoryVectorIndex,
     QdrantQueryVectorStore,
+    VectorRecord,
     SearchStatus,
 )
 
@@ -114,3 +117,45 @@ def test_online_engine_uses_candidate_payload_tags_for_match_and_reason() -> Non
     assert [item.isbn13 for item in result.items] == ["9780000000001"]
     assert result.items[0].matchedTags == ["FANTASY"]
     assert result.items[0].primaryReason.type == "TAG_MATCH"
+
+
+def test_online_engine_unions_tag_candidates_before_tag_only_ranking() -> None:
+    version = "index-v1"
+    query_store = QdrantQueryVectorStore(
+        base_url="http://qdrant:6333",
+        index_version=version,
+        tag_collection="tags_active",
+        opener=lambda request, timeout: _Response({"result": {"vector": [1.0, 0.0]}}),
+    )
+    index = InMemoryVectorIndex(
+        [
+            VectorRecord("9780000000001", (1.0, 0.0), {"isbn13": "9780000000001", "tagCodes": ["FIC"]}),
+            VectorRecord(
+                "9780000000002",
+                (0.1, 0.9),
+                {"isbn13": "9780000000002", "tagCodes": ["FANTASY"], "tagScores": {"FANTASY": 1.0}},
+            ),
+        ],
+        index_version=version,
+    )
+    engine = IndexedRecommendationEngine(
+        query_builder=QueryVectorBuilder(query_store, index_version=version),
+        search_service=CandidateSearchService(index),
+    )
+
+    result = engine.recommend(
+        RecommendationRequest(
+            requestId="request-tag-candidate-union",
+            userId="user-tag-only",
+            mode="PERSONALIZED",
+            size=1,
+            tags=[{"code": "FANTASY", "weight": 1}],
+            weights={"semantic": 0, "tagMatch": 1},
+        )
+    )
+
+    assert result.fallback is False
+    assert [item.isbn13 for item in result.items] == ["9780000000002"]
+    assert result.items[0].matchedTags == ["FANTASY"]
+    assert result.items[0].primaryReason.type == "TAG_MATCH"
+    assert result.items[0].featureScores["tagMatch"] == 100.0
