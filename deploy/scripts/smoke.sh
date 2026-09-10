@@ -53,7 +53,8 @@ command -v curl >/dev/null || { echo "curl 이 필요합니다." >&2; exit 2; }
 
 check() {
   local name="$1" method="$2" url="$3" expected="$4" body="${5:-}"
-  local id="smoke-$(date +%s)-$((RANDOM % 100000))"
+  local id
+  id="smoke-$(date +%s)-$((RANDOM % 100000))"
   local headers="$tmp_dir/headers-$passed-$failed" response="$tmp_dir/body-$passed-$failed" status actual_trace
   local -a args=(--silent --show-error --max-time "$TIMEOUT" --request "$method" "$url"
     --dump-header "$headers" --output "$response" --write-out '%{http_code}'
