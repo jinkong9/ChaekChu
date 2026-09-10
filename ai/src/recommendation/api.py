@@ -32,6 +32,7 @@ from recommendation.vector_search import (
 RecommendationMode = Literal["COLD_START", "PERSONALIZED"]
 ReasonType = Literal["CO_LOAN", "MANIA_REC", "READER_REC", "SAME_AUTHOR", "SAME_CATEGORY", "DEMAND_POPULAR"]
 RELATION_FIELDS = ("co_loan", "mania_rec", "reader_rec")
+RRF_K = 60
 MONTH_PATTERN = re.compile(r"^\d{4}년 (0[1-9]|1[0-2])월$")
 
 
@@ -514,11 +515,19 @@ def _merge_candidate_searches(
         return primary
 
     unique: dict[str, CandidateHit] = {}
-    for candidate in (*primary.items, *secondary.items):
-        current = unique.get(candidate.isbn13)
-        if current is None or (candidate.score, candidate.isbn13) > (current.score, current.isbn13):
-            unique[candidate.isbn13] = candidate
-    items = tuple(sorted(unique.values(), key=lambda item: (-item.score, item.isbn13))[:requested_limit])
+    rrf_scores: dict[str, float] = {}
+    for items in (primary.items, secondary.items):
+        for rank, candidate in enumerate(items, start=1):
+            rrf_scores[candidate.isbn13] = rrf_scores.get(candidate.isbn13, 0.0) + 1 / (RRF_K + rank)
+            current = unique.get(candidate.isbn13)
+            if current is None or (candidate.score, candidate.isbn13) > (current.score, current.isbn13):
+                unique[candidate.isbn13] = candidate
+    items = tuple(
+        sorted(
+            unique.values(),
+            key=lambda item: (-rrf_scores[item.isbn13], -item.score, item.isbn13),
+        )[:requested_limit]
+    )
 
     if len(items) >= minimum_count:
         status = SearchStatus.OK
@@ -543,6 +552,8 @@ def _merge_candidate_searches(
         search_params={
             "candidateLimit": requested_limit,
             "candidateSources": ["semantic", "tag-filtered"],
+            "fusion": "rrf",
+            "rrfK": RRF_K,
             "semanticReturned": primary.returned_count,
             "tagReturned": secondary.returned_count,
         },

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from recommendation.api import IndexedRecommendationEngine, RecommendationRequest
+from recommendation.api import IndexedRecommendationEngine, RecommendationRequest, _merge_candidate_searches
 from recommendation.query_vector import QueryVectorBuilder
 from recommendation.tag_prototype import QdrantTagPrototypeIndexStore
 from recommendation.vector_search import (
@@ -159,3 +159,42 @@ def test_online_engine_unions_tag_candidates_before_tag_only_ranking() -> None:
     assert result.items[0].matchedTags == ["FANTASY"]
     assert result.items[0].primaryReason.type == "TAG_MATCH"
     assert result.items[0].featureScores["tagMatch"] == 100.0
+
+
+def test_candidate_sources_are_fused_by_deterministic_rrf() -> None:
+    primary = CandidateSearchResponse(
+        status=SearchStatus.OK,
+        index_version="index-v1",
+        requested_limit=3,
+        returned_count=3,
+        items=(
+            CandidateHit("9780000000001", 0.99, {}),
+            CandidateHit("9780000000002", 0.98, {}),
+            CandidateHit("9780000000003", 0.97, {}),
+        ),
+    )
+    secondary = CandidateSearchResponse(
+        status=SearchStatus.OK,
+        index_version="index-v1",
+        requested_limit=3,
+        returned_count=2,
+        items=(
+            CandidateHit("9780000000003", 0.10, {}),
+            CandidateHit("9780000000004", 0.09, {}),
+        ),
+    )
+
+    result = _merge_candidate_searches(
+        primary,
+        secondary,
+        requested_limit=3,
+        minimum_count=1,
+    )
+
+    assert [item.isbn13 for item in result.items] == [
+        "9780000000003",
+        "9780000000001",
+        "9780000000002",
+    ]
+    assert result.search_params["fusion"] == "rrf"
+    assert result.search_params["rrfK"] == 60
