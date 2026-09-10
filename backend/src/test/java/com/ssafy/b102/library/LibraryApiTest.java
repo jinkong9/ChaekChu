@@ -121,6 +121,18 @@ class LibraryApiTest {
 	}
 
 	@Test
+	@DisplayName("status 필터: 소문자 ?status=wish 도 본문과 같은 규칙으로 받는다(WebMvcConfig Converter)")
+	void mine_filterCaseInsensitive() throws Exception {
+		insertLibrary(userId, wishBook, "WISH", null, null, null, "SERVICE", 1);
+		insertLibrary(userId, readBook, "READ", 4, null, "2026-09-01", "SERVICE", 2);
+
+		mvc.perform(get(ME).param("status", "wish").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].status").value("WISH"));
+	}
+
+	@Test
 	@DisplayName("빈 서재 → 200, items []")
 	void mine_empty() throws Exception {
 		mvc.perform(get(ME).header(HttpHeaders.AUTHORIZATION, bearer))
@@ -291,6 +303,19 @@ class LibraryApiTest {
 	}
 
 	@Test
+	@DisplayName("수정 WISH→READ 인데 finishedDate 를 명시적 null 로 보냄: 「없음」과 같이 오늘 — seed 처럼 null 이 되면 안 된다")
+	void patch_wishToRead_explicitNullDate_fillsToday() throws Exception {
+		Long id = insertLibrary(userId, wishBook, "WISH", null, null, null, "SERVICE", 1);
+		String todaySeoul = LocalDate.now(ZoneId.of("Asia/Seoul")).toString();
+
+		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"READ\",\"finishedDate\":null}"))   // 날짜 입력을 비워 둔 폼이 이렇게 보낸다
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("READ"))
+			.andExpect(jsonPath("$.finishedDate").value(todaySeoul));
+	}
+
+	@Test
 	@DisplayName("수정 READ→WISH: 완독일 null, 평점·감상은 남는다(계약 §4.2)")
 	void patch_readToWish_clearsFinishedKeepsRating() throws Exception {
 		Long id = insertLibrary(userId, readBook, "READ", 4, "좋았다", "2026-09-01", "SERVICE", 1);
@@ -408,9 +433,26 @@ class LibraryApiTest {
 			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
 			.andExpect(jsonPath("$.details.fields[*].field").value(Matchers.containsInAnyOrder("status", "rating", "reviewText", "finishedDate")));
 
-		// 정확히 300자는 통과
+		// 정확히 300자는 통과. 이모지(UTF-16 2단위) 300개도 「300자」 — PG VARCHAR(300) 과 같은 코드포인트 기준
 		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
 				.content("{\"reviewText\":\"" + "가".repeat(300) + "\"}"))
+			.andExpect(status().isOk());
+		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"reviewText\":\"" + "📚".repeat(300) + "\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.reviewText").value("📚".repeat(300)));
+
+		// rating "" 는 삭제(null)로 오인하지 않고 400. "4"(문자열 숫자) 는 4
+		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"rating\":\"\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.details.fields[0].field").value("rating"));
+		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"rating\":\"3\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.rating").value(3));
+		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"rating\":4}"))
 			.andExpect(status().isOk());
 
 		Map<String, Object> row = jdbc.queryForMap("select status, rating, finished_at from user_library where id = ?", id);

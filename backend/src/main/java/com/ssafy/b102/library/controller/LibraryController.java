@@ -48,7 +48,7 @@ public class LibraryController {
 
 	@Operation(summary = "내 서재 조회", description = """
 		JWT 사용자의 서재 전체를 updatedAt 내림차순으로 돌려준다. 페이지 없음(수백 권 규모). 비어 있으면 { "items": [] }.
-		`status=WISH` 또는 `status=READ` 로 한 갈래만 볼 수 있다(대문자, 그 외 값은 400). 각 항목의 `libraryItemId` 를 PATCH/DELETE 에 쓴다.""")
+		`status=WISH` 또는 `status=READ` 로 한 갈래만 볼 수 있다(대소문자 무관, 그 외 값은 400). 각 항목의 `libraryItemId` 를 PATCH/DELETE 에 쓴다.""")
 	@ApiResponses({
 		@ApiResponse(responseCode = "200", description = "서재 목록"),
 		@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED — status 가 WISH/READ 가 아님. details.fields[{field: status}]", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
@@ -80,10 +80,10 @@ public class LibraryController {
 
 	@Operation(summary = "서재 항목 부분 갱신 — 상태·별점·감상·완독일", description = """
 		보낸 필드만 바꾼다. 키를 빼면 유지, `rating`·`reviewText`·`finishedDate` 에 null 을 보내면 지운다.
-		`status=READ` 로 바꾸며 `finishedDate` 가 없으면 오늘(Asia/Seoul). 이미 READ 인데 READ 를 다시 보내면 완독일 유지(멱등).
+		`status=READ` 로 바꾸며 `finishedDate` 가 없거나 null 이면 오늘(Asia/Seoul). 이미 READ 인데 READ 를 다시 보내면 완독일 유지(멱등).
 		`status=WISH` 로 바꾸면 `finishedDate=null`(평점·감상은 남는다).
 		`status` 없이 `finishedDate` 만 보내면 READ 항목에 한해 반영 — WISH 항목은 무시. 온보딩 seed(READ·완독일 null)에 별점만 고쳐도 null 은 그대로다.
-		`reviewText` 는 앞뒤 공백 제거, 빈 문자열은 null, 300자 초과 400. `rating` 은 1~5 정수 또는 null. 검증 위반은 모아서 한 번에 400.""")
+		`reviewText` 는 앞뒤 공백 제거, 빈 문자열은 null, 300자(글자 수) 초과 400. `rating` 은 1~5 정수 또는 null — 빈 문자열은 400. 검증 위반은 모아서 한 번에 400.""")
 	@ApiResponses({
 		@ApiResponse(responseCode = "200", description = "갱신된 LibraryItem"),
 		@ApiResponse(responseCode = "400", description = "VALIDATION_FAILED — details.fields[{field, reason}] (status·rating·reviewText·finishedDate)", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),

@@ -371,7 +371,7 @@ LibraryItem {
 
 ### 6.1 `GET /library/me?status=` ●
 
-`status` 없으면 전체. 정렬 `updatedAt` 내림차순. 페이지 없음(사용자 서재는 수백 권 규모) — `{ "items": [ LibraryItem, … ] }`.
+`status` 없으면 전체(`WISH`/`READ`, 대소문자 무관 — 본문과 같은 규칙). 정렬 `updatedAt` 내림차순. 페이지 없음(사용자 서재는 수백 권 규모) — `{ "items": [ LibraryItem, … ] }`.
 
 ### 6.2 `POST /library` ●
 
@@ -391,13 +391,15 @@ LibraryItem {
 
 | 규칙 | |
 | --- | --- |
-| `READ` 로 바꾸며 `finishedDate` 가 없으면 | 오늘 |
+| `READ` 로 바꾸며 `finishedDate` 가 없거나 `null` 이면 | 오늘(Asia/Seoul) |
 | `WISH` 로 바꾸면 | `finishedDate=null` |
 | `status` 없이 보내면(평점·감상평만) | `finishedDate` 유지 — 온보딩 seed 의 `null` 도 그대로. `finishedDate` 를 직접 보내면 `READ` 항목에 한해 반영 |
 | `reviewText` | 앞뒤 공백 제거, 빈 문자열 → `null`, 300자 초과 `400` |
 | `rating` | 1~5 정수 또는 `null`(삭제) |
 | 이미 `READ` 인데 `status=READ` 를 다시 보내면 | `finishedDate` 유지(멱등). 온보딩 seed 의 `null` 도 그대로 |
-| `finishedDate` 에 `null` 을 보내면 | `READ` 항목의 완독일을 지운다(seed 처럼 `null`). `WISH` 항목은 무시 |
+| `status` 전환 없이 `finishedDate` 에 `null` 을 보내면 | 이미 `READ` 인 항목의 완독일을 지운다(seed 처럼 `null`). `WISH` 항목은 무시 |
+| `rating` | `1~5` 정수 또는 `null`(삭제). 빈 문자열 `""` 은 `400` — 삭제로 오인하지 않는다 |
+| `reviewText` 300자 | 글자(코드포인트) 수 기준 — PG `VARCHAR(300)` 과 같다. 이모지 하나 = 1자 |
 | `status`·`rating`·`reviewText`·`finishedDate` 위반 | 모아서 한 번에 `400 VALIDATION_FAILED`, `details.fields[{field, reason}]` |
 | 타인 항목 | `403` |
 | 없는 항목(숫자가 아닌 id 포함) | `404 LIBRARY_ITEM_NOT_FOUND`, `details.libraryItemId` |

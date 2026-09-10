@@ -84,14 +84,14 @@ public class LibraryItem {
 
 	/**
 	 * 서재 API(POST /library)로 담는 행 — source=SERVICE.
-	 * READ 면 서비스가 넘긴 완독일(Asia/Seoul 오늘)을 쓰고, WISH 면 무조건 null(CHECK ck_ul_finished).
+	 * 「WISH 면 완독일 없음」(CHECK ck_ul_finished) 규칙은 여기 한 곳이 가진다: 서비스는 오늘(Asia/Seoul)을 그냥 넘기고, READ 일 때만 쓴다.
 	 */
-	public static LibraryItem serviceEntry(User user, Book book, ShelfStatus status, LocalDate finishedAt) {
+	public static LibraryItem serviceEntry(User user, Book book, ShelfStatus status, LocalDate today) {
 		LibraryItem li = new LibraryItem();
 		li.user = user;
 		li.book = book;
 		li.status = status;
-		li.finishedAt = status == ShelfStatus.READ ? finishedAt : null;
+		li.finishedAt = status == ShelfStatus.READ ? today : null;
 		li.source = LibrarySource.SERVICE;
 		return li;
 	}

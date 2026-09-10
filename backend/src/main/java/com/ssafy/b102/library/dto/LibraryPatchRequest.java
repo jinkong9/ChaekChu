@@ -17,8 +17,12 @@ public class LibraryPatchRequest {
 	@Schema(description = "WISH | READ (대소문자 무관). READ 로 바꾸며 finishedDate 가 없으면 오늘(Asia/Seoul), WISH 로 바꾸면 finishedDate=null", allowableValues = {"WISH", "READ"}, example = "READ", nullable = true)
 	private String status;
 
-	@Schema(description = "별점 1~5 정수. null 이면 삭제", example = "4", nullable = true)
-	private Integer rating;
+	/**
+	 * Integer 가 아니라 String 인 이유: Jackson 이 Integer 필드에 "" 를 null 로 조용히 바꿔(빈 문자열 → 삭제로 오인) 별점이 지워진다.
+	 * 문자열로 받아 서비스가 빈 값은 400, 숫자면 1~5 검사. JSON 숫자 4 도 문자열 "4" 로 들어온다.
+	 */
+	@Schema(description = "별점 1~5 정수. null 이면 삭제", type = "integer", example = "4", nullable = true)
+	private String rating;
 	private boolean ratingSent;
 
 	@Schema(description = "한 줄 감상 ≤300자. 앞뒤 공백 제거, 빈 문자열·null 이면 삭제", example = "전개가 빠르다.", nullable = true)
@@ -37,12 +41,12 @@ public class LibraryPatchRequest {
 		this.status = status;
 	}
 
-	public Integer getRating() {
+	public String getRating() {
 		return rating;
 	}
 
 	@JsonSetter(nulls = Nulls.SET)
-	public void setRating(Integer rating) {
+	public void setRating(String rating) {
 		this.rating = rating;
 		this.ratingSent = true;
 	}

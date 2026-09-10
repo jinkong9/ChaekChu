@@ -13,6 +13,10 @@ public interface LibraryItemRepository extends JpaRepository<LibraryItem, Long> 
 
 	Optional<LibraryItem> findByUserIdAndBookId(Long userId, Long bookId);
 
+	/** PATCH/DELETE 한 건 — 응답이 book 을 펼치므로 함께 읽어 두 번째 SELECT 를 막는다. */
+	@EntityGraph(attributePaths = "book")
+	Optional<LibraryItem> findWithBookById(Long id);
+
 	/** 서재 전체(GET /library/me)·추천 seed. 응답이 book 을 항상 펼치므로 함께 읽어 N+1 을 막는다. */
 	@EntityGraph(attributePaths = "book")
 	List<LibraryItem> findByUser_IdOrderByUpdatedAtDesc(Long userId);
