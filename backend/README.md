@@ -89,7 +89,8 @@ src/main/java/com/ssafy/b102/
     controller/UserController.java    # GET /users/me · POST /users/me/profile · POST /users/me/preferences (API_SPEC §3)
   book/entity/Book.java · repository/    # V1 books 읽기 매핑 (채우는 주체는 배치)
   book/dto/BookSummaryResponse.java      # API_SPEC §1.5 BookSummary — 검색·인기·추천·서재 공통 원소
-  book/entity/KdcMainClass.java          # KDC 대분류 10개 → category 라벨("문학"). kdc_codes 는 V2
+  book/entity/KdcMainClass.java          # KDC 대분류 10개 — kdc_codes 를 못 읽을 때의 폴백
+  book/service/KdcCategoryResolver.java  # kdc_codes(V2) 949행을 메모리에 올려 category_code → "문학 > 한국문학" 2단계 경로. refresh() 로 재로드
   library/entity/LibraryItem.java · ShelfStatus(WISH/READ) · LibrarySource(SERVICE/ONBOARDING) · repository/
   search/                                # 도서 검색 (Elasticsearch, API_SPEC §4.1). PG 가 원천, ES 는 읽기 모델
     controller/BookSearchController.java # GET /books/search?q=&page=&size= (로그인 필요). 파라미터 검증 → 400 VALIDATION_FAILED

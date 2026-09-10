@@ -2,7 +2,7 @@ package com.ssafy.b102.book.entity;
 
 /**
  * KDC(한국십진분류) 대분류 10개 — books.category_code 첫 자리 → 표시 라벨.
- * V1 에는 kdc_codes 사전이 없어 API 의 category("문학 > 한국소설")를 1단계까지만 만든다. V2 에서 kdc_codes 로 2단계 경로로 바꾼다.
+ * kdc_codes(V2) 를 못 읽을 때 KdcCategoryResolver 가 쓰는 폴백. 평소 category 는 resolver 가 2단계 경로로 만든다.
  */
 public enum KdcMainClass {
 	GENERAL('0', "총류"),

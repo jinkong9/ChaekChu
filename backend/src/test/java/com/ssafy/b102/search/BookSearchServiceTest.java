@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +20,7 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.elasticsearch.NoSuchIndexException;
 
 import com.ssafy.b102.book.dto.BookSummaryResponse;
+import com.ssafy.b102.book.service.KdcCategoryResolver;
 import com.ssafy.b102.global.error.BusinessException;
 import com.ssafy.b102.global.error.ErrorCode;
 import com.ssafy.b102.search.document.BookDocument;
@@ -31,7 +33,8 @@ import com.ssafy.b102.search.service.BookSearchService;
 class BookSearchServiceTest {
 
 	private final BookSearchRepository repository = mock(BookSearchRepository.class);
-	private final BookSearchService service = new BookSearchService(repository);
+	private final BookSearchService service = new BookSearchService(repository,
+		KdcCategoryResolver.fromLabels(Map.of("8", "문학", "81", "한국문학")));
 
 	private static final BookDocument DOC = BookDocument.builder()
 		.id(88123L).isbn13("9788936434120").title("소년이 온다").authors(List.of("한강")).authorRaw("한강 지음")
@@ -39,7 +42,7 @@ class BookSearchServiceTest {
 		.build();
 
 	@Test
-	@DisplayName("일반 검색어: repository.search 결과를 BookSummary 로 — bookId 문자열, category 대분류, pageCount null")
+	@DisplayName("일반 검색어: repository.search 결과를 BookSummary 로 — bookId 문자열, category 2단계 경로, pageCount null")
 	void maps_document_to_summary() {
 		when(repository.search("소년이 온다", 0, 20)).thenReturn(new BookSearchResult(1, List.of(DOC)));
 
@@ -57,7 +60,7 @@ class BookSearchServiceTest {
 		assertThat(s.publicationYear()).isEqualTo(2014);
 		assertThat(s.coverUrl()).isEqualTo("https://img/1.jpg");
 		assertThat(s.pageCount()).isNull();
-		assertThat(s.category()).isEqualTo("문학");
+		assertThat(s.category()).isEqualTo("문학 > 한국문학");
 		assertThat(s.classNo()).isEqualTo("813.7");
 	}
 
