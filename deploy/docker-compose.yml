@@ -62,7 +62,9 @@ services:
       - "127.0.0.1:18080:8080"           # 호스트에서 헬스체크·디버그용. 외부 공개 아님
     environment:
       SERVER_PORT: "8080"
-      AI_RECOMMENDATION_URL: http://ai:${AI_PORT:-8000}
+      AI_RECOMMENDATION_URL: ${AI_RECOMMENDATION_URL:-http://ai:8000}
+      AI_CONNECT_TIMEOUT: ${AI_CONNECT_TIMEOUT:-2s}
+      AI_READ_TIMEOUT: ${AI_READ_TIMEOUT:-10s}
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-bookdb}
       DB_USERNAME: ${POSTGRES_USER:-book}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 필요}
@@ -88,6 +90,8 @@ services:
       postgres:
         condition: service_healthy
       elasticsearch:
+        condition: service_healthy
+      ai:
         condition: service_healthy
     mem_limit: 1536m
     stop_grace_period: 30s               # Spring graceful shutdown 이 요청을 끝낼 시간 (compose 기본 10s)
