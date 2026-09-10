@@ -56,6 +56,24 @@ def test_in_memory_search_reports_candidate_shortage() -> None:
     assert response.returned_count == 1
 
 
+def test_in_memory_search_can_restrict_candidates_to_any_requested_tag() -> None:
+    service = CandidateSearchService(
+        InMemoryVectorIndex(
+            [
+                VectorRecord("9780000000001", (1.0, 0.0), {"tagCodes": ["FIC"]}),
+                VectorRecord("9780000000002", (0.9, 0.1), {"tagCodes": ["FANTASY", "FIC"]}),
+                VectorRecord("9780000000003", (0.8, 0.2), {"tagCodes": ["HISTORY"]}),
+            ],
+            index_version="v1",
+        )
+    )
+
+    response = service.search_by_tags(_request(limit=10), ["FANTASY"])
+
+    assert [item.isbn13 for item in response.items] == ["9780000000002"]
+    assert response.status is SearchStatus.CANDIDATE_SHORTAGE
+
+
 def test_in_memory_search_uses_isbn_as_tie_breaker() -> None:
     service = CandidateSearchService(
         InMemoryVectorIndex(
@@ -143,6 +161,33 @@ def test_qdrant_adapter_sends_active_index_and_hard_exclusion_filter() -> None:
     assert response.status is SearchStatus.CANDIDATE_SHORTAGE
     assert response.returned_count == 1
     assert [item.isbn13 for item in response.items] == ["9780000000003"]
+
+
+def test_qdrant_adapter_sends_requested_tag_filter() -> None:
+    captured: dict[str, object] = {}
+
+    class Response:
+        def read(self) -> bytes:
+            return json.dumps({"result": []}).encode("utf-8")
+
+    def opener(request, timeout):
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        return Response()
+
+    adapter = QdrantVectorIndex(
+        base_url="http://qdrant:6333",
+        collection="books",
+        index_version="v1",
+        opener=opener,
+    )
+
+    CandidateSearchService(adapter).search(_request(limit=5, tag_codes={"FANTASY", "FIC"}))
+
+    body = captured["body"]
+    assert body["filter"]["should"] == [
+        {"key": "tagCodes", "match": {"value": "FANTASY"}},
+        {"key": "tagCodes", "match": {"value": "FIC"}},
+    ]
 
 
 def test_qdrant_query_vector_store_reads_book_and_named_tag_vectors() -> None:

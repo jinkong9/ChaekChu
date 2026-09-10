@@ -77,7 +77,15 @@ class RecommendationFallbackPolicy:
             raise ValueError("requested_size must be between 1 and 300")
         excluded = frozenset(exclude_isbns)
         seeds = frozenset(seed_isbns)
-        search_items = _filtered_candidates(search.items, exclude_isbns=excluded, seed_isbns=seeds, limit=size)
+        # Keep the full retrieved pool until hybrid ranking. Truncating here
+        # to the API response size can discard a lower-semantic-score tag
+        # candidate before tagMatch has a chance to affect its final rank.
+        search_items = _filtered_candidates(
+            search.items,
+            exclude_isbns=excluded,
+            seed_isbns=seeds,
+            limit=max(size, search.requested_limit),
+        )
 
         if search.status is SearchStatus.OK and len(search_items) >= size:
             return FallbackResult(

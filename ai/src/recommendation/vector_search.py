@@ -45,6 +45,7 @@ class CandidateSearchRequest:
     limit: int = 100
     exclude_isbns: frozenset[str] = field(default_factory=frozenset)
     seed_isbns: frozenset[str] = field(default_factory=frozenset)
+    tag_codes: frozenset[str] = field(default_factory=frozenset)
     index_version: str | None = None
 
     def __post_init__(self) -> None:
@@ -56,6 +57,7 @@ class CandidateSearchRequest:
         object.__setattr__(self, "query_vector", vector)
         object.__setattr__(self, "exclude_isbns", frozenset(self.exclude_isbns))
         object.__setattr__(self, "seed_isbns", frozenset(self.seed_isbns))
+        object.__setattr__(self, "tag_codes", frozenset(code.strip() for code in self.tag_codes if code.strip()))
 
     @property
     def hard_excluded_isbns(self) -> frozenset[str]:
@@ -125,6 +127,13 @@ class InMemoryVectorIndex:
                 continue
             if record.isbn13 in request.hard_excluded_isbns:
                 continue
+            if request.tag_codes:
+                raw_codes = record.payload.get("tagCodes", record.payload.get("tag_codes"))
+                candidate_codes = {
+                    code.strip() for code in raw_codes if isinstance(code, str) and code.strip()
+                } if isinstance(raw_codes, (list, tuple, set)) else set()
+                if not request.tag_codes & candidate_codes:
+                    continue
             score = _cosine(request.query_vector, record.vector)
             scored.append(CandidateHit(record.isbn13, round(score, 8), dict(record.payload)))
         scored.sort(key=lambda hit: (-hit.score, hit.isbn13))
@@ -170,6 +179,11 @@ class QdrantVectorIndex:
                 "must_not": must_not,
             },
         }
+        if request.tag_codes:
+            body["filter"]["should"] = [
+                {"key": "tagCodes", "match": {"value": code}}
+                for code in sorted(request.tag_codes)
+            ]
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["api-key"] = self.api_key
@@ -303,6 +317,7 @@ class CandidateSearchService:
             "candidateLimit": request.limit,
             "excludeCount": len(request.exclude_isbns),
             "seedCount": len(request.seed_isbns),
+            "tagCount": len(request.tag_codes),
             "activeOnly": True,
         }
         try:
@@ -334,3 +349,20 @@ class CandidateSearchService:
             items=items,
             search_params=search_params,
         )
+
+    def search_by_tags(
+        self,
+        request: CandidateSearchRequest,
+        tag_codes: Iterable[str],
+    ) -> CandidateSearchResponse:
+        """Search the same index while restricting candidates to requested tags."""
+
+        tagged_request = CandidateSearchRequest(
+            query_vector=request.query_vector,
+            limit=request.limit,
+            exclude_isbns=request.exclude_isbns,
+            seed_isbns=request.seed_isbns,
+            tag_codes=frozenset(tag_codes),
+            index_version=request.index_version,
+        )
+        return self.search(tagged_request)

@@ -453,14 +453,23 @@ class IndexedRecommendationEngine:
         else:
             assert query is not None
             candidate_limit = min(300, max(100, request.size * 20))
-            search = self.search_service.search(
-                CandidateSearchRequest(
-                    query_vector=query.query_vector,
-                    limit=candidate_limit,
-                    exclude_isbns=frozenset(request.excludeIsbns),
-                    seed_isbns=frozenset(request.seedIsbns),
-                    index_version=self.index_version,
-                )
+            candidate_request = CandidateSearchRequest(
+                query_vector=query.query_vector,
+                limit=candidate_limit,
+                exclude_isbns=frozenset(request.excludeIsbns),
+                seed_isbns=frozenset(request.seedIsbns),
+                index_version=self.index_version,
+            )
+            semantic_search = self.search_service.search(candidate_request)
+            tag_search = None
+            search_by_tags = getattr(self.search_service, "search_by_tags", None)
+            if requested_tags and callable(search_by_tags):
+                tag_search = search_by_tags(candidate_request, requested_tags)
+            search = _merge_candidate_searches(
+                semantic_search,
+                tag_search,
+                requested_limit=candidate_limit,
+                minimum_count=request.size,
             )
 
         resolved = self.fallback_policy.resolve(
@@ -485,6 +494,59 @@ class IndexedRecommendationEngine:
             index_version=resolved.index_version,
             fallback=resolved.fallback,
         )
+
+
+def _merge_candidate_searches(
+    primary: CandidateSearchResponse,
+    secondary: CandidateSearchResponse | None,
+    *,
+    requested_limit: int,
+    minimum_count: int,
+) -> CandidateSearchResponse:
+    """Merge semantic and tag-filtered candidates before shared ranking.
+
+    The tag-filtered search is an additional recall path. A failure in that
+    path must not discard usable semantic candidates, while two failed paths
+    retain the primary failure status so the existing fallback policy applies.
+    """
+
+    if secondary is None:
+        return primary
+
+    unique: dict[str, CandidateHit] = {}
+    for candidate in (*primary.items, *secondary.items):
+        current = unique.get(candidate.isbn13)
+        if current is None or (candidate.score, candidate.isbn13) > (current.score, current.isbn13):
+            unique[candidate.isbn13] = candidate
+    items = tuple(sorted(unique.values(), key=lambda item: (-item.score, item.isbn13))[:requested_limit])
+
+    if len(items) >= minimum_count:
+        status = SearchStatus.OK
+        reason = None
+    elif items:
+        status = SearchStatus.CANDIDATE_SHORTAGE
+        reason = "semantic and tag-filtered candidate union is smaller than requested"
+    elif primary.status in (SearchStatus.TIMEOUT, SearchStatus.INDEX_NOT_FOUND):
+        status = primary.status
+        reason = primary.reason or secondary.reason
+    else:
+        status = secondary.status
+        reason = secondary.reason or primary.reason
+
+    return CandidateSearchResponse(
+        status=status,
+        index_version=primary.index_version or secondary.index_version,
+        requested_limit=requested_limit,
+        returned_count=len(items),
+        items=items,
+        reason=reason,
+        search_params={
+            "candidateLimit": requested_limit,
+            "candidateSources": ["semantic", "tag-filtered"],
+            "semanticReturned": primary.returned_count,
+            "tagReturned": secondary.returned_count,
+        },
+    )
 
 
 def _contract_item(item: Any) -> ContractRecommendationItem:
