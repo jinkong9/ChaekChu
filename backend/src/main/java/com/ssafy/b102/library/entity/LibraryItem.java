@@ -82,6 +82,20 @@ public class LibraryItem {
 		return li;
 	}
 
+	/**
+	 * 서재 API(POST /library)로 담는 행 — source=SERVICE.
+	 * READ 면 서비스가 넘긴 완독일(Asia/Seoul 오늘)을 쓰고, WISH 면 무조건 null(CHECK ck_ul_finished).
+	 */
+	public static LibraryItem serviceEntry(User user, Book book, ShelfStatus status, LocalDate finishedAt) {
+		LibraryItem li = new LibraryItem();
+		li.user = user;
+		li.book = book;
+		li.status = status;
+		li.finishedAt = status == ShelfStatus.READ ? finishedAt : null;
+		li.source = LibrarySource.SERVICE;
+		return li;
+	}
+
 	public void updateRating(Integer rating) {
 		this.rating = rating == null ? null : rating.shortValue();
 	}

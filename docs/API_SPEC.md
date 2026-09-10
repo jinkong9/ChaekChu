@@ -25,7 +25,7 @@
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | 2차 |
 | 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 |
 | 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
-| | `POST /library` | ● | RecommendPage · BookDetailPage | 구현 대상 · **응답 본문 필요** |
+| | `POST /library` | ● | RecommendPage · BookDetailPage | **구현(09-10)** · FE 연결(응답 본문의 `libraryItemId` 사용) |
 | | `PATCH /library/{libraryItemId}` | ● | LibraryList · LibraryPageB | 구현 대상 |
 | | `DELETE /library/{libraryItemId}` | ● | (없음) | 구현 대상 · FE 버튼 추가 |
 | 이벤트 | `POST /events` | ● | `lib/events.ts` | 구현 대상 |
@@ -379,7 +379,7 @@ LibraryItem {
 { "bookId": "88123", "status": "WISH" }
 ```
 
-**201 + `LibraryItem` 본문.** 지금 mock 은 본문 없이 201 이라 프론트가 새 `libraryItemId` 를 알 수 없다(§9-5). 이미 있으면 `409 LIBRARY_ITEM_EXISTS` + `details.libraryItemId` — 프론트는 그걸로 `PATCH` 하면 된다. `status=READ` 면 `finishedDate=오늘`.
+**201 + `LibraryItem` 본문.** 지금 mock 은 본문 없이 201 이라 프론트가 새 `libraryItemId` 를 알 수 없다(§9-5). 이미 있으면 `409 LIBRARY_ITEM_EXISTS` + `details.libraryItemId` — 프론트는 그걸로 `PATCH` 하면 된다. `status=READ` 면 `finishedDate=오늘`(**Asia/Seoul** 기준, 09-10 확정 — 서버 Clock 은 UTC 라 그대로 쓰면 한국 새벽에 전날이 들어간다). 본문은 `bookId`·`status` 두 필드만(09-10 확정) — 별점·감상은 응답의 `libraryItemId` 로 PATCH.
 
 ### 6.3 `PATCH /library/{libraryItemId}` ●
 
