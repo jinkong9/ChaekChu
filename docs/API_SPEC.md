@@ -20,9 +20,9 @@
 | | `GET /books/popular` | ● | OnboardingPage 2단계 | 구현 대상 |
 | | `GET /books/popular-segments` | ● | 홈 (현재 정적 JSON) | **구현(09-10)** · FE 연결 |
 | 태그 | `GET /tags` | ● | (없음 — GENRES 하드코딩) | **구현(09-10)** · FE 연결 선택 |
-| | `GET /books/{bookId}` | ● | BookDetailPage · 홈 링 | 구현 대상 · **ISBN13 도 받는다** |
-| | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 |
-| | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | 2차 |
+| | `GET /books/{bookId}` | ● | BookDetailPage · 홈 링 | **구현(09-10)** · ISBN13 도 받는다 |
+| | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 — `book_embeddings` 적재 뒤 |
+| | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | **구현(09-10)** · FE 연결 |
 | 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 |
 | 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
 | | `POST /library` | ● | RecommendPage · BookDetailPage | **구현(09-10)** · FE 연결(응답 본문의 `libraryItemId` 사용) |
@@ -270,7 +270,7 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 세그먼트는 원천대로 **최대 12개**(10·20·30·40·50·60 × F/M, 60 = 60대 이상), 각 20권, 기준월에 행이 있는 것만. `period` 는 집계 창(직전 3개월), `generatedAt` 은 기준월 다음 달 1일 00:00Z.
 데이터가 없으면 `segments: []` 에 `period`·`generatedAt` 은 null. 월 1회 적재(`fetch_segment_popular.py` → `load_service_tables.sh --only book_loaned_top20`). 정적 파일과의 차이: `gender` 가 `'남'|'여'` → `'M'|'F'`, `publicationYear` 가 문자열 → 숫자, 책 필드가 `BookSummary` 로 정리 — §9-8.
 
-### 4.4 `GET /books/{bookId}` ●
+### 4.4 `GET /books/{bookId}` ● (09-10 구현)
 
 **`bookId` 자리에 13자리 숫자가 오면 `isbn13` 으로 찾는다.** 홈 링이 `/books/9788936434120` 으로 이동하고 나머지 화면은 내부 id 로 이동한다(§9-4). 응답의 `bookId` 는 항상 내부 id.
 
@@ -278,14 +278,15 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 {
   …BookSummary,
   "subtitle": null,
-  "description": "…",                    // 정보나루 → 카카오 순으로 고른 대표 소개문
-  "descriptionSource": "DATA4LIBRARY",   // DATA4LIBRARY | KAKAO | null
-  "toc": null,                           // 목차. 국중 회수분이 있을 때만
+  "description": "…",                    // 정보나루 → 형제 권 → 카카오 순으로 고른 대표 소개문
+  "descriptionSource": "DATA4LIBRARY",   // DATA4LIBRARY | SIBLING | KAKAO | null
+  "toc": null,                           // 목차. 원천 미적재 — 항상 null
   "metrics": [
     { "source": "정보나루", "name": "전국 대출 순위", "value": "상위 3%", "asOf": "2026-08" },
-    { "source": "정보나루", "name": "누적 대출", "value": "27,551회", "asOf": "2026-08" }
+    { "source": "정보나루", "name": "누적 대출", "value": "27,551회", "asOf": "2026-08" },
+    { "source": "정보나루", "name": "소장 도서관", "value": "1,535개관", "asOf": "2026-08" }
   ],
-  "loanByAge": [ { "ageGroup": "10대", "ratio": 8 }, … ] | null,
+  "loanByAge": null,
   "my": null | {
     "libraryItemId": "li_9021", "status": "READ",
     "rating": 4, "reviewText": null, "finishedDate": "2026-09-01"
@@ -294,10 +295,15 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 ```
 
 - `metrics[].value` 는 **표시용 문자열**을 서버가 만든다 (프론트가 그대로 그린다). 없는 지표는 항목을 빼면 화면이 섹션을 숨긴다.
-- `loanByAge` 는 정보나루 `loan_grps` 가 있을 때만(1단계 3.2%) — 대부분 `null`.
+  원천은 `book_demand_features`(월 스냅샷). 나갈 수 있는 항목과 채움률(09-10, EC2): **누적 대출** 100% · **소장 도서관** 100% ·
+  **최근 3개월 대출** 10.8% · **전국 대출 순위** 상위 25% 이내인 책만. 순위는 등수를 세지 않고 기준월 경계값 5개(1·3·5·10·25%)와 비교해 만든다 —
+  275만 행을 세는 대신 경계값만 캐시한다. 상위 25% 밖이면 항목을 뺀다(「상위 80%」는 화면에 쓸모가 없다).
+- **항상 `null` 인 필드**: `subtitle`(원천 없음) · `toc`(국중 목차 미적재) · `pageCount`(`books` 에 컬럼 없음) ·
+  `loanByAge`(정보나루 `loan_grps` 수집률 0.7%라 적재하지 않기로 — 임베딩 보고서 §8). 키는 유지하니 프론트는 null 이면 섹션을 숨긴다.
+  A안 상세의 「이 책을 빌린 사람들」 막대그래프와 목차 섹션은 **데이터가 오지 않는다** — 화면에서 빼거나 키워드·소장 도서관 수로 대체해야 한다.
 - `my` 는 **본인 서재 항목**. 프론트 타입은 `myLibraryStatus`/`myRating`/`myReviewText` 세 필드인데 `libraryItemId` 가 없어 상세에서 편집을 못 해 서재로 보낸다. `my` 객체로 묶고 `libraryItemId` 를 넣는다 — §9-5. 비로그인·타인 것은 절대 노출하지 않는다(계약 §6.2).
 
-### 4.5 `GET /books/{bookId}/similar?size=` ● (2차)
+### 4.5 `GET /books/{bookId}/similar?size=` ● (2차 — `book_embeddings` 0행이라 아직 만들지 않음)
 
 「비슷한 책」. 임베딩 연구 결론(`docs/pipeline/EMBEDDING_STUDY_REPORT.md` §0·§8)대로 **어휘 이웃 ‖ 밀집 이웃 역순위 융합**, 같은 작품(`set_isbn`·제목+저자) 묶어 1권만. `size` 기본 8, 최대 20.
 
@@ -305,9 +311,10 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 { "items": [ { "book": BookSummary, "reason": "같은 작가 · #성장", "score": 0.83 }, … ] }
 ```
 
-### 4.6 `GET /books/{bookId}/co-loans?size=` ● (2차)
+### 4.6 `GET /books/{bookId}/co-loans?size=` ● (09-10 구현)
 
-「함께 대출된 책」. 정보나루 `coLoanBooks`(책당 10권, 1단계 82.9%) 를 그대로 서빙. 없으면 `items: []`.
+「함께 대출된 책」. 정보나루 `coLoanBooks`(책당 10권, 1단계 82.9%) 를 `book_relations`(relation_type=`CO_LOAN`) 에서 그대로 서빙한다. 추천 계산이 아니다.
+`size` 기본 8, 최대 20. 카탈로그(`books`)에 없는 대상은 빠지므로 `rank` 가 건너뛸 수 있다(연결률 99.9%). 관계가 없으면 `items: []` 에 `asOf: null`.
 
 ```json
 { "items": [ { "book": BookSummary, "rank": 1 }, … ], "source": "DATA4LIBRARY", "asOf": "2026-08" }
