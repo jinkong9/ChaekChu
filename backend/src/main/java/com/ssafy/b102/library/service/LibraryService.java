@@ -3,6 +3,8 @@ package com.ssafy.b102.library.service;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -17,6 +19,7 @@ import com.ssafy.b102.global.error.ErrorCode;
 import com.ssafy.b102.library.dto.LibraryAddRequest;
 import com.ssafy.b102.library.dto.LibraryItemResponse;
 import com.ssafy.b102.library.dto.LibraryListResponse;
+import com.ssafy.b102.library.dto.LibraryPatchRequest;
 import com.ssafy.b102.library.entity.LibraryItem;
 import com.ssafy.b102.library.entity.ShelfStatus;
 import com.ssafy.b102.library.repository.LibraryItemRepository;
@@ -32,6 +35,8 @@ public class LibraryService {
 	 * finished_at 은 DATE 라 저장 뒤에는 시간대 변환이 없다.
 	 */
 	static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+	/** review_text VARCHAR(300) · 계약 §4.3. */
+	static final int REVIEW_MAX = 300;
 
 	private final LibraryItemRepository libraryItemRepository;
 	private final BookRepository bookRepository;
@@ -61,7 +66,8 @@ public class LibraryService {
 	 */
 	@Transactional
 	public LibraryItemResponse add(Long userId, LibraryAddRequest req) {
-		ShelfStatus status = parseStatus(req.status());
+		ShelfStatus status = parseStatus(req.status())
+			.orElseThrow(() -> validationFailed(List.of(field("status", "status 는 WISH 또는 READ 입니다."))));
 		Long bookId = parseBookId(req.bookId());
 		Book book = bookRepository.findById(bookId)
 			.orElseThrow(() -> new BusinessException(ErrorCode.BOOK_NOT_FOUND, Map.of("bookId", String.valueOf(bookId))));
@@ -82,18 +88,112 @@ public class LibraryService {
 		}
 	}
 
+	/**
+	 * §6.3 — 부분 갱신. 보낸 필드만 바꾼다.
+	 * status: WISH 로 바꾸면 완독일 null · WISH→READ 면 완독일 = 보낸 값(없으면 Asia/Seoul 오늘) · 이미 READ 인데 READ 를 다시 보내면 유지(멱등).
+	 * finishedDate: status 없이 보내면 READ 항목에 한해 반영(null 이면 지움), WISH 항목은 무시.
+	 * rating: 1~5 또는 null(삭제). reviewText: strip, 빈 값→null(삭제), 300자 초과 400.
+	 * 없는 항목 404, 타인 항목 403. 검증 위반은 모아서 한 번에 400(fields[]).
+	 */
+	@Transactional
+	public LibraryItemResponse patch(Long userId, String rawItemId, LibraryPatchRequest req) {
+		LibraryItem item = ownedItem(userId, rawItemId);
+
+		List<Map<String, String>> fields = new ArrayList<>();
+		ShelfStatus newStatus = null;
+		if (req.getStatus() != null) {
+			newStatus = parseStatus(req.getStatus()).orElse(null);
+			if (newStatus == null) {
+				fields.add(field("status", "status 는 WISH 또는 READ 입니다."));
+			}
+		}
+		if (req.isRatingSent() && req.getRating() != null && (req.getRating() < 1 || req.getRating() > 5)) {
+			fields.add(field("rating", "별점은 1~5 입니다."));
+		}
+		String review = null;
+		if (req.isReviewTextSent()) {
+			review = normalizeReview(req.getReviewText());
+			if (review != null && review.length() > REVIEW_MAX) {
+				fields.add(field("reviewText", "감상은 " + REVIEW_MAX + "자 이내입니다."));
+			}
+		}
+		LocalDate finishedDate = null;
+		if (req.isFinishedDateSent() && req.getFinishedDate() != null) {
+			try {
+				finishedDate = LocalDate.parse(req.getFinishedDate().strip());
+			}
+			catch (DateTimeParseException e) {
+				fields.add(field("finishedDate", "완독일은 yyyy-MM-dd 형식입니다."));
+			}
+		}
+		if (!fields.isEmpty()) {
+			throw validationFailed(fields);
+		}
+
+		if (newStatus == ShelfStatus.WISH) {
+			item.markWish();
+		}
+		else if (newStatus == ShelfStatus.READ && item.getStatus() != ShelfStatus.READ) {
+			item.markRead(req.isFinishedDateSent() ? finishedDate : today());
+		}
+		else if (req.isFinishedDateSent()) {
+			item.updateFinishedAt(finishedDate);   // READ 항목에 한해 — 엔티티가 WISH 면 무시한다
+		}
+		if (req.isRatingSent()) {
+			item.updateRating(req.getRating());
+		}
+		if (req.isReviewTextSent()) {
+			item.updateReviewText(review);
+		}
+
+		libraryItemRepository.flush();   // @UpdateTimestamp 를 응답에 반영
+		return LibraryItemResponse.from(item);
+	}
+
+	/** §6.4 — 서재에서 빼기(찜 해제 포함). 없는 항목 404, 타인 항목 403. */
+	@Transactional
+	public void delete(Long userId, String rawItemId) {
+		libraryItemRepository.delete(ownedItem(userId, rawItemId));
+		libraryItemRepository.flush();   // 204 를 돌려주기 전에 실제로 지운다(제약 위반이면 여기서 터진다)
+	}
+
+	/** libraryItemId 는 불투명 문자열. 숫자가 아니거나 없으면 404, 있는데 남의 것이면 403. */
+	private LibraryItem ownedItem(Long userId, String rawItemId) {
+		Long itemId;
+		try {
+			itemId = Long.valueOf(rawItemId.strip());
+		}
+		catch (NumberFormatException e) {
+			throw new BusinessException(ErrorCode.LIBRARY_ITEM_NOT_FOUND, Map.of("libraryItemId", rawItemId));
+		}
+		LibraryItem item = libraryItemRepository.findById(itemId)
+			.orElseThrow(() -> new BusinessException(ErrorCode.LIBRARY_ITEM_NOT_FOUND, Map.of("libraryItemId", rawItemId)));
+		if (!item.getUser().getId().equals(userId)) {   // LAZY 프록시의 getId 는 초기화 없이 읽힌다
+			throw new BusinessException(ErrorCode.FORBIDDEN, Map.of("libraryItemId", rawItemId));
+		}
+		return item;
+	}
+
 	private LocalDate today() {
 		return LocalDate.now(clock.withZone(SEOUL));
 	}
 
-	/** WISH/READ 만. 대소문자·공백은 관대하게(온보딩 gender 와 같은 태도). 그 외(READING 등)는 400 fields[status]. */
-	private static ShelfStatus parseStatus(String raw) {
+	/** 앞뒤 공백 제거, 빈 값이면 null(삭제). CHECK ck_ul_review(공백만 금지)와 맞춘다. */
+	private static String normalizeReview(String raw) {
+		if (raw == null) {
+			return null;
+		}
+		String stripped = raw.strip();
+		return stripped.isEmpty() ? null : stripped;
+	}
+
+	/** WISH/READ 만. 대소문자·공백은 관대하게(온보딩 gender 와 같은 태도). 그 외(READING 등)는 empty. */
+	private static java.util.Optional<ShelfStatus> parseStatus(String raw) {
 		try {
-			return ShelfStatus.valueOf(raw.strip().toUpperCase());
+			return java.util.Optional.of(ShelfStatus.valueOf(raw.strip().toUpperCase()));
 		}
 		catch (IllegalArgumentException e) {
-			throw new BusinessException(ErrorCode.VALIDATION_FAILED,
-				Map.of("fields", List.of(Map.of("field", "status", "reason", "status 는 WISH 또는 READ 입니다."))));
+			return java.util.Optional.empty();
 		}
 	}
 
@@ -105,5 +205,13 @@ public class LibraryService {
 		catch (NumberFormatException e) {
 			throw new BusinessException(ErrorCode.BOOK_NOT_FOUND, Map.of("bookId", raw));
 		}
+	}
+
+	private static BusinessException validationFailed(List<Map<String, String>> fields) {
+		return new BusinessException(ErrorCode.VALIDATION_FAILED, Map.of("fields", fields));
+	}
+
+	private static Map<String, String> field(String field, String reason) {
+		return Map.of("field", field, "reason", reason);
 	}
 }

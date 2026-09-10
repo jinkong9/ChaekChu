@@ -1,7 +1,9 @@
 package com.ssafy.b102.library;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,8 +32,8 @@ import com.ssafy.b102.user.entity.User;
 import com.ssafy.b102.user.repository.UserRepository;
 
 /**
- * API_SPEC §6.1 GET /library/me · §6.2 POST /library.
- * 실제 PostgreSQL(V1). 조회용 서재 행은 JDBC 로 직접 넣어 updated_at 을 고정한다. 각 테스트는 롤백.
+ * API_SPEC §6 서재 — §6.1 GET /library/me · §6.2 POST /library · §6.3 PATCH /library/{id} · §6.4 DELETE /library/{id}.
+ * 실제 PostgreSQL(V1). 기존 서재 행은 JDBC 로 직접 넣어 updated_at 을 고정한다. 각 테스트는 롤백.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -249,6 +251,237 @@ class LibraryApiTest {
 				.content("{\"bookId\":\"" + wishBook + "\",\"status\":\"WISH\"}"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+	}
+
+	// ── 수정 ──
+
+	@Test
+	@DisplayName("수정 WISH→READ(날짜 없음): 완독일 = 오늘(Asia/Seoul), 200 + 본문, updatedAt 이 바뀌어 목록 맨 앞으로")
+	void patch_wishToRead_fillsToday() throws Exception {
+		Long older = insertLibrary(userId, wishBook, "WISH", null, null, null, "SERVICE", 5);
+		insertLibrary(userId, readBook, "READ", 4, null, "2026-09-01", "SERVICE", 1);
+		String todaySeoul = LocalDate.now(ZoneId.of("Asia/Seoul")).toString();
+
+		mvc.perform(patch(LIBRARY + "/" + older).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"READ\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.libraryItemId").value(String.valueOf(older)))
+			.andExpect(jsonPath("$.status").value("READ"))
+			.andExpect(jsonPath("$.finishedDate").value(todaySeoul))
+			.andExpect(jsonPath("$.book.bookId").value(String.valueOf(wishBook)));
+
+		Map<String, Object> row = jdbc.queryForMap("select status, finished_at from user_library where id = ?", older);
+		assertThat(row.get("status")).isEqualTo("READ");
+		assertThat(String.valueOf(row.get("finished_at"))).isEqualTo(todaySeoul);
+
+		mvc.perform(get(ME).header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(jsonPath("$.items[0].libraryItemId").value(String.valueOf(older)));   // 5일 전 행이 갱신되어 맨 앞
+	}
+
+	@Test
+	@DisplayName("수정 WISH→read(소문자) + finishedDate 지정: 지정한 날짜가 들어간다")
+	void patch_wishToRead_withDate() throws Exception {
+		Long id = insertLibrary(userId, wishBook, "WISH", null, null, null, "SERVICE", 1);
+
+		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"read\",\"finishedDate\":\"2026-08-15\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("READ"))
+			.andExpect(jsonPath("$.finishedDate").value("2026-08-15"));
+	}
+
+	@Test
+	@DisplayName("수정 READ→WISH: 완독일 null, 평점·감상은 남는다(계약 §4.2)")
+	void patch_readToWish_clearsFinishedKeepsRating() throws Exception {
+		Long id = insertLibrary(userId, readBook, "READ", 4, "좋았다", "2026-09-01", "SERVICE", 1);
+
+		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"WISH\",\"finishedDate\":\"2026-08-15\"}"))   // WISH 가 이기고 날짜는 무시
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("WISH"))
+			.andExpect(jsonPath("$.finishedDate").value(Matchers.nullValue()))
+			.andExpect(jsonPath("$.rating").value(4))
+			.andExpect(jsonPath("$.reviewText").value("좋았다"));
+
+		assertThat(jdbc.queryForObject("select finished_at from user_library where id = ?", Object.class, id)).isNull();
+	}
+
+	@Test
+	@DisplayName("수정 READ 에 READ 다시(멱등): 완독일 유지 — 날짜 있는 행도, 온보딩 seed 의 null 도")
+	void patch_readAgain_keepsFinishedDate() throws Exception {
+		Long dated = insertLibrary(userId, readBook, "READ", 4, null, "2026-09-01", "SERVICE", 1);
+		Long seed = insertLibrary(userId, seedBook, "READ", 5, null, null, "ONBOARDING", 2);
+
+		mvc.perform(patch(LIBRARY + "/" + dated).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"READ\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.finishedDate").value("2026-09-01"));
+		mvc.perform(patch(LIBRARY + "/" + seed).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"READ\",\"rating\":3}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.finishedDate").value(Matchers.nullValue()))
+			.andExpect(jsonPath("$.rating").value(3));
+	}
+
+	@Test
+	@DisplayName("수정 평점·감상만: 완독일 유지(seed 의 null 도), 감상은 strip, 다른 필드는 그대로")
+	void patch_ratingAndReviewOnly_keepsFinishedDate() throws Exception {
+		Long seed = insertLibrary(userId, seedBook, "READ", 5, null, null, "ONBOARDING", 2);
+		Long dated = insertLibrary(userId, readBook, "READ", 4, "처음 감상", "2026-09-01", "SERVICE", 1);
+
+		mvc.perform(patch(LIBRARY + "/" + seed).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"rating\":3,\"reviewText\":\"  다시 읽고 싶다  \"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("READ"))
+			.andExpect(jsonPath("$.rating").value(3))
+			.andExpect(jsonPath("$.reviewText").value("다시 읽고 싶다"))
+			.andExpect(jsonPath("$.finishedDate").value(Matchers.nullValue()));
+
+		mvc.perform(patch(LIBRARY + "/" + dated).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"rating\":2}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.rating").value(2))
+			.andExpect(jsonPath("$.reviewText").value("처음 감상"))       // 키를 안 보냈으니 유지
+			.andExpect(jsonPath("$.finishedDate").value("2026-09-01"));
+
+		assertThat(jdbc.queryForObject("select source from user_library where id = ?", String.class, seed)).isEqualTo("ONBOARDING");   // source 는 안 바뀐다
+	}
+
+	@Test
+	@DisplayName("수정 null 로 지우기: rating null → 삭제, reviewText 공백만 → null, finishedDate null → READ 완독일 지움")
+	void patch_nullsClear() throws Exception {
+		Long id = insertLibrary(userId, readBook, "READ", 4, "좋았다", "2026-09-01", "SERVICE", 1);
+
+		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"rating\":null,\"reviewText\":\"   \",\"finishedDate\":null}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("READ"))
+			.andExpect(jsonPath("$.rating").value(Matchers.nullValue()))
+			.andExpect(jsonPath("$.reviewText").value(Matchers.nullValue()))
+			.andExpect(jsonPath("$.finishedDate").value(Matchers.nullValue()));
+
+		Map<String, Object> row = jdbc.queryForMap("select rating, review_text, finished_at from user_library where id = ?", id);
+		assertThat(row.get("rating")).isNull();
+		assertThat(row.get("review_text")).isNull();
+		assertThat(row.get("finished_at")).isNull();
+	}
+
+	@Test
+	@DisplayName("수정 finishedDate 만: READ 항목은 반영, WISH 항목은 무시(null 유지)")
+	void patch_finishedDateOnly_readOnly() throws Exception {
+		Long read = insertLibrary(userId, readBook, "READ", null, null, "2026-09-01", "SERVICE", 1);
+		Long wish = insertLibrary(userId, wishBook, "WISH", null, null, null, "SERVICE", 2);
+
+		mvc.perform(patch(LIBRARY + "/" + read).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"finishedDate\":\"2026-07-01\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.finishedDate").value("2026-07-01"));
+		mvc.perform(patch(LIBRARY + "/" + wish).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"finishedDate\":\"2026-07-01\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("WISH"))
+			.andExpect(jsonPath("$.finishedDate").value(Matchers.nullValue()));
+	}
+
+	@Test
+	@DisplayName("수정 빈 본문 {} → 200, 아무것도 안 바뀐다")
+	void patch_emptyBody_noChange() throws Exception {
+		Long id = insertLibrary(userId, readBook, "READ", 4, "좋았다", "2026-09-01", "SERVICE", 1);
+
+		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("READ"))
+			.andExpect(jsonPath("$.rating").value(4))
+			.andExpect(jsonPath("$.reviewText").value("좋았다"))
+			.andExpect(jsonPath("$.finishedDate").value("2026-09-01"));
+	}
+
+	@Test
+	@DisplayName("수정 검증: status READING · rating 6 · reviewText 301자 · finishedDate 형식 오류 → 400, fields 에 넷 다, DB 는 그대로")
+	void patch_invalid_400AllFields() throws Exception {
+		Long id = insertLibrary(userId, readBook, "READ", 4, "좋았다", "2026-09-01", "SERVICE", 1);
+		String longReview = "가".repeat(301);
+
+		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"READING\",\"rating\":6,\"reviewText\":\"" + longReview + "\",\"finishedDate\":\"2026-13-01\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+			.andExpect(jsonPath("$.details.fields[*].field").value(Matchers.containsInAnyOrder("status", "rating", "reviewText", "finishedDate")));
+
+		// 정확히 300자는 통과
+		mvc.perform(patch(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"reviewText\":\"" + "가".repeat(300) + "\"}"))
+			.andExpect(status().isOk());
+
+		Map<String, Object> row = jdbc.queryForMap("select status, rating, finished_at from user_library where id = ?", id);
+		assertThat(row.get("status")).isEqualTo("READ");
+		assertThat(((Number) row.get("rating")).intValue()).isEqualTo(4);
+		assertThat(String.valueOf(row.get("finished_at"))).isEqualTo("2026-09-01");
+	}
+
+	@Test
+	@DisplayName("수정: 타인 항목 → 403 FORBIDDEN, 없는 항목·숫자 아닌 id → 404 LIBRARY_ITEM_NOT_FOUND(details.libraryItemId)")
+	void patch_forbidden403_notFound404() throws Exception {
+		Long other = userRepository.save(User.fromOAuth(OAuthProvider.GOOGLE, "other-" + System.nanoTime())).getId();
+		Long theirs = insertLibrary(other, wishBook, "WISH", null, null, null, "SERVICE", 1);
+
+		mvc.perform(patch(LIBRARY + "/" + theirs).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"READ\"}"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("FORBIDDEN"));
+		assertThat(jdbc.queryForObject("select status from user_library where id = ?", String.class, theirs)).isEqualTo("WISH");
+
+		mvc.perform(patch(LIBRARY + "/999999999").header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"READ\"}"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("LIBRARY_ITEM_NOT_FOUND"))
+			.andExpect(jsonPath("$.details.libraryItemId").value("999999999"));
+		mvc.perform(patch(LIBRARY + "/abc").header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"status\":\"READ\"}"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("LIBRARY_ITEM_NOT_FOUND"));
+	}
+
+	// ── 삭제 ──
+
+	@Test
+	@DisplayName("삭제: 204, 행이 사라지고 목록에서 빠진다. 다시 지우면 404. 같은 책을 다시 담으면 새 id")
+	void delete_204_thenGone() throws Exception {
+		Long id = insertLibrary(userId, readBook, "READ", 4, "좋았다", "2026-09-01", "SERVICE", 1);
+		insertLibrary(userId, wishBook, "WISH", null, null, null, "SERVICE", 2);
+
+		mvc.perform(delete(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isNoContent());
+
+		Integer n = jdbc.queryForObject("select count(*) from user_library where id = ?", Integer.class, id);
+		assertThat(n).isZero();
+		mvc.perform(get(ME).header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].book.bookId").value(String.valueOf(wishBook)));
+
+		mvc.perform(delete(LIBRARY + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("LIBRARY_ITEM_NOT_FOUND"));
+
+		mvc.perform(post(LIBRARY).header(HttpHeaders.AUTHORIZATION, bearer).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"bookId\":\"" + readBook + "\",\"status\":\"WISH\"}"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.libraryItemId").value(Matchers.not(String.valueOf(id))));
+	}
+
+	@Test
+	@DisplayName("삭제: 타인 항목 → 403, 행은 남는다. 토큰 없음 → 401")
+	void delete_forbidden403_noToken401() throws Exception {
+		Long other = userRepository.save(User.fromOAuth(OAuthProvider.GOOGLE, "other-" + System.nanoTime())).getId();
+		Long theirs = insertLibrary(other, wishBook, "WISH", null, null, null, "SERVICE", 1);
+
+		mvc.perform(delete(LIBRARY + "/" + theirs).header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("FORBIDDEN"));
+		assertThat(jdbc.queryForObject("select count(*) from user_library where id = ?", Integer.class, theirs)).isEqualTo(1);
+
+		mvc.perform(delete(LIBRARY + "/" + theirs))
+			.andExpect(status().isUnauthorized());
 	}
 
 	// ── 픽스처 ──

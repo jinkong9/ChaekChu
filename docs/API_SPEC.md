@@ -26,8 +26,8 @@
 | 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 |
 | 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
 | | `POST /library` | ● | RecommendPage · BookDetailPage | **구현(09-10)** · FE 연결(응답 본문의 `libraryItemId` 사용) |
-| | `PATCH /library/{libraryItemId}` | ● | LibraryList · LibraryPageB | 구현 대상 |
-| | `DELETE /library/{libraryItemId}` | ● | (없음) | 구현 대상 · FE 버튼 추가 |
+| | `PATCH /library/{libraryItemId}` | ● | LibraryList · LibraryPageB | **구현(09-10)** · FE 연결 |
+| | `DELETE /library/{libraryItemId}` | ● | (없음) | **구현(09-10)** · FE 버튼 추가 |
 | 이벤트 | `POST /events` | ● | `lib/events.ts` | 구현 대상 |
 
 ● = `Authorization: Bearer <JWT>` 필수. 폐기: `GET /recommendations/anonymous`(비회원 추천 없음, FE 도 미호출), `POST /recommendations/tags`(태그 조절은 `GET /recommendations?tags=` 로 흡수).
@@ -396,7 +396,11 @@ LibraryItem {
 | `status` 없이 보내면(평점·감상평만) | `finishedDate` 유지 — 온보딩 seed 의 `null` 도 그대로. `finishedDate` 를 직접 보내면 `READ` 항목에 한해 반영 |
 | `reviewText` | 앞뒤 공백 제거, 빈 문자열 → `null`, 300자 초과 `400` |
 | `rating` | 1~5 정수 또는 `null`(삭제) |
+| 이미 `READ` 인데 `status=READ` 를 다시 보내면 | `finishedDate` 유지(멱등). 온보딩 seed 의 `null` 도 그대로 |
+| `finishedDate` 에 `null` 을 보내면 | `READ` 항목의 완독일을 지운다(seed 처럼 `null`). `WISH` 항목은 무시 |
+| `status`·`rating`·`reviewText`·`finishedDate` 위반 | 모아서 한 번에 `400 VALIDATION_FAILED`, `details.fields[{field, reason}]` |
 | 타인 항목 | `403` |
+| 없는 항목(숫자가 아닌 id 포함) | `404 LIBRARY_ITEM_NOT_FOUND`, `details.libraryItemId` |
 
 **200 + `LibraryItem`.**
 

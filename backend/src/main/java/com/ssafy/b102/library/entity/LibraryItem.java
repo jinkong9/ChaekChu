@@ -99,4 +99,28 @@ public class LibraryItem {
 	public void updateRating(Integer rating) {
 		this.rating = rating == null ? null : rating.shortValue();
 	}
+
+	/** 감상은 서비스가 이미 strip·빈 값→null 처리해서 넘긴다(CHECK ck_ul_review: 공백만은 금지). */
+	public void updateReviewText(String reviewText) {
+		this.reviewText = reviewText;
+	}
+
+	/** WISH 로 — 완독일은 무조건 비운다(CHECK ck_ul_finished). 평점·감상은 남긴다(계약 §4.2). */
+	public void markWish() {
+		this.status = ShelfStatus.WISH;
+		this.finishedAt = null;
+	}
+
+	/** READ 로 — 완독일은 서비스가 정한다(지정일 / Asia/Seoul 오늘 / null). */
+	public void markRead(LocalDate finishedAt) {
+		this.status = ShelfStatus.READ;
+		this.finishedAt = finishedAt;
+	}
+
+	/** 완독일만 바꾼다. READ 항목에 한해 반영(API_SPEC §6.3) — WISH 면 무시. */
+	public void updateFinishedAt(LocalDate finishedAt) {
+		if (this.status == ShelfStatus.READ) {
+			this.finishedAt = finishedAt;
+		}
+	}
 }
