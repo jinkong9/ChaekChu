@@ -13,16 +13,17 @@
 
 L1 추천 후보 1,098,550종과 L0 카탈로그를 만드는 데 실제로 들어가는 파일들이다.
 
-> **2026-09-09 — 스냅샷이 정본이다.** 수집이 끝나 `snapshots/2026-09-09/`(EC2 `~/pipeline_data/`, 로컬 `project_personal/` 동일 · SHA256) 에
-> `d4l_usage.jsonl.gz` 615M · `kakao_enriched.jsonl.gz` 192M · `enrich_queue.csv` 를 고정했다. 빌드는 스냅샷만 읽는다.
-> 적재 파일은 `load/`(`books.csv.gz` 221M · `book_tags.csv.gz` 8M · `book_loaned_top20.csv` · `build_manifest.json`), EC2 사본은 `~/load/`.
+> **스냅샷이 정본이다.** 수집이 끝나 `snapshots/<날짜>/`(EC2 `~/pipeline_data/`, 로컬 `project_personal/` 동일 · SHA256) 에
+> `d4l_usage.jsonl.gz` 615M · `kakao_enriched.jsonl.gz` · `enrich_queue.csv` 를 고정했다. 빌드는 스냅샷만 읽는다.
+> `2026-09-09`(카카오 82% 시점, V1·V2 첫 적재에 사용) → **`2026-09-10`(카카오 완주 · kakao 222M · d4l·queue 는 09-09 와 같은 파일) 이 현재 기준.**
+> 적재 파일은 `load/`(`books.csv.gz` · `book_tags.csv.gz` · `book_loaned_top20.csv` · V2 4종 · `build_manifest.json`), EC2 사본은 `~/load/`.
 
 | 파일 | 크기 | 내용 | 상태 |
 | --- | ---: | --- | --- |
 | `nl_books_enriched.parquet` | 327 MB | **국중 서지 마스터.** 2,047,239행 · 정규화 ISBN13 · KDC · 부가기호 · 회수 텍스트 병합본 | 완료 |
 | `nl_text_clean.csv` | 595 MB | 국중 회수 텍스트(정제본). 174,388행. **MVP 임베딩에서 제외**(보강재로 −0.11%p, 1단계 대체재 대상 25권) | 완료 |
 | `data4library/d4l_usage.jsonl` | 1.8 GB | **정보나루 보강분.** L1 1,098,623 ISBN(큐 100%). 소개문 · 키워드 50개 · 함께대출 10건 · 마니아/다독자 · 월별 대출이력 | **완료 09-09** |
-| `kakao_enriched.jsonl` | 556 MB | **카카오 보강분.** 906,135 (82%). 소개문 250자 · 표지 · 판매상태 | 09-10 완주 예정 |
+| `kakao_enriched.jsonl` | 644 MB | **카카오 보강분.** 고유 1,098,651(큐 1,098,550 중 1,098,549 · 매칭 79.9%). 소개문 250자 · 표지 · 판매상태 | **완료 09-10** |
 | `data4library/segment_popular_202608.jsonl` | 1 MB | 정보나루 `loanItemSrch` 연령×성별 12세그먼트 × 100 (06~08월) → `book_loaned_top20` | 완료 09-09 |
 | `data4library/books_dedup.parquet` | 153 MB | **ISBN 단위 원장.** 2,953,587종 · 누적 19.7억 건 · **KDC 95.3%**(소수점 67.4%) · 서지 100%. 필터·랭킹·수집 우선순위의 근거 | 완료 |
 | `data4library/enrich_queue.csv` | 34 MB | **수집 우선순위 큐.** 1,098,550행 (1단계 343,399 / 신간 147,729 / 꼬리 607,422) | 완료 |
