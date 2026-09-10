@@ -109,9 +109,9 @@ src/main/java/com/ssafy/b102/
     service/BookIndexService.java        # 인덱스 생성·alias 전환 · indexAll / indexUpdatedSince(증분, 삭제 미반영) / reindexInto(완전할 때만 alias 이동, 아니면 IncompleteIndexException). 1000건 keyset bulk
     service/BookDocumentMapper.java      # Book 엔티티 → BookDocument
     service/AuthorNameParser.java        # books.author 원문("한강 지음", "지은이: A;그림: B", "A (지은이), B (옮긴이)") → authors 배열. 옮긴이 제외
-  recommendation/                         # GET /recommendations → FastAPI POST /internal/v1/recommendations
+  recommendation/                         # GET /recommendations → 태그·행동 기반은 FastAPI, 콜드스타트는 인기순위
     controller/RecommendationController.java
-    service/RecommendationService.java   # 관심 태그·seed/exclude 구성, AI ISBN → BookSummary 결합
+    service/RecommendationService.java   # 관심 태그·seed/exclude 구성, 세그먼트 인기 콜드스타트, AI ISBN → BookSummary 결합
     client/AiRecommendationClient.java   # RestClient, timeout, AI 장애 변환
     config/RecommendationProperties.java # app.recommendation.*
 src/main/resources/

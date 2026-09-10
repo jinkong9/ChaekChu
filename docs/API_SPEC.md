@@ -322,7 +322,7 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 | 쿼리 | 규칙 |
 | --- | --- |
 | `size` | 기본 **10**, 최대 30. 프론트 덱은 5장(`RECOMMEND_DECK_SIZE`), mock 은 30 — 여기서 10 으로 확정(§9-7) |
-| `tags` | 반복 파라미터 `tags=#소설&tags=#신간`, 최대 5. TunePage 의 「이 태그로 추천받기」를 서버에 반영하는 통로. 없으면 관심 태그 사용 |
+| `tags` | 반복 파라미터 `tags=#소설&tags=#신간`, 최대 5. TunePage 의 「이 태그로 추천받기」를 서버에 반영하는 통로. 없으면 관심 태그를 사용하고, 관심 태그도 없으면 연령·성별 인기순위 콜드스타트로 대체 |
 
 온보딩 미완료(`PENDING`)면 `409 ONBOARDING_REQUIRED`. 비회원 모드는 없다.
 
@@ -346,6 +346,7 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 ```
 
 - `items` 는 `rank` 오름차순, 서재에 있는 책 제외, 같은 작품 1권.
+- 관심 태그와 행동 seed가 모두 없으면 `book_loaned_top20` 최신 기준월을 사용한다. 출생연도·성별이 있으면 해당 연령×성별, 성별이 없으면 연령대 남녀 합산, 연령도 없거나 해당 세그먼트가 비어 있으면 전체 세그먼트 합산 순위로 완화한다. 이 경로의 `mode` 는 `COLD_START`, `fallback` 은 `true`, `reasonType` 은 `SEGMENT_POPULAR` 이다.
 - 프론트가 그리는 것은 `recommendationId` `generatedAt` `fallback` `basedOnCount` `appliedTags` `items[].rank/tags/reasonText/book` 뿐이다. `score` `featureScores` `weights` `mode` `reasonType` 은 이벤트 분석·디버그용으로 남긴다(계약 §4.4).
 - 같은 스냅샷을 다시 조회하면 새로 저장하지 않는다. `tags` 를 바꿔 요청하면 새 스냅샷(새 `recommendationId`).
 - `reasonText` 는 서버가 완성한 한 문장(카드에 그대로). `reasonType` 별 템플릿은 추천 구현 문서에서.
