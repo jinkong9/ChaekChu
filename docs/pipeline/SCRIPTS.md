@@ -284,6 +284,12 @@ IP 등록 후 재측정. **차단 시점의 누적 호출 수를 기록**하도�
 > **카카오는 쿼터 소진을 429 가 아니라 400 으로 준다.**
 > `{"errorType":"BadRequest","message":"API limit has been exceeded."}`
 > 400 을 일반 오류로 처리해 연속 실패만 1,416회 쌓인 적이 있다.
+>
+> **429 는 초당 호출 제한이다 — 쿼터가 아니다** (09-10 실측). 워커 16·초당 326건에서 키 1 이 12,941 호출 뒤 429, 이어 키 3·4 는 0 호출에 429.
+> 옛 코드는 429 도 키 은퇴로 처리해 5개 키가 40초 만에 전부 「소진」되고 종료했다(실제로는 키마다 30,000 이 남아 있었다).
+> 지금은 429 면 0.5초부터 배로 늘려 최대 8회 같은 키로 재시도하고, 키 은퇴는 400 메시지로만 한다. 마지막 29,409건은 `--workers 4`(초당 약 90건)로 429 없이 6분에 끝났다.
+
+**최종(09-10 09:45):** 큐 1,098,550 중 1,098,549 수집(1건은 EC2 실행 큐에 없던 ISBN) · 고유 1,098,651 · 매칭 877,784(79.9%) · 미매칭 220,868. 타이머 `disable --now`.
 
 ### `repair_quota_misses.py` · 100줄
 **사고 복구용.** 평상시엔 안 쓴다.
@@ -368,7 +374,7 @@ py scripts/make_excel_copy.py nl_text_clean.csv --preview 2000
 
 ## 9. 서비스 DB 적재 (2026-09-09 — 수집 종료 후)
 
-수집기(§5·§6)는 09-09 에 역할을 끝냈다. 정보나루 `d4l-collector` 는 중지·비활성화, 카카오 타이머는 09-10 완주까지만.
+수집기(§5·§6)는 역할을 끝냈다. 정보나루 `d4l-collector` 는 09-09, 카카오 `kakao-collector.timer` 는 09-10 완주 뒤 중지·비활성화. 스냅샷은 `2026-09-10` 이 현재 기준(d4l·queue 는 09-09 와 같은 파일, kakao 만 완주본).
 이후 파이프라인은 **스냅샷 → 빌드 → 적재** 세 단계다. 스키마는 만들지 않는다 — 백엔드 Flyway(`V1__init` · `V1_1__seed_tags`)가 만든 DB 에 넣는다.
 
 ### `fetch_segment_popular.py` · 110줄
@@ -403,7 +409,7 @@ V2 블록(`kdc_codes` `book_keywords` `book_relations` `book_demand_features`)�
 
 ```
 py scripts/fetch_segment_popular.py
-py scripts/build_service_tables.py --snapshot ../project_personal/snapshots/2026-09-09 --scope L0
+py scripts/build_service_tables.py --snapshot ../project_personal/snapshots/2026-09-10 --scope L0
 PG_CONTAINER=b102-postgres-local bash scripts/load_service_tables.sh ../project_personal/load
 scp load/* ubuntu@EC2:~/load/ && ssh ubuntu@EC2 'bash ~/load/load_service_tables.sh ~/load'
 ```
