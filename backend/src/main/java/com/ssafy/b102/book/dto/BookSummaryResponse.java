@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * API_SPEC §1.5 BookSummary — 검색·인기·추천·서재가 같은 모양으로 책을 내보낸다.
- * V1 에 없는 값은 null 로 나간다(키는 항상 존재): pageCount(V2 books 확장), category 는 KDC 대분류 1단계까지(kdc_codes 는 V2).
+ * 없는 값은 null 로 나간다(키는 항상 존재): pageCount(books 에 컬럼 없음). category 는 kdc_codes 로 만든 2단계 경로(KdcCategoryResolver).
  */
 @Schema(description = "도서 요약 (API_SPEC §1.5). 목록형 응답의 공통 원소")
 public record BookSummaryResponse(
@@ -18,7 +18,7 @@ public record BookSummaryResponse(
 	@Schema(description = "출판 연도", example = "2014", nullable = true) Integer publicationYear,
 	@Schema(description = "표지 URL(가장 큰 변형). 축소는 프론트 lib/coverUrl.ts", nullable = true) String coverUrl,
 	@Schema(description = "쪽수. V1 에는 없어 항상 null", nullable = true) Integer pageCount,
-	@Schema(description = "분류 경로. 지금은 KDC 대분류 1단계(\"문학\"), V2 에서 \"문학 > 한국소설\"", example = "문학", nullable = true) String category,
+	@Schema(description = "분류 경로 2단계 \"대분류 > 중분류\"(kdc_codes). 중분류가 없거나 같으면 대분류만. 서재 선반·DNA 장르 키가 이 값을 쓴다", example = "문학 > 한국문학", nullable = true) String category,
 	@Schema(description = "KDC 코드(books.category_code)", example = "813.7", nullable = true) String classNo
 ) {
 }

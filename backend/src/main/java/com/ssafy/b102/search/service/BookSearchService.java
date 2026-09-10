@@ -10,7 +10,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
 import com.ssafy.b102.book.dto.BookSummaryResponse;
-import com.ssafy.b102.book.entity.KdcMainClass;
+import com.ssafy.b102.book.service.KdcCategoryResolver;
 import com.ssafy.b102.global.error.BusinessException;
 import com.ssafy.b102.global.error.ErrorCode;
 import com.ssafy.b102.search.document.BookDocument;
@@ -33,9 +33,11 @@ public class BookSearchService {
 	private static final Pattern ISBN13 = Pattern.compile("^97[89]\\d{10}$");
 
 	private final BookSearchRepository repository;
+	private final KdcCategoryResolver kdc;
 
-	public BookSearchService(BookSearchRepository repository) {
+	public BookSearchService(BookSearchRepository repository, KdcCategoryResolver kdc) {
 		this.repository = repository;
+		this.kdc = kdc;
 	}
 
 	/**
@@ -77,8 +79,8 @@ public class BookSearchService {
 			d.getPublisher(),
 			d.getPubYear(),
 			d.getCoverUrl(),
-			null,                                        // pageCount — V1 books 에 없음
-			KdcMainClass.labelOf(d.getCategoryCode()),   // 대분류 1단계. V2 kdc_codes 로 "문학 > 한국소설"
+			null,                                        // pageCount — books 에 없음
+			kdc.pathOf(d.getCategoryCode()),             // "문학 > 한국문학" (kdc_codes 2단계, 없으면 대분류 폴백)
 			d.getCategoryCode());
 	}
 }
