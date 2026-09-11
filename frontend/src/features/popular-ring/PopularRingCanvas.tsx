@@ -134,6 +134,10 @@ export default function PopularRingCanvas({
       let lastX = 0
       let lastTime = 0
       let moved = 0
+      // 링은 타원이라 화면 아래쪽 호가 시청자와 가까운 앞면이다. 회전 부호를 고정하면
+      // 위/아래 중 한쪽은 반드시 드래그와 반대로 흐른다. 잡은 지점이 중심보다 아래면
+      // 부호를 뒤집어, 어느 쪽을 잡아도 잡은 표지가 손을 따라오게 한다.
+      let dragSign = 1
       let hovered: Slot | null = null
       let pinned: Slot | null = null
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -206,6 +210,8 @@ export default function PopularRingCanvas({
         lastTime = performance.now()
         moved = 0
         velocity = 0
+        const bounds = canvas.getBoundingClientRect()
+        dragSign = event.clientY - bounds.top > bounds.height * 0.5 ? -1 : 1
         snapTargetRef.current = null
         canvas.setPointerCapture(event.pointerId)
       }
@@ -215,7 +221,7 @@ export default function PopularRingCanvas({
         const now = performance.now()
         const dx = event.clientX - lastX
         const dt = Math.max((now - lastTime) / 1000, 1 / 240)
-        const delta = dx * 0.0042
+        const delta = dx * 0.0042 * dragSign
         rotation += delta
         velocity = clamp(velocity * 0.65 + (delta / dt) * 0.35, -MAX_VELOCITY, MAX_VELOCITY)
         const previousMoved = moved
