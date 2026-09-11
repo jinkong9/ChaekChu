@@ -91,20 +91,21 @@ adapter가 연결된다. `QDRANT_COLLECTION`은 `books_active` alias를 기본�
 QDRANT_URL=http://qdrant:6333
 QDRANT_API_KEY=<secret>
 QDRANT_COLLECTION=books_active
-QDRANT_TAG_COLLECTION=<optional>
-QDRANT_VECTOR_NAME=<optional>
-QDRANT_TIMEOUT_SECONDS=2.0
-AI_MODEL_VERSION=gms-text-embedding-3-small-20260909-1000
-AI_INDEX_VERSION=<promoted-index-version>
+QDRANT_TAG_COLLECTION=tags_active
+QDRANT_VECTOR_NAME=
+QDRANT_TIMEOUT_SECONDS=10
+AI_MODEL_VERSION=gms-text-embedding-3-small-release
+AI_INDEX_VERSION=not-generated  # 배치 promote 후 실제 indexVersion으로 변경
+AI_TAG_VERSION=not-generated    # tag-index promote 후 실제 tagVersion으로 변경
 
 # offline batch only
-EMBEDDING_API_URL=<gms-openai-compatible-embeddings-endpoint>
-EMBEDDING_API_KEY=<secret>
+EMBEDDING_API_URL=https://gms.ssafy.io/gmsapi/api.openai.com/v1/embeddings
+EMBEDDING_API_KEY=
 EMBEDDING_MODEL=text-embedding-3-small
 EMBEDDING_DIMENSION=1536
 EMBEDDING_TIMEOUT_SECONDS=30
-TAG_API_URL=<gms-openai-compatible-chat-endpoint>
-TAG_API_KEY=<secret>
+TAG_API_URL=https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions
+TAG_API_KEY=
 TAG_MODEL=gpt-4o-mini
 TAG_API_TIMEOUT_SECONDS=30
 TAG_RULE_CONFIDENCE_THRESHOLD=0.85

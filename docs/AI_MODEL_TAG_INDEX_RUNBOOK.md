@@ -58,8 +58,8 @@ export QDRANT_URL=http://127.0.0.1:6333
 export QDRANT_COLLECTION_PREFIX=books
 export QDRANT_COLLECTION=books_active
 export QDRANT_TIMEOUT_SECONDS=10
-export EMBEDDING_API_URL=<GMS OpenAI-compatible embeddings endpoint>
-export EMBEDDING_API_KEY=<secret manager에서 주입>
+export EMBEDDING_API_URL=https://gms.ssafy.io/gmsapi/api.openai.com/v1/embeddings
+# EMBEDDING_API_KEY는 deploy/.env 또는 secret manager에서 주입한다.
 export EMBEDDING_MODEL=text-embedding-3-small
 export EMBEDDING_DIMENSION=1536
 ```
@@ -100,8 +100,8 @@ GMS를 사용하려면 `TAG_API_URL`, `TAG_API_KEY`, `TAG_MODEL`을 주입한다
 확인한다.
 
 ```bash
-export TAG_API_URL=<GMS OpenAI-compatible chat endpoint>
-export TAG_API_KEY=<secret manager에서 주입>
+export TAG_API_URL=https://gms.ssafy.io/gmsapi/api.openai.com/v1/chat/completions
+# TAG_API_KEY는 deploy/.env 또는 secret manager에서 주입한다.
 export TAG_MODEL=gpt-4o-mini
 export TAG_RULE_CONFIDENCE_THRESHOLD=0.85
 export TAG_BATCH_SIZE=16
