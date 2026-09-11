@@ -137,6 +137,127 @@ def test_gms_tag_provider_parses_openai_compatible_json_without_leaking_source()
     assert "description" not in request_body["messages"][1]["content"]
 
 
+def test_gms_tag_provider_parses_batch_response_by_isbn() -> None:
+    captured: dict[str, object] = {}
+
+    class Response:
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    {
+                                        "books": [
+                                            {"isbn13": "9780000000002", "tags": [{"code": "FANTASY", "confidence": 0.91}]},
+                                            {"isbn13": "9780000000001", "tags": [{"code": "FIC", "confidence": 0.93}]},
+                                        ]
+                                    }
+                                )
+                            }
+                        }
+                    ]
+                }
+            ).encode("utf-8")
+
+    def opener(request, timeout):
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return Response()
+
+    books = load_d4l_jsonl(FIXTURE)[:2]
+    provider = GmsTagProvider(
+        endpoint="https://gms.example/v1/chat/completions",
+        api_key="test-secret",
+        model_version="gpt-test",
+        opener=opener,
+    )
+
+    suggestions = provider.generate_batch(books)
+
+    assert suggestions == {
+        "9780000000001": {"FIC": 0.93},
+        "9780000000002": {"FANTASY": 0.91},
+    }
+    request_body = captured["body"]
+    assert request_body["model"] == "gpt-test"
+    user_content = json.loads(request_body["messages"][1]["content"])
+    assert [book["isbn13"] for book in user_content["books"]] == [
+        "9780000000001",
+        "9780000000002",
+    ]
+    assert all("description" not in book for book in user_content["books"])
+
+
+def test_tag_batch_uses_multi_book_provider_and_reports_request_counts(tmp_path: Path) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    class EmptyRuleTagger:
+        def generate(self, _book):
+            return ()
+
+    class BatchProvider:
+        def generate_batch(self, books):
+            calls.append(tuple(book.isbn13 for book in books))
+            return {book.isbn13: {"FANTASY": 0.9} for book in books}
+
+    output = tmp_path / "tags.jsonl"
+    report = TagBatchRunner(
+        generator=TagGenerator(rule_tagger=EmptyRuleTagger(), gms_provider=BatchProvider()),
+        tag_version="d4l-tags-batch-test-v1",
+        batch_size=2,
+    ).run(FIXTURE, output)
+
+    assert len(calls) == 2
+    assert all(len(batch) == 2 for batch in calls)
+    assert report["gmsRequests"] == 2
+    assert report["gmsBatchRequests"] == 2
+    assert report["gmsAttempts"] == 4
+    assert report["gmsFailures"] == 0
+    assert report["gmsSkippedRows"] == 0
+    records = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert all(record["tagCodes"] == ["FANTASY"] for record in records)
+
+
+def test_tag_batch_falls_back_to_individual_calls_after_batch_failure(tmp_path: Path) -> None:
+    batch_calls = 0
+    individual_calls = 0
+
+    class EmptyRuleTagger:
+        def generate(self, _book):
+            return ()
+
+    class FallbackProvider:
+        def generate_batch(self, _books):
+            nonlocal batch_calls
+            batch_calls += 1
+            raise RuntimeError("batch unavailable")
+
+        def generate(self, _book):
+            nonlocal individual_calls
+            individual_calls += 1
+            return {"FANTASY": 0.9}
+
+    output = tmp_path / "tags.jsonl"
+    report = TagBatchRunner(
+        generator=TagGenerator(
+            rule_tagger=EmptyRuleTagger(),
+            gms_provider=FallbackProvider(),
+            max_retries=1,
+        ),
+        tag_version="d4l-tags-batch-fallback-test-v1",
+        batch_size=2,
+    ).run(FIXTURE, output)
+
+    assert batch_calls == 4
+    assert individual_calls == 4
+    assert report["gmsBatchRequests"] == 4
+    assert report["gmsRequests"] == 8
+    assert report["gmsFailures"] == 0
+    assert report["missingRows"] == 0
+
+
 def test_gms_rate_limit_or_provider_failure_retries_without_losing_rule_tags() -> None:
     book = load_d4l_jsonl(FIXTURE)[0]
     calls = 0
