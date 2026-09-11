@@ -351,10 +351,25 @@ export default function PopularRingPage() {
                 <motion.div key="wordmark" className="popular-wordmark" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   <p>세대별로 지금 많이 읽는 책</p>
                   <h1>책추책책추</h1>
-                  <span>{activeSegment ? activeSegment.label : `10개 독자 그룹 · 인기 ${data.itemCount}권`}</span>
+                  <span>{activeSegment ? `${activeSegment.label} · ${activeSegment.items.length}권` : `10개 독자 그룹 · 인기 ${data.itemCount}권`}</span>
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* 필터를 걸면 오른쪽 위 Grid view 버튼만으로는 눈에 띄지 않는다 —
+                시선이 머무는 중앙 워드마크 아래에 같은 행동을 상단 툴바와 같은
+                생김새로 한 번 더 둔다. AnimatePresence 밖에 두어 표지를 훑는
+                동안에도 사라지지 않게 한다. */}
+            {activeSegment && (
+              <div className="popular-home__segment-toolbar">
+                <button type="button" className="popular-home__text-button" onClick={() => setView('grid')}>
+                  {activeSegment.items.length}권 전체보기 +
+                </button>
+                <button type="button" className="popular-home__text-button" onClick={() => setActiveSegmentId(null)}>
+                  필터 해제
+                </button>
+              </div>
+            )}
           </div>
 
           <p className="popular-home__hint">드래그하거나 휠을 굴려 둘러보세요</p>

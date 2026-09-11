@@ -7,6 +7,12 @@ const SECTOR_GAP = 2.6 * (Math.PI / 180)
 const IDLE_SPEED = 0.035
 const MAX_VELOCITY = 2.4
 const LOAD_CONCURRENCY = 8
+// 이 각도(rad)만큼 돈 첫 방향으로 드래그 방향을 고정한다.
+const DIRECTION_LOCK_THRESHOLD = 0.004
+// 포인터 이벤트 하나가 만들 수 있는 최대 회전. 튀는 입력을 막는다.
+const MAX_DRAG_STEP = 0.3
+// 링 중심 근처(정규화 반지름)에서는 각도가 급격히 튀므로 회전에 쓰지 않는다.
+const DRAG_DEAD_ZONE = 0.12
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const shortestAngle = (value: number) => ((value + Math.PI) % TAU + TAU) % TAU - Math.PI
@@ -132,8 +138,18 @@ export default function PopularRingCanvas({
       let dragging = false
       let pointerId = -1
       let lastX = 0
+      let lastY = 0
       let lastTime = 0
       let moved = 0
+      // 드래그를 각도로 환산하려면 티커가 매 프레임 계산하는 링 형상이 필요하다.
+      let ringCenterX = 0
+      let ringCenterY = 0
+      let ringRadiusX = 1
+      let ringRadiusY = 1
+      let lastAngle: number | null = null
+      // 한 번 누른 동안에는 처음 움직인 방향으로만 돈다. 손이 되돌아오는 구간은
+      // 회전에 반영하지 않아, 누르고 있는 중에 링이 앞뒤로 흔들리지 않는다.
+      let dragDirection = 0
       let hovered: Slot | null = null
       let pinned: Slot | null = null
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -198,14 +214,28 @@ export default function PopularRingCanvas({
       }
       void Promise.all(Array.from({ length: Math.min(LOAD_CONCURRENCY, loadOrder.length) }, textureWorker))
 
+      // 타원을 원으로 정규화한 좌표에서 본 커서의 각도. 표지를 배치할 때 쓰는 각도와
+      // 같은 좌표계라, 이 각도의 변화량을 그대로 rotation에 더하면 잡은 표지가
+      // 커서를 따라온다 — 위/아래로 끌든 좌우로 끌든 같은 규칙으로 돈다.
+      const pointerAngle = (event: PointerEvent): number | null => {
+        const bounds = canvas.getBoundingClientRect()
+        const nx = (event.clientX - bounds.left - ringCenterX) / ringRadiusX
+        const ny = (event.clientY - bounds.top - ringCenterY) / ringRadiusY
+        if (Math.hypot(nx, ny) < DRAG_DEAD_ZONE) return null
+        return Math.atan2(ny, nx)
+      }
+
       const onPointerDown = (event: PointerEvent) => {
         if (event.button !== 0) return
         dragging = true
         pointerId = event.pointerId
         lastX = event.clientX
+        lastY = event.clientY
+        lastAngle = pointerAngle(event)
         lastTime = performance.now()
         moved = 0
         velocity = 0
+        dragDirection = 0
         snapTargetRef.current = null
         canvas.setPointerCapture(event.pointerId)
       }
@@ -213,19 +243,28 @@ export default function PopularRingCanvas({
       const onPointerMove = (event: PointerEvent) => {
         if (!dragging || event.pointerId !== pointerId) return
         const now = performance.now()
-        const dx = event.clientX - lastX
         const dt = Math.max((now - lastTime) / 1000, 1 / 240)
-        const delta = dx * 0.0042
+
+        const angle = pointerAngle(event)
+        const step = angle != null && lastAngle != null
+          ? clamp(shortestAngle(angle - lastAngle), -MAX_DRAG_STEP, MAX_DRAG_STEP)
+          : 0
+        if (angle != null) lastAngle = angle
+
+        if (dragDirection === 0 && Math.abs(step) >= DIRECTION_LOCK_THRESHOLD) dragDirection = Math.sign(step)
+        const delta = Math.sign(step) === dragDirection ? step : 0
         rotation += delta
         velocity = clamp(velocity * 0.65 + (delta / dt) * 0.35, -MAX_VELOCITY, MAX_VELOCITY)
+
         const previousMoved = moved
-        moved += Math.abs(dx)
+        moved += Math.hypot(event.clientX - lastX, event.clientY - lastY)
         if (previousMoved <= 5 && moved > 5) {
           hovered = null
           pinned = null
           selectionRef.current(null)
         }
         lastX = event.clientX
+        lastY = event.clientY
         lastTime = now
       }
 
@@ -272,7 +311,10 @@ export default function PopularRingCanvas({
             snapTargetRef.current = null
           }
         } else if (!dragging && !reducedMotion) {
-          const targetVelocity = hovered ? 0 : IDLE_SPEED
+          // 필터를 걸면 자동 회전을 멈춘다 — 고른 그룹을 들여다보는 중에 링이
+          // 계속 흐르면 읽기 어렵다. 해제하면 다시 돈다. 드래그·휠은 그대로 먹고,
+          // 손을 떼면 여기서 감속해 멈춘다.
+          const targetVelocity = hovered || activeRef.current != null ? 0 : IDLE_SPEED
           velocity += (targetVelocity - velocity) * (1 - Math.exp(-2.8 * dt))
           rotation += velocity * dt
         }
@@ -294,6 +336,10 @@ export default function PopularRingCanvas({
         const radiusY = radiusX * (0.47 + compactness * 0.09)
         const centerX = width * 0.5
         const centerY = height * 0.5
+        ringCenterX = centerX
+        ringCenterY = centerY
+        ringRadiusX = radiusX
+        ringRadiusY = radiusY
         const baseWidth = clamp(radiusX * 0.087, 22, 50)
         const baseHeight = baseWidth * 1.45
         const geometryKey = `${Math.round(radiusX * 10)}:${Math.round(radiusY * 10)}`

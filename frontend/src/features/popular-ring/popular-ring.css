@@ -319,6 +319,19 @@
   font-size: 15px;
 }
 
+/* 중앙 블록(워드마크·미리보기) 아래에 놓이는 필터 상태 툴바 — 상단 툴바와
+   같은 밑줄 버튼 어휘를 쓴다. .popular-center 는 pointer-events 를 끄므로
+   이 줄만 다시 켠다. */
+.popular-home__segment-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 42px;
+  pointer-events: auto;
+  transform: translateY(var(--popular-wordmark-shift));
+}
+
 .popular-home__hint {
   position: absolute;
   z-index: 45;
@@ -436,16 +449,18 @@
 }
 
 .popular-grid {
+  /* 툴바(필터·추천·뷰 전환)는 절대 위치로 떠 있다. 스크롤 영역을 inset으로 그 아래에서
+     시작시켜, 스크롤한 글이 툴바 밑으로 흘러 들어가 겹치지 않게 한다. */
   position: absolute;
-  inset: 0;
+  inset: 78px 0 0;
   overflow: auto;
-  padding: 88px 28px 48px;
+  padding: 0 28px 48px;
 }
 
 .popular-grid__section {
   padding: 25px 0 38px;
   border-top: 1px solid rgba(11, 11, 11, 0.25);
-  scroll-margin-block-start: 88px;
+  scroll-margin-block-start: 0;
   transition: border-color 180ms ease-out;
 }
 
@@ -620,6 +635,7 @@
   .popular-home__text-button { font-size: 12px; }
   .popular-home__toolbar-actions { gap: 9px; }
   .popular-home__recommend-button { min-height: 36px; padding: 0 12px; font-size: 11px; }
+  .popular-home__segment-toolbar { gap: 16px; margin-top: 26px; }
   .popular-ring__label { display: none; }
   .popular-center { top: 50%; }
   .popular-wordmark h1 { font-size: clamp(44px, 15vw, 68px); }
@@ -639,12 +655,11 @@
   .popular-home__hint { bottom: 16px; }
   .popular-load { right: 16px; bottom: 16px; width: 72px; }
   .popular-filter { top: 56px; left: 16px; width: calc(100vw - 32px); }
-  .popular-grid { padding: 68px 16px 40px; }
+  .popular-grid { inset: 64px 0 0; padding: 0 16px 40px; }
   .popular-grid__books { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 14px; }
   .popular-grid__books--more { margin-top: 24px; }
   .popular-grid__more-row { margin-top: 20px; }
   .popular-grid__more-button { min-height: 44px; }
-  .popular-grid__section { scroll-margin-block-start: 72px; }
   .popular-grid__section-header { align-items: flex-start; flex-direction: column; gap: 5px; }
 }
 
