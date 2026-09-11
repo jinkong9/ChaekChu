@@ -20,6 +20,7 @@
 | | `GET /books/popular` | ● | OnboardingPage 2단계 | 구현 대상 |
 | | `GET /books/popular-segments` | ● | 홈 (현재 정적 JSON) | **구현(09-10)** · FE 연결 |
 | 태그 | `GET /tags` | ● | (없음 — GENRES 하드코딩) | **구현(09-10)** · FE 연결 선택 |
+| 분류 | `GET /kdc` | ● | (없음 — 검색 분류 칩·드릴다운용) | **구현(09-11)** · FE 연결 |
 | | `GET /books/{bookId}` | ● | BookDetailPage · 홈 링 | **구현(09-10)** · ISBN13 도 받는다 |
 | | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 — Qdrant 적재량이 아직 1만 권(전체의 0.3%) |
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | **구현(09-10)** · FE 연결 |
@@ -254,6 +255,35 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 - **`kdc` 만 보낼 때의 대출순**은 매핑 v4 의 `loanCum` — 색인할 때 `book_demand_features` 최신 스냅샷(`2026-08`)의 `loan_cum` 을 LEFT JOIN 해 넣는다. 수요 지표가 없는 책(약 57만 권)은 `null` 이고 정렬에서 뒤로 간다. 스냅샷이 더 늘지 않는 전제라 월 배치·증분 갱신 경로는 두지 않았다(추가되면 전체 재색인).
 - 정렬에 `unmapped_type` 을 주므로 v4 재색인 중 alias 가 아직 v3 를 가리켜도 `500` 이 아니라 「전부 값 없음」으로 동작한다 — 그 15분 동안 대출순만 정확하지 않고 검색은 살아 있다.
 - 검색 엔진 장애는 `503 SEARCH_UNAVAILABLE`(§1.3).
+
+### 4.7 `GET /kdc?depth=&parent=` ● (2026-09-11)
+
+KDC 분류 사전 949개(대분류 10 · 중분류 100 · 소분류 839). 원천은 V2 `kdc_codes`(`code`·`label`·`parent_code`·`depth`)로 내용이 바뀌지 않는 고정 표다.
+`code` 의 자릿수가 곧 단계이고 그대로 `GET /books/search?kdc=` 에 넣을 수 있다 — `8`(문학) → `81`(한국문학) → `813`(소설).
+검색 결과의 `classNo`(`"813.62"`)는 소수점까지라 그대로 쓰면 `400` 이고, 앞자리만 잘라 쓴다.
+
+| 쿼리 | 규칙 |
+| --- | --- |
+| `depth` | `1`·`2`·`3`. 그 단계 전체를 준다 |
+| `parent` | 부모 코드 1~3자리. 그 코드의 **자식 한 단계**. `parent=8` → `80`~`89` |
+| 둘 다 없음 | 전체 949행(약 60KB) |
+| 둘 다 있음 | `400 VALIDATION_FAILED` — 다른 질문이라 섞지 않는다 |
+
+```json
+GET /kdc?depth=1
+→ { "items": [ { "code": "0", "label": "총류", "depth": 1, "parentCode": null },
+               { "code": "8", "label": "문학", "depth": 1, "parentCode": null }, … 10개 ] }
+
+GET /kdc?parent=8
+→ { "items": [ { "code": "80", "label": "문학", "depth": 2, "parentCode": "8" },
+               { "code": "81", "label": "한국문학", "depth": 2, "parentCode": "8" }, … 10개 ] }
+```
+
+구현 메모:
+- 정렬은 `code` **문자열** 오름차순이라 전체 조회에서 `"81"` 다음이 `"811"`·`"813"` 이고 그 뒤가 `"82"` 다. 한 단계만 받으면(`depth`·`parent`) 자릿수가 같아 숫자 순과 같다.
+- 소분류 코드로 `parent` 를 물으면 자식이 없어 `items: []` 다 — `404` 가 아니다.
+- 응답에 `Cache-Control: max-age=86400, public`. 949행짜리 고정 표라 메모리 캐시는 두지 않았다(프론트는 앱 시작에 한 번, 토큰을 펼칠 때만 부른다). 검색 결과마다 라벨을 붙이는 `KdcCategoryResolver` 는 호출 빈도가 높아 그쪽만 기동 시 메모리에 올린다.
+- **`kdc_codes` seed 는 저장소에 없다** — 운영은 팀원이 따로 적재했고, 표가 비면 `items: []` 를 준다(검색의 `category` 는 대분류 폴백으로 계속 동작).
 
 ### 4.2 `GET /books/popular?size=` ●
 
