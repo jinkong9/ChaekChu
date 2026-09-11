@@ -1,6 +1,7 @@
 package com.ssafy.b102.search.service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,10 +60,10 @@ public class BookSearchService {
 	public BookSearchResponse search(String rawQ, String rawKdc, int page, int size) {
 		String q = rawQ == null ? "" : rawQ.trim();
 		String kdcPrefix = rawKdc == null ? "" : rawKdc.trim();
-		validate(q, kdcPrefix, page, size);
+		String isbn13 = asIsbn13(q);
+		validate(q, kdcPrefix, page, size, isbn13 != null);
 
 		try {
-			String isbn13 = asIsbn13(q);
 			if (isbn13 != null) {
 				Optional<BookDocument> found = repository.findByIsbn13(isbn13);
 				List<BookSummaryResponse> items = found.map(d -> List.of(toSummary(d))).orElse(List.of());
@@ -79,26 +80,36 @@ public class BookSearchService {
 		}
 	}
 
-	/** 위반을 모아서 한 번에 400(fields[]) — 온보딩·서재와 같은 방식. */
-	private static void validate(String q, String kdcPrefix, int page, int size) {
+	/**
+	 * 위반을 모아서 한 번에 400(fields[]) — 온보딩·서재와 같은 방식.
+	 * ISBN 조회는 결과가 0~1건이라 ES 페이징도 분류 필터도 타지 않는다. 그 두 규칙은 본문 검색일 때만 본다 —
+	 * 그래야 문서가 약속한 「ISBN 이면 kdc 를 무시한다」가 지켜지고, 예전처럼 어떤 page 로도 조회할 수 있다.
+	 */
+	private static void validate(String q, String kdcPrefix, int page, int size, boolean isbnLookup) {
 		List<Map<String, String>> fields = new ArrayList<>();
 		if (q.isEmpty() && kdcPrefix.isEmpty()) {
 			fields.add(field("q", "검색어 또는 분류(kdc) 중 하나는 필요합니다."));
 		}
-		if (!kdcPrefix.isEmpty() && !KDC_PREFIX.matcher(kdcPrefix).matches()) {
-			fields.add(field("kdc", "분류는 1~3자리 숫자입니다(예: 8 · 81 · 813)."));
-		}
-		if ((long) page * size + size > MAX_WINDOW) {
-			fields.add(field("page", "탐색 한도는 " + MAX_WINDOW + "건입니다. size=" + size
-				+ " 이면 page 는 0~" + (MAX_WINDOW / size - 1) + " 까지입니다. 분류나 검색어로 결과를 좁혀 주세요."));
+		if (!isbnLookup) {
+			if (!kdcPrefix.isEmpty() && !KDC_PREFIX.matcher(kdcPrefix).matches()) {
+				fields.add(field("kdc", "분류는 1~3자리 숫자입니다(예: 8 · 81 · 813). classNo(\"813.62\")를 그대로 보내지 말고 앞자리만 보내세요."));
+			}
+			if ((long) page * size + size > MAX_WINDOW) {
+				fields.add(field("page", "탐색 한도는 " + MAX_WINDOW + "건입니다. size=" + size
+					+ " 이면 page 는 0~" + (MAX_WINDOW / size - 1) + " 까지입니다. 분류나 검색어로 결과를 좁혀 주세요."));
+			}
 		}
 		if (!fields.isEmpty()) {
 			throw new BusinessException(ErrorCode.VALIDATION_FAILED, Map.of("fields", fields));
 		}
 	}
 
+	/** LinkedHashMap — 응답 JSON 의 키 순서를 {field, reason} 으로 고정한다(GlobalExceptionHandler 와 동일). */
 	private static Map<String, String> field(String field, String reason) {
-		return Map.of("field", field, "reason", reason);
+		Map<String, String> entry = new LinkedHashMap<>();
+		entry.put("field", field);
+		entry.put("reason", reason);
+		return entry;
 	}
 
 	/** 하이픈·공백을 뗀 13자리 ISBN. 아니면 null. */

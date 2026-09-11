@@ -209,6 +209,34 @@ class BookSearchServiceTest {
 	}
 
 	@Test
+	@DisplayName("ISBN 조회는 탐색 한도·분류 검증을 타지 않는다 — 결과가 0~1건이라 ES 페이징도 필터도 안 쓴다")
+	void isbn_lookup_skips_window_and_kdc_checks() {
+		when(repository.findByIsbn13("9788936434120")).thenReturn(Optional.of(DOC));
+
+		// page 500 은 본문 검색이면 400 이지만 ISBN 조회는 예전처럼 통과한다(0페이지가 아니라 items 는 빈 배열)
+		assertThat(service.search("9788936434120", null, 500, 20).total()).isEqualTo(1);
+		// 문서가 약속한 「ISBN 이면 kdc 무시」 — classNo 를 그대로 보내도 400 이 아니다
+		assertThat(service.search("9788936434120", "813.62", 0, 20).items()).hasSize(1);
+	}
+
+	@Test
+	@DisplayName("본문 검색에서는 classNo 를 그대로 보내면 400 — 앞자리만 받는다")
+	void classNo_as_kdc_is_400_for_text_search() {
+		assertThatThrownBy(() -> service.search("데미안", "813.62", 0, 20))
+			.isInstanceOf(BusinessException.class)
+			.satisfies(e -> assertThat(fields((BusinessException) e)).extracting(f -> f.get("field")).contains("kdc"));
+	}
+
+	@Test
+	@DisplayName("details.fields 의 키 순서는 {field, reason} 으로 고정 — 다른 엔드포인트와 같은 모양")
+	void field_entry_key_order_is_stable() {
+		assertThatThrownBy(() -> service.search(null, null, 0, 20))
+			.isInstanceOf(BusinessException.class)
+			.satisfies(e -> assertThat(fields((BusinessException) e)).singleElement()
+				.satisfies(f -> assertThat(f.keySet()).containsExactly("field", "reason")));
+	}
+
+	@Test
 	@DisplayName("탐색 한도는 size 에 따라 달라진다 — size=50 이면 page 199 까지")
 	void window_depends_on_size() {
 		when(repository.search("데미안", "", 199, 50)).thenReturn(BookSearchResult.empty());

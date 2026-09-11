@@ -194,6 +194,12 @@ public class BookIndexService {
 	 * 삭제 정책이 생기면 (a) 삭제 id 를 받아 operations.delete 하거나 (b) reindexInto 로 전체를 다시 만드는 쪽(새 인덱스는 PG 만 보고 만들어지므로 자연히 빠진다)을 붙인다.
 	 */
 	public IndexReport indexUpdatedSince(Instant since) {
+		// alias 가 옛 매핑 버전을 가리키는 동안은 거부한다 — 매핑이 strict 라 새 필드(loanCum 등)를 가진 문서가 통째로 거부되고,
+		// indexInto 는 거부를 failed 로 세고 계속 가므로 조용히 일부만 갱신되는 상태가 된다. 그때 할 일은 증분이 아니라 rebuild 다.
+		if (!isCurrent()) {
+			throw new IllegalStateException("alias '" + props.alias() + "' 가 " + aliasTargets()
+				+ " 를 가리키고 현행 매핑은 '" + props.indexName() + "' 입니다. 증분 색인 전에 rebuild 가 필요합니다.");
+		}
 		String month = rowRepository.latestDemandMonth();
 		return indexInto(props.alias(), lastId -> rowRepository.findUpdatedAfterId(month, since, lastId, BATCH_SIZE));
 	}
