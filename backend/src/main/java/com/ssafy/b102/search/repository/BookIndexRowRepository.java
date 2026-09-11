@@ -24,11 +24,29 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class BookIndexRowRepository {
 
-	private static final String SELECT = """
+	/**
+	 * 배치 1,000건을 CTE 로 먼저 고정한 뒤 JOIN 한다. MATERIALIZED 가 핵심 —
+	 * LIMIT 을 JOIN 뒤에 걸면 플래너가 바깥 행 수를 모른 채 Merge Join 을 골라 book_demand_features(274만 행) 앞부분을
+	 * 배치마다 다시 훑는다. 운영 DB 실측: 그 형태는 lastId 50만에서 684ms, 200만에서 1,232ms 로 늘었고(배치 3,312회 → 한 시간 넘김),
+	 * 이 형태는 중간 구간도 4~5ms 로 Nested Loop + PK 조회로 안정적이다. MATERIALIZED 를 빼면 인라인되어 옛 플랜으로 되돌아간다.
+	 *
+	 * 파라미터 순서: CTE 안의 조건(where) → LIMIT → 그 다음 JOIN 의 as_of_month.
+	 */
+	private static final String BATCH_HEAD = """
+		with batch as materialized (
+		  select id, isbn13, title, author, publisher, pub_year, category_code, cover_url, updated_at
+		    from books
+		""";
+
+	private static final String BATCH_TAIL = """
+		   order by id
+		   limit ?
+		)
 		select b.id, b.isbn13, b.title, b.author, b.publisher, b.pub_year, b.category_code, b.cover_url,
 		       b.updated_at, d.loan_cum
-		  from books b
+		  from batch b
 		  left join book_demand_features d on d.book_id = b.id and d.as_of_month = ?
+		 order by b.id
 		""";
 
 	private static final RowMapper<BookIndexRow> ROW_MAPPER = BookIndexRowRepository::mapRow;
@@ -50,13 +68,13 @@ public class BookIndexRowRepository {
 
 	/** id > lastId 인 책을 id 순으로 limit 건. OFFSET 없는 키셋 페이징이라 뒤로 갈수록 느려지지 않는다. */
 	public List<BookIndexRow> findAfterId(String demandMonth, long lastId, int limit) {
-		return jdbc.query(SELECT + " where b.id > ? order by b.id limit ?", ROW_MAPPER, demandMonth, lastId, limit);
+		return jdbc.query(BATCH_HEAD + "   where id > ?\n" + BATCH_TAIL, ROW_MAPPER, lastId, limit, demandMonth);
 	}
 
 	/** 위와 같고 updated_at 이 since 이후인 책만. 증분 색인용 — loanCum 도 함께 다시 넣는다(null 로 덮어쓰지 않게). */
 	public List<BookIndexRow> findUpdatedAfterId(String demandMonth, Instant since, long lastId, int limit) {
-		return jdbc.query(SELECT + " where b.updated_at > ? and b.id > ? order by b.id limit ?",
-			ROW_MAPPER, demandMonth, Timestamp.from(since), lastId, limit);
+		return jdbc.query(BATCH_HEAD + "   where updated_at > ? and id > ?\n" + BATCH_TAIL,
+			ROW_MAPPER, Timestamp.from(since), lastId, limit, demandMonth);
 	}
 
 	/** 색인 완전성 검증용 — populateAndSwitch 가 ES 문서 수와 비교한다. */
