@@ -258,7 +258,7 @@ const TAGS = [
   ['FICTION', '#소설'], ['ESSAY', '#에세이'], ['HUMANITIES', '#인문'], ['HISTORY', '#역사'],
   ['SCIENCE', '#과학'], ['ART', '#예술'], ['SELF_HELP', '#자기계발'], ['BUSINESS', '#경제·경영'],
   ['SOCIETY', '#사회'], ['POETRY', '#시'], ['TRAVEL', '#여행'], ['TECH', '#기술·IT'],
-].map(([tagCode, label]) => ({ tagCode, label, kind: 'GENRE' as const }))
+].map(([code, label]) => ({ code, label, kind: 'GENRE' as const, selectable: true }))
 
 export const handlers = [
   // 태그 사전 — 온보딩 장르 칩·(추후) /tune 해시태그의 단일 원천
