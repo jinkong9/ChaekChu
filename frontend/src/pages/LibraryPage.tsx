@@ -53,6 +53,10 @@ type StyleWithVars = CSSProperties & Record<`--${string}`, string | number>
 /** 한 면(--book-h)에 들어가는 목차 줄 수. 판면이 em 이라 책 크기가 변해도 이 값은 그대로다. */
 const TOC_MAX = 11
 
+/** 눈금으로 세울 수 있는 장 수. 넘으면 눈금 없이 화살표와 쪽수만 둔다 —
+ *  스무 개가 넘는 눈금은 세어지지도, 눌러지지도 않는다. */
+const TICK_MAX = 12
+
 const ordinal = (n: number) => String(n).padStart(2, '0')
 
 /** 분류 2단계의 마지막 세그먼트 ("문학 > 한국소설" → "한국소설") */
@@ -489,11 +493,27 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
       </div>
 
       <div className={`libd__controls ${isClosed ? 'is-hidden' : ''}`} aria-label="책 페이지 넘기기">
-        <button type="button" onClick={() => requestTurn(-1)} aria-label="이전 장" disabled={cursor <= 0}>
+        <button type="button" className="libd__arrow" onClick={() => requestTurn(-1)}
+          aria-label="이전 장" disabled={cursor <= 0}>
           <ArrowIcon direction="left" />
         </button>
-        <span><b>{ordinal(cursor + 1)}</b> / {ordinal(sheets.length)}</span>
-        <button type="button" onClick={() => requestTurn(1)} aria-label="다음 장" disabled={cursor >= sheets.length - 1}>
+        {sheets.length <= TICK_MAX && (
+          <span className="libd__ticks">
+            {sheets.map((s, i) => (
+              <button
+                key={s.kind === 'toc' ? 'toc' : s.li.libraryItemId}
+                type="button"
+                className={`libd__tick ${i === cursor ? 'is-on' : ''}`}
+                aria-label={s.kind === 'toc' ? '목차로' : `${s.li.book.title} 장으로`}
+                aria-current={i === cursor || undefined}
+                onClick={() => jumpTo(i)}
+              />
+            ))}
+          </span>
+        )}
+        <span className="libd__folio"><b>{ordinal(cursor + 1)}</b> / {ordinal(sheets.length)}</span>
+        <button type="button" className="libd__arrow" onClick={() => requestTurn(1)}
+          aria-label="다음 장" disabled={cursor >= sheets.length - 1}>
           <ArrowIcon direction="right" />
         </button>
       </div>

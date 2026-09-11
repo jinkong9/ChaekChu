@@ -441,7 +441,7 @@
   z-index: 40;
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 18px;
   opacity: 1;
   pointer-events: auto;
   transform: translateX(-50%);
@@ -454,28 +454,58 @@
   transform: translate(-50%, 8px);
 }
 
-.libd__controls button {
+/* 화살표 — 상자 없이 글리프만. 종이 위에 얹히는 것이라 그림자도 유리도 두지 않는다
+   (흰 원 + 그림자는 앱의 다른 화면에 없는 문법이었다) */
+.libd__arrow {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
-  border: 1px solid rgba(23, 32, 57, 0.14);
-  border-radius: 50%;
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.66);
-  box-shadow: 0 8px 25px rgba(41, 52, 69, 0.1);
-  backdrop-filter: blur(14px);
-  transition: color 140ms ease, background-color 140ms ease, transform 140ms ease;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(23, 32, 57, 0.42);
   cursor: pointer;
+  transition: color 140ms ease;
 }
 
-.libd__controls button:hover { color: white; background: var(--cobalt); }
-.libd__controls button:active { transform: scale(0.96); }
-.libd__controls button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
+.libd__arrow:hover:not(:disabled) { color: var(--ink); }
+.libd__arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+.libd__arrow:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; border-radius: 4px; }
 .libd__controls svg { width: 18px; height: 18px; }
 .libd__controls svg.is-right { transform: rotate(180deg); }
-.libd__controls > span { min-width: 66px; color: rgba(23, 32, 57, 0.42); font-size: 10px; text-align: center; }
-.libd__controls b { color: var(--ink); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* 책갈피 눈금 — 장 하나가 한 눈금이고, 지금 펼친 장은 잉크로 길다.
+   책배에 낸 색인처럼 몇 장짜리 책인지와 어디쯤인지를 한 줄이 같이 말한다. */
+.libd__ticks { display: flex; align-items: flex-end; gap: 7px; height: 16px; }
+
+.libd__tick {
+  position: relative;
+  width: 3px;
+  height: 9px;
+  padding: 0;
+  border: 0;
+  background: rgba(23, 32, 57, 0.22);
+  cursor: pointer;
+  transition: height 160ms ease, background-color 160ms ease;
+}
+
+/* 손이 닿는 자리는 눈에 보이는 눈금보다 넓다 */
+.libd__tick::after { content: ''; position: absolute; inset: -7px -4px; }
+.libd__tick:hover { height: 13px; background: rgba(23, 32, 57, 0.42); }
+.libd__tick.is-on { height: 16px; background: var(--ink); }
+.libd__tick:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 4px; }
+
+.libd__folio {
+  min-width: 4.4em;
+  color: rgba(23, 32, 57, 0.42);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.libd__folio b { color: var(--ink); font-weight: 700; }
 
 @media (max-width: 900px) {
   .libd-page { --book-w: clamp(200px, 34vw, 285px); padding: 22px 20px 18px; }
