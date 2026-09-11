@@ -1036,54 +1036,42 @@
 .libd-timeline__cover span { display: block; padding: 6px 2px; writing-mode: vertical-rl; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 9px; }
 
 /* 찜 책장: 따뜻한 벽과 길게 놓인 나무 선반 위에 표지를 세운다. */
-.libd-page--wish { --ink: #0b0b0b; --cobalt: #0b0b0b; }
-.libd-page--wish .libd__intro--flow { padding: 96px max(34px, calc((100% - 1200px) / 2)) 0; text-align: left; }
-.libd-wish__toolbar, .libd-wish__list { max-width: 1200px; margin-inline: auto; }
+/* 머리말·툴바·선반이 한 기준선에 선다 — 선반 padding(34·20·14px)과 같은 값이다 */
+.libd-page--wish { --ink: #0b0b0b; --cobalt: #0b0b0b; --wish-inset: 34px; }
+.libd-page--wish .libd__intro--flow { padding: 96px var(--wish-inset) 0; text-align: left; }
+.libd-wish__toolbar, .libd-wish__list { margin-inline: var(--wish-inset); }
+@media (max-width: 900px) { .libd-page--wish { --wish-inset: 20px; } }
 .libd-wish__toolbar { display: flex; align-items: center; gap: 24px; margin-top: 26px; padding-top: 16px; border-top: 1px solid rgba(11,11,11,.18); }
 .libd-wish__toolbar .eo-segments { margin-right: auto; }
 .libd-wish__list { padding-block: 20px 90px; }
-.libd-shelf { max-width: 1320px; margin-inline: auto; padding: 26px 30px 90px; }
 .libd-shelf__row { position: relative; }
-.libd-shelf__row + .libd-shelf__row { margin-top: 52px; }
-.libd-shelf__head { padding-inline: 30px; }
-.libd-shelf__head h3 { font-size: 14px; }
-.libd-shelf__display { padding-inline: 20px; margin-top: 4px; }
-.libd-shelf__books { gap: 34px; padding: 16px 10px 0; scrollbar-width: thin; }
+.libd-shelf__books { scrollbar-width: thin; }
 .libd-shelf__book { position: relative; padding-top: 2px; }
 .libd-shelf__book a { position: relative; display: block; border-radius: 2px; }
 .libd-shelf__book a:focus-visible { outline: 2px solid var(--ink); outline-offset: 5px; }
-.libd-cover { width: 156px; height: 222px; border-radius: 2px 4px 0 0; box-shadow: -5px 0 5px rgba(255,255,255,.6), 9px 8px 16px rgba(48,37,23,.24); }
+.libd-cover { width: 92px; height: 132px; border-radius: 2px 4px 0 0; box-shadow: -5px 0 5px rgba(255,255,255,.6), 9px 8px 16px rgba(48,37,23,.24); }
 .libd-shelf__book a::after { content: ''; position: absolute; inset: 0; pointer-events: none; border: 1px solid rgba(0,0,0,.06); background: linear-gradient(90deg, rgba(0,0,0,.14), rgba(255,255,255,.3) 2%, rgba(0,0,0,.09) 4%, transparent 7%); }
-.libd-cover--fallback { padding: 18px 16px; }
-.libd-cover--fallback b { font-size: 17px; font-weight: 550; }
-.libd-cover--fallback span { font-size: 11px; }
+.libd-cover--fallback { padding: 7px; }
+.libd-cover--fallback b { font-size: 11px; font-weight: 550; }
+.libd-cover--fallback span { font-size: 9px; }
 .libd-shelf__ledge {
   position: relative;
   z-index: 2;
-  height: 20px;
+  height: 12px;
   border: 1px solid #b99b74;
   border-radius: 3px;
   background:
     repeating-linear-gradient(1deg, transparent 0 3px, rgba(106,68,30,.18) 3.4px 4px, transparent 4.5px 8px),
     repeating-linear-gradient(-.6deg, transparent 0 5px, rgba(255,238,202,.5) 5.5px 6px, transparent 6.5px 11px),
     linear-gradient(#e8d2af 0%, #d1b28a 17%, #c1a078 75%, #b18d65 92%, #d8bb94 100%);
-  box-shadow: inset 0 2px 1px #f2e2c6, inset 0 -2px 2px rgba(100,66,31,.2), 0 3px 3px rgba(73,49,26,.2), 0 17px 20px -5px rgba(75,53,29,.3), 0 35px 38px -15px rgba(85,63,37,.2);
+  box-shadow: inset 0 2px 1px #f2e2c6, inset 0 -2px 2px rgba(100,66,31,.2), 0 2px 2px rgba(73,49,26,.2), 0 10px 12px -4px rgba(75,53,29,.3), 0 21px 23px -10px rgba(85,63,37,.2);
 }
 .libd-shelf__ledge::after { content: ''; position: absolute; inset: 1px 0; opacity: .24; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='40'%3E%3Cfilter id='wood'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.014 .65' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23856845' filter='url(%23wood)' opacity='.65' d='M0 0h360v40H0z'/%3E%3C/svg%3E"); mix-blend-mode: multiply; }
-.libd-shelf__ledge + i { height: 3px; margin-inline: 3px; background: #af916c; }
-@media (max-width: 1280px) {
-  .libd-wish__toolbar, .libd-wish__list { margin-inline: 34px; }
-}
+.libd-shelf__ledge + i { height: 6px; margin-inline: 3px; background: #af916c; }
 @media (max-width: 640px) {
-  .libd-page--wish .libd__intro--flow { padding: 78px 20px 0; }
-  .libd-wish__toolbar, .libd-wish__list { margin-inline: 20px; }
   .libd-wish__toolbar { gap: 14px; flex-wrap: wrap; }
-  .libd-shelf { padding: 24px 14px 80px; }
-  .libd-shelf__head { padding-inline: 6px; }
-  .libd-shelf__display { padding-inline: 0; }
-  .libd-shelf__books { gap: 22px; padding: 18px 8px 0; }
-  .libd-shelf__row + .libd-shelf__row { margin-top: 44px; }
-  .libd-cover { width: 118px; height: 170px; }
+  .libd-shelf { padding: 18px 14px 48px; }
+  .libd-page--wish { --wish-inset: 14px; }
   .libd-timeline__grid { grid-template-columns: repeat(12, minmax(76px, 1fr)); }
   .libd-timeline__slot { height: 136px; padding-inline: 4px; }
   /* 좁은 화면에서는 두꺼운 책도 한 칸을 독차지하지 않게 상한을 둔다 */
