@@ -1,6 +1,8 @@
 package com.ssafy.b102.search.service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
@@ -21,8 +23,12 @@ import com.ssafy.b102.search.repository.BookSearchResult;
 /**
  * API_SPEC §4.1 — 도서 검색. 입력 정리 → ISBN 분기 → ES 조회 → BookSummary 조립.
  *
+ * 검색어(q)와 분류(kdc) 중 하나는 있어야 한다. 둘 다 없으면 400 — 331만 권을 정렬해 내보내는 요청을 만들지 않는다.
  * ISBN 분기: 하이픈·공백을 뗀 뒤 978/979 로 시작하는 13자리 숫자면 isbn13 정확 조회(0 또는 1건). 그 외는 본문 검색.
+ *   결과가 한 권이라 kdc 는 함께 와도 무시한다.
  *   L0 에 없는 ISBN 의 카카오 온디맨드 등록(서비스 방향 §7)은 아직 하지 않는다 — 빈 결과. 외부 호출·PG 쓰기가 얽혀 별도 작업으로 뺀다.
+ * 탐색 한도: page·size 조합이 {@value #MAX_WINDOW}건을 넘으면 400. ES from+size 기본 상한이자 제품 결정(09-11) —
+ *   깊은 페이지를 억지로 주지 않고 분류·검색어로 좁히게 유도한다. 그래서 search_after 커서는 두지 않는다.
  * 장애: ES 에 닿지 못하거나 인덱스가 없으면 503 SEARCH_UNAVAILABLE. 검색 장애가 다른 기능을 막지 않도록 PG 로 우회하지 않는다(#37 에서 재검토).
  */
 @Service
@@ -31,6 +37,10 @@ public class BookSearchService {
 	private static final Logger log = LoggerFactory.getLogger(BookSearchService.class);
 	private static final Pattern ISBN_SEPARATORS = Pattern.compile("[-\\s]");
 	private static final Pattern ISBN13 = Pattern.compile("^97[89]\\d{10}$");
+	/** KDC 코드 prefix — 대분류 "8" · 중분류 "81" · 소분류 "813". books.category_code 는 "813.62" 처럼 소수점까지라 앞자리만 받는다. */
+	private static final Pattern KDC_PREFIX = Pattern.compile("^\\d{1,3}$");
+	/** ES from+size 상한 = 탐색 가능한 최대 건수. size=20 이면 page 0~499(화면 1~500쪽). */
+	static final int MAX_WINDOW = 10_000;
 
 	private final BookSearchRepository repository;
 	private final KdcCategoryResolver kdc;
@@ -41,12 +51,16 @@ public class BookSearchService {
 	}
 
 	/**
-	 * @param rawQ 컨트롤러가 @NotBlank·@Size(100) 로 걸러 준 검색어. 여기서 앞뒤 공백을 뗀다
-	 * @param page 0부터
-	 * @param size 1~50
+	 * @param rawQ   검색어. 없거나 공백이면 분류만으로 조회한다(그때는 rawKdc 가 필수)
+	 * @param rawKdc KDC 코드 prefix 1~3자리. 없으면 분류 필터 없음
+	 * @param page   0부터
+	 * @param size   1~50
 	 */
-	public BookSearchResponse search(String rawQ, int page, int size) {
-		String q = rawQ.trim();
+	public BookSearchResponse search(String rawQ, String rawKdc, int page, int size) {
+		String q = rawQ == null ? "" : rawQ.trim();
+		String kdcPrefix = rawKdc == null ? "" : rawKdc.trim();
+		validate(q, kdcPrefix, page, size);
+
 		try {
 			String isbn13 = asIsbn13(q);
 			if (isbn13 != null) {
@@ -55,13 +69,36 @@ public class BookSearchService {
 				// 결과가 1건이라 0페이지에만 있다. 1페이지 이상은 total 만 같고 items 는 빈 배열
 				return new BookSearchResponse(items.size(), page, size, page == 0 ? items : List.of());
 			}
-			BookSearchResult result = repository.search(q, page, size);
+			BookSearchResult result = repository.search(q, kdcPrefix, page, size);
 			return new BookSearchResponse(result.total(), page, size, result.items().stream().map(this::toSummary).toList());
 		} catch (DataAccessException e) {
 			// 접속 실패·타임아웃·인덱스 없음(NoSuchIndexException) 전부. 프론트는 "잠시 후 다시" 안내
-			log.warn("검색 실패 — Elasticsearch 에 닿지 못했습니다. q='{}' page={} size={}: {}", q, page, size, e.getMessage());
+			log.warn("검색 실패 — Elasticsearch 에 닿지 못했습니다. q='{}' kdc='{}' page={} size={}: {}",
+				q, kdcPrefix, page, size, e.getMessage());
 			throw new BusinessException(ErrorCode.SEARCH_UNAVAILABLE);
 		}
+	}
+
+	/** 위반을 모아서 한 번에 400(fields[]) — 온보딩·서재와 같은 방식. */
+	private static void validate(String q, String kdcPrefix, int page, int size) {
+		List<Map<String, String>> fields = new ArrayList<>();
+		if (q.isEmpty() && kdcPrefix.isEmpty()) {
+			fields.add(field("q", "검색어 또는 분류(kdc) 중 하나는 필요합니다."));
+		}
+		if (!kdcPrefix.isEmpty() && !KDC_PREFIX.matcher(kdcPrefix).matches()) {
+			fields.add(field("kdc", "분류는 1~3자리 숫자입니다(예: 8 · 81 · 813)."));
+		}
+		if ((long) page * size + size > MAX_WINDOW) {
+			fields.add(field("page", "탐색 한도는 " + MAX_WINDOW + "건입니다. size=" + size
+				+ " 이면 page 는 0~" + (MAX_WINDOW / size - 1) + " 까지입니다. 분류나 검색어로 결과를 좁혀 주세요."));
+		}
+		if (!fields.isEmpty()) {
+			throw new BusinessException(ErrorCode.VALIDATION_FAILED, Map.of("fields", fields));
+		}
+	}
+
+	private static Map<String, String> field(String field, String reason) {
+		return Map.of("field", field, "reason", reason);
 	}
 
 	/** 하이픈·공백을 뗀 13자리 ISBN. 아니면 null. */

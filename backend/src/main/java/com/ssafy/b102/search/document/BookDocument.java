@@ -69,6 +69,12 @@ public class BookDocument {
 	 */
 	private Boolean hasCover;
 
+	/**
+	 * book_demand_features.loan_cum — 원장 누적 대출 합(최신 스냅샷). 매핑 v4.
+	 * 분류만으로 조회할 때(q 없이 kdc 만) 정렬 키다. 수요 지표가 없는 책(약 57만 권)은 null 이고 정렬에서 뒤로 간다.
+	 */
+	private Long loanCum;
+
 	/** books.updated_at. 증분 색인이 "이 시각 이후 바뀐 행" 을 고르는 기준. */
 	@Field(type = FieldType.Date, format = DateFormat.date_time)
 	private Instant updatedAt;

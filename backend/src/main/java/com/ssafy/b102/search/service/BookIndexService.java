@@ -10,8 +10,6 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.BulkFailureException;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.IndexOperations;
@@ -27,10 +25,10 @@ import org.springframework.data.elasticsearch.core.query.IndexQueryBuilder;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import com.ssafy.b102.book.entity.Book;
-import com.ssafy.b102.book.repository.BookRepository;
 import com.ssafy.b102.search.config.SearchProperties;
 import com.ssafy.b102.search.document.BookDocument;
+import com.ssafy.b102.search.repository.BookIndexRow;
+import com.ssafy.b102.search.repository.BookIndexRowRepository;
 
 /**
  * 도서 검색 인덱스 관리 — 생성·alias 연결, PG books → ES bulk 색인, 재색인·alias 전환.
@@ -39,7 +37,7 @@ import com.ssafy.b102.search.document.BookDocument;
  * 물리 인덱스 이름(app.search.index-name)과 alias(app.search.alias)를 분리해 두어, 매핑을 바꿀 때는
  * 새 물리 인덱스를 만들어 채운 뒤 alias 만 옮긴다(체크리스트 #23 "재색인과 alias 전환"). 옛 인덱스는 지우지 않는다 — 되돌릴 수 있게.
  *
- * 색인은 PG 를 id 순으로 {@value #BATCH_SIZE}건씩 읽어(keyset, OFFSET 없음) bulk 로 넣는다. 문서 _id = books.id 라 다시 넣으면 덮어쓴다(멱등).
+ * 색인은 PG 를 id 순으로 {@value #BATCH_SIZE}건씩 읽어(keyset, OFFSET 없음) bulk 로 넣는다. 한 행은 books + 최신 수요 스냅샷의 loan_cum 을 LEFT JOIN 한 것이다(BookIndexRowRepository). 문서 _id = books.id 라 다시 넣으면 덮어쓴다(멱등).
  * 한 배치 안에서 일부 문서가 거부되면(매핑 위반 등) 그 문서만 실패로 세고 계속 간다 — 색인 실패가 다른 책을 막지 않는다.
  * ES 접속 자체가 안 되면 예외를 그대로 던진다. 호출자(초기화·배치)가 로그를 남긴다.
  */
@@ -51,14 +49,14 @@ public class BookIndexService {
 
 	private final ElasticsearchOperations operations;
 	private final SearchProperties props;
-	private final BookRepository bookRepository;
+	private final BookIndexRowRepository rowRepository;
 	private final BookDocumentMapper mapper;
 
 	public BookIndexService(ElasticsearchOperations operations, SearchProperties props,
-		BookRepository bookRepository, BookDocumentMapper mapper) {
+		BookIndexRowRepository rowRepository, BookDocumentMapper mapper) {
 		this.operations = operations;
 		this.props = props;
-		this.bookRepository = bookRepository;
+		this.rowRepository = rowRepository;
 		this.mapper = mapper;
 	}
 
@@ -142,7 +140,7 @@ public class BookIndexService {
 
 	/** PG books 행수 = 완전한 인덱스가 가져야 할 문서 수. */
 	public long sourceCount() {
-		return bookRepository.count();
+		return rowRepository.countBooks();
 	}
 
 	/** alias 가 지금 매핑 버전(app.search.index-name)의 인덱스 하나만 가리키는가. false 면 매핑 버전이 올라간 상태 → rebuild 대상. */
@@ -186,7 +184,8 @@ public class BookIndexService {
 
 	/** PG books 전체를 alias 로 색인한다(덮어쓰기). 기동 시 자동 색인·수동 전체 재색인용. */
 	public IndexReport indexAll() {
-		return indexInto(props.alias(), lastId -> bookRepository.findByIdGreaterThanOrderByIdAsc(lastId, batch()));
+		String month = rowRepository.latestDemandMonth();
+		return indexInto(props.alias(), lastId -> rowRepository.findAfterId(month, lastId, BATCH_SIZE));
 	}
 
 	/**
@@ -195,8 +194,8 @@ public class BookIndexService {
 	 * 삭제 정책이 생기면 (a) 삭제 id 를 받아 operations.delete 하거나 (b) reindexInto 로 전체를 다시 만드는 쪽(새 인덱스는 PG 만 보고 만들어지므로 자연히 빠진다)을 붙인다.
 	 */
 	public IndexReport indexUpdatedSince(Instant since) {
-		return indexInto(props.alias(),
-			lastId -> bookRepository.findByUpdatedAtAfterAndIdGreaterThanOrderByIdAsc(since, lastId, batch()));
+		String month = rowRepository.latestDemandMonth();
+		return indexInto(props.alias(), lastId -> rowRepository.findUpdatedAfterId(month, since, lastId, BATCH_SIZE));
 	}
 
 	/**
@@ -217,8 +216,9 @@ public class BookIndexService {
 	 * 일부만 들어간 인덱스로 alias 를 바꾸면 빠진 책이 검색에서 조용히 사라지기 때문이다(리뷰 P1).
 	 */
 	public IndexReport populateAndSwitch(String newIndex) {
-		IndexReport report = indexInto(newIndex, lastId -> bookRepository.findByIdGreaterThanOrderByIdAsc(lastId, batch()));
-		long expected = bookRepository.count();
+		String month = rowRepository.latestDemandMonth();
+		IndexReport report = indexInto(newIndex, lastId -> rowRepository.findAfterId(month, lastId, BATCH_SIZE));
+		long expected = rowRepository.countBooks();
 		long actual = operations.count(Query.findAll(), BookDocument.class, IndexCoordinates.of(newIndex));
 		if (report.failed() > 0 || actual != expected) {
 			log.error("재색인 불완전 — alias '{}' 를 옮기지 않습니다. index={} 거부={} ES문서={} PG행={}. 인덱스는 조사용으로 남겨 둡니다.",
@@ -235,23 +235,19 @@ public class BookIndexService {
 		operations.indexOps(IndexCoordinates.of(index)).refresh();
 	}
 
-	private static Pageable batch() {
-		return PageRequest.of(0, BATCH_SIZE);
-	}
-
-	private IndexReport indexInto(String target, Function<Long, List<Book>> nextBatch) {
+	private IndexReport indexInto(String target, Function<Long, List<BookIndexRow>> nextBatch) {
 		Instant started = Instant.now();
 		IndexCoordinates coords = IndexCoordinates.of(target);
 		long indexed = 0;
 		long failed = 0;
 		long lastId = 0;
 		while (true) {
-			List<Book> books = nextBatch.apply(lastId);
-			if (books.isEmpty()) {
+			List<BookIndexRow> rows = nextBatch.apply(lastId);
+			if (rows.isEmpty()) {
 				break;
 			}
-			lastId = books.get(books.size() - 1).getId();
-			List<IndexQuery> queries = books.stream()
+			lastId = rows.get(rows.size() - 1).id();
+			List<IndexQuery> queries = rows.stream()
 				.map(mapper::toDocument)
 				.map(doc -> new IndexQueryBuilder().withId(String.valueOf(doc.getId())).withObject(doc).build())
 				.toList();
