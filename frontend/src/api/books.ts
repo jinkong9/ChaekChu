@@ -18,10 +18,15 @@ export function toBookSummary(s: ServerBookSummary): BookSummary {
   }
 }
 
-/** GET /books/search (§4.1) — q 1~100자, page 0부터, size 1~50(기본 20).
- *  q 가 ISBN 형태(하이픈 무시 13자리)면 서버가 정확 조회로 처리해 0~1건을 준다. */
-export async function searchBooks(q: string, page = 0, size = 20): Promise<SearchResponse> {
-  const res = await api.get<ServerSearchResponse>('/books/search', { params: { q, page, size } })
+/** GET /books/search (§4.1) — q 1~100자, page 0부터, size 1~50(기본 20). q·kdc 중 하나는 있어야 한다.
+ *  kdc 는 KDC 코드 prefix(1~3자리) — 점수에 끼지 않는 filter 라 q 가 있으면 관련도 순 그대로, kdc 만이면 서버가 누적 대출순으로 준다.
+ *  q 가 ISBN 형태(하이픈 무시 13자리)면 서버가 정확 조회로 처리해 0~1건을 준다(그때 kdc 는 무시).
+ *  탐색 한도 10,000건 — page*size+size 가 넘으면 400 이라 화면이 쪽 번호를 그 안에서만 만든다. */
+export async function searchBooks(q: string, page = 0, size = 20, kdc?: string): Promise<SearchResponse> {
+  const params: Record<string, string | number> = { page, size }
+  if (q) params.q = q
+  if (kdc) params.kdc = kdc
+  const res = await api.get<ServerSearchResponse>('/books/search', { params })
   const { total, items } = res.data
   return { total, page: res.data.page, size: res.data.size, items: items.map(toBookSummary) }
 }
