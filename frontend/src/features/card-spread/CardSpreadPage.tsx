@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
@@ -47,6 +47,14 @@ const PATH = {
   chart: 'M2.5 13.5v-4M6.5 13.5v-8M10.5 13.5v-5M14 13.5v-10',
   star: 'M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6L8 1.8z',
   book: 'M2 3.2h4.2c1 0 1.8.8 1.8 1.8v8c0-1-.8-1.8-1.8-1.8H2v-8zM14 3.2H9.8c-1 0-1.8.8-1.8 1.8v8c0-1 .8-1.8 1.8-1.8H14v-8z',
+}
+
+/** 지표 아이콘은 값의 성격을 따른다 — 별점은 별, 대출 횟수는 책, 순위처럼 분포를 읽는 값은 막대.
+ *  서버가 보내는 이름(API_SPEC §4.4)으로 고르고, 모르는 이름이면 막대로 둔다 */
+function factIcon(name: string) {
+  if (name.includes('별점')) return PATH.star
+  if (name.includes('대출') && !name.includes('순위')) return PATH.book
+  return PATH.chart
 }
 
 /** 카드의 바코드 — ISBN-13을 EAN-13으로 인코딩한다. 읽히지 않는 ISBN이면 렌더하지 않는다 */
@@ -102,6 +110,10 @@ export default function CardSpreadPage() {
     retry: false,
   })
 
+  // 담기는 서버 왕복이라 끝날 때까지 티가 나야 한다 — 실패하면 조용히 넘기지 않고 버튼 아래에 적는다
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
   // 로그인 사용자의 개인화 입력 — 같은 도서를 반복 조회해도 세션당 한 번만 전송한다.
   const viewedBookId = useRef<number | null>(null)
   useEffect(() => {
@@ -135,9 +147,13 @@ export default function CardSpreadPage() {
 
   const save = (status: ShelfStatus) => {
     if (status === 'WISH') trackEvent('WISH', { bookId: book.bookId })
+    setSaving(true)
+    setSaveError(null)
     addToLibrary(book.bookId, status)
       .then(() => { qc.invalidateQueries({ queryKey: ['library'] }); qc.invalidateQueries({ queryKey: ['book', bookId] }) })
-      .catch(() => {})
+      // 401 은 인터셉터가 로그아웃으로 받아 간다 — 여기서는 네트워크 끊김·서버 오류·담기 경합이 남는다
+      .catch(() => setSaveError('서재에 담지 못했습니다. 잠시 후 다시 눌러 주세요.'))
+      .finally(() => setSaving(false))
   }
 
   const loans = book.loanByAge ?? []
@@ -155,9 +171,9 @@ export default function CardSpreadPage() {
   ]
   // 출처별 지표 — 카드에 없는 것만. 분류는 카드에 적혀 있으므로 여기서 빼고 출처·기준일을 붙인다.
   // 서버가 보내도 화면에 세우지 않는 지표는 HIDDEN_FACTS 에 적는다 — 배열이 비면 섹션 자체가 사라진다
-  const facts = book.metrics.filter((m) => !HIDDEN_FACTS.has(m.name)).map((m, i) => ({
+  const facts = book.metrics.filter((m) => !HIDDEN_FACTS.has(m.name)).map((m) => ({
     key: `${m.source}-${m.name}`, name: m.name, value: m.value,
-    source: `${m.source} · ${m.asOf}`, icon: i === 0 ? PATH.chart : PATH.star,
+    source: `${m.source} · ${m.asOf}`, icon: factIcon(m.name),
   }))
 
   return (
@@ -199,15 +215,16 @@ export default function CardSpreadPage() {
             {/* 행동은 이 둘뿐이다 — 서재 2단(READ/WISH)과 하나씩 짝이 맞는다.
                 라벨은 상태에 따라 바뀌지 않고, 기록된 쪽에 체크가 붙어 지금 무엇이 담겨 있는지 알린다 */}
             <div className="bd-cta">
-              <button className="eo-button" onClick={() => save('READ')} aria-pressed={book.my?.status === 'READ'}>
+              <button className="eo-button" onClick={() => save('READ')} disabled={saving} aria-pressed={book.my?.status === 'READ'}>
                 {book.my?.status === 'READ' && <Icon d={PATH.check} />}
                 {CTA_LABEL.READ}
               </button>
-              <button className="bd-button-ghost" onClick={() => save('WISH')} aria-pressed={book.my?.status === 'WISH'}>
+              <button className="bd-button-ghost" onClick={() => save('WISH')} disabled={saving} aria-pressed={book.my?.status === 'WISH'}>
                 <Icon d={book.my?.status === 'WISH' ? PATH.check : PATH.bookmark} />
                 {CTA_LABEL.WISH}
               </button>
             </div>
+            {saveError && <p className="bd-cta-error" role="alert">{saveError}</p>}
           </section>
 
           {/* ---- 오른쪽: 표제·지표·읽을거리 ---- */}
