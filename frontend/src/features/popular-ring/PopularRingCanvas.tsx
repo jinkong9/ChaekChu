@@ -311,7 +311,10 @@ export default function PopularRingCanvas({
             snapTargetRef.current = null
           }
         } else if (!dragging && !reducedMotion) {
-          const targetVelocity = hovered ? 0 : IDLE_SPEED
+          // 필터를 걸면 자동 회전을 멈춘다 — 고른 그룹을 들여다보는 중에 링이
+          // 계속 흐르면 읽기 어렵다. 해제하면 다시 돈다. 드래그·휠은 그대로 먹고,
+          // 손을 떼면 여기서 감속해 멈춘다.
+          const targetVelocity = hovered || activeRef.current != null ? 0 : IDLE_SPEED
           velocity += (targetVelocity - velocity) * (1 - Math.exp(-2.8 * dt))
           rotation += velocity * dt
         }

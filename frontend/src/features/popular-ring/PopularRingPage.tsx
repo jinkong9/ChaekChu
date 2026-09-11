@@ -363,7 +363,7 @@ export default function PopularRingPage() {
             {activeSegment && (
               <div className="popular-home__segment-toolbar">
                 <button type="button" className="popular-home__text-button" onClick={() => setView('grid')}>
-                  Grid view · {activeSegment.items.length}권
+                  {activeSegment.items.length}권 전체보기 +
                 </button>
                 <button type="button" className="popular-home__text-button" onClick={() => setActiveSegmentId(null)}>
                   필터 해제
