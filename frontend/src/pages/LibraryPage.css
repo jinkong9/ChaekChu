@@ -473,7 +473,9 @@
 .libd__arrow:disabled { opacity: 0.3; cursor: not-allowed; }
 .libd__arrow:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; border-radius: 4px; }
 .libd__controls svg { width: 18px; height: 18px; }
-.libd__controls svg.is-right { transform: rotate(180deg); }
+/* 글리프는 왼쪽을 보고 그렸다 — 오른쪽은 뒤집는다. 쓰는 자리(장 넘김·해 넘김)마다
+   따로 적다 보면 한 군데를 빠뜨린다. 아이콘이 직접 들고 있게 둔다 */
+.libd-arrow-icon.is-right { transform: rotate(180deg); }
 
 /* 책갈피 눈금 — 장 하나가 한 눈금이고, 지금 펼친 장은 잉크로 길다.
    책배에 낸 색인처럼 몇 장짜리 책인지와 어디쯤인지를 한 줄이 같이 말한다. */

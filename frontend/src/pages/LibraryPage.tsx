@@ -264,7 +264,7 @@ function TurningPage({ progress, direction, front, back }: {
 
 function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className={direction === 'right' ? 'is-right' : ''}>
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={`libd-arrow-icon ${direction === 'right' ? 'is-right' : ''}`}>
       <path d="M15 18 9 12l6-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
