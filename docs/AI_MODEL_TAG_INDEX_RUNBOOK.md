@@ -104,6 +104,7 @@ export TAG_API_URL=<GMS OpenAI-compatible chat endpoint>
 export TAG_API_KEY=<secret manager에서 주입>
 export TAG_MODEL=gpt-4o-mini
 export TAG_RULE_CONFIDENCE_THRESHOLD=0.85
+export TAG_BATCH_SIZE=16
 
 uv run b102-recommendation --config config/local.toml tags \
   --input "$SOURCE" \
@@ -118,7 +119,7 @@ uv run b102-recommendation --config config/local.toml tags \
 - sidecar의 모든 ISBN이 원본 ISBN과 일치하는지
 - `inputHash`와 `tagVersion`이 이번 실행값인지
 - `missingRows`, `gmsFailures`, `lowConfidenceRows`가 허용 기준 이내인지
-- `gmsAttempts`, `gmsSkippedRows`, `ruleConfidenceThreshold`로 선택적 호출이 적용됐는지
+- `gmsAttempts`, `gmsRequests`, `gmsBatchRequests`, `gmsSkippedRows`, `ruleConfidenceThreshold`로 선택적·다건 호출이 적용됐는지
 - taxonomy 밖의 tag code가 없는지
 
 이 단계의 산출물은 tag sidecar다. tag prototype collection은 별도 기능이므로 이

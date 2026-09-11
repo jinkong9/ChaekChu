@@ -108,9 +108,11 @@ TAG_API_KEY=<secret>
 TAG_MODEL=gpt-4o-mini
 TAG_API_TIMEOUT_SECONDS=30
 TAG_RULE_CONFIDENCE_THRESHOLD=0.85
+TAG_BATCH_SIZE=16
 ```
 
 규칙 기반 태그 중 하나라도 `TAG_RULE_CONFIDENCE_THRESHOLD` 이상이면 해당 도서의 GMS 태그 호출을 생략한다. 기본값은 `0.85`이며, GMS 결과를 항상 확인하려면 threshold를 `1.0`으로 설정한다.
+GMS provider를 사용하는 tags 배치는 `TAG_BATCH_SIZE`만큼의 도서를 한 요청으로 묶으며, 기본값은 `16`이다.
 
 기본 출력은 `ai/output/<command>.json`에, 로그는 `ai/logs/recommendation.log`에
 생성된다. `--output`으로 명령별 출력 위치를 덮어쓸 수 있다.

@@ -6,7 +6,7 @@ import json
 import math
 from pathlib import Path
 import re
-from typing import Any, Mapping, Protocol
+from typing import Any, Iterator, Mapping, Protocol, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -62,6 +62,10 @@ class TagAssignment:
 
 class TagProvider(Protocol):
     def generate(self, book: D4LBook) -> Mapping[str, float]: ...
+
+
+class BatchTagProvider(Protocol):
+    def generate_batch(self, books: Sequence[D4LBook]) -> Mapping[str, Mapping[str, float]]: ...
 
 
 class GmsTagProvider:
@@ -159,6 +163,105 @@ class GmsTagProvider:
                     suggestions[code] = numeric
         return suggestions
 
+    def generate_batch(self, books: Sequence[D4LBook]) -> Mapping[str, Mapping[str, float]]:
+        """Generate taxonomy suggestions for multiple books in one GMS request."""
+
+        book_list = tuple(books)
+        if not book_list:
+            return {}
+        definitions = ", ".join(f"{item.code}: {item.label}" for item in TAXONOMY)
+        source = [
+            {
+                "isbn13": book.isbn13,
+                "bookname": book.title,
+                "authors": book.authors,
+                "publisher": book.publisher,
+                "pub_year": book.pub_year,
+                "class_no": book.class_no,
+                "class_nm": book.class_nm,
+            }
+            for book in book_list
+        ]
+        body = {
+            "model": self.model_version,
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "각 도서 메타데이터를 통제된 taxonomy에 매핑한다. "
+                        "JSON object 하나만 반환하고 books 배열의 각 원소는 원본 isbn13과 "
+                        "tags 배열을 가져야 한다. tags 배열의 각 원소는 code와 confidence(0~1)를 가진다. "
+                        f"허용 code는 다음뿐이다: {definitions}"
+                    ),
+                },
+                {"role": "user", "content": json.dumps({"books": source}, ensure_ascii=False, sort_keys=True)},
+            ],
+        }
+        request = Request(
+            self.endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            response = self._opener(request, timeout=self.timeout_seconds)
+            payload = json.loads(response.read().decode("utf-8"))
+        except HTTPError as error:
+            raise RuntimeError(f"tag provider returned HTTP {error.code}") from error
+        except (TimeoutError, URLError, OSError) as error:
+            raise RuntimeError("tag provider request failed") from error
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise RuntimeError("tag provider returned invalid JSON") from error
+
+        content = None
+        if isinstance(payload, dict):
+            choices = payload.get("choices")
+            if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+                message = choices[0].get("message")
+                content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, str):
+            raise RuntimeError("tag provider response is missing JSON content")
+        try:
+            document = json.loads(content)
+        except json.JSONDecodeError as error:
+            raise RuntimeError("tag provider content is not valid JSON") from error
+        raw_books = document.get("books") if isinstance(document, dict) else None
+        if not isinstance(raw_books, list):
+            raise RuntimeError("tag provider batch content is missing books")
+
+        requested = {book.isbn13 for book in book_list}
+        suggestions_by_isbn: dict[str, Mapping[str, float]] = {}
+        for item in raw_books:
+            if not isinstance(item, dict) or not isinstance(item.get("isbn13"), str):
+                continue
+            isbn13 = item["isbn13"].strip()
+            if isbn13 not in requested or isbn13 in suggestions_by_isbn:
+                continue
+            raw_tags = item.get("tags")
+            if not isinstance(raw_tags, list):
+                raise RuntimeError("tag provider batch item is missing tags")
+            suggestions: dict[str, float] = {}
+            for tag in raw_tags:
+                if not isinstance(tag, dict) or not isinstance(tag.get("code"), str):
+                    continue
+                code = tag["code"].strip()
+                confidence = tag.get("confidence")
+                if code in TAXONOMY_BY_CODE and isinstance(confidence, (int, float)) and not isinstance(confidence, bool):
+                    numeric = float(confidence)
+                    if math.isfinite(numeric) and 0 <= numeric <= 1:
+                        suggestions[code] = numeric
+            suggestions_by_isbn[isbn13] = suggestions
+
+        if set(suggestions_by_isbn) != requested:
+            raise RuntimeError("tag provider batch response is missing requested isbn13")
+        return suggestions_by_isbn
+
 
 def _text(book: D4LBook) -> str:
     # Keep this list aligned with the Jira input contract. Description/keywords
@@ -223,6 +326,13 @@ class TagGenerationResult:
     gms_skip_reason: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class TagBatchGenerationResult:
+    results: Mapping[str, TagGenerationResult]
+    gms_requests: int
+    gms_batch_requests: int
+
+
 class TagGenerator:
     def __init__(
         self,
@@ -266,17 +376,7 @@ class TagGenerator:
             attempts += 1
             try:
                 suggestions = self.gms_provider.generate(book)
-                for code, confidence in suggestions.items():
-                    if code not in TAXONOMY_BY_CODE:
-                        continue
-                    numeric = float(confidence)
-                    if math.isfinite(numeric) and 0 <= numeric <= 1:
-                        definition = TAXONOMY_BY_CODE[code]
-                        candidate = TagAssignment(code, definition.label, "GMS", numeric)
-                        current = assignments.get(code)
-                        # Rule evidence wins ties; a stronger GMS signal can refine it.
-                        if current is None or candidate.confidence > current.confidence:
-                            assignments[code] = candidate
+                assignments = self._merge_suggestions(assignments, suggestions)
                 gms_error = None
                 break
             except Exception as error:  # provider failures, including rate limits, are retried
@@ -284,6 +384,92 @@ class TagGenerator:
                 if attempt >= self.max_retries:
                     break
         return TagGenerationResult(tuple(assignments[code] for code in sorted(assignments)), attempts, gms_error)
+
+    @staticmethod
+    def _merge_suggestions(
+        assignments: dict[str, TagAssignment], suggestions: Mapping[str, float]
+    ) -> dict[str, TagAssignment]:
+        for code, confidence in suggestions.items():
+            if code not in TAXONOMY_BY_CODE:
+                continue
+            numeric = float(confidence)
+            if math.isfinite(numeric) and 0 <= numeric <= 1:
+                definition = TAXONOMY_BY_CODE[code]
+                candidate = TagAssignment(code, definition.label, "GMS", numeric)
+                current = assignments.get(code)
+                # Rule evidence wins ties; a stronger GMS signal can refine it.
+                if current is None or candidate.confidence > current.confidence:
+                    assignments[code] = candidate
+        return assignments
+
+    def generate_many(self, books: Sequence[D4LBook]) -> TagBatchGenerationResult:
+        """Generate tags in batches when the configured provider supports it."""
+
+        book_list = tuple(books)
+        results: dict[str, TagGenerationResult] = {}
+        pending: list[D4LBook] = []
+        for book in book_list:
+            assignments = {tag.code: tag for tag in self.rule_tagger.generate(book)}
+            if self.gms_provider is None:
+                results[book.isbn13] = TagGenerationResult(
+                    tuple(assignments[code] for code in sorted(assignments)), 0
+                )
+            elif assignments and any(
+                tag.confidence >= self.rule_confidence_threshold for tag in assignments.values()
+            ):
+                results[book.isbn13] = TagGenerationResult(
+                    tuple(assignments[code] for code in sorted(assignments)),
+                    0,
+                    gms_skipped=True,
+                    gms_skip_reason="RULE_CONFIDENT",
+                )
+            else:
+                pending.append(book)
+
+        if not pending:
+            return TagBatchGenerationResult(results, 0, 0)
+
+        batch_generator = getattr(self.gms_provider, "generate_batch", None)
+        if not callable(batch_generator):
+            for book in pending:
+                results[book.isbn13] = self.generate(book)
+            return TagBatchGenerationResult(
+                results,
+                sum(result.gms_attempts for result in results.values()),
+                0,
+            )
+
+        batch_attempts = 0
+        for attempt in range(self.max_retries + 1):
+            batch_attempts += 1
+            try:
+                suggestions_by_isbn = batch_generator(pending)
+                if not isinstance(suggestions_by_isbn, Mapping):
+                    raise RuntimeError("tag provider batch response is not a mapping")
+                for book in pending:
+                    suggestions = suggestions_by_isbn.get(book.isbn13)
+                    if not isinstance(suggestions, Mapping):
+                        raise RuntimeError("tag provider batch response is missing requested isbn13")
+                    assignments = {
+                        tag.code: tag for tag in self.rule_tagger.generate(book)
+                    }
+                    assignments = self._merge_suggestions(assignments, suggestions)
+                    results[book.isbn13] = TagGenerationResult(
+                        tuple(assignments[code] for code in sorted(assignments)), batch_attempts
+                    )
+                return TagBatchGenerationResult(results, batch_attempts, batch_attempts)
+            except Exception:
+                if attempt >= self.max_retries:
+                    for book in pending:
+                        results[book.isbn13] = self.generate(book)
+                    individual_requests = sum(results[book.isbn13].gms_attempts for book in pending)
+                    return TagBatchGenerationResult(
+                        results,
+                        batch_attempts + individual_requests,
+                        batch_attempts,
+                    )
+
+        raise AssertionError("unreachable batch retry state")
 
 
 def _record(
@@ -335,14 +521,31 @@ def _load_existing(path: Path, *, input_hash: str, tag_version: str) -> dict[str
     return existing
 
 
+def _take(iterator: Iterator[D4LBook], count: int) -> Iterator[D4LBook]:
+    for _ in range(count):
+        try:
+            yield next(iterator)
+        except StopIteration:
+            return
+
+
 class TagBatchRunner:
     """Generate a restartable JSONL tag sidecar without modifying source data."""
 
-    def __init__(self, *, generator: TagGenerator, tag_version: str = DEFAULT_TAG_VERSION) -> None:
+    def __init__(
+        self,
+        *,
+        generator: TagGenerator,
+        tag_version: str = DEFAULT_TAG_VERSION,
+        batch_size: int = 16,
+    ) -> None:
         if not tag_version.strip():
             raise ValueError("tag_version must not be empty")
+        if batch_size < 1:
+            raise ValueError("batch_size must be positive")
         self.generator = generator
         self.tag_version = tag_version
+        self.batch_size = batch_size
 
     def run(self, input_path: Path, output_path: Path) -> dict[str, Any]:
         input_hash = normalized_input_hash(input_path)
@@ -351,30 +554,41 @@ class TagBatchRunner:
         temporary = output_path.with_name(f".{output_path.name}.tmp")
         rows = succeeded = missing = low_confidence = resumed = gms_failures = gms_attempts = 0
         gms_skipped = 0
+        gms_requests = gms_batch_requests = 0
         with temporary.open("w", encoding="utf-8", newline="\n") as output:
-            for book in iter_d4l_jsonl(input_path):
-                rows += 1
-                record = existing.get(book.isbn13)
-                if record is not None:
-                    resumed += 1
-                else:
-                    result = self.generator.generate(book)
-                    gms_attempts += result.gms_attempts
-                    gms_failures += bool(result.gms_error)
-                    record = _record(
-                        book,
-                        result,
-                        input_hash=input_hash,
-                        tag_version=self.tag_version,
-                        low_confidence_threshold=self.generator.low_confidence_threshold,
-                    )
-                output.write(json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
-                if record["tags"]:
-                    succeeded += 1
-                else:
-                    missing += 1
-                low_confidence += bool(record["lowConfidence"])
-                gms_skipped += bool(record.get("gmsSkipped"))
+            iterator = iter_d4l_jsonl(input_path)
+            while True:
+                batch = tuple(_take(iterator, self.batch_size))
+                if not batch:
+                    break
+                generated = self.generator.generate_many(
+                    [book for book in batch if book.isbn13 not in existing]
+                )
+                gms_requests += generated.gms_requests
+                gms_batch_requests += generated.gms_batch_requests
+                for book in batch:
+                    rows += 1
+                    record = existing.get(book.isbn13)
+                    if record is not None:
+                        resumed += 1
+                    else:
+                        result = generated.results[book.isbn13]
+                        gms_attempts += result.gms_attempts
+                        gms_failures += bool(result.gms_error)
+                        record = _record(
+                            book,
+                            result,
+                            input_hash=input_hash,
+                            tag_version=self.tag_version,
+                            low_confidence_threshold=self.generator.low_confidence_threshold,
+                        )
+                    output.write(json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+                    if record["tags"]:
+                        succeeded += 1
+                    else:
+                        missing += 1
+                    low_confidence += bool(record["lowConfidence"])
+                    gms_skipped += bool(record.get("gmsSkipped"))
         temporary.replace(output_path)
         output_hash = sha256(output_path.read_bytes()).hexdigest()
         return {
@@ -392,6 +606,9 @@ class TagBatchRunner:
             "gmsAttempts": gms_attempts,
             "gmsSkippedRows": gms_skipped,
             "ruleConfidenceThreshold": self.generator.rule_confidence_threshold,
+            "gmsRequests": gms_requests,
+            "gmsBatchRequests": gms_batch_requests,
+            "batchSize": self.batch_size,
             "outputHash": output_hash,
             "sourceDataCommitted": False,
         }
@@ -401,11 +618,13 @@ __all__ = [
     "DEFAULT_TAG_VERSION",
     "GmsTagProvider",
     "TagProvider",
+    "BatchTagProvider",
     "RuleBasedTagger",
     "TAXONOMY",
     "TAXONOMY_VERSION",
     "TagAssignment",
     "TagBatchRunner",
     "TagGenerationResult",
+    "TagBatchGenerationResult",
     "TagGenerator",
 ]

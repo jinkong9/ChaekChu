@@ -39,18 +39,21 @@
 ## 재시작·통계
 
 `TagBatchRunner`는 같은 `inputHash`·`tagVersion`의 완료 레코드를 재사용하고 임시 파일을
-원자적으로 교체한다. report에는 성공·결측·저신뢰·재개 행 수, GMS 시도·실패 수,
-생략 행 수(`gmsSkippedRows`), 적용 threshold(`ruleConfidenceThreshold`), `outputHash`,
+원자적으로 교체한다. report에는 성공·결측·저신뢰·재개 행 수, 도서별 GMS 시도 수
+(`gmsAttempts`), 실제 HTTP 요청 수(`gmsRequests`), 다건 요청 수(`gmsBatchRequests`),
+GMS 실패 수, 생략 행 수(`gmsSkippedRows`), 적용 threshold(`ruleConfidenceThreshold`), `outputHash`,
 `sourceDataCommitted=false`를 남긴다. 동일 입력·taxonomy·tag version·threshold에서 같은
 결과를 재현할 수 있다.
 
 ## GMS provider와 실행
 
 `GmsTagProvider`는 OpenAI 호환 chat completions endpoint에 서지·분류 필드만 보내고,
-`{"tags":[{"code":"FANTASY","confidence":0.91}]}` 형태의 JSON content만 읽는다.
+단건 요청은 `{"tags":[{"code":"FANTASY","confidence":0.91}]}`, 다건 요청은
+`{"books":[{"isbn13":"...","tags":[...]}]}` 형태의 JSON content만 읽는다.
 허용 taxonomy 밖의 code, confidence 범위 밖의 값, 잘못된 응답은 저장하지 않는다. 요청
 본문·응답 원문·API key는 예외 메시지나 로그에 포함하지 않는다. GMS 장애가 나면 설정된
-횟수만큼 재시도하고, 최종 실패 시 rule tag 결과를 유지한다.
+횟수만큼 재시도하고, 다건 요청이 최종 실패하면 해당 batch를 단건 요청으로 fallback한다.
+단건 fallback도 실패하면 rule tag 결과를 유지한다.
 
 운영에서는 다음처럼 `tags` 명령을 실행한다. `TAG_API_URL`과 `TAG_API_KEY`가 모두
 설정된 경우에만 GMS를 호출하고, 둘 다 없으면 rule-only sidecar를 생성한다.
@@ -60,7 +63,7 @@ GMS를 사용하는 경우에도 규칙 confidence가 threshold 이상인 도서
 uv run b102-recommendation --config config/local.toml tags \
   --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
   --sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl \
-  --tag-version d4l-tags-v1 --max-retries 2
+  --tag-version d4l-tags-v1 --max-retries 2 --batch-size 16
 ```
 
 선택적 호출 threshold는 환경변수 또는 CLI 옵션으로 조정할 수 있다.
@@ -68,6 +71,8 @@ uv run b102-recommendation --config config/local.toml tags \
 ```bash
 export TAG_RULE_CONFIDENCE_THRESHOLD=0.85
 # 또는 tags 명령에 --rule-confidence-threshold 0.90 추가
+export TAG_BATCH_SIZE=16
+# 또는 tags 명령에 --batch-size 16 추가
 ```
 
 ```python

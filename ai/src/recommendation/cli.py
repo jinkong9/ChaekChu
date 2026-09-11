@@ -70,6 +70,12 @@ def create_parser() -> argparse.ArgumentParser:
                 default=None,
                 help="skip GMS when a rule tag meets this confidence (default: TAG_RULE_CONFIDENCE_THRESHOLD or 0.85)",
             )
+            command_parser.add_argument(
+                "--batch-size",
+                type=int,
+                default=None,
+                help="number of books per GMS request (default: TAG_BATCH_SIZE or 16)",
+            )
         if command == "tag-index":
             command_parser.add_argument("--index-version", default=None)
             command_parser.add_argument("--tag-version", default=None)
@@ -242,6 +248,11 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
             timeout_seconds=timeout,
         )
     try:
+        batch_size = int(
+            arguments.batch_size
+            if arguments.batch_size is not None
+            else os.getenv("TAG_BATCH_SIZE", "16")
+        )
         rule_confidence_threshold = float(
             arguments.rule_confidence_threshold
             if arguments.rule_confidence_threshold is not None
@@ -253,6 +264,7 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
         arguments.max_retries < 0
         or not 0 <= arguments.low_confidence <= 1
         or not 0 <= rule_confidence_threshold <= 1
+        or batch_size < 1
     ):
         raise ConfigError("tag retry and confidence configuration is invalid")
     tag_version = (arguments.tag_version or os.getenv("AI_TAG_VERSION", "d4l-tags-v1")).strip()
@@ -266,6 +278,7 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
             rule_confidence_threshold=rule_confidence_threshold,
         ),
         tag_version=tag_version,
+        batch_size=batch_size,
     ).run(input_path, arguments.sidecar.expanduser().resolve())
 
 
