@@ -443,8 +443,7 @@
   gap: 12px;
 }
 
-.bd-block__head > span,
-.bd-block__head > summary {
+.bd-block__head > span {
   color: var(--eo-ink-faint);
   font-size: 11px;
   white-space: nowrap;
@@ -458,35 +457,6 @@
   line-height: 1.78;
   word-break: keep-all;
   text-wrap: pretty;
-}
-
-/* 목차는 접혀 있다 — 펼치면 같은 본문 리듬 위에 줄이 쌓인다.
-   summary에 display를 다시 잡으면 .bd-block__head의 space-between이 죽어
-   제목과 '펼쳐보기'가 붙어 버린다 — 그래서 여기서는 표시 방식을 건드리지 않는다 */
-.bd-block summary {
-  cursor: pointer;
-  list-style: none;
-}
-
-.bd-block summary::-webkit-details-marker { display: none; }
-
-.bd-block summary > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.bd-block summary:hover > span { color: var(--eo-ink); }
-.bd-block summary svg { transition: transform 160ms ease-out; }
-.bd-block[open] summary svg { transform: rotate(180deg); }
-
-.bd-toc {
-  max-width: 66ch;
-  margin-top: 14px;
-  color: var(--eo-ink);
-  font-size: 13.5px;
-  line-height: 2;
-  white-space: pre-line;
 }
 
 .bd-tags {

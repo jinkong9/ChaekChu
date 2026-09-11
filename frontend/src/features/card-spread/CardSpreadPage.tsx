@@ -10,8 +10,7 @@ import { trackEvent } from '../../lib/events'
 import { ean13Bars, ean13Modules } from './ean13'
 import './card-spread.css'
 
-/** BOOK-001 도서 상세 B안 — 도서 카드 펼침면.
- *  A안(BookDetailPageSpread)과 같은 계약을 쓰고 형식만 바꾼다: 왼쪽에 표지와 도서 카드를
+/** BOOK-001 도서 상세 — 도서 카드 펼침면(확정안). 왼쪽에 표지와 도서 카드를
  *  나란히 펼치고, 오른쪽에 표제·지표·읽을거리를 세우고, 아래에 세 단으로 이웃 책을 둔다.
  *
  *  계약에 아직 없어 시안용으로 임시 경로를 쓰는 것 셋 (docs/BACKEND_DATA_CONTRACT.md 합의 대기):
@@ -24,6 +23,10 @@ import './card-spread.css'
 type BookDetailDraft = BookDetail & { keywords?: string[] | null }
 
 const CTA_LABEL: Record<ShelfStatus, string> = { READ: '읽었어요', WISH: '읽고 싶어요' }
+
+/** 화면에 세우지 않는 지표 이름 (API_SPEC §4.4 metrics). '소장 도서관'(개관 수)은
+ *  독자가 이 책을 고르는 데 쓰는 값이 아니라 빼 둔다 — 서버 응답은 그대로 둔다 */
+const HIDDEN_FACTS = new Set(['소장 도서관'])
 
 /** 카드에 인쇄된 문장 — 책이 아니라 서비스의 말이다 */
 const CARD_LINE = '“당신의 오늘도,\n좋은 책과 함께하길.”'
@@ -44,7 +47,6 @@ const PATH = {
   chart: 'M2.5 13.5v-4M6.5 13.5v-8M10.5 13.5v-5M14 13.5v-10',
   star: 'M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6L8 1.8z',
   book: 'M2 3.2h4.2c1 0 1.8.8 1.8 1.8v8c0-1-.8-1.8-1.8-1.8H2v-8zM14 3.2H9.8c-1 0-1.8.8-1.8 1.8v8c0-1 .8-1.8 1.8-1.8H14v-8z',
-  chevron: 'M4 6l4 4 4-4',
 }
 
 /** 카드의 바코드 — ISBN-13을 EAN-13으로 인코딩한다. 읽히지 않는 ISBN이면 렌더하지 않는다 */
@@ -151,8 +153,9 @@ export default function CardSpreadPage() {
     ['쪽수', book.pageCount ? `${book.pageCount}쪽` : ''],
     ['분류', book.category ?? ''],
   ]
-  // 출처별 지표 — 카드에 없는 것만. 분류는 카드에 적혀 있으므로 여기서 빼고 출처·기준일을 붙인다
-  const facts = book.metrics.map((m, i) => ({
+  // 출처별 지표 — 카드에 없는 것만. 분류는 카드에 적혀 있으므로 여기서 빼고 출처·기준일을 붙인다.
+  // 서버가 보내도 화면에 세우지 않는 지표는 HIDDEN_FACTS 에 적는다 — 배열이 비면 섹션 자체가 사라진다
+  const facts = book.metrics.filter((m) => !HIDDEN_FACTS.has(m.name)).map((m, i) => ({
     key: `${m.source}-${m.name}`, name: m.name, value: m.value,
     source: `${m.source} · ${m.asOf}`, icon: i === 0 ? PATH.chart : PATH.star,
   }))
@@ -235,16 +238,6 @@ export default function CardSpreadPage() {
                 </div>
                 <p className="bd-prose">{book.description}</p>
               </section>
-            )}
-
-            {book.toc && (
-              <details className="bd-block">
-                <summary className="bd-block__head">
-                  <h2 className="eo-title">목차</h2>
-                  <span>펼쳐보기<Icon d={PATH.chevron} width="13" height="13" /></span>
-                </summary>
-                <p className="bd-toc">{book.toc}</p>
-              </details>
             )}
 
             <section className="bd-block">
