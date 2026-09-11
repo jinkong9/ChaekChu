@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { LibraryItem } from '../api/types'
@@ -32,6 +32,7 @@ import './LibraryPage.css'
  *  책·표지·종이·넘김 물리는 LibraryPage.css 앞부분에 모여 있다. */
 
 type Direction = -1 | 1
+type Mode = 'read' | 'wish'
 
 interface TurnState {
   direction: Direction
@@ -499,18 +500,25 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
 
 /* ══════════════════ 완독 연표 — 책 아래 한 띠 ══════════════════ */
 
-/** 압축한 표지 책등 — 선택하면 해당 기록을 펼친다. */
+/** 책등 두께는 쪽수를 따른다 — 두꺼운 책이 띠에서도 더 넓은 자리를 차지한다.
+ *  쪽수를 모르면 보통 두께로 둔다. */
+const spineWidth = (pages?: number | null) =>
+  Math.round(Math.min(34, Math.max(15, 15 + (pages ?? 260) / 45)))
+
+/** 책등 — 쪽수만큼 두껍고, 표지의 책등 쪽 끝을 눌러 담지 않고 그대로 보인다.
+ *  누르면 그 기록을 펼친다. */
 function TimelineCover({ li, on, onPick }: { li: LibraryItem; on: boolean; onPick: () => void }) {
   const [broken, setBroken] = useState(false)
   const c = coverPalette(li.book.bookId)
   const url = li.book.coverUrl && !broken ? coverAtWidth(li.book.coverUrl, 140) : null
+  const style: StyleWithVars = { background: c.bg, '--spine-w': `${spineWidth(li.book.pageCount)}px` }
 
   return (
     <button type="button" onClick={onPick}
       title={`${li.book.title}${li.book.pageCount ? ` · ${li.book.pageCount}쪽` : ''}`}
       aria-label={`${li.book.title} 장으로 넘기기`}
       className={`libd-timeline__cover ${on ? 'is-on' : ''}`}
-      style={{ background: c.bg }}>
+      style={style}>
       {url
         ? <img key={li.libraryItemId} src={url} alt="" referrerPolicy="no-referrer"
             loading="lazy" decoding="async" draggable={false} onError={() => setBroken(true)} />
@@ -530,7 +538,6 @@ function TimelineMonth({ books, current, onJump }: {
           <TimelineCover key={li.libraryItemId} li={li} on={i === current} onPick={() => onJump(i)} />
         ))}
       </div>
-      {books.length > 0 && <span className="libd-timeline__count">{books.length}권</span>}
     </div>
   )
 }
@@ -650,7 +657,6 @@ function WishShelves({ wish }: { wish: LibraryItem[] }) {
                   <Link to={`/books/${li.book.bookId}`} aria-label={`${li.book.title} 상세 보기`}
                     onFocus={(e) => showPop(li, e.currentTarget)} onBlur={hidePop}>
                     <ShelfCover li={li} />
-                    <span className="libd-shelf__bookmark" aria-hidden="true" />
                   </Link>
                 </div>
               ))}
@@ -751,7 +757,12 @@ function RecordScreen({ items, onClose }: { items: LibraryItem[]; onClose: () =>
 
 export default function LibraryPage() {
   const nickname = useAuthStore((s) => s.nickname)
-  const [mode, setMode] = useState<'read' | 'wish'>('read')
+  // 탭은 주소가 기억한다 — 찜에서 상세로 갔다 뒤로 오면 찜으로 돌아와야 한다.
+  // replace 라 탭 전환 자체는 뒤로 가기 단계를 만들지 않는다.
+  const [params, setParams] = useSearchParams()
+  const mode: Mode = params.get('tab') === 'wish' ? 'wish' : 'read'
+  const setMode = (next: Mode) =>
+    setParams(next === 'wish' ? { tab: 'wish' } : {}, { replace: true })
   const [editing, setEditing] = useState(false)
   const [wishView, setWishView] = useState<'shelf' | 'list'>('shelf')
   // 책의 장·덮힘은 연표에서도 움직여야 해서 페이지가 들고 있는다. 0 = 속표지 + 목차.
@@ -799,7 +810,7 @@ export default function LibraryPage() {
         <p>{mode === 'read' ? 'READING ARCHIVE' : 'WISH LIST'}</p>
         <h2 id="libd-title">
           {mode === 'read' ? '완독 기록을 한 권에'
-            : <>언젠가 펼칠 책 <em>{wish.length}권</em></>}
+            : <>찜한 책 <em>{wish.length}권</em></>}
         </h2>
         <span>
           {mode === 'read'
