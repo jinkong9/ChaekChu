@@ -25,7 +25,7 @@ class SearchIndexInitializerTest {
 	private final DefaultApplicationArguments noArgs = new DefaultApplicationArguments();
 
 	private SearchIndexInitializer init(IndexOnStart mode) {
-		return new SearchIndexInitializer(service, new SearchProperties("books", "books_v2", true, mode), new SyncTaskExecutor());
+		return new SearchIndexInitializer(service, new SearchProperties("books", "books_v2", true, mode, null), new SyncTaskExecutor());
 	}
 
 	@Test

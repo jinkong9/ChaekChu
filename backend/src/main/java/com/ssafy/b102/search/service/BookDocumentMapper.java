@@ -20,6 +20,7 @@ public class BookDocumentMapper {
 			.pubYear(book.getPubYear() == null ? null : book.getPubYear().intValue())
 			.categoryCode(book.getCategoryCode())
 			.coverUrl(book.getCoverUrl())
+			.hasCover(book.getCoverUrl() != null && !book.getCoverUrl().isBlank())
 			.updatedAt(book.getUpdatedAt())
 			.build();
 	}

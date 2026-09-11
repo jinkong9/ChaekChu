@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
  * ES 도서 문서 — V1 books 한 행을 검색용으로 옮긴 읽기 모델. PG 가 원천이고 이 문서는 색인기(BookIndexService)가 만든다.
  *
  * 필드 타입·analyzer 는 여기의 어노테이션이 아니라 elasticsearch/books-mappings.json 이 결정한다(@Mapping).
- * 매핑을 바꾸면 app.search.index-name 을 올린다(books_v2 → v3). 배포 시 SearchIndexInitializer 가 새 인덱스를 채우고 alias 를 옮긴다.
+ * 매핑을 바꾸면 app.search.index-name 을 올린다(books_v3 → v4). 배포 시 SearchIndexInitializer 가 새 인덱스를 채우고 alias 를 옮긴다.
  * 매핑이 dynamic=strict 라 여기에 필드를 더하면 JSON 도 같이 고쳐야 한다. Spring Data 의 _class 힌트도 그래서 끈다.
  *
  * indexName 은 alias(app.search.alias). 물리 인덱스 이름은 SearchProperties.indexName — 재색인 때 v2, v3 로 바뀌어도 코드는 alias 만 본다.
@@ -62,6 +62,12 @@ public class BookDocument {
 	private String categoryCode;
 
 	private String coverUrl;
+
+	/**
+	 * coverUrl 이 비어 있지 않은가 (매핑 v3). coverUrl 은 index=false 라 exists 로 물을 수 없어 따로 둔다.
+	 * 검색 순위에서 표지 없는 문서에 app.search.no-cover-weight 를 곱한다(ElasticsearchBookSearchRepository).
+	 */
+	private Boolean hasCover;
 
 	/** books.updated_at. 증분 색인이 "이 시각 이후 바뀐 행" 을 고르는 기준. */
 	@Field(type = FieldType.Date, format = DateFormat.date_time)

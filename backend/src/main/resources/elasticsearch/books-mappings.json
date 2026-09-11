@@ -63,6 +63,9 @@
       "index": false,
       "doc_values": false
     },
+    "hasCover": {
+      "type": "boolean"
+    },
     "updatedAt": {
       "type": "date",
       "format": "date_time||epoch_millis"
