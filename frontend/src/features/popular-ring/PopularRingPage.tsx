@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Link, useNavigate } from 'react-router'
 import type { PopularBook, PopularSegment, PopularSelection } from './types'
@@ -181,8 +181,6 @@ export default function PopularRingPage() {
   const [renderer, setRenderer] = useState<'webgl' | 'fallback' | null>(null)
   const previewCopyRef = useRef<HTMLDivElement>(null)
   const previewTitleRef = useRef<HTMLSpanElement>(null)
-  const filterRef = useRef<HTMLElement>(null)
-  const filterToggleRef = useRef<HTMLButtonElement>(null)
 
   const segments = useMemo(() => data?.segments ?? [], [data])
   const activeSegment = segments.find((segment) => segment.id === activeSegmentId) ?? null
@@ -221,22 +219,6 @@ export default function PopularRingPage() {
       resizeObserver.disconnect()
     }
   }, [selection])
-
-  // 링 캔버스는 pointerdown을 직접 듣기 때문에 캡처 단계에서 먼저 받는다.
-  // 토글 버튼은 제외해야 여기서 닫은 뒤 버튼의 onClick이 다시 여는 일이 없다.
-  useEffect(() => {
-    if (!filterOpen) return
-
-    const closeOnOutside = (event: PointerEvent) => {
-      const target = event.target as Node | null
-      if (!target) return
-      if (filterRef.current?.contains(target) || filterToggleRef.current?.contains(target)) return
-      setFilterOpen(false)
-    }
-
-    document.addEventListener('pointerdown', closeOnOutside, true)
-    return () => document.removeEventListener('pointerdown', closeOnOutside, true)
-  }, [filterOpen])
 
   const handleSelection = useCallback((next: PopularSelection | null) => setSelection(next), [])
   const openBook = useCallback((book: PopularBook) => {
@@ -278,7 +260,7 @@ export default function PopularRingPage() {
     <main className="popular-home">
       <div className="popular-home__toolbar">
         <div className="popular-home__toolbar-actions">
-          <button ref={filterToggleRef} type="button" className="popular-home__text-button" onClick={() => setFilterOpen((open) => !open)} aria-expanded={filterOpen}>
+          <button type="button" className="popular-home__text-button" onClick={() => setFilterOpen((open) => !open)} aria-expanded={filterOpen}>
             인기도서 필터 {filterOpen ? '−' : '+'}
           </button>
           <Link to="/recommend" className="popular-home__recommend-button">책 추천받기</Link>
@@ -288,10 +270,16 @@ export default function PopularRingPage() {
         </button>
       </div>
 
+      {/* 필터가 열려 있는 동안 홈 여백을 덮는 투명 판. 여백을 누르면 필터 버튼을
+          다시 누른 것과 똑같이 닫힌다. 툴바(z-index 60)보다 아래라 다른 버튼은 그대로
+          눌리고, 캔버스가 직접 듣는 pointerdown과도 얽히지 않는다. */}
+      {filterOpen && (
+        <div className="popular-filter__backdrop" onClick={() => setFilterOpen(false)} aria-hidden="true" />
+      )}
+
       <AnimatePresence initial={false}>
         {filterOpen && (
           <motion.aside
-            ref={filterRef}
             className="popular-filter"
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}

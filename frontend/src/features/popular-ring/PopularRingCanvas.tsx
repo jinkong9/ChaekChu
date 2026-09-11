@@ -7,6 +7,8 @@ const SECTOR_GAP = 2.6 * (Math.PI / 180)
 const IDLE_SPEED = 0.035
 const MAX_VELOCITY = 2.4
 const LOAD_CONCURRENCY = 8
+// 이 픽셀만큼 움직인 첫 방향으로 드래그 방향을 고정한다.
+const DIRECTION_LOCK_THRESHOLD = 2
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const shortestAngle = (value: number) => ((value + Math.PI) % TAU + TAU) % TAU - Math.PI
@@ -134,10 +136,9 @@ export default function PopularRingCanvas({
       let lastX = 0
       let lastTime = 0
       let moved = 0
-      // 링은 타원이라 화면 아래쪽 호가 시청자와 가까운 앞면이다. 회전 부호를 고정하면
-      // 위/아래 중 한쪽은 반드시 드래그와 반대로 흐른다. 잡은 지점이 중심보다 아래면
-      // 부호를 뒤집어, 어느 쪽을 잡아도 잡은 표지가 손을 따라오게 한다.
-      let dragSign = 1
+      // 한 번 누른 동안에는 처음 움직인 방향으로만 돈다. 손이 되돌아오는 구간은
+      // 회전에 반영하지 않아, 누르고 있는 중에 링이 앞뒤로 흔들리지 않는다.
+      let dragDirection = 0
       let hovered: Slot | null = null
       let pinned: Slot | null = null
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -210,8 +211,7 @@ export default function PopularRingCanvas({
         lastTime = performance.now()
         moved = 0
         velocity = 0
-        const bounds = canvas.getBoundingClientRect()
-        dragSign = event.clientY - bounds.top > bounds.height * 0.5 ? -1 : 1
+        dragDirection = 0
         snapTargetRef.current = null
         canvas.setPointerCapture(event.pointerId)
       }
@@ -221,7 +221,12 @@ export default function PopularRingCanvas({
         const now = performance.now()
         const dx = event.clientX - lastX
         const dt = Math.max((now - lastTime) / 1000, 1 / 240)
-        const delta = dx * 0.0042 * dragSign
+        if (dragDirection === 0 && Math.abs(dx) >= DIRECTION_LOCK_THRESHOLD) dragDirection = Math.sign(dx)
+        const forward = Math.sign(dx) === dragDirection ? dx : 0
+        // 링은 타원이라 화면 아래쪽 호가 시점에 가까운 앞면이다. 부호를 뒤집어야
+        // 앞면 표지가 손을 따라간다. 잡은 위치와 무관하게 같은 부호를 써서,
+        // 위쪽을 잡든 아래쪽을 잡든 링 전체가 한 방향으로 돈다.
+        const delta = -forward * 0.0042
         rotation += delta
         velocity = clamp(velocity * 0.65 + (delta / dt) * 0.35, -MAX_VELOCITY, MAX_VELOCITY)
         const previousMoved = moved
