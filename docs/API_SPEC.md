@@ -23,12 +23,12 @@
 | | `GET /books/{bookId}` | ● | BookDetailPage · 홈 링 | **구현(09-10)** · ISBN13 도 받는다 |
 | | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 — `book_embeddings` 적재 뒤 |
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | **구현(09-10)** · FE 연결 |
-| 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 |
+| 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 · 09-11 부터 덱을 DB 에 저장 |
 | 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
 | | `POST /library` | ● | RecommendPage · BookDetailPage | **구현(09-10)** · FE 연결(응답 본문의 `libraryItemId` 사용) |
 | | `PATCH /library/{libraryItemId}` | ● | LibraryList · LibraryPageB | **구현(09-10)** · FE 연결 |
 | | `DELETE /library/{libraryItemId}` | ● | (없음) | **구현(09-10)** · FE 버튼 추가 |
-| 이벤트 | `POST /events` | ● | `lib/events.ts` | 구현 대상 |
+| 이벤트 | `POST /events` | ● | `lib/events.ts` | **구현(09-11)** · FE 보강 필요(아래 §7.1) |
 
 ● = `Authorization: Bearer <JWT>` 필수. 폐기: `GET /recommendations/anonymous`(비회원 추천 없음, FE 도 미호출), `POST /recommendations/tags`(태그 조절은 `GET /recommendations?tags=` 로 흡수).
 
@@ -422,22 +422,60 @@ LibraryItem {
 
 ## 7. 이벤트
 
-### 7.1 `POST /events` ●
+### 7.1 `POST /events` ● (09-11 구현)
 
 ```json
-{ "eventType": "CLICK", "bookId": "88123", "recommendationId": "rec_01J7…", "rank": 3,
-  "occurredAt": "2026-09-07T03:12:44.120Z", "clientEventId": "c1f0-…" }
+{ "eventType": "CLICK", "bookId": "88123", "recommendationId": "rec_3f9c1a20b7d84e55",
+  "rank": 3, "position": 1, "context": "RECOMMEND", "sessionId": "8f1e…",
+  "occurredAt": "2026-09-11T03:12:44.120Z", "clientEventId": "c1f0-…" }
 ```
 
-| `eventType` | 필수 필드 | 뜻 |
+| `eventType` | 없으면 버리는 값 | 뜻 |
 | --- | --- | --- |
-| `IMPRESSION` | `recommendationId` | 추천 덱이 화면에 뜸 (덱당 1회) |
-| `CLICK` | `bookId` (+`recommendationId`,`rank`) | 추천·홈에서 상세로 진입 |
-| `BOOK_VIEW` | `bookId` | 상세 화면 열람 (책당 1회/마운트) |
-| `WISH` | `bookId` (+`recommendationId`,`rank`) | 찜 등록 |
-| `REASON_VIEW` | `recommendationId`,`bookId` | 추천 이유 펼침 (계약에 있음, 프론트 미사용) |
+| `IMPRESSION` | `recommendationId` | 추천이 화면에 뜸. **덱 단위(덱당 1회)와 카드 단위(`bookId`+`position`) 둘 다 받는다** |
+| `CLICK` | `bookId` | 추천·홈에서 상세로 진입 |
+| `BOOK_VIEW` | `bookId` | 상세 화면 열람 (책당 1회/마운트). `dwellMs` 로 체류 시간 |
+| `WISH` | `bookId` | 찜 등록. 개인화 정본은 `user_library`, 이 이벤트는 「어느 화면에서 담았나」 |
+| `DISMISS` | `bookId` | **카드를 넘기거나 다른 책으로 바꿔 꺼냄 — 하나뿐인 부정 신호** |
+| `SEARCH` | `query` | 검색 실행. `query`·`resultCount` 가 `payload` 로 |
+| `REASON_VIEW` | `recommendationId`, `bookId` | 추천 이유 펼침 |
 
-**202**, 본문 없음. 검증 실패도 `202` 로 받고 버린다 — 이벤트가 화면을 막으면 안 된다(계약 §4.5). `clientEventId` 가 있으면 `(userId, clientEventId)` 로 중복 제거. 배치 전송은 두지 않는다(프론트가 건별 fire-and-forget).
+**202, 본문 없음. 언제나 202 다** — 종류를 모르든, 없는 책이든, 본문이 비었든 오류를 내지 않는다(계약 §4.5).
+대신 위 조건을 못 채운 이벤트는 **저장하지 않고 버린다.** 즉 202 는 「받았다」이지 「저장했다」가 아니다.
+`bookId` 는 내부 id 와 13자리 ISBN13 을 모두 받고 카탈로그에 있어야 한다. 길이를 넘는 문자열은 잘라서라도 저장하고, 범위 밖 `rank`·`position` 은 비운다.
+클라이언트 시계가 5분 이상 앞서면 `occurredAt` 을 서버 수신 시각으로 바꾼다.
+
+#### 프론트가 채워 줘야 하는 것 (현재 `lib/events.ts` 에 없음)
+
+| 필드 | 왜 필요한가 |
+| --- | --- |
+| `clientEventId` | `(userId, clientEventId)` 로 중복 제거한다. **지금 안 보내서 중복 제거가 동작하지 않는다** — StrictMode 이중 마운트와 뒤로가기 재진입으로 같은 노출이 두 번 들어온다 |
+| `position` | 화면에서 실제로 보인 자리. `rank`(서버 순위)와 **다르다** — RecommendPage 가 덱을 태그 겹침으로 재정렬한 뒤 앞 5장만 편다. 두 값을 같다고 보면 위치 편향 보정이 틀어진다 |
+| 카드 단위 `IMPRESSION` | 덱 단위 노출만으로는 「10권을 보냈는데 5권만 보였다」를 구분할 수 없다. 안 보인 책을 「관심 없음」으로 학습시키게 된다 |
+| `DISMISS` | 넘긴 카드. 유일한 부정 신호이자 `excludeIsbns` 의 원천 |
+| `context` · `sessionId` | 화면 출처와 방문 묶기. 검색 → 상세 → 찜 흐름을 볼 수 있다 |
+
+#### 쌓인 기록을 어디에 쓰나
+
+추천 요청(`AiRecommendationRequest`)이 받는 칸은 셋뿐이고, 이벤트가 추천을 바꾸는 방법도 그 셋이 전부다.
+
+| 요청 필드 | 지금 | 이벤트로 |
+| --- | --- | --- |
+| `seedIsbns` | `READ` + 평점이 있는 서재 항목만 | 찜한 책, 반복 열람한 책(`BOOK_VIEW` 2회 이상, 최근성 감쇠) |
+| `excludeIsbns` | 서재에 담긴 책 | `DISMISS` 한 책, 노출됐는데 클릭 0인 책 |
+| `tags[].weight` | 전부 1.0 하드코딩 | 클릭·찜한 책의 태그 빈도 |
+
+측정용으로는 덱 CTR · `reasonType` 별 클릭률 · 찜 전환율을 뽑아 `weights` 재조정 근거로 쓴다.
+**이 계산은 모두 추천 스냅샷과 짝이다** — 무엇을 보여줬는지는 덱에만 있다(아래).
+
+### 7.2 추천 스냅샷 (09-11 구현 · 내부)
+
+`GET /recommendations` 는 응답을 내보낼 때 그 덱을 `recommendations` · `recommendation_items` 에 그대로 저장한다. API 응답 형태는 달라지지 않는다.
+
+- 응답의 `recommendationId` 가 `recommendations.public_id` 다. 이벤트의 `recommendationId` 는 이 값으로 덱을 찾는다.
+- 함께 남기는 것: `mode` `fallback` `basedOnCount` `weights` `appliedTags` `modelVersion` `indexVersion`, 항목별 `rank` `score` `featureScores` `tags` `reasonType` `reasonText`.
+- **저장 실패는 추천 응답을 막지 않는다.** 로그만 남기고 응답은 그대로 나간다.
+- 저장된 덱이 없는 `recommendationId` 로 이벤트가 오면 그 연결만 비우고 이벤트는 저장한다 — 책 단위 신호까지 버리지 않는다.
 
 <br/>
 
@@ -478,6 +516,7 @@ LibraryItem {
 | 13 | `GET /recommendations/anonymous` 코드 잔존 | 삭제 | 비회원 추천 없음 (08-31 결정) |
 | 14 | BOOK DNA 가 정적 JSON 재가공 | `GET /users/me/dna` 연결 | 필드는 §3.4 로 확정 |
 | 15 | 검색 `SearchResponse.page` 를 1로 mock | 0부터 | Spring `Pageable` 기본과 일치 |
+| 16 | `lib/events.ts` 가 `clientEventId`·`position`·`context`·`sessionId` 를 안 보내고 노출이 덱 단위뿐 | §7.1 「프론트가 채워 줘야 하는 것」대로 채우고 카드 단위 `IMPRESSION` 과 `DISMISS` 추가 | 중복 제거가 아예 동작하지 않고, 화면에 뜬 적 없는 책이 「보여줬는데 안 눌렀다」로 집계된다 |
 
 <br/>
 

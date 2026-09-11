@@ -30,6 +30,7 @@ import com.ssafy.b102.recommendation.dto.AiRecommendationRequest;
 import com.ssafy.b102.recommendation.dto.AiRecommendationResponse;
 import com.ssafy.b102.recommendation.dto.RecommendationResponse;
 import com.ssafy.b102.recommendation.service.RecommendationService;
+import com.ssafy.b102.recommendation.service.RecommendationSnapshotService;
 import com.ssafy.b102.user.entity.User;
 import com.ssafy.b102.user.repository.UserInterestRepository;
 import com.ssafy.b102.user.service.UserService;
@@ -68,7 +69,8 @@ class RecommendationServiceTest {
 				new AiRecommendationResponse.Reason("TAG_MATCH", "선택한 태그와 일치하는 책이에요."), List.of()))));
 
 		RecommendationService service = new RecommendationService(aiClient, userService, interests, library, books, popularBooks,
-			new RecommendationProperties("http://ai:8000", null, null, 5, 10), CLOCK);
+			new RecommendationProperties("http://ai:8000", null, null, 5, 10),
+			mock(RecommendationSnapshotService.class), CLOCK);
 
 		RecommendationResponse response = service.recommend(USER_ID, 5, null);
 
@@ -100,7 +102,8 @@ class RecommendationServiceTest {
 		when(userService.getUser(USER_ID)).thenReturn(user);
 
 		RecommendationService service = new RecommendationService(aiClient, userService, interests, library, books, popularBooks,
-			new RecommendationProperties("http://ai:8000", null, null, 5, 10), CLOCK);
+			new RecommendationProperties("http://ai:8000", null, null, 5, 10),
+			mock(RecommendationSnapshotService.class), CLOCK);
 
 		org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.recommend(USER_ID, 5, null))
 			.isInstanceOf(com.ssafy.b102.global.error.BusinessException.class)
@@ -129,7 +132,8 @@ class RecommendationServiceTest {
 			new PopularBooksResponse(new PopularBooksResponse.SegmentInfo("30", "F", "30대 여성"), List.of(first, second)));
 
 		RecommendationService service = new RecommendationService(aiClient, userService, interests, library, books, popularBooks,
-			new RecommendationProperties("http://ai:8000", null, null, 5, 10), CLOCK);
+			new RecommendationProperties("http://ai:8000", null, null, 5, 10),
+			mock(RecommendationSnapshotService.class), CLOCK);
 
 		RecommendationResponse response = service.recommend(USER_ID, 5, null);
 
@@ -140,6 +144,34 @@ class RecommendationServiceTest {
 			.containsExactly("9788900000001", "9788900000002");
 		assertThat(response.items().get(0).reasonType()).isEqualTo("SEGMENT_POPULAR");
 		assertThat(response.items().get(0).reasonText()).isEqualTo("30대 여성에서 많이 대출된 책이에요.");
+	}
+
+	@Test
+	@DisplayName("스냅샷 저장이 실패해도 추천 응답은 그대로 나간다 — 분석용 저장이 화면을 막으면 안 된다")
+	void snapshotFailureDoesNotBreakResponse() {
+		AiRecommendationClient aiClient = mock(AiRecommendationClient.class);
+		UserService userService = mock(UserService.class);
+		UserInterestRepository interests = mock(UserInterestRepository.class);
+		LibraryItemRepository library = mock(LibraryItemRepository.class);
+		BookRepository books = mock(BookRepository.class);
+		PopularBookService popularBooks = mock(PopularBookService.class);
+		User user = mock(User.class);
+		when(user.isOnboarded()).thenReturn(true);
+		when(userService.getUser(USER_ID)).thenReturn(user);
+		when(library.findByUser_IdOrderByUpdatedAtDesc(USER_ID)).thenReturn(List.of());
+		when(interests.findTagCodesByUserId(USER_ID)).thenReturn(List.of());
+		when(popularBooks.popularFor(USER_ID, PopularBookService.MAX_SIZE)).thenReturn(
+			new PopularBooksResponse(null, List.of(summary("9788900000003", "인기 책"))));
+		RecommendationSnapshotService snapshots = mock(RecommendationSnapshotService.class);
+		org.mockito.Mockito.doThrow(new IllegalStateException("저장 실패")).when(snapshots).save(any(), any());
+
+		RecommendationService service = new RecommendationService(aiClient, userService, interests, library, books, popularBooks,
+			new RecommendationProperties("http://ai:8000", null, null, 5, 10), snapshots, CLOCK);
+
+		RecommendationResponse response = service.recommend(USER_ID, 5, null);
+
+		assertThat(response.items()).hasSize(1);
+		verify(snapshots).save(any(), any());
 	}
 
 	private static BookSummaryResponse summary(String isbn, String title) {

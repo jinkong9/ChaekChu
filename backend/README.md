@@ -96,6 +96,7 @@ src/main/java/com/ssafy/b102/
   book/controller/BookPopularController  # GET /books/popular?size= · GET /books/popular-segments (로그인 필요, PENDING 가능)
   book/controller/BookDetailController   # GET /books/{bookId} · /{bookId}/co-loans (§4.4·§4.6). 경로 변수는 \d+ — /search·/popular 와 안 겹친다
   book/service/BookDetailService.java    # id 또는 ISBN13 조회 · metrics 문자열 조립 · my(본인 서재) 조인
+  book/service/BookIdentifiers.java      # 「13자리 978/979 면 ISBN13, 아니면 내부 id」 판별 한 곳. 상세와 이벤트가 같은 값을 받는다
   book/service/BookDemandRankResolver    # 기준월 경계값 5개(1·3·5·10·25%) 캐시 → "상위 N%". 275만 행 등수 세기를 대체
   book/repository/BookDetailRepository   # book_demand_features · book_relations 조회(JdbcClient)
   user/controller/TagController.java     # GET /tags — 태그 사전(§10-0). 프론트 GENRES 하드코딩의 원천
@@ -118,9 +119,17 @@ src/main/java/com/ssafy/b102/
     service/RecommendationService.java   # 관심 태그·seed/exclude 구성, 세그먼트 인기 콜드스타트, AI ISBN → BookSummary 결합
     client/AiRecommendationClient.java   # RestClient, timeout, AI 장애 변환
     config/RecommendationProperties.java # app.recommendation.*
+    service/RecommendationSnapshotService # 내보낸 덱을 recommendations·items 에 저장(REQUIRES_NEW — 부르는 쪽이 readOnly). 실패해도 응답은 나간다
+    repository/RecommendationSnapshotRepository # 덱·항목 쓰기 + public_id → 내부 id (이벤트가 덱을 되찾는 통로)
+  event/                                  # POST /events — 행동 이벤트 수집 (API_SPEC §7). 언제나 202
+    controller/EventController.java
+    service/EventService.java            # 절대 던지지 않는다. 타입별 필수값·도서 실재·컬럼 폭을 보고 못 채우면 저장하지 않고 버린다
+    entity/EventType.java                # 7종 + 타입별 필수 조건(recommendationId / bookId)
+    repository/UserActionRepository.java # user_actions INSERT (JdbcClient, 트랜잭션 없음). (user_id, client_event_id) 중복은 ON CONFLICT DO NOTHING
 src/main/resources/
   application.yml                     # 환경변수 ${VAR:기본값} 방식. 프로필 파일 없음
   db/migration/V1__init.sql           # Flyway. docs/sql/V1__init.sql 복사본 (1차 10테이블 + 보정 7건). V2 = 추천 데이터 층
+  db/migration/V3__events_and_recommendation_snapshot.sql  # recommendations.public_id·index_version · reason_type CHECK 확대 · user_actions 의 display_position·session_id·payload · DISMISS/SEARCH
   elasticsearch/books-settings.json     # analyzer: korean(nori mixed + 품사 필터) · bigram(공백 제거 후 2-gram) · normalizer exact(공백 제거). shards 1 / replicas 0
   elasticsearch/books-mappings.json     # dynamic=strict. title·authors = korean + .ngram(bigram) + .keyword(normalizer exact). 바꾸면 app.search.index-name 을 올린다(=매핑 버전)
 docker/elasticsearch/Dockerfile       # elasticsearch:8.19.21 + analysis-nori
