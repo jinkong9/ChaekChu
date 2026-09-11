@@ -119,11 +119,14 @@ export interface LibraryItem {
   updatedAt?: string
 }
 
-/** GET /tags?kind=GENRE — 태그 사전(DB tags 테이블이 SSOT). label은 '#소설' 꼴, 화면에선 # 떼고 표시 */
+/** GET /tags?kind=GENRE — 태그 사전(DB tags 테이블이 SSOT). label은 '#소설' 꼴, 화면에선 # 떼고 표시.
+ *  서버 필드명은 `code`(9/10 컨트롤러) — 온보딩 preferences 에는 label·code 어느 쪽을 보내도 서버가 받는다(§3.3) */
 export interface TagItem {
-  tagCode: string
+  code: string
   label: string
   kind: 'GENRE' | 'THEME' | 'SIGNAL'
+  /** 사용자가 고를 수 있는 태그인지 — 추천 이유 전용(SIGNAL 등)은 false */
+  selectable: boolean
 }
 
 /** GET /books/popular (§4.2) — 온보딩 그리드. segment=null 이면 전체 인기 폴백 */
