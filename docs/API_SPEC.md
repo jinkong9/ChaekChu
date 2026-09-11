@@ -21,7 +21,7 @@
 | | `GET /books/popular-segments` | ● | 홈 (현재 정적 JSON) | **구현(09-10)** · FE 연결 |
 | 태그 | `GET /tags` | ● | (없음 — GENRES 하드코딩) | **구현(09-10)** · FE 연결 선택 |
 | | `GET /books/{bookId}` | ● | BookDetailPage · 홈 링 | **구현(09-10)** · ISBN13 도 받는다 |
-| | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 — `book_embeddings` 적재 뒤 |
+| | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 — Qdrant 적재량이 아직 1만 권(전체의 0.3%) |
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | **구현(09-10)** · FE 연결 |
 | 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 · 09-11 부터 덱을 DB 에 저장 |
 | 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
@@ -304,9 +304,15 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
   A안 상세의 「이 책을 빌린 사람들」 막대그래프와 목차 섹션은 **데이터가 오지 않는다** — 화면에서 빼거나 키워드·소장 도서관 수로 대체해야 한다.
 - `my` 는 **본인 서재 항목**. 프론트 타입은 `myLibraryStatus`/`myRating`/`myReviewText` 세 필드인데 `libraryItemId` 가 없어 상세에서 편집을 못 해 서재로 보낸다. `my` 객체로 묶고 `libraryItemId` 를 넣는다 — §9-5. 비로그인·타인 것은 절대 노출하지 않는다(계약 §6.2).
 
-### 4.5 `GET /books/{bookId}/similar?size=` ● (2차 — `book_embeddings` 0행이라 아직 만들지 않음)
+### 4.5 `GET /books/{bookId}/similar?size=` ● (2차 — Qdrant 적재량 부족으로 아직 만들지 않음)
 
 「비슷한 책」. 임베딩 연구 결론(`docs/pipeline/EMBEDDING_STUDY_REPORT.md` §0·§8)대로 **어휘 이웃 ‖ 밀집 이웃 역순위 융합**, 같은 작품(`set_isbn`·제목+저자) 묶어 1권만. `size` 기본 8, 최대 20.
+
+**PostgreSQL 은 이 API 에 관여하지 않는다.** 벡터는 Qdrant 에 있고(`books_active` 별칭, 1536차원 `text-embedding-3-small`) 적재·검색은 FastAPI 쪽이 한다.
+V2 가 만든 `book_embeddings` 표는 한 번도 쓰이지 않았고 **V4(09-11)에서 지웠다** — 08-31 운영안이 이미 「만들지 않는다」고 정해 둔 표였다.
+
+막고 있는 것은 **적재량**이다. 09-11 EC2 기준 `books_active` 에 1만 권, 카탈로그 331만 권의 0.3% 다. 지금 열면 대부분의 책에서 빈 결과가 나온다.
+만드는 방법 자체는 열려 있다 — AI 서비스의 `POST /internal/v1/recommendations` 에 `seedIsbns=[그 책]` 을 넣으면 그게 「이 책과 비슷한 책」이라 백엔드는 얇은 프록시면 된다.
 
 ```json
 { "items": [ { "book": BookSummary, "reason": "같은 작가 · #성장", "score": 0.83 }, … ] }
@@ -491,7 +497,7 @@ LibraryItem {
 | `metrics` 「전국 대출 순위」「누적 대출」 | 원장 `loans` · `loan_rank` | 월 갱신 |
 | `loanByAge` | 정보나루 `loan_grps` | 3.2% 만 존재 |
 | `co-loans` | 정보나루 `co_loan` | 82.9% |
-| `similar` | e5-large `STRUCT` 벡터(pgvector/Qdrant) ‖ tsvector 어휘 | 연구 보고서 §8 |
+| `similar` | Qdrant `books_active`(1536d `text-embedding-3-small`) ‖ 어휘 이웃 | 09-11 기준 1만 권 적재. PG 에는 벡터를 두지 않는다(V4) |
 | `popular-segments` | 정보나루 세그먼트 인기 (홈 링 빌드 스크립트의 원천) | 월 배치 |
 
 <br/>
@@ -557,7 +563,7 @@ LibraryItem {
 
 | 항목 | 후보 | 결정 시점 |
 | --- | --- | --- |
-| 「비슷한 책」후보 생성 경로 | pgvector 단독 / Qdrant + tsvector 융합 | 임베딩 배치 구현 시 (`EMBEDDING_STUDY_REPORT.md` §8.4) |
+| 「비슷한 책」후보 생성 경로 | ~~pgvector 단독~~ / Qdrant + 어휘 융합 | **Qdrant 로 정리됨(09-11)** — 남은 것은 융합 여부와 적재 완주 |
 | `reasonText` 템플릿 문장 | `reasonType` 8종별 | 추천 구현 문서 |
 | JWT 만료·갱신 | 24시간 고정 / refresh 토큰 도입 | 베타 운영 피드백 |
 | 이벤트 보존 기간·집계 | 원본 90일 / 일별 집계 영구 | W3 지표 설계 |

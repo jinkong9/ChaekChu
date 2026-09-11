@@ -9,4 +9,6 @@
 - `V3__events_and_recommendation_snapshot.sql` 은 V1 의 추천·이벤트 세 표를 실제로 쓸 수 있게 고친다 —
   `recommendations.public_id`(응답의 recommendationId), `recommendation_items.ck_ri_reason` 확대(AI 계약값이 하나도 없었다),
   `user_actions` 의 `display_position`·`session_id`·`payload`, `event_type` 에 `DISMISS`·`SEARCH` 추가. `docs/sql/` 에 같은 파일을 둔다.
+- `V4__drop_book_embeddings.sql` 은 V2 가 만든 `book_embeddings` 를 지운다. 벡터는 Qdrant 에 있고(09-11 EC2 확인) 이 표를
+  읽거나 쓰는 코드가 없었다. 08-31 운영안이 이미 「만들지 않는다」고 정해 둔 표다 — V2 가 그 결정을 모른 채 만들었다.
 - `ddl-auto: validate` 이므로 엔티티와 마이그레이션이 어긋나면 기동 시 실패한다.

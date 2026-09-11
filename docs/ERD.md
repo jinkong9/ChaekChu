@@ -13,6 +13,8 @@
 - **ISBN13 은 논리 키, PK 는 BIGINT.** API 는 `bookId` 를 불투명 문자열로 노출한다.
 - **소스별 원문은 행, 화면 대표값은 컬럼.** `book_texts` 에 정보나루·카카오 소개문을 소스별로, `books.description` 에 대표값 하나와 출처.
 - **책당 벡터 1개.** 임베딩 입력은 저장하지 않고 조립한다(`STRUCT` 템플릿). 소스별 평균 벡터는 폐기(임베딩 연구 09-07).
+  **벡터는 PostgreSQL 에 두지 않는다(09-11 정정).** Qdrant 가 보관·검색한다 — 아래 `BOOK_EMBEDDINGS` 는 설계 시점의 자리이고,
+  V2 가 만든 실제 표는 한 번도 쓰이지 않아 **V4 로 제거**했다(`EMBEDDING_QDRANT_OPERATING_PLAN.md` §7.3 이 애초에 만들지 말라고 정해 둔 표다).
 - **어휘 색인이 주 추천 신호.** `books` 의 tsvector(제목·저자·출판사·소개) + `book_keywords` 정확 조인 → 밀집 벡터와 역순위 융합.
 - **작품 단위 묶기.** `books.work_key`(세트 ISBN → 제목 어간+저자) 로 추천·검색 결과에서 작품당 1권.
 - **서비스 DB 에 두지 않는 것**: 도서관 원장 1.4억 행·1,660관(파케이), 수집 원본 JSON(파이프라인), 책별 태그 점수(KDC 파생으로 대체).
@@ -196,7 +198,7 @@ erDiagram
 | 카탈로그 | `books` | ISBN 1행 — 서지·KDC·작품키·대표 소개·표지·인기 | 월 배치 (원장 → usage → 카카오) |
 | 콘텐츠 | `book_texts` | 소스별 소개문 원문 (+국중 목차 표시용) | 수집기 |
 | | `book_keywords` | 정보나루 키워드·가중치 (1단계 48%) | 수집기 |
-| | `book_embeddings` | 책당 e5-large 벡터 1개, 입력 해시 | 임베딩 배치 (변경분) |
+| | ~~`book_embeddings`~~ | **폐기(V4, 09-11)** — 벡터는 Qdrant `books_active` 에 있다 | 임베딩 배치 → Qdrant |
 | 파생 | `book_relations` | 함께대출·마니아·다독자 (1단계 83%, **주 추천 신호**) | 수집기 |
 | | `book_demand_features` | 월별 누적·3개월·24개월·모멘텀 | 월 배치 (원장) |
 | | `book_demographics` | 연령·성별 대출 분포 (3.2%) | 수집기 |

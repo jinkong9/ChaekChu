@@ -1,6 +1,12 @@
 # 작업 상태 (재개 지점)
 
-갱신 2026-09-10 · 수집 전부 종료(정보나루 09-09 · 카카오 09-10) · 서비스 DB V1·V2 적재 완료 · 다음은 임베딩
+갱신 2026-09-11 · 수집 전부 종료(정보나루 09-09 · 카카오 09-10) · 서비스 DB V1·V2 적재 완료 · 임베딩 진행 중(Qdrant)
+
+> **09-11 정정 — 벡터 저장소는 Qdrant 로 굳었다.** 아래 「ES dense_vector 권고 · Qdrant 보류」와 「e5-large 1024d」는 09-10 시점의 계획이고,
+> 실제로 돌아가는 것은 08-31 운영안(`EMBEDDING_QDRANT_OPERATING_PLAN.md`) 쪽이다. EC2 확인 결과:
+> Qdrant 가 `--profile recsys` 로 떠 있고 `books_active` → `books_a54692a523124274` 에 **1만 권 · 1536차원**(`text-embedding-3-small`).
+> 적재는 `ai/src/recommendation/embedding_batch.py`, 검색은 `vector_search.py` 의 `QdrantVectorIndex` 가 한다.
+> 이에 맞춰 쓰이지 않던 `book_embeddings` 표를 **V4 로 제거**했다. 모델·차원 확정과 나머지 적재는 임베딩 담당의 몫으로 남아 있다.
 
 이전 판(08-27, 파일럿 28,714건 기준)의 수치는 모두 폐기했다. 아래는 전량 수집 뒤 실측이다.
 
@@ -18,7 +24,7 @@
 [완료] V1 적재 — books 3,312,467 · book_tags 2,023,895 · book_loaned_top20 1,200   로컬 · EC2 둘 다 (09-09) → books 는 09-10 카카오 완주본으로 upsert
 [완료] V2 스키마 — V2__recommendation_layer.sql, Flyway CLI 로 로컬·EC2 적용 (09-09 14:40). book_texts 는 books 컬럼 3개로 흡수
 [완료] V2 적재 — kdc_codes 949 · book_keywords 8,784,823 · book_relations 13,699,166 (대상 연결 99.5~99.9%) · book_demand_features 2,749,303   로컬 · EC2 (09-09 16:40)
-[다음] 임베딩 → book_embeddings(BYTEA) → ES 색인 — BM25(nori) + dense_vector int8_hnsw (1단계 34만 → L1)
+[진행] 임베딩 → Qdrant `books_active` (09-11 1만 권 / 1단계 34만 목표) · ES 는 BM25(nori) 어휘 색인만 — `book_embeddings` 표는 V4 로 제거
 ```
 
 <br/>
@@ -29,10 +35,11 @@
 L0 카탈로그   원장 295만 ∪ 국중만 74만(전자책 제외)  → books 3,312,467 (ISBN 체크섬 검증 후)   ← L1 으로 대체될 수 있음 (--scope 스위치)
 L1 추천 후보  누적 대출 72+ (수요 99%) ∪ 2025+ 신간 = 1,098,550   tier 1 (940+) 343,399 · tier 2 신간 147,729 · tier 3 607,422
 랭킹         직전 2년 차분 + 4 × 3개월 모멘텀 (누적은 필터·prior 전용)
-임베딩       multilingual-e5-large 1024d · STRUCT(제목/저자/분류/키워드 30/소개) 이어붙임 1벡터 · 창 512 · int8 양자화(손실 0.13%p)
+임베딩       (연구 결론) multilingual-e5-large 1024d · STRUCT 1벡터 · 창 512 · int8 양자화(손실 0.13%p)
+             ↳ 실제 운용은 text-embedding-3-small 1536d (EMBEDDING_MODEL). 둘 중 무엇으로 갈지는 임베딩 담당 확정 대기
 추천 구조     어휘 색인(BM25/tsvector) 主 ‖ 밀집 從 → 역순위 융합 → work_key 작품 묶기 → 텍스트 결측 책만 독자대상·KDC 재정렬
 근처 도서관    MVP 배제 (원장은 카탈로그·인기 지표 원천으로만)
-벡터 저장소    ES dense_vector 권고 · Qdrant 는 compose 옵션 프로필로 보류
+벡터 저장소    Qdrant (09-11 확정 — EC2 에서 --profile recsys 로 가동 중). ES 는 어휘 색인 담당
 ```
 
 근거: [RECOMMENDATION_DATA_DECISIONS.md](RECOMMENDATION_DATA_DECISIONS.md) · [EMBEDDING_STUDY_REPORT.md](EMBEDDING_STUDY_REPORT.md)
@@ -86,7 +93,7 @@ L1 추천 후보  누적 대출 72+ (수요 99%) ∪ 2025+ 신간 = 1,098,550   
 
 ## 6. 다음 작업
 
-1. **임베딩** — 1단계 34만 권 STRUCT(제목/저자/분류/키워드 30/소개 둘) → e5-large (61분, 캐시 `tmp/study/emb/e5-large/STRUCT__FULL343399.npy` 는 카카오 완주 전 입력이라 재생성) → `book_embeddings` BYTEA + `input_hash = books.text_hash`
+1. **임베딩** — 1단계 34만 권 STRUCT(제목/저자/분류/키워드 30/소개 둘) → **Qdrant `books_active`**. 09-11 기준 1만 권(0.3%)이라 `GET /books/{id}/similar` 은 아직 열 수 없다. 적재분 관리는 `ndjson` 작업 파일(08-31 운영안 §7.3)
 2. **ES 색인** — `books` BM25(nori: 제목·저자·출판사·`book_keywords`·소개 둘) + `dense_vector` int8_hnsw. 컨테이너 상한 4G → 5G
 3. **`book_demand_features` 다음 달** — 10월 원장 스냅샷이 오면 `loan_24m`·`trending_score`·`steady_score` 계산 시작(결정 3). 지금은 누적·3/12개월·소장관만
 4. `ai/` 서비스에 스냅샷 경로 연결 (`d4l-usage-v1` 계약 validate) — 또는 DB(`book_relations` 등)를 읽도록 전환 여부 결정
@@ -102,7 +109,8 @@ L1 추천 후보  누적 대출 72+ (수요 99%) ∪ 2025+ 신간 = 1,098,550   
 | `book_tags` 채우는 주체 | KDC 접두 규칙(`KDC_TAGS`)으로 배치가 채움. 09-09 표본 감사로 51x 의학·52x·59x·69x 스포츠·37x 교육·388·896 제외(40만 행 삭제). 태그 없는 KDC 구간은 비워 둠 |
 | 형제 권 소개(SIBLING) 174,720 | 저자 토큰 일치 160,802 + 어간 6자 이상 13,918. 일반명 교과서 오결합은 차단했지만 완벽하지 않음 — `description_source='SIBLING'` 으로 구분 가능 |
 | `book_loaned_top20` 원천 | 프론트 시안의 `segment_popular_500.json` 은 없었다 → `fetch_segment_popular.py` 로 재수집(월 1회). 창 06-01~08-31, 동률 순위는 재부여 |
-| 벡터 저장소 | ES vs Qdrant 보류 (compose 에 Qdrant 프로필 있음) |
+| ~~벡터 저장소~~ | **해소(09-11)** — Qdrant. EC2 가동 확인, `book_embeddings` 는 V4 로 제거 |
+| 임베딩 모델·차원 | 연구는 e5-large 1024d, 운용은 text-embedding-3-small 1536d. 하나로 정해 문서에 적을 것 |
 | 정보나루 재수집 | 하지 않음. 함께대출 목록 갱신이 필요하면 1단계만 하루 |
 | Windows CSV(CRLF) | `\copy` 종료 줄과 섞이면 실패 — 로더가 `tr -d '\r'` 로 정규화 |
 
