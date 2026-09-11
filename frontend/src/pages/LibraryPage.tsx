@@ -779,8 +779,6 @@ export default function LibraryPage() {
   const read = all.filter((li) => li.status === 'READ')
     .sort((x, y) => (x.finishedDate ?? '').localeCompare(y.finishedDate ?? ''))
   const wish = all.filter((li) => li.status === 'WISH')
-  const rated = read.filter((li) => li.rating != null)
-  const average = rated.length ? (rated.reduce((sum, li) => sum + (li.rating ?? 0), 0) / rated.length).toFixed(1) : '–'
 
   const meta: BookMeta = {
     title: `${nickname ?? '나'}의 책`,
@@ -831,16 +829,6 @@ export default function LibraryPage() {
         </>
       ) : (
         <>
-          <div className="libd-wish__summary">
-            {[
-              { label: '보유한 책', value: `${all.length}권` },
-              { label: '완독', value: `${read.length}권` },
-              { label: '찜', value: `${wish.length}권` },
-              { label: '평균 별점', value: `★ ${average}` },
-            ].map(({ label, value }) => (
-              <div key={label}><span>{label}</span><strong>{value}</strong></div>
-            ))}
-          </div>
           <div className="libd-wish__toolbar">
             <span>찜한 책 <small>{wish.length}권</small></span>
             <div className="eo-segments">
