@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,8 +38,6 @@ public class BookDetailService {
 	static final String CO_LOAN_SOURCE = "DATA4LIBRARY";
 	static final String RELATION_CO_LOAN = "CO_LOAN";
 
-	private static final Pattern ISBN13 = Pattern.compile("^97[89]\\d{10}$");
-	private static final Pattern INTERNAL_ID = Pattern.compile("^\\d{1,18}$");
 	private static final DateTimeFormatter YEAR_MONTH = DateTimeFormatter.ofPattern("yyyy-MM");
 
 	private final BookRepository bookRepository;
@@ -93,12 +90,13 @@ public class BookDetailService {
 		return new CoLoanResponse(items, CO_LOAN_SOURCE, asOf);
 	}
 
-	/** 13자리 ISBN 이면 isbn13 으로, 아니면 내부 id 로. 어느 쪽도 아니거나 없으면 404 BOOK_NOT_FOUND. */
+	/** 13자리 ISBN 이면 isbn13 으로, 아니면 내부 id 로(BookIdentifiers). 어느 쪽도 아니거나 없으면 404 BOOK_NOT_FOUND. */
 	private Book find(String rawBookId) {
-		String id = rawBookId == null ? "" : rawBookId.strip();
-		Optional<Book> found = ISBN13.matcher(id).matches()
+		String id = BookIdentifiers.normalize(rawBookId);
+		Long internalId = BookIdentifiers.isIsbn13(id) ? null : BookIdentifiers.asInternalId(id);
+		Optional<Book> found = BookIdentifiers.isIsbn13(id)
 			? bookRepository.findByIsbn13(id)
-			: INTERNAL_ID.matcher(id).matches() ? bookRepository.findById(Long.valueOf(id)) : Optional.empty();
+			: internalId == null ? Optional.empty() : bookRepository.findById(internalId);
 		return found.orElseThrow(() -> new BusinessException(ErrorCode.BOOK_NOT_FOUND, Map.of("bookId", id)));
 	}
 

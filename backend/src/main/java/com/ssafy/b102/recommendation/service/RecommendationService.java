@@ -13,6 +13,8 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +48,8 @@ public class RecommendationService {
 	private static final String POPULAR_MODEL_VERSION = "segment-popular-v1";
 	private static final String POPULAR_INDEX_VERSION = "book-loaned-top20";
 
+	private static final Logger log = LoggerFactory.getLogger(RecommendationService.class);
+
 	private final AiRecommendationClient aiClient;
 	private final UserService userService;
 	private final UserInterestRepository userInterestRepository;
@@ -53,12 +57,13 @@ public class RecommendationService {
 	private final BookRepository bookRepository;
 	private final PopularBookService popularBookService;
 	private final RecommendationProperties properties;
+	private final RecommendationSnapshotService snapshots;
 	private final Clock clock;
 
 	public RecommendationService(AiRecommendationClient aiClient, UserService userService,
 		UserInterestRepository userInterestRepository, LibraryItemRepository libraryItemRepository,
 		BookRepository bookRepository, PopularBookService popularBookService,
-		RecommendationProperties properties, Clock clock) {
+		RecommendationProperties properties, RecommendationSnapshotService snapshots, Clock clock) {
 		this.aiClient = aiClient;
 		this.userService = userService;
 		this.userInterestRepository = userInterestRepository;
@@ -66,6 +71,7 @@ public class RecommendationService {
 		this.bookRepository = bookRepository;
 		this.popularBookService = popularBookService;
 		this.properties = properties;
+		this.snapshots = snapshots;
 		this.clock = clock;
 	}
 
@@ -97,7 +103,7 @@ public class RecommendationService {
 		if ("COLD_START".equals(mode)) {
 			RecommendationResponse popularResponse = fromSegmentPopularity(userId, size, excludeIsbns, generatedAt);
 			if (popularResponse != null) {
-				return popularResponse;
+				return persisted(userId, popularResponse);
 			}
 		}
 
@@ -105,7 +111,21 @@ public class RecommendationService {
 			"req-" + UUID.randomUUID(), String.valueOf(userId), mode, size,
 			seedIsbns, excludeIsbns, tags, DEFAULT_WEIGHTS);
 		AiRecommendationResponse aiResponse = aiClient.recommend(request);
-		return toResponse(aiResponse, request, seedIsbns.size(), generatedAt);
+		return persisted(userId, toResponse(aiResponse, request, seedIsbns.size(), generatedAt));
+	}
+
+	/**
+	 * 내보내는 덱을 그대로 저장한다 — 이벤트가 「보여줬는데 안 눌렀다」를 계산할 때 쓰는 정본이다(API_SPEC §7).
+	 * 저장 실패가 추천 화면을 막아서는 안 되므로 삼키고 로그만 남긴다.
+	 */
+	private RecommendationResponse persisted(Long userId, RecommendationResponse response) {
+		try {
+			snapshots.save(userId, response);
+		}
+		catch (RuntimeException e) {
+			log.warn("추천 스냅샷 저장 실패 {} — 응답은 그대로 내보낸다: {}", response.recommendationId(), e.toString());
+		}
+		return response;
 	}
 
 	private RecommendationResponse fromSegmentPopularity(Long userId, int size, List<String> excludeIsbns,
