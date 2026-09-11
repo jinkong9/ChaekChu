@@ -18,6 +18,7 @@ from recommendation.runtime import build_artifact, configure_logging, refresh_ar
 from recommendation.smoke import run_smoke
 from recommendation.tag_batch import GmsTagProvider, TagBatchRunner, TagGenerator
 from recommendation.tag_index import load_validated_tag_sidecar
+from recommendation.tag_quality import TagQualityError, compare_tag_sidecars
 from recommendation.tag_prototype import (
     QdrantTagPrototypeIndexStore,
     TagPrototypeBatchConfig,
@@ -27,7 +28,7 @@ from recommendation.validation import validate_d4l_jsonl
 
 
 LOGGER = logging.getLogger(__name__)
-COMMANDS = ("build", "validate", "evaluate", "recommend", "index", "tags", "tag-index", "tune", "smoke")
+COMMANDS = ("build", "validate", "evaluate", "recommend", "index", "tags", "tag-index", "tune", "smoke", "tag-quality")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -76,6 +77,11 @@ def create_parser() -> argparse.ArgumentParser:
                 default=None,
                 help="number of books per GMS request (default: TAG_BATCH_SIZE or 16)",
             )
+        if command == "tag-quality":
+            command_parser.add_argument("--baseline-sidecar", type=Path, required=True)
+            command_parser.add_argument("--candidate-sidecar", type=Path, required=True)
+            command_parser.add_argument("--max-missing-increase", type=int, default=0)
+            command_parser.add_argument("--max-coverage-drop", type=float, default=0.0)
         if command == "tag-index":
             command_parser.add_argument("--index-version", default=None)
             command_parser.add_argument("--tag-version", default=None)
@@ -116,7 +122,7 @@ def run(arguments: argparse.Namespace) -> Path:
         elif arguments.command == "validate":
             artifact["validation"] = validate_d4l_jsonl(input_path)
             books = None
-        elif arguments.command in {"index", "tags", "tag-index", "smoke"}:
+        elif arguments.command in {"index", "tags", "tag-index", "smoke", "tag-quality"}:
             books = None
         else:
             books = load_d4l_jsonl(input_path)
@@ -137,6 +143,17 @@ def run(arguments: argparse.Namespace) -> Path:
                 )
             except ValueError as error:
                 raise ConfigError(f"smoke configuration is invalid: {error}") from error
+        elif arguments.command == "tag-quality":
+            try:
+                artifact["tagQuality"] = compare_tag_sidecars(
+                    input_path,
+                    arguments.baseline_sidecar.expanduser().resolve(),
+                    arguments.candidate_sidecar.expanduser().resolve(),
+                    max_missing_increase=arguments.max_missing_increase,
+                    max_coverage_drop=arguments.max_coverage_drop,
+                )
+            except TagQualityError as error:
+                raise ConfigError(f"tag quality comparison failed: {error}") from error
         elif arguments.command == "evaluate" and books is not None:
             artifact["evaluation"] = evaluate_d4l(books, k=arguments.k, recall_k=arguments.recall_k)
         elif arguments.command == "tune" and books is not None:
@@ -165,6 +182,8 @@ def run(arguments: argparse.Namespace) -> Path:
         raise ConfigError(
             f"input validation failed: {artifact['validation']['blockingErrors']} blocking error(s); report written to {output_path}"
         )
+    if arguments.command == "tag-quality" and artifact["tagQuality"]["status"] != "PASS":
+        raise ConfigError(f"tag quality gate failed; report written to {output_path}")
     LOGGER.info("command=%s artifactHash=%s", arguments.command, artifact["artifactHash"])
     return output_path
 
