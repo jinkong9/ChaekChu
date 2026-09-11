@@ -726,7 +726,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.libd-toc__more { margin-top: 0.6em; font-size: 0.72em; color: rgba(23, 32, 57, 0.4); }
 
 /* 한 권도 없을 때 — 목차 자리에 대신 놓는다 */
 .libd-empty {
@@ -940,7 +939,26 @@
 .libd-timeline__head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 11px; }
 .libd-timeline__head h3 { font-size: 13px; font-weight: 800; letter-spacing: 0.01em; }
 .libd-timeline__head p { font-size: 11px; color: rgba(23, 32, 57, 0.45); }
-.libd-timeline__other { margin-left: auto; white-space: nowrap; }
+
+/* 해 넘김 — 연표가 올해에 갇히지 않게. 아래 장 넘김과 같은 문법이다 */
+.libd-timeline__years { display: inline-flex; align-items: center; gap: 5px; }
+.libd-timeline__years b { font-size: 13px; font-weight: 800; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+.libd-timeline__years button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(23, 32, 57, 0.42);
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+.libd-timeline__years button:hover:not(:disabled) { color: var(--ink); }
+.libd-timeline__years button:disabled { opacity: 0.28; cursor: not-allowed; }
+.libd-timeline__years button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; border-radius: 3px; }
+.libd-timeline__years svg { width: 14px; height: 14px; }
 
 .libd-timeline__grid {
   display: grid;
@@ -1038,7 +1056,6 @@
   .libd-timeline { padding: 0 14px 48px; }
   .libd-timeline__head { flex-wrap: wrap; gap: 6px; }
   .libd-timeline__head p { font-size: 10px; }
-  .libd-timeline__other { margin-left: 0; }
   /* 12칸을 375px 에 욱여넣으면 표지가 손톱만 해진다 — 칸 폭을 지키고 띠를 옆으로 굴린다 */
   .libd-timeline__grid { grid-template-columns: repeat(12, minmax(56px, 1fr)); overflow-x: auto; }
   .libd-timeline__slot { --cover-w: 40px; height: 96px; padding: 0 2px 7px; gap: 5px; }

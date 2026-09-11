@@ -106,14 +106,19 @@ function FrontFace({ meta }: { meta: BookMeta }) {
   )
 }
 
-/** 목차 (0장 오른쪽) — 왼쪽에 제목, 오른쪽에 평가. 줄을 누르면 그 장으로 넘어간다. */
-function TocFace({ read, onPick }: { read: LibraryItem[]; onPick: (bookIndex: number) => void }) {
-  const shown = read.slice(0, TOC_MAX)
-  const rest = read.length - shown.length
+/** 목차 한 면 — read 의 from 번째부터 TOC_MAX 줄. 줄을 누르면 그 장으로 넘어간다.
+ *  한 면에 다 못 담으면 다음 목차 장이 이어받는다 (ArchiveBook 의 tocSheets). */
+function TocFace({ read, from, onPick }: {
+  read: LibraryItem[]; from: number; onPick: (bookIndex: number) => void
+}) {
+  const shown = read.slice(from, from + TOC_MAX)
+  // 마지막 목차 장의 남는 면 — 머리말만 덩그러니 놓지 않고 빈 지면으로 둔다
+  if (read.length > 0 && shown.length === 0) return null
+
 
   return (
     <div className="libd-face">
-      <span className="libd-face__eyebrow">목차</span>
+      <span className="libd-face__eyebrow">{from === 0 ? '목차' : '목차 (이어서)'}</span>
 
       {read.length === 0 ? (
         <div className="libd-empty">
@@ -125,9 +130,10 @@ function TocFace({ read, onPick }: { read: LibraryItem[]; onPick: (bookIndex: nu
           </span>
         </div>
       ) : (
-        <>
-          <ul className="libd-toc">
-            {shown.map((li, i) => (
+        <ul className="libd-toc">
+          {shown.map((li, k) => {
+            const i = from + k
+            return (
               <li key={li.libraryItemId}>
                 <button type="button" className="libd-toc__row" onClick={() => onPick(i)}>
                   <span className="libd-toc__no">{ordinal(i + 1)}</span>
@@ -136,10 +142,9 @@ function TocFace({ read, onPick }: { read: LibraryItem[]; onPick: (bookIndex: nu
                   <span className="libd-toc__rate">{li.rating != null ? `★ ${li.rating}` : '—'}</span>
                 </button>
               </li>
-            ))}
-          </ul>
-          {rest > 0 && <p className="libd-toc__more">그 밖 {rest}권</p>}
-        </>
+            )
+          })}
+        </ul>
       )}
     </div>
   )
@@ -215,7 +220,7 @@ function RateFace({ li, no }: { li: LibraryItem; no: number }) {
 
 /** 장 한 개. 0 = 속표지 + 목차, 1.. = 완독한 책 한 권. (표지는 isClosed 가 맡는다) */
 type Sheet =
-  | { kind: 'toc' }
+  | { kind: 'toc'; leftFrom: number | null; rightFrom: number }
   | { kind: 'book'; li: LibraryItem; no: number }
 
 function BlankPage({ side, children }: { side: 'left' | 'right'; children?: ReactNode }) {
@@ -288,8 +293,14 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
     frame: 0,
   })
 
+  // 목차는 한 면에 TOC_MAX 줄. 0장은 왼쪽이 속표지라 오른쪽 한 면뿐이고,
+  // 그래도 남으면 양면을 쓰는 목차 장을 잇는다 — 모든 책이 목차에서 닿는다.
+  const tocSheets: Extract<Sheet, { kind: 'toc' }>[] = [{ kind: 'toc', leftFrom: null, rightFrom: 0 }]
+  for (let from = TOC_MAX; from < read.length; from += TOC_MAX * 2) {
+    tocSheets.push({ kind: 'toc', leftFrom: from, rightFrom: from + TOC_MAX })
+  }
   const sheets: Sheet[] = [
-    { kind: 'toc' },
+    ...tocSheets,
     ...read.map((li, i) => ({ kind: 'book' as const, li, no: i + 1 })),
   ]
   // 장은 내용이 있는 만큼만 있고, 끝에서 처음으로 돌지 않는다.
@@ -376,6 +387,9 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
     if (!turn) onClosed(true)
   }, [turn, onClosed])
 
+  /** 목차 줄 → 그 책의 장. 책은 목차 장 다음부터 놓인다 */
+  const pickBook = (bookIndex: number) => jumpTo(tocSheets.length + bookIndex)
+
   /** 목차에서 곧장 그 장으로 — 넘기는 중에는 받지 않는다 */
   const jumpTo = (sheetIndex: number) => {
     if (turn) return
@@ -385,9 +399,14 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
   }
 
   const leftOf = (s: Sheet | undefined): ReactNode =>
-    !s ? null : s.kind === 'toc' ? <FrontFace meta={meta} /> : <TitleFace li={s.li} />
+    !s ? null
+      : s.kind === 'book' ? <TitleFace li={s.li} />
+      : s.leftFrom === null ? <FrontFace meta={meta} />
+      : <TocFace read={read} from={s.leftFrom} onPick={pickBook} />
   const rightOf = (s: Sheet | undefined): ReactNode =>
-    !s ? null : s.kind === 'toc' ? <TocFace read={read} onPick={(i) => jumpTo(i + 1)} /> : <RateFace li={s.li} no={s.no} />
+    !s ? null
+      : s.kind === 'book' ? <RateFace li={s.li} no={s.no} />
+      : <TocFace read={read} from={s.rightFrom} onPick={pickBook} />
 
   // 넘어가는 종이 한 장의 앞면은 먼저 놓인 장(A)의 오른쪽 면, 뒷면은 나중 장(B)의 왼쪽 면이다.
   // 그래서 -180도까지 돌면 B의 왼쪽 면이 왼쪽에 내려앉고, 미리 깔아 둔 B의 오른쪽 면이 드러난다.
@@ -406,7 +425,8 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
   // 목차가 오른쪽 면에 올라오면 넘김 판을 걷는다 — 판이 덮고 있으면 목차 줄이
   // 눌리지 않는다 (판은 z-index 80, 지면은 10이고 지면이 스태킹 맥락에 갇혀 있다).
   // 목차에서는 줄을 골라 넘어가고, 장 넘김은 아래 화살표가 맡는다.
-  const tocOpen = !turn && rightSheet?.kind === 'toc'
+  const tocOnRight = !turn && rightSheet?.kind === 'toc'
+  const tocOnLeft = !turn && leftSheet?.kind === 'toc' && leftSheet.leftFrom !== null
 
   return (
     <div
@@ -466,14 +486,14 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
               <>
                 <button
                   type="button"
-                  className="libd-book__hit libd-book__hit--previous"
+                  className={`libd-book__hit libd-book__hit--previous${tocOnLeft ? ' is-through' : ''}`}
                   aria-label="이전 장으로 돌아가기"
                   onClick={() => requestTurn(-1)}
                   disabled={cursor <= 0}
                 />
                 <button
                   type="button"
-                  className={`libd-book__hit libd-book__hit--next${tocOpen ? ' is-through' : ''}`}
+                  className={`libd-book__hit libd-book__hit--next${tocOnRight ? ' is-through' : ''}`}
                   aria-label="다음 장 넘기기"
                   onClick={() => requestTurn(1)}
                   disabled={cursor >= sheets.length - 1}
@@ -570,21 +590,37 @@ function TimelineMonth({ books, current, onJump }: {
 function Timeline({ read, year, current, onJump }: {
   read: LibraryItem[]; year: number; current: number; onJump: (bookIndex: number) => void
 }) {
-  const thisMonth = new Date().getFullYear() === year ? new Date().getMonth() + 1 : 0
-  const otherYears = read.filter((li) => !li.finishedDate?.startsWith(String(year))).length
+  // 완독 기록이 있는 해들. 올해는 기록이 없어도 자리를 지킨다 (새해 첫날 빈 격자를 피한다)
+  const years = [...new Set([year, ...read.map((li) => Number(li.finishedDate?.slice(0, 4))).filter(Boolean)])]
+    .sort((a, b) => b - a)
+  const [picked, setPicked] = useState(year)
+  // 목록이 바뀌어 고른 해가 사라지면 가장 최근 해로 — 효과 없이 여기서 접는다
+  const at = Math.max(0, years.indexOf(picked))
+  const shown = years[at] ?? year
+  const thisMonth = new Date().getFullYear() === shown ? new Date().getMonth() + 1 : 0
 
   return (
     <section className="libd-timeline">
       <div className="libd-timeline__head">
-        <h3>완독 연표 · {year}</h3>
+        <h3>완독 연표</h3>
+        <div className="libd-timeline__years">
+          <button type="button" aria-label="이전 해"
+            onClick={() => setPicked(years[at + 1])} disabled={at >= years.length - 1}>
+            <ArrowIcon direction="left" />
+          </button>
+          <b>{shown}</b>
+          <button type="button" aria-label="다음 해"
+            onClick={() => setPicked(years[at - 1])} disabled={at <= 0}>
+            <ArrowIcon direction="right" />
+          </button>
+        </div>
         <p>그 달에 완독한 책이 놓입니다 — 표지를 누르면 그 장으로 넘어가요</p>
-        {otherYears > 0 && <p className="libd-timeline__other">그 밖의 해 {otherYears}권</p>}
       </div>
       <div className="libd-timeline__grid">
         {Array.from({ length: 12 }, (_, k) => k + 1).map((m) => {
           const spines = read
             .map((li, i) => ({ li, i }))
-            .filter(({ li }) => li.finishedDate?.startsWith(`${year}-${String(m).padStart(2, '0')}`))
+            .filter(({ li }) => li.finishedDate?.startsWith(`${shown}-${String(m).padStart(2, '0')}`))
           return (
             <div className="libd-timeline__month" key={m}>
               <TimelineMonth books={spines} current={current} onJump={onJump} />
