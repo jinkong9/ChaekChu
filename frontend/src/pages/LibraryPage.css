@@ -44,6 +44,14 @@
   letter-spacing: -0.035em;
 }
 
+.libd__intro h2 em {
+  font-size: 0.42em;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: rgba(23, 32, 57, 0.38);
+}
+
 .libd__intro span {
   display: block;
   margin-top: 10px;
@@ -1028,8 +1036,7 @@
 .libd-page--wish .libd__intro--flow { padding: 96px max(34px, calc((100% - 1200px) / 2)) 0; text-align: left; }
 .libd-wish__toolbar, .libd-wish__list { max-width: 1200px; margin-inline: auto; }
 .libd-wish__toolbar { display: flex; align-items: center; gap: 24px; margin-top: 26px; padding-top: 16px; border-top: 1px solid rgba(11,11,11,.18); }
-.libd-wish__toolbar > span { margin-right: auto; font-size: 14px; font-weight: 650; }
-.libd-wish__toolbar small { margin-left: 6px; font-size: 11px; font-weight: 400; color: rgba(11,11,11,.5); }
+.libd-wish__toolbar .eo-segments { margin-right: auto; }
 .libd-wish__list { padding-block: 20px 90px; }
 .libd-shelf { max-width: 1320px; margin-inline: auto; padding: 26px 30px 90px; }
 .libd-shelf__row { position: relative; }

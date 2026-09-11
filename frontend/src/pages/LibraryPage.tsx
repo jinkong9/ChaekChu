@@ -796,8 +796,11 @@ export default function LibraryPage() {
       </div>
 
       <header className={`libd__intro ${mode === 'wish' ? 'libd__intro--flow' : ''}`}>
-        <p>READING ARCHIVE</p>
-        <h2 id="libd-title">{mode === 'read' ? '완독 기록을 한 권에' : '내 서재'}</h2>
+        <p>{mode === 'read' ? 'READING ARCHIVE' : 'WISH LIST'}</p>
+        <h2 id="libd-title">
+          {mode === 'read' ? '완독 기록을 한 권에'
+            : <>언젠가 펼칠 책 <em>{wish.length}권</em></>}
+        </h2>
         <span>
           {mode === 'read'
             ? '완독한 책의 감상과 기억을 한 장씩 모아보세요.'
@@ -819,7 +822,6 @@ export default function LibraryPage() {
       ) : (
         <>
           <div className="libd-wish__toolbar">
-            <span>찜한 책 <small>{wish.length}권</small></span>
             <div className="eo-segments">
               <button type="button" className={`eo-segment ${wishView === 'shelf' ? 'is-on' : ''}`}
                 aria-pressed={wishView === 'shelf'} onClick={() => setWishView('shelf')}>책장</button>
