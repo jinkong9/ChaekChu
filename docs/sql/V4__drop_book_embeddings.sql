@@ -1,0 +1,22 @@
+-- V4 — book_embeddings 제거 (2026-09-11). V2 가 만든 표를 지운다.
+--
+-- 왜 지우나
+--   [1] 08-31 운영안(docs/EMBEDDING_QDRANT_OPERATING_PLAN.md §1·§7.3)이 이미 「만들지 않는다」고 정해 둔 표다.
+--       V2(09-09)가 그 결정을 모른 채 만들었다 — 주석의 「ES 가 탐색, PG 는 정본」은 채택되지 않은 안이다.
+--   [2] 읽거나 쓰는 코드가 한 줄도 없다. 저장소 전체에서 이 이름이 나오는 곳은 V2 의 CREATE TABLE 뿐이었다.
+--   [3] 벡터는 Qdrant 에 있다. EC2 에서 확인(09-11): books_active → books_a54692a523124274,
+--       10,000점 · 1536차원(text-embedding-3-small). 적재는 ai/src/recommendation/embedding_batch.py 가 하고
+--       검색은 vector_search.py 의 QdrantVectorIndex 가 한다. PostgreSQL 은 관여하지 않는다.
+--   [4] 채우면 부피가 문제다. 331만 권 × 1536차원 × fp16 ≈ 10GB. 메모리 15GB EC2 의 PG 에 얹을 크기가 아니다.
+--
+--   빈 표가 스키마에 남아 있으면 「벡터는 여기 산다」로 읽힌다. 실제로 그렇게 읽고 GET /books/{id}/similar 이
+--   이 표 때문에 막혀 있다고 잘못 판단한 일이 있었다(API_SPEC §4.5 정정). 막고 있는 것은 Qdrant 적재량이다.
+--
+-- 되돌리려면: V2 의 CREATE TABLE 블록을 새 버전 파일로 다시 적용하면 된다. 로컬·EC2 모두 0행이라 잃는 데이터가 없다(09-11 확인).
+--
+-- 남겨 두는 것 (이 마이그레이션의 범위 밖)
+--   books.embedding_version — V1 컬럼. Book 엔티티에 매핑돼 있어 지우면 ddl-auto: validate 가 기동을 막는다.
+--   books.text_hash         — V2 컬럼. PG 재임베딩 대상 추출용이었으나 Qdrant 경로에서는 쓰이지 않는다.
+--   둘 다 임베딩 담당이 판단할 몫이라 건드리지 않는다.
+
+DROP TABLE IF EXISTS book_embeddings;

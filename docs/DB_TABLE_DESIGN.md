@@ -13,6 +13,8 @@
 | **V1** | **`docs/sql/V1__init.sql`** | 1차 10테이블 + 보정 7건 — 지금 프론트·API 가 깨지는 곳과 UNIQUE·FK·CHECK 만 |
 | **V1.1** | **`docs/sql/V1_1__seed_tags.sql`** | `tags` seed — 온보딩 장르 12개(GENRE, 라벨 `#소설` 형태). API_SPEC §3.3 표 |
 | **V2** | **`docs/sql/V2__recommendation_layer.sql`** (09-09 적용 — 로컬·EC2, Flyway CLI) | `kdc_codes` `book_keywords` `book_relations` `book_demand_features` `book_embeddings`(표만) + `books` 컬럼 3개(`description_source` `description_kakao` `text_hash`) |
+| **V3** | **`docs/sql/V3__events_and_recommendation_snapshot.sql`** (09-11) | 추천 스냅샷을 쓸 수 있게 — `recommendations.public_id`·`index_version`, `recommendation_items.ck_ri_reason` 확대(AI 계약값), `user_actions` 의 `display_position`·`session_id`·`payload` + `DISMISS`·`SEARCH` |
+| **V4** | **`docs/sql/V4__drop_book_embeddings.sql`** (09-11) | `book_embeddings` 제거. 벡터는 Qdrant 가 보관한다 — 08-31 운영안 §7.3 이 애초에 만들지 말라고 정해 둔 표를 V2 가 만들었고, 쓰는 코드는 없었다 |
 
 **`book_texts` 는 만들지 않는다 (09-09 결정).** 소개문 소스가 정보나루·카카오 둘뿐이고 필요한 건 「임베딩 입력이 둘을 다 쓴다」는 것뿐이라, 표 대신
 `books.description_kakao`(두 번째 소개문) + `description_source` + `text_hash` 로 흡수했다. 소스가 셋이 되면(YES24 목차 등) 그때 표로 분리한다 — §4.1 의 DDL 은 그 시점의 참고안.
