@@ -401,6 +401,11 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
   const leftSheet = covered && turn?.direction === 1 ? sheetB : sheetA
   const rightSheet = covered && turn?.direction === -1 ? sheetA : sheetB
 
+  // 목차가 오른쪽 면에 올라오면 넘김 판을 걷는다 — 판이 덮고 있으면 목차 줄이
+  // 눌리지 않는다 (판은 z-index 80, 지면은 10이고 지면이 스태킹 맥락에 갇혀 있다).
+  // 목차에서는 줄을 골라 넘어가고, 장 넘김은 아래 화살표가 맡는다.
+  const tocOpen = !turn && rightSheet?.kind === 'toc'
+
   return (
     <div
       className="libd__interaction"
@@ -466,7 +471,7 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
                 />
                 <button
                   type="button"
-                  className="libd-book__hit libd-book__hit--next"
+                  className={`libd-book__hit libd-book__hit--next${tocOpen ? ' is-through' : ''}`}
                   aria-label="다음 장 넘기기"
                   onClick={() => requestTurn(1)}
                   disabled={cursor >= sheets.length - 1}

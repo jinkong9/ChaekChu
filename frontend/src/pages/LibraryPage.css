@@ -156,6 +156,10 @@
   transform-style: preserve-3d;
 }
 
+/* 앞표지는 장식이다 — 펼친 뒤에도 지면 위를 덮고 있어 목차를 가로막는다.
+   표지를 여는 것은 libd-book__hit--cover 가 맡으니 클릭은 통과시킨다 */
+.libd-book__front-cover { pointer-events: none; }
+
 .libd-book__back-cover {
   border-radius: 7px 14px 14px 7px;
   background: #27314a;
@@ -211,6 +215,7 @@
 
 .libd-book__paper-light {
   position: absolute;
+  pointer-events: none;   /* 종이 빛도 장식이다 — 지면의 글·버튼을 가리면 안 된다 */
   inset: 0;
   background:
     radial-gradient(circle at 52% 26%, rgba(255, 255, 255, 0.96), transparent 46%),
@@ -403,6 +408,9 @@
   transform: translateZ(42px);
   -webkit-tap-highlight-color: transparent;
 }
+
+/* 목차 지면 위에서는 넘김 판이 클릭을 통과시킨다 */
+.libd-book__hit.is-through { pointer-events: none; }
 
 .libd-book__hit:focus-visible {
   border-radius: 8px;
