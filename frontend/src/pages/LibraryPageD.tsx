@@ -697,9 +697,10 @@ const SORTS = [
 
 type SortKey = (typeof SORTS)[number]['key']
 
-/** 완독일이 빠른 순. 완독일이 없는 책(찜)은 뒤로 밀고, 그 안에서는 나중에 담은 것부터. */
+/** 완독일이 빠른 순. 완독일이 없는 책(찜)은 뒤로 밀고, 그 안에서는 최근 고친 것부터(계약 §6 정렬 기준).
+ *  libraryItemId 는 서버에서 문자열이라 뺄셈으로 순서를 매기지 않는다. */
 const byRecent = (x: LibraryItem, y: LibraryItem) =>
-  (y.finishedDate ?? '').localeCompare(x.finishedDate ?? '') || y.libraryItemId - x.libraryItemId
+  (y.finishedDate ?? '').localeCompare(x.finishedDate ?? '') || (y.updatedAt ?? '').localeCompare(x.updatedAt ?? '')
 
 /** 별점이 높은 순. 별점이 없으면 맨 뒤 — 0점과 '아직 안 매김'은 다르다. */
 const byRating = (x: LibraryItem, y: LibraryItem) =>

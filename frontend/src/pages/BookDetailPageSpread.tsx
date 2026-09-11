@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api } from '../api/client'
+import { addToLibrary } from '../api/library'
 import type { BookDetail, ShelfStatus } from '../api/types'
 import { trackEvent } from '../lib/events'
 
@@ -42,7 +43,7 @@ export default function BookDetailPageSpread() {
 
   const save = (status: ShelfStatus) => {
     if (status === 'WISH') trackEvent('WISH', { bookId: book.bookId })
-    api.post('/library', { bookId: book.bookId, status })
+    addToLibrary(book.bookId, status)
       .then(() => { qc.invalidateQueries({ queryKey: ['library'] }); qc.invalidateQueries({ queryKey: ['book', bookId] }) })
       .catch(() => {})
   }
@@ -76,14 +77,14 @@ export default function BookDetailPageSpread() {
             </div>
 
             {/* 내 기록 — 계약 §6: 본인 것만, 비로그인·타인은 null */}
-            {book.myLibraryStatus && (
+            {book.my && (
               <section className="mt-7 border-t border-rule pt-4">
                 <h2 className="eo-label">내 기록</h2>
                 <p className="eo-body mt-2">
-                  {MY_STATUS_LABEL[book.myLibraryStatus]}
-                  {book.myRating != null && ` · 별점 ${book.myRating}`}
+                  {MY_STATUS_LABEL[book.my.status]}
+                  {book.my.rating != null && ` · 별점 ${book.my.rating}`}
                 </p>
-                {book.myReviewText && <p className="eo-body eo-body--ink mt-2">{book.myReviewText}</p>}
+                {book.my.reviewText && <p className="eo-body eo-body--ink mt-2">{book.my.reviewText}</p>}
                 <Link to="/library" className="eo-link mt-3">서재에서 수정</Link>
               </section>
             )}

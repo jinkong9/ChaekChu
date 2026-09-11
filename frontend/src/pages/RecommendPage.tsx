@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useReducedMotion } from 'motion/react'
-import { api } from '../api/client'
+import { addToLibrary } from '../api/library'
 import type { RecommendationItem, ShelfStatus } from '../api/types'
 import { useRecommendations, RECOMMEND_DECK_SIZE } from '../lib/useRecommendations'
 import { useTuneStore } from '../stores/tuneStore'
@@ -29,8 +29,9 @@ const MINI = { folderW: 132, folderH: 185, stampW: 108, out: 100 }
 
 export default function RecommendPage() {
   const qc = useQueryClient()
-  const { data, isPending, isError } = useRecommendations()
   const myTags = useTuneStore((s) => s.tags)
+  // 기준 조절에서 고른 태그는 서버로 보낸다(§5.1) — 덱 순서·appliedTags 는 서버가 정한 그대로 그린다
+  const { data, isPending, isError } = useRecommendations(myTags)
   const nickname = useAuthStore((s) => s.nickname)
   const reduced = useReducedMotion()
 
@@ -80,19 +81,18 @@ export default function RecommendPage() {
   }
 
   // 태그 선택 시 캐시된 덱을 겹치는 태그 수로 재정렬 — 후보 재생성 없음 (덱 구조 원칙)
-  const overlap = (item: RecommendationItem) => item.tags.filter((t) => myTags.includes(t)).length
   // 태그로 재정렬한 뒤 상위 RECOMMEND_DECK_SIZE권까지만 편다
-  const items = (myTags.length === 0 ? data.items : [...data.items].sort((a, b) => overlap(b) - overlap(a) || a.rank - b.rank))
-    .slice(0, RECOMMEND_DECK_SIZE)
+  const items = data.items.slice(0, RECOMMEND_DECK_SIZE)
   // 꺼내 둔 책이 곧 히어로. 나머지는 순위 그대로 아래에 남는다 (원래 1순위도 여기로 내려온다)
   const featured = items.find((i) => i.book.bookId === featuredId) ?? items[0]
   const rest = items.filter((i) => i !== featured)
-  const appliedTags = myTags.length > 0 ? myTags : data.appliedTags
+  const appliedTags = data.appliedTags
   const postmark = new Date(data.generatedAt).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
 
   const save = (bookId: number, rank: number, status: ShelfStatus) => {
     if (status === 'WISH') trackEvent('WISH', { bookId, recommendationId: data.recommendationId, rank })
-    api.post('/library', { bookId, status }).then(() => qc.invalidateQueries({ queryKey: ['library'] })).catch(() => {})
+    // 이미 담긴 책이면 409 → api/library 가 PATCH 로 승격까지 처리한다
+    addToLibrary(bookId, status).then(() => qc.invalidateQueries({ queryKey: ['library'] })).catch(() => {})
   }
   const click = (item: RecommendationItem) =>
     trackEvent('CLICK', { bookId: item.book.bookId, recommendationId: data.recommendationId, rank: item.rank })

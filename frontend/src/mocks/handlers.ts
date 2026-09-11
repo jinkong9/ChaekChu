@@ -96,6 +96,12 @@ const COVER: Record<number, string> = {
   35: 'https://image.aladin.co.kr/product/23940/2/cover500/8936434411_1.jpg',
   36: 'https://image.aladin.co.kr/product/25509/75/cover500/k132633125_2.jpg',
 }
+/** 화면 BookSummary → 서버 BookSummary(§1.5) 모양. 서버가 주는 그대로를 흉내 내는 핸들러(검색·함께대출)가 쓴다 */
+const toServerBook = (bk: BookSummary): ServerBookSummary => ({
+  bookId: String(bk.bookId), isbn13: null, title: bk.title, authors: bk.author ? [bk.author] : [], publisher: bk.publisher,
+  publicationYear: bk.publicationYear, coverUrl: bk.coverUrl, pageCount: bk.pageCount, category: bk.category ?? null, classNo: null,
+})
+
 const withCategory = (bk: BookSummary): BookSummary =>
   // 정적 맵에 없는 책(세그먼트 인기에서 편입된 책)은 자기 값을 그대로 유지한다
   ({ ...bk, category: CATEGORY[bk.bookId] ?? bk.category ?? null, coverUrl: COVER[bk.bookId] ?? bk.coverUrl ?? null })
@@ -176,6 +182,8 @@ const recommendations: RecommendationResponse = {
 }
 
 /** ============ 서재 (in-memory — 세션 동안 상태 유지) ============ */
+/** 서버는 Asia/Seoul 기준 오늘(§6.2) — mock 은 브라우저 로컬 날짜로 대신한다 */
+const today = () => new Date().toLocaleDateString('sv-SE')
 let nextLibraryId = 9
 const library: LibraryItem[] = [
   { libraryItemId: 1, book: CATALOG[6], status: 'READ', rating: 4, reviewText: '어른이 되기 전에 읽었어야 했다.', finishedDate: '2026-08-20' },
@@ -326,10 +334,7 @@ export const handlers = [
     const page = Number(url.searchParams.get('page') ?? 0)
     const size = Math.min(50, Number(url.searchParams.get('size') ?? 20))
     const hits = q.length < 1 ? [] : CATALOG.filter((bk) => bk.title.includes(q) || (bk.author ?? '').includes(q)).map(withCategory)
-    const items: ServerBookSummary[] = hits.slice(page * size, page * size + size).map((bk) => ({
-      bookId: String(bk.bookId), isbn13: null, title: bk.title, authors: bk.author ? [bk.author] : [], publisher: bk.publisher,
-      publicationYear: bk.publicationYear, coverUrl: bk.coverUrl, pageCount: bk.pageCount, category: bk.category ?? null, classNo: null,
-    }))
+    const items: ServerBookSummary[] = hits.slice(page * size, page * size + size).map(toServerBook)
     return HttpResponse.json({ total: hits.length, page, size, items } satisfies ServerSearchResponse)
   }),
 
@@ -354,9 +359,10 @@ export const handlers = [
         { ageGroup: '10대', ratio: 8 }, { ageGroup: '20대', ratio: 34 }, { ageGroup: '30대', ratio: 38 },
         { ageGroup: '40대', ratio: 14 }, { ageGroup: '50대+', ratio: 6 },
       ],
-      myLibraryStatus: mine?.status ?? null,
-      myRating: mine?.rating ?? null,
-      myReviewText: mine?.reviewText ?? null,
+      // 계약 §4.4 `my` — libraryItemId 를 함께 주어 상세에서 바로 PATCH 할 수 있게 한다
+      my: mine
+        ? { libraryItemId: String(mine.libraryItemId), status: mine.status, rating: mine.rating, reviewText: mine.reviewText, finishedDate: mine.finishedDate }
+        : null,
     })
   }),
 
@@ -377,31 +383,55 @@ export const handlers = [
     // 함께 대출은 취향이 아니라 '같이 빌려 간' 신호다 — 저자·분류를 맞추지 않고 덱에서 고른다
     const pool = CATALOG.filter((bk) => bk.bookId !== self)
     const start = (self * 7) % Math.max(pool.length - 4, 1)
-    return HttpResponse.json({ items: pool.slice(start, start + 4).map(withCategory) })
+    // 서버 모양(§4.6): {book, rank} + 출처·기준월
+    const items = pool.slice(start, start + 4).map((bk, i) => ({ book: toServerBook(withCategory(bk)), rank: i + 1 }))
+    return HttpResponse.json({ items, source: 'DATA4LIBRARY', asOf: '2026-08' })
   }),
 
   // 서재 CRUD
-  http.get('*/library/me', () =>
-    HttpResponse.json({ items: library.map((li) => ({ ...li, book: withCategory(li.book) })) })),
-  http.post('*/library', async ({ request }) => {
-    const body = (await request.json()) as { bookId: number; status: ShelfStatus }
-    const book = CATALOG.find((bk) => bk.bookId === body.bookId)
-    if (!book) return new HttpResponse(null, { status: 404 })
-    const existing = library.find((li) => li.book.bookId === body.bookId)
-    if (existing) { existing.status = body.status } else {
-      library.unshift({ libraryItemId: nextLibraryId++, book, status: body.status, rating: null, reviewText: null,
-        finishedDate: body.status === 'READ' ? new Date().toISOString().slice(0, 10) : null })
-    }
-    return new HttpResponse(null, { status: 201 })
+  // §6.1 — status 없으면 전체, 있으면 그 상태만. 정렬은 updatedAt desc (mock 은 담은 순서 = unshift 순서로 대신한다)
+  http.get('*/library/me', ({ request }) => {
+    const status = new URL(request.url).searchParams.get('status')?.toUpperCase()
+    const items = library.filter((li) => !status || li.status === status).map((li) => ({ ...li, book: withCategory(li.book) }))
+    return HttpResponse.json({ items })
   }),
+  // §6.2 — 본문은 bookId(문자열)·status 두 필드. 이미 있으면 409 + details.libraryItemId (프론트가 그 id 로 PATCH 한다)
+  http.post('*/library', async ({ request }) => {
+    const body = (await request.json()) as { bookId: string | number; status: ShelfStatus }
+    const bookId = Number(body.bookId)
+    const book = CATALOG.find((bk) => bk.bookId === bookId)
+    if (!book) return HttpResponse.json({ code: 'BOOK_NOT_FOUND', message: '책을 찾을 수 없습니다.' }, { status: 404 })
+    const existing = library.find((li) => li.book.bookId === bookId)
+    if (existing) {
+      return HttpResponse.json(
+        { code: 'LIBRARY_ITEM_EXISTS', message: '이미 서재에 있는 책입니다.', details: { libraryItemId: String(existing.libraryItemId) } },
+        { status: 409 },
+      )
+    }
+    const item: LibraryItem = { libraryItemId: nextLibraryId++, book: withCategory(book), status: body.status, rating: null, reviewText: null,
+      finishedDate: body.status === 'READ' ? today() : null }
+    library.unshift(item)
+    return HttpResponse.json(item, { status: 201 })
+  }),
+  // §6.3 — 보낸 필드만 갱신. READ 전환에 날짜 없으면 오늘, WISH 전환은 완독일 비움(별점·감상 보존), READ 재전송은 멱등
   http.patch('*/library/:id', async ({ params, request }) => {
-    const body = (await request.json()) as Partial<Pick<LibraryItem, 'status' | 'rating' | 'reviewText'>>
+    const body = (await request.json()) as Partial<Pick<LibraryItem, 'status' | 'rating' | 'reviewText' | 'finishedDate'>>
     const item = library.find((li) => li.libraryItemId === Number(params.id))
-    if (!item) return new HttpResponse(null, { status: 404 })
-    if (body.status) { item.status = body.status; item.finishedDate = body.status === 'READ' ? new Date().toISOString().slice(0, 10) : item.finishedDate }
+    if (!item) return HttpResponse.json({ code: 'LIBRARY_ITEM_NOT_FOUND', message: '서재 항목이 없습니다.', details: { libraryItemId: params.id } }, { status: 404 })
+    if (body.status === 'READ' && item.status !== 'READ') item.finishedDate = body.finishedDate ?? today()
+    else if (body.status === 'WISH') item.finishedDate = null
+    else if (body.finishedDate !== undefined && item.status === 'READ') item.finishedDate = body.finishedDate
+    if (body.status) item.status = body.status
     if (body.rating !== undefined) item.rating = body.rating
-    if (body.reviewText !== undefined) item.reviewText = body.reviewText // 계약 §4.3: 빈 값 null 처리는 클라이언트에서 선반영
+    if (body.reviewText !== undefined) item.reviewText = body.reviewText?.trim() || null
     return HttpResponse.json(item)
+  }),
+  // §6.4 — 204
+  http.delete('*/library/:id', ({ params }) => {
+    const idx = library.findIndex((li) => li.libraryItemId === Number(params.id))
+    if (idx < 0) return HttpResponse.json({ code: 'LIBRARY_ITEM_NOT_FOUND', message: '서재 항목이 없습니다.', details: { libraryItemId: params.id } }, { status: 404 })
+    library.splice(idx, 1)
+    return new HttpResponse(null, { status: 204 })
   }),
 
   // 이벤트 수집 — 로그인 상세 조회는 BOOK_VIEW, 찜은 WISH로 기록한다.

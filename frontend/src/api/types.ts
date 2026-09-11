@@ -23,10 +23,25 @@ export interface BookDetail extends BookSummary {
   metrics: { source: string; name: string; value: string; asOf: string }[]
   /** 연령대별 대출 분포 (정보나루) — 없으면 섹션 숨김 */
   loanByAge: { ageGroup: string; ratio: number }[] | null
-  /** 계약 §6: 로그인 사용자 본인의 상태만 — 비로그인·타인 것은 null */
-  myLibraryStatus: ShelfStatus | null
-  myRating: number | null
-  myReviewText: string | null
+  /** 계약 §4.4: 로그인 사용자 본인의 서재 항목만 — 비로그인·타인 것은 null */
+  my: MyLibraryEntry | null
+}
+
+/** 계약 §4.4 `my` — 본인 서재 항목. libraryItemId 가 있어 상세에서 바로 PATCH 할 수 있다 (서재로 보내지 않아도 된다) */
+export interface MyLibraryEntry {
+  libraryItemId: string
+  status: ShelfStatus
+  rating: number | null
+  reviewText: string | null
+  finishedDate: string | null
+}
+
+/** GET /books/{id}/co-loans (§4.6) — 추천 계산이 아니라 정보나루 함께대출을 그대로 서빙한다. 화면은 book 만 그린다.
+ *  카탈로그에 없는 대상은 빠져 rank 가 건너뛸 수 있고, 관계가 없으면 items:[] · asOf:null */
+export interface CoLoansResponse {
+  items: { book: ServerBookSummary; rank: number }[]
+  source: string | null
+  asOf: string | null
 }
 
 /** 최종 추천 랭킹에 사용하는 요인. 태그는 taste 점수를 만드는 책 단위 재료다. */
@@ -99,6 +114,9 @@ export interface LibraryItem {
   /** 한 줄 감상평 — 본인 기록 전용, 최대 300자, 공백만이면 null (계약 §4.3) */
   reviewText: string | null
   finishedDate: string | null  // 읽음일 때만, 미입력 시 서버가 오늘로
+  /** 계약 §6: 서버 정렬 기준(updatedAt desc). mock 에 아직 없어 optional — string id rename MR 에서 필수로 올린다 */
+  createdAt?: string
+  updatedAt?: string
 }
 
 /** GET /tags?kind=GENRE — 태그 사전(DB tags 테이블이 SSOT). label은 '#소설' 꼴, 화면에선 # 떼고 표시 */

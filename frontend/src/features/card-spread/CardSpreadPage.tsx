@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
-import type { BookDetail, BookSummary, ShelfStatus } from '../../api/types'
+import { toBookSummary } from '../../api/books'
+import { addToLibrary } from '../../api/library'
+import type { BookDetail, BookSummary, CoLoansResponse, ShelfStatus } from '../../api/types'
 import { coverAtWidth } from '../../lib/coverUrl'
 import { trackEvent } from '../../lib/events'
 import { ean13Bars, ean13Modules } from './ean13'
@@ -93,7 +95,8 @@ export default function CardSpreadPage() {
   })
   const coLoans = useQuery({
     queryKey: ['book', bookId, 'co-loans'],
-    queryFn: async () => (await api.get<{ items: BookSummary[] }>(`/books/${bookId}/co-loans`)).data.items,
+    // 서버는 {book, rank} 로 준다(§4.6) — 타일은 책만 그리므로 검색과 같은 어댑터로 화면 타입에 맞춘다
+    queryFn: async () => (await api.get<CoLoansResponse>(`/books/${bookId}/co-loans`)).data.items.map((i) => toBookSummary(i.book)),
     retry: false,
   })
 
@@ -130,7 +133,7 @@ export default function CardSpreadPage() {
 
   const save = (status: ShelfStatus) => {
     if (status === 'WISH') trackEvent('WISH', { bookId: book.bookId })
-    api.post('/library', { bookId: book.bookId, status })
+    addToLibrary(book.bookId, status)
       .then(() => { qc.invalidateQueries({ queryKey: ['library'] }); qc.invalidateQueries({ queryKey: ['book', bookId] }) })
       .catch(() => {})
   }
@@ -193,12 +196,12 @@ export default function CardSpreadPage() {
             {/* 행동은 이 둘뿐이다 — 서재 2단(READ/WISH)과 하나씩 짝이 맞는다.
                 라벨은 상태에 따라 바뀌지 않고, 기록된 쪽에 체크가 붙어 지금 무엇이 담겨 있는지 알린다 */}
             <div className="bd-cta">
-              <button className="eo-button" onClick={() => save('READ')} aria-pressed={book.myLibraryStatus === 'READ'}>
-                {book.myLibraryStatus === 'READ' && <Icon d={PATH.check} />}
+              <button className="eo-button" onClick={() => save('READ')} aria-pressed={book.my?.status === 'READ'}>
+                {book.my?.status === 'READ' && <Icon d={PATH.check} />}
                 {CTA_LABEL.READ}
               </button>
-              <button className="bd-button-ghost" onClick={() => save('WISH')} aria-pressed={book.myLibraryStatus === 'WISH'}>
-                <Icon d={book.myLibraryStatus === 'WISH' ? PATH.check : PATH.bookmark} />
+              <button className="bd-button-ghost" onClick={() => save('WISH')} aria-pressed={book.my?.status === 'WISH'}>
+                <Icon d={book.my?.status === 'WISH' ? PATH.check : PATH.bookmark} />
                 {CTA_LABEL.WISH}
               </button>
             </div>

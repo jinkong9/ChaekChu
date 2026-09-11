@@ -48,7 +48,10 @@ export default function App() {
       <Route path="/login" element={<Navigate to="/" replace />} />
       {/* OAuth 콜백 착지 — 서버 302가 fragment 토큰을 들고 오는 곳 */}
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
-      <Route path="/onboarding" element={<OnboardingPage />} />
+      {/* 온보딩은 토큰만 요구한다 — 온보딩 완료 여부까지 보면 자기 자신으로 되돌아오는 고리가 생긴다 */}
+      <Route element={<ProtectedRoute requireOnboarded={false} />}>
+        <Route path="/onboarding" element={<OnboardingPage />} />
+      </Route>
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="home" element={<HomePage />} />
