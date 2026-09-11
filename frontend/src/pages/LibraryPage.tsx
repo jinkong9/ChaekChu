@@ -825,7 +825,6 @@ export default function LibraryPage() {
   const setMode = (next: Mode) =>
     setParams(next === 'wish' ? { tab: 'wish' } : {}, { replace: true })
   const [editing, setEditing] = useState(false)
-  const [wishView, setWishView] = useState<'shelf' | 'list'>('shelf')
   // 책의 장·덮힘은 연표에서도 움직여야 해서 페이지가 들고 있는다. 0 = 속표지 + 목차.
   const [index, setIndex] = useState(0)
   const [isClosed, setIsClosed] = useState(true)
@@ -900,17 +899,9 @@ export default function LibraryPage() {
       ) : (
         <>
           <div className="libd-wish__toolbar">
-            <div className="eo-segments">
-              <button type="button" className={`eo-segment ${wishView === 'shelf' ? 'is-on' : ''}`}
-                aria-pressed={wishView === 'shelf'} onClick={() => setWishView('shelf')}>책장</button>
-              <button type="button" className={`eo-segment ${wishView === 'list' ? 'is-on' : ''}`}
-                aria-pressed={wishView === 'list'} onClick={() => setWishView('list')}>목록</button>
-            </div>
             <Link to="/search" className="eo-text-button">+ 책 추가</Link>
           </div>
-          {wishView === 'shelf' ? <WishShelves wish={wish} /> : (
-            <div className="libd-wish__list"><LibraryList items={wish} /></div>
-          )}
+          <WishShelves wish={wish} />
         </>
       )}
 

@@ -1101,11 +1101,9 @@
 /* 머리말·툴바·선반이 한 기준선에 선다 — 선반 padding(34·20·14px)과 같은 값이다 */
 .libd-page--wish { --ink: #0b0b0b; --cobalt: #0b0b0b; --wish-inset: 34px; }
 .libd-page--wish .libd__intro--flow { padding: 96px var(--wish-inset) 0; text-align: left; }
-.libd-wish__toolbar, .libd-wish__list { margin-inline: var(--wish-inset); }
+.libd-wish__toolbar { margin-inline: var(--wish-inset); }
 @media (max-width: 900px) { .libd-page--wish { --wish-inset: 20px; } }
-.libd-wish__toolbar { display: flex; align-items: center; gap: 24px; margin-top: 26px; padding-top: 16px; border-top: 1px solid rgba(11,11,11,.18); }
-.libd-wish__toolbar .eo-segments { margin-right: auto; }
-.libd-wish__list { padding-block: 20px 90px; }
+.libd-wish__toolbar { display: flex; align-items: center; justify-content: flex-end; margin-top: 26px; padding-top: 16px; border-top: 1px solid rgba(11,11,11,.18); }
 .libd-shelf__row { position: relative; }
 .libd-shelf__books { scrollbar-width: thin; }
 .libd-shelf__book { position: relative; padding-top: 2px; }
@@ -1131,7 +1129,6 @@
 .libd-shelf__ledge::after { content: ''; position: absolute; inset: 1px 0; opacity: .24; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='40'%3E%3Cfilter id='wood'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.014 .65' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23856845' filter='url(%23wood)' opacity='.65' d='M0 0h360v40H0z'/%3E%3C/svg%3E"); mix-blend-mode: multiply; }
 .libd-shelf__ledge + i { height: 6px; margin-inline: 3px; background: #af916c; }
 @media (max-width: 640px) {
-  .libd-wish__toolbar { gap: 14px; flex-wrap: wrap; }
   .libd-shelf { padding: 18px 14px 48px; }
   .libd-page--wish { --wish-inset: 14px; }
   .libd-timeline__grid { grid-template-columns: repeat(12, minmax(76px, 1fr)); }
