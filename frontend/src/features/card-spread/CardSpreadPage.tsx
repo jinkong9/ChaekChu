@@ -188,7 +188,7 @@ export default function CardSpreadPage() {
 
               <article className="bd-card">
                 <header className="bd-card__head">
-                  <p className="bd-card__brand">책추책책추<em>Library Card</em></p>
+                  <p className="bd-card__brand">Library Card</p>
                 </header>
 
                 <dl className="bd-card__rows">
