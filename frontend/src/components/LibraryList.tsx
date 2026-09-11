@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../api/client'
+import { patchLibraryItem } from '../api/library'
 import type { LibraryItem, ShelfStatus } from '../api/types'
 
 const REVIEW_MAX = 300
@@ -23,8 +23,8 @@ export default function LibraryList({ items }: { items: LibraryItem[] }) {
   const qc = useQueryClient()
 
   const patch = useMutation({
-    mutationFn: async (v: { id: number; status?: ShelfStatus; rating?: number; reviewText?: string | null }) =>
-      api.patch(`/library/${v.id}`, { status: v.status, rating: v.rating, reviewText: v.reviewText }),
+    mutationFn: (v: { id: number; status?: ShelfStatus; rating?: number | null; reviewText?: string | null }) =>
+      patchLibraryItem(v.id, { status: v.status, rating: v.rating, reviewText: v.reviewText }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['library'] }),
   })
 
