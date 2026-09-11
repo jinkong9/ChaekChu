@@ -53,7 +53,7 @@ class BookIndexBootstrapTest {
 		var mapping = res.result().get(props.indexName()).mappings();
 
 		assertThat(mapping.dynamic().jsonValue()).isEqualTo("strict");
-		assertThat(mapping.properties()).containsKeys("id", "isbn13", "title", "authors", "publisher", "pubYear", "categoryCode", "coverUrl", "hasCover", "updatedAt");
+		assertThat(mapping.properties()).containsKeys("id", "isbn13", "title", "authors", "publisher", "pubYear", "categoryCode", "coverUrl", "hasCover", "loanCum", "updatedAt");
 		assertThat(mapping.properties().get("title").text().analyzer()).isEqualTo("korean");
 		assertThat(mapping.properties().get("title").text().fields()).containsKeys("ngram", "keyword");
 		assertThat(mapping.properties().get("title").text().fields().get("ngram").text().analyzer()).isEqualTo("bigram");

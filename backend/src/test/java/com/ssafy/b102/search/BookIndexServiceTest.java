@@ -35,6 +35,9 @@ import com.ssafy.b102.search.service.IncompleteIndexException;
 @ActiveProfiles("test")
 class BookIndexServiceTest {
 
+	/** 색인기는 book_demand_features 의 MAX(as_of_month) 를 기준월로 잡는다. 운영 스냅샷과 같은 값을 써 그 경로를 그대로 태운다. */
+	private static final String DEMAND_MONTH = "2026-08";
+
 	@Autowired BookIndexService indexService;
 	@Autowired ElasticsearchOperations operations;
 	@Autowired SearchProperties props;
@@ -52,6 +55,7 @@ class BookIndexServiceTest {
 		oldBook = insertBook(uniqueIsbn(1), "소년이 온다", "한강 지음", "창비", 2014, "813.7", Instant.parse("2020-01-01T00:00:00Z"));
 		insertBook(uniqueIsbn(2), "데미안", "헤르만 헤세 지음 ; 전영애 옮김", "민음사", 2000, "853", Instant.parse("2020-01-01T00:00:00Z"));
 		freshBook = insertBook(uniqueIsbn(3), "구름빵", "글·그림 백희나", "한솔수북", 2004, null, Instant.now());
+		insertDemand(freshBook, 4200L);   // 수요 지표가 있는 책. oldBook·데미안은 없다 → loanCum null
 	}
 
 	@AfterEach
@@ -85,10 +89,13 @@ class BookIndexServiceTest {
 		assertThat(d.getPubYear()).isEqualTo(2004);
 		assertThat(d.getCategoryCode()).isNull();
 		assertThat(d.getUpdatedAt()).isNotNull();
+		assertThat(d.getHasCover()).isFalse();                        // cover_url 없음(v3)
+		assertThat(d.getLoanCum()).isEqualTo(4200L);                  // book_demand_features 를 LEFT JOIN 해 넣는다(v4)
 
 		BookDocument demian = get(bookIds.get(1));
 		assertThat(demian.getAuthors()).containsExactly("헤르만 헤세");   // 옮긴이 제외
 		assertThat(demian.getCategoryCode()).isEqualTo("853");
+		assertThat(demian.getLoanCum()).isNull();                     // 수요 지표가 없는 책은 null — 색인은 되고 정렬에서 뒤로 간다
 
 		IndexReport second = indexService.indexAll();
 		assertThat(second.indexed()).isEqualTo(first.indexed());
@@ -158,6 +165,12 @@ class BookIndexServiceTest {
 			Long.class, isbn13, title, author, publisher, pubYear, kdc, java.sql.Timestamp.from(updatedAt));
 		bookIds.add(id);
 		return id;
+	}
+
+	/** book_demand_features 한 행. books 를 지우면 fk_bdf_book ON DELETE CASCADE 로 함께 사라진다. */
+	private void insertDemand(Long bookId, Long loanCum) {
+		jdbc.update("insert into book_demand_features(book_id, as_of_month, loan_cum, feature_version) values (?, ?, ?, ?)",
+			bookId, DEMAND_MONTH, loanCum, "test");
 	}
 
 	private static String uniqueIsbn(int n) {

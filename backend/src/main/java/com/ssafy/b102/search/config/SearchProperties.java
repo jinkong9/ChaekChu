@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 애플리케이션은 항상 alias 로 읽고 쓴다. 물리 인덱스(books_v1, books_v2 …)는 재색인 때 새로 만들고 alias 만 옮긴다.
  * 매핑·analyzer 정의는 resources/elasticsearch/books-{settings,mappings}.json 이 진실의 원천이다 (BookDocument 의 @Setting/@Mapping).
  *
- * indexName 은 「지금 매핑 JSON 에 맞는 물리 인덱스 이름」= 매핑 버전이다. JSON 을 바꾸면 이 값을 올린다(books_v3 → books_v4).
+ * indexName 은 「지금 매핑 JSON 에 맞는 물리 인덱스 이름」= 매핑 버전이다. JSON 을 바꾸면 이 값을 올린다(books_v4 → books_v5).
  * 기동 시 alias 가 다른 인덱스를 가리키면 SearchIndexInitializer 가 indexName 을 새로 채워 완전할 때만 alias 를 옮긴다(index-on-start != NEVER).
  * 매핑 이력: v1 = 첫 색인.
  *   v2 = ① title/authors .keyword 에 공백 제거 normalizer(exact) — "어린왕자"/"어린 왕자" 완전일치 동일 취급
@@ -15,6 +15,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *        ③ nori_part_of_speech stoptags 축소(조사·어미·기호·접사만) — 기본값은 부사까지 지워 "지금 추천"의 지금이 사라졌다
  *   v3 = hasCover(boolean) 추가 — 표지 없는 문서의 점수에 noCoverWeight 를 곱해 같은 작품의 판본 사이에서 표지 있는 쪽이 먼저 오게(09-11).
  *        coverUrl 은 index=false 라 exists 로 못 묻는다. 운영 books 의 표지 채움률은 26.7%(09-09).
+ *   v4 = loanCum(long) 추가 — 검색어 없이 분류(kdc)만으로 조회할 때의 정렬 키(09-11). book_demand_features 최신 스냅샷의 누적 대출을
+ *        색인 시 LEFT JOIN 해 넣는다(BookIndexRowRepository). 수요 지표가 없는 책은 null 이고 정렬에서 뒤로 간다.
  *
  * noCoverWeight: 표지 없는 문서 점수에 곱하는 계수(0 < w ≤ 1). 1 이면 끔. 덧셈 가산이 아니라 곱셈이라 검색어마다 점수 크기가 달라도 같은 비율로 내려간다.
  *   관련도가 훨씬 높은 책이 표지가 없다고 무관한 책 아래로 떨어지지 않도록 0.7 을 시작값으로 둔다 — 완전일치 가산(×10)은 그대로 살아 있다.
@@ -41,7 +43,7 @@ public record SearchProperties(String alias, String indexName, Boolean createInd
 			alias = DEFAULT_ALIAS;
 		}
 		if (indexName == null || indexName.isBlank()) {
-			indexName = alias + "_v3";
+			indexName = alias + "_v4";
 		}
 		if (createIndexOnStart == null) {
 			createIndexOnStart = Boolean.TRUE;

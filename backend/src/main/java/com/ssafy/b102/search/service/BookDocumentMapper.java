@@ -2,26 +2,31 @@ package com.ssafy.b102.search.service;
 
 import org.springframework.stereotype.Component;
 
-import com.ssafy.b102.book.entity.Book;
 import com.ssafy.b102.search.document.BookDocument;
+import com.ssafy.b102.search.repository.BookIndexRow;
 
-/** V1 books 한 행 → ES 문서. 컬럼 대응은 BookDocument 주석, 저자 분해 규칙은 AuthorNameParser. */
+/**
+ * 색인 행(books + loan_cum) → ES 문서. 컬럼 대응은 BookDocument 주석, 저자 분해 규칙은 AuthorNameParser.
+ * hasCover 는 cover_url 이 비어 있지 않은가(매핑 v3), loanCum 은 최신 수요 스냅샷의 누적 대출(v4).
+ */
 @Component
 public class BookDocumentMapper {
 
-	public BookDocument toDocument(Book book) {
+	public BookDocument toDocument(BookIndexRow row) {
+		String coverUrl = row.coverUrl();
 		return BookDocument.builder()
-			.id(book.getId())
-			.isbn13(book.getIsbn13())
-			.title(book.getTitle())
-			.authors(AuthorNameParser.parse(book.getAuthor()))
-			.authorRaw(book.getAuthor())
-			.publisher(book.getPublisher())
-			.pubYear(book.getPubYear() == null ? null : book.getPubYear().intValue())
-			.categoryCode(book.getCategoryCode())
-			.coverUrl(book.getCoverUrl())
-			.hasCover(book.getCoverUrl() != null && !book.getCoverUrl().isBlank())
-			.updatedAt(book.getUpdatedAt())
+			.id(row.id())
+			.isbn13(row.isbn13())
+			.title(row.title())
+			.authors(AuthorNameParser.parse(row.author()))
+			.authorRaw(row.author())
+			.publisher(row.publisher())
+			.pubYear(row.pubYear())
+			.categoryCode(row.categoryCode())
+			.coverUrl(coverUrl)
+			.hasCover(coverUrl != null && !coverUrl.isBlank())
+			.loanCum(row.loanCum())
+			.updatedAt(row.updatedAt())
 			.build();
 	}
 }
