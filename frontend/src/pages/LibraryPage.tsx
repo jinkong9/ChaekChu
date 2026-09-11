@@ -223,9 +223,21 @@ type Sheet =
   | { kind: 'toc'; leftFrom: number | null; rightFrom: number }
   | { kind: 'book'; li: LibraryItem; no: number }
 
-function BlankPage({ side, children }: { side: 'left' | 'right'; children?: ReactNode }) {
+/** 펼친 책의 한 면. 지면을 누르면 그쪽으로 넘어간다 — 넘김 판을 위에 덮으면
+ *  지면 안의 목차 줄·링크가 눌리지 않아서, 넘김을 지면 자신이 맡는다.
+ *  (그 판이 목차를 가로막던 것이 LIB 목차 클릭 버그였다.) */
+function BlankPage({ side, onTurn, children }: {
+  side: 'left' | 'right'; onTurn: () => void; children?: ReactNode
+}) {
   return (
-    <span className={`libd-book__static-page libd-book__static-page--${side}`}>
+    <span
+      className={`libd-book__static-page libd-book__static-page--${side}`}
+      onClick={(event) => {
+        // 지면 위의 제 할 일이 있는 것(목차 줄·링크)은 그 일을 하게 두고, 그 밖은 넘김이다
+        if ((event.target as HTMLElement).closest('button, a')) return
+        onTurn()
+      }}
+    >
       <span className="libd-book__paper-light" aria-hidden="true" />
       {children}
     </span>
@@ -422,11 +434,6 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
   const leftSheet = covered && turn?.direction === 1 ? sheetB : sheetA
   const rightSheet = covered && turn?.direction === -1 ? sheetA : sheetB
 
-  // 목차가 오른쪽 면에 올라오면 넘김 판을 걷는다 — 판이 덮고 있으면 목차 줄이
-  // 눌리지 않는다 (판은 z-index 80, 지면은 10이고 지면이 스태킹 맥락에 갇혀 있다).
-  // 목차에서는 줄을 골라 넘어가고, 장 넘김은 아래 화살표가 맡는다.
-  const tocOnRight = !turn && rightSheet?.kind === 'toc'
-  const tocOnLeft = !turn && leftSheet?.kind === 'toc' && leftSheet.leftFrom !== null
 
   return (
     <div
@@ -459,8 +466,8 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
             <span className="libd-book__back-cover libd-book__back-cover--right" />
             <span className="libd-book__page-block libd-book__page-block--left" />
             <span className="libd-book__page-block libd-book__page-block--right" />
-            <BlankPage side="left">{leftOf(leftSheet)}</BlankPage>
-            <BlankPage side="right">{rightOf(rightSheet)}</BlankPage>
+            <BlankPage side="left" onTurn={() => requestTurn(-1)}>{leftOf(leftSheet)}</BlankPage>
+            <BlankPage side="right" onTurn={() => requestTurn(1)}>{rightOf(rightSheet)}</BlankPage>
             {turn && (
               <TurningPage
                 progress={turn.progress}
@@ -482,24 +489,6 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
               <span className="libd-book__front-cover-face libd-book__front-cover-face--inside" />
             </span>
             <span className="libd-book__gutter" />
-            {!isClosed && (
-              <>
-                <button
-                  type="button"
-                  className={`libd-book__hit libd-book__hit--previous${tocOnLeft ? ' is-through' : ''}`}
-                  aria-label="이전 장으로 돌아가기"
-                  onClick={() => requestTurn(-1)}
-                  disabled={cursor <= 0}
-                />
-                <button
-                  type="button"
-                  className={`libd-book__hit libd-book__hit--next${tocOnRight ? ' is-through' : ''}`}
-                  aria-label="다음 장 넘기기"
-                  onClick={() => requestTurn(1)}
-                  disabled={cursor >= sheets.length - 1}
-                />
-              </>
-            )}
             {isClosed && (
               <button
                 type="button"
@@ -590,31 +579,44 @@ function TimelineMonth({ books, current, onJump }: {
 function Timeline({ read, year, current, onJump }: {
   read: LibraryItem[]; year: number; current: number; onJump: (bookIndex: number) => void
 }) {
-  // 완독 기록이 있는 해들. 올해는 기록이 없어도 자리를 지킨다 (새해 첫날 빈 격자를 피한다)
-  const years = [...new Set([year, ...read.map((li) => Number(li.finishedDate?.slice(0, 4))).filter(Boolean)])]
-    .sort((a, b) => b - a)
-  const [picked, setPicked] = useState(year)
-  // 목록이 바뀌어 고른 해가 사라지면 가장 최근 해로 — 효과 없이 여기서 접는다
+  const recorded = read.map((li) => Number(li.finishedDate?.slice(0, 4))).filter(Boolean)
+  const newest = recorded.length ? Math.max(...recorded) : year
+  const oldest = recorded.length ? Math.min(...recorded) : year
+  // 기록이 있는 가장 이른 해부터 올해까지 — 중간에 빈 해가 있어도 건너뛰지 않는다.
+  // 갈 해가 하나뿐이면 화살표를 아예 두지 않는다 (눌리지 않는 버튼은 고장처럼 보인다).
+  const last = Math.max(newest, year)
+  const years = Array.from({ length: last - oldest + 1 }, (_, k) => last - k)
+  // 처음 펼칠 때는 가장 최근에 완독한 해로 — 올해 기록이 아직 없으면 빈 격자로 열리면 안 된다
+  const [picked, setPicked] = useState(newest)
   const at = Math.max(0, years.indexOf(picked))
-  const shown = years[at] ?? year
+  const shown = years[at] ?? newest
   const thisMonth = new Date().getFullYear() === shown ? new Date().getMonth() + 1 : 0
+  const inYear = read.filter((li) => li.finishedDate?.startsWith(String(shown))).length
 
   return (
     <section className="libd-timeline">
       <div className="libd-timeline__head">
         <h3>완독 연표</h3>
-        <div className="libd-timeline__years">
-          <button type="button" aria-label="이전 해"
-            onClick={() => setPicked(years[at + 1])} disabled={at >= years.length - 1}>
-            <ArrowIcon direction="left" />
-          </button>
-          <b>{shown}</b>
-          <button type="button" aria-label="다음 해"
-            onClick={() => setPicked(years[at - 1])} disabled={at <= 0}>
-            <ArrowIcon direction="right" />
-          </button>
-        </div>
-        <p>그 달에 완독한 책이 놓입니다 — 표지를 누르면 그 장으로 넘어가요</p>
+        {years.length > 1 ? (
+          <div className="libd-timeline__years">
+            <button type="button" aria-label="이전 해"
+              onClick={() => setPicked(years[at + 1])} disabled={at >= years.length - 1}>
+              <ArrowIcon direction="left" />
+            </button>
+            <b>{shown}</b>
+            <button type="button" aria-label="다음 해"
+              onClick={() => setPicked(years[at - 1])} disabled={at <= 0}>
+              <ArrowIcon direction="right" />
+            </button>
+          </div>
+        ) : (
+          <div className="libd-timeline__years"><b>{shown}</b></div>
+        )}
+        <p>
+          {inYear > 0
+            ? '그 달에 완독한 책이 놓입니다 — 표지를 누르면 그 장으로 넘어가요'
+            : `${shown}년에는 완독 기록이 없어요`}
+        </p>
       </div>
       <div className="libd-timeline__grid">
         {Array.from({ length: 12 }, (_, k) => k + 1).map((m) => {
@@ -875,7 +877,7 @@ export default function LibraryPage() {
         <p>{mode === 'read' ? 'READING ARCHIVE' : 'WISH LIST'}</p>
         <h2 id="libd-title">
           {mode === 'read' ? '완독 기록을 한 권에'
-            : <>찜한 책 <em>{wish.length}권</em></>}
+            : <>내가 찜한 책 <em>{wish.length}권</em></>}
         </h2>
         <span>
           {mode === 'read'

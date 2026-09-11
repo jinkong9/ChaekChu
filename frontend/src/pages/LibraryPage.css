@@ -190,6 +190,7 @@
 }
 
 .libd-book__static-page {
+  cursor: pointer;
   inset: 5px 6px 7px;
   overflow: hidden;
   background: var(--paper);
@@ -409,8 +410,6 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 목차 지면 위에서는 넘김 판이 클릭을 통과시킨다 */
-.libd-book__hit.is-through { pointer-events: none; }
 
 .libd-book__hit:focus-visible {
   border-radius: 8px;
@@ -418,8 +417,6 @@
   outline-offset: 2px;
 }
 
-.libd-book__hit--previous { right: 100%; width: 100%; }
-.libd-book__hit--next { left: 0; width: 100%; }
 .libd-book__hit--cover { inset-inline: 0; width: 100%; }
 
 @media (hover: hover) and (pointer: fine) {
