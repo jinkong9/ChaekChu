@@ -883,6 +883,9 @@ export default function LibraryPage() {
             ? '완독한 책의 감상과 기억을 한 장씩 모아보세요.'
             : '당신의 읽고 싶은 마음이 쌓이는 공간'}
         </span>
+        {mode === 'wish' && (
+          <Link to="/search" className="eo-text-button libd__intro-action">+ 책 추가</Link>
+        )}
       </header>
 
       {mode === 'read' ? (
@@ -898,9 +901,6 @@ export default function LibraryPage() {
         </>
       ) : (
         <>
-          <div className="libd-wish__toolbar">
-            <Link to="/search" className="eo-text-button">+ 책 추가</Link>
-          </div>
           <WishShelves wish={wish} />
         </>
       )}
