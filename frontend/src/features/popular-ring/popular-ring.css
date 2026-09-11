@@ -319,6 +319,19 @@
   font-size: 15px;
 }
 
+/* 중앙 블록(워드마크·미리보기) 아래에 놓이는 필터 상태 툴바 — 상단 툴바와
+   같은 밑줄 버튼 어휘를 쓴다. .popular-center 는 pointer-events 를 끄므로
+   이 줄만 다시 켠다. */
+.popular-home__segment-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 42px;
+  pointer-events: auto;
+  transform: translateY(var(--popular-wordmark-shift));
+}
+
 .popular-home__hint {
   position: absolute;
   z-index: 45;
@@ -622,6 +635,7 @@
   .popular-home__text-button { font-size: 12px; }
   .popular-home__toolbar-actions { gap: 9px; }
   .popular-home__recommend-button { min-height: 36px; padding: 0 12px; font-size: 11px; }
+  .popular-home__segment-toolbar { gap: 16px; margin-top: 26px; }
   .popular-ring__label { display: none; }
   .popular-center { top: 50%; }
   .popular-wordmark h1 { font-size: clamp(44px, 15vw, 68px); }
