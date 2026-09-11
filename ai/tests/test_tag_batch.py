@@ -35,7 +35,7 @@ def test_gms_suggestions_are_filtered_and_rule_evidence_wins_confidence_ties() -
         def generate(self, _book):
             return {"FIC": 0.92, "FANTASY": 0.81, "UNKNOWN": 0.99, "NEW_BOOK": 0.8}
 
-    result = TagGenerator(gms_provider=Provider()).generate(book)
+    result = TagGenerator(gms_provider=Provider(), rule_confidence_threshold=0.95).generate(book)
 
     by_code = {tag.code: tag for tag in result.tags}
     assert by_code["FIC"].source == "RULE"
@@ -43,6 +43,49 @@ def test_gms_suggestions_are_filtered_and_rule_evidence_wins_confidence_ties() -
     assert "UNKNOWN" not in by_code
     assert result.gms_attempts == 1
     assert result.gms_error is None
+
+
+def test_confident_rule_tags_skip_gms_and_are_reported() -> None:
+    book = load_d4l_jsonl(FIXTURE)[0]
+    calls = 0
+
+    class Provider:
+        def generate(self, _book):
+            nonlocal calls
+            calls += 1
+            return {"FANTASY": 1.0}
+
+    result = TagGenerator(gms_provider=Provider()).generate(book)
+
+    assert calls == 0
+    assert result.gms_attempts == 0
+    assert result.gms_skipped is True
+    assert result.gms_skip_reason == "RULE_CONFIDENT"
+    assert all(tag.source == "RULE" for tag in result.tags)
+
+
+def test_tag_batch_report_counts_skipped_rows_and_keeps_sidecar_metadata(tmp_path: Path) -> None:
+    calls = 0
+
+    class Provider:
+        def generate(self, _book):
+            nonlocal calls
+            calls += 1
+            return {"FANTASY": 1.0}
+
+    output = tmp_path / "tags.jsonl"
+    report = TagBatchRunner(
+        generator=TagGenerator(gms_provider=Provider()),
+        tag_version="d4l-tags-selective-test-v1",
+    ).run(FIXTURE, output)
+
+    assert calls == 0
+    assert report["gmsAttempts"] == 0
+    assert report["gmsSkippedRows"] == 4
+    assert report["ruleConfidenceThreshold"] == 0.85
+    records = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert all(record["gmsSkipped"] is True for record in records)
+    assert all(record["gmsSkipReason"] == "RULE_CONFIDENT" for record in records)
 
 
 def test_gms_tag_provider_parses_openai_compatible_json_without_leaking_source() -> None:
@@ -104,7 +147,11 @@ def test_gms_rate_limit_or_provider_failure_retries_without_losing_rule_tags() -
             calls += 1
             raise RuntimeError("rate limit")
 
-    result = TagGenerator(gms_provider=FailingProvider(), max_retries=2).generate(book)
+    result = TagGenerator(
+        gms_provider=FailingProvider(),
+        max_retries=2,
+        rule_confidence_threshold=0.95,
+    ).generate(book)
 
     assert calls == 3
     assert result.gms_attempts == 3

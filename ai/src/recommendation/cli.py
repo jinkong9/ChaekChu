@@ -64,6 +64,12 @@ def create_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--tag-version", default=None)
             command_parser.add_argument("--max-retries", type=int, default=2)
             command_parser.add_argument("--low-confidence", type=float, default=0.6)
+            command_parser.add_argument(
+                "--rule-confidence-threshold",
+                type=float,
+                default=None,
+                help="skip GMS when a rule tag meets this confidence (default: TAG_RULE_CONFIDENCE_THRESHOLD or 0.85)",
+            )
         if command == "tag-index":
             command_parser.add_argument("--index-version", default=None)
             command_parser.add_argument("--tag-version", default=None)
@@ -235,7 +241,19 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
             model_version=os.getenv("TAG_MODEL", "gpt-4o-mini"),
             timeout_seconds=timeout,
         )
-    if arguments.max_retries < 0 or not 0 <= arguments.low_confidence <= 1:
+    try:
+        rule_confidence_threshold = float(
+            arguments.rule_confidence_threshold
+            if arguments.rule_confidence_threshold is not None
+            else os.getenv("TAG_RULE_CONFIDENCE_THRESHOLD", "0.85")
+        )
+    except ValueError as error:
+        raise ConfigError("TAG_RULE_CONFIDENCE_THRESHOLD is invalid") from error
+    if (
+        arguments.max_retries < 0
+        or not 0 <= arguments.low_confidence <= 1
+        or not 0 <= rule_confidence_threshold <= 1
+    ):
         raise ConfigError("tag retry and confidence configuration is invalid")
     tag_version = (arguments.tag_version or os.getenv("AI_TAG_VERSION", "d4l-tags-v1")).strip()
     if not tag_version:
@@ -245,6 +263,7 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
             gms_provider=provider,
             max_retries=arguments.max_retries,
             low_confidence_threshold=arguments.low_confidence,
+            rule_confidence_threshold=rule_confidence_threshold,
         ),
         tag_version=tag_version,
     ).run(input_path, arguments.sidecar.expanduser().resolve())

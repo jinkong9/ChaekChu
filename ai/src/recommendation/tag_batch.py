@@ -219,6 +219,8 @@ class TagGenerationResult:
     tags: tuple[TagAssignment, ...]
     gms_attempts: int
     gms_error: str | None = None
+    gms_skipped: bool = False
+    gms_skip_reason: str | None = None
 
 
 class TagGenerator:
@@ -229,20 +231,34 @@ class TagGenerator:
         gms_provider: TagProvider | None = None,
         max_retries: int = 2,
         low_confidence_threshold: float = 0.6,
+        rule_confidence_threshold: float = 0.85,
     ) -> None:
         if max_retries < 0:
             raise ValueError("max_retries must not be negative")
         if not 0 <= low_confidence_threshold <= 1:
             raise ValueError("low_confidence_threshold must be between 0 and 1")
+        if not 0 <= rule_confidence_threshold <= 1:
+            raise ValueError("rule_confidence_threshold must be between 0 and 1")
         self.rule_tagger = rule_tagger or RuleBasedTagger()
         self.gms_provider = gms_provider
         self.max_retries = max_retries
         self.low_confidence_threshold = low_confidence_threshold
+        self.rule_confidence_threshold = rule_confidence_threshold
 
     def generate(self, book: D4LBook) -> TagGenerationResult:
         assignments = {tag.code: tag for tag in self.rule_tagger.generate(book)}
         if self.gms_provider is None:
             return TagGenerationResult(tuple(assignments[code] for code in sorted(assignments)), 0)
+
+        if assignments and any(
+            tag.confidence >= self.rule_confidence_threshold for tag in assignments.values()
+        ):
+            return TagGenerationResult(
+                tuple(assignments[code] for code in sorted(assignments)),
+                0,
+                gms_skipped=True,
+                gms_skip_reason="RULE_CONFIDENT",
+            )
 
         attempts = 0
         gms_error: str | None = None
@@ -295,6 +311,8 @@ def _record(
         "tagConfidence": confidences,
         "lowConfidence": any(tag["confidence"] < low_confidence_threshold for tag in tags),
         "gmsError": result.gms_error,
+        "gmsSkipped": result.gms_skipped,
+        "gmsSkipReason": result.gms_skip_reason,
     }
 
 
@@ -332,6 +350,7 @@ class TagBatchRunner:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = output_path.with_name(f".{output_path.name}.tmp")
         rows = succeeded = missing = low_confidence = resumed = gms_failures = gms_attempts = 0
+        gms_skipped = 0
         with temporary.open("w", encoding="utf-8", newline="\n") as output:
             for book in iter_d4l_jsonl(input_path):
                 rows += 1
@@ -355,6 +374,7 @@ class TagBatchRunner:
                 else:
                     missing += 1
                 low_confidence += bool(record["lowConfidence"])
+                gms_skipped += bool(record.get("gmsSkipped"))
         temporary.replace(output_path)
         output_hash = sha256(output_path.read_bytes()).hexdigest()
         return {
@@ -370,6 +390,8 @@ class TagBatchRunner:
             "resumedRows": resumed,
             "gmsFailures": gms_failures,
             "gmsAttempts": gms_attempts,
+            "gmsSkippedRows": gms_skipped,
+            "ruleConfidenceThreshold": self.generator.rule_confidence_threshold,
             "outputHash": output_hash,
             "sourceDataCommitted": False,
         }

@@ -97,7 +97,7 @@ cd ~/S15P21B102/ai
 ## 4. 건수·해시·승격 검증
 
 ```bash
-jq '{status,rows,succeededRows,failedRows,gmsAttempts,gmsFailures,missingRows,lowConfidenceRows}' \
+jq '{status,rows,succeededRows,failedRows,gmsAttempts,gmsFailures,gmsSkippedRows,ruleConfidenceThreshold,missingRows,lowConfidenceRows}' \
   "$RUN_DIR/tags-report.json"
 
 jq '{status,promoted,rows,succeededRows,failedRows,skippedRows,retriedRows,dimension,indexVersion,tagVersion}' \
@@ -106,6 +106,8 @@ jq '{status,promoted,rows,succeededRows,failedRows,skippedRows,retriedRows,dimen
 jq '{status,promoted,rows,succeededRows,failedRows,dimension,indexVersion,tagVersion}' \
   "$RUN_DIR/tag-index-report.json"
 ```
+
+GMS를 사용하는 경우 `TAG_RULE_CONFIDENCE_THRESHOLD`도 실행 설정으로 기록한다. 기본값은 `0.85`이며, 규칙 기반 태그 중 하나라도 해당 confidence 이상이면 해당 도서의 GMS 호출을 생략한다. report의 `gmsSkippedRows`와 `ruleConfidenceThreshold`로 선택적 호출 결과를 확인한다.
 
 다음 조건이 모두 맞아야 해당 단계가 통과다.
 
