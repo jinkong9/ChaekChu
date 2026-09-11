@@ -270,13 +270,6 @@ export default function PopularRingPage() {
         </button>
       </div>
 
-      {/* 필터가 열려 있는 동안 홈 여백을 덮는 투명 판. 여백을 누르면 필터 버튼을
-          다시 누른 것과 똑같이 닫힌다. 툴바(z-index 60)보다 아래라 다른 버튼은 그대로
-          눌리고, 캔버스가 직접 듣는 pointerdown과도 얽히지 않는다. */}
-      {filterOpen && (
-        <div className="popular-filter__backdrop" onClick={() => setFilterOpen(false)} aria-hidden="true" />
-      )}
-
       <AnimatePresence initial={false}>
         {filterOpen && (
           <motion.aside

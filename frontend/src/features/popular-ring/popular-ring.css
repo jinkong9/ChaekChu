@@ -358,13 +358,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.popular-filter__backdrop {
-  position: absolute;
-  z-index: 55;
-  inset: 0;
-  background: transparent;
-}
-
 .popular-filter {
   position: absolute;
   z-index: 90;
