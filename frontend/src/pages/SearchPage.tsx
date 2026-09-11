@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { isSearchUnavailable, searchBooks } from '../api/books'
 
 /** 검색 위치를 남겨 두는 자리 — 히스토리 항목(location.key)마다 목록 스크롤 offset 하나.
@@ -12,8 +12,12 @@ function recallScroll(key: string) {
   try { return Number(sessionStorage.getItem(key)) || 0 } catch { return 0 }
 }
 
+/** 한 번에 받는 결과 수 — 서버 기본값(20)과 같게 둔다(§4.1: 1~50) */
+const PAGE_SIZE = 20
+
 /** EXP-001 통합 검색 — debounce 300ms, 결과 행 → 상세.
- *  GET /books/search 실서버 연결 (§4.1). 응답 변환은 api/books.ts. 첫 페이지만 쓴다(§1.4 — 프론트는 아직 페이지를 넘기지 않는다).
+ *  GET /books/search 실서버 연결 (§4.1). 응답 변환은 api/books.ts. page 는 0부터(§1.4) — "더 보기"로 다음 페이지를 이어 붙인다.
+ *  자동 무한스크롤 대신 버튼인 이유: 뒤로가기 스크롤 복원(아래)과 다투지 않고, 총 건수 대비 어디까지 봤는지 사용자가 안다.
  *
  *  검색어는 컴포넌트 state가 아니라 URL(?q=)에 둔다 — 상세로 갔다 뒤로 오면 이 화면은 새로 마운트되므로
  *  state로는 검색어도 결과도 남지 않는다. URL에 있으면 뒤로가기가 검색어를 그대로 되돌려 주고,
@@ -33,9 +37,13 @@ export default function SearchPage() {
     return () => clearTimeout(t)
   }, [input, q, setParams])
 
-  const { data, isFetching, error } = useQuery({
+  const { data, isFetching, isFetchingNextPage, hasNextPage, fetchNextPage, error } = useInfiniteQuery({
     queryKey: ['search', q],
-    queryFn: () => searchBooks(q),
+    queryFn: ({ pageParam }) => searchBooks(q, pageParam, PAGE_SIZE),
+    initialPageParam: 0,
+    // 받은 만큼이 total 에 못 미치면 다음 페이지가 있다. 서버가 준 page 를 기준으로 세어 클라이언트 계산이 어긋나지 않게 한다
+    getNextPageParam: (last, pages) =>
+      pages.reduce((n, p) => n + p.items.length, 0) < last.total ? last.page + 1 : undefined,
     enabled: q.length >= 1 && q.length <= 100,
     // 503(검색 엔진 불가)·400 은 다시 보내도 같다 — 재시도 없이 바로 안내. 그 외(네트워크)는 한 번만
     retry: (count, err) => !isSearchUnavailable(err) && count < 1,
@@ -44,8 +52,9 @@ export default function SearchPage() {
     gcTime: 30 * 60_000,
   })
 
-  const items = data?.items ?? []
-  const empty = q !== '' && data != null && data.total === 0 && !isFetching
+  const items = data?.pages.flatMap((p) => p.items) ?? []
+  const total = data?.pages[0]?.total ?? 0
+  const empty = q !== '' && data != null && total === 0 && !isFetching
   const tooLong = input.trim().length > 100
 
   // 목록이 처음 그려질 때 한 번만 — 표지는 크기가 고정(46px)이라 이미지 로딩과 무관하게 높이가 맞는다
@@ -81,7 +90,7 @@ export default function SearchPage() {
         <p className="eo-utility mt-3.5 min-h-[1.2em]">
           {tooLong
             ? '검색어는 100자까지예요.'
-            : q && <>&ldquo;{q}&rdquo; · {data?.total?.toLocaleString() ?? 0}건{isFetching && ' · 검색 중'}</>}
+            : q && <>&ldquo;{q}&rdquo; · {total.toLocaleString()}건{isFetching && !isFetchingNextPage && ' · 검색 중'}</>}
         </p>
 
         {items.length > 0 && (
@@ -99,13 +108,22 @@ export default function SearchPage() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-semibold">{bk.title}</span>
                     <span className="eo-utility mt-1 block truncate">
-                      {[bk.author, bk.publisher, bk.publicationYear].filter(Boolean).join(' · ')}
+                      {[bk.author, bk.publisher, bk.publicationYear, bk.category].filter(Boolean).join(' · ')}
                     </span>
                   </span>
                 </Link>
               </li>
             ))}
           </ul>
+        )}
+
+        {/* 다음 페이지 — 지금까지 몇 건을 봤는지 함께 적어 "끝이 있다"를 알린다 */}
+        {hasNextPage && (
+          <div className="mt-5 flex items-center justify-center">
+            <button className="eo-text-button text-[13px]" disabled={isFetchingNextPage} onClick={() => fetchNextPage()}>
+              {isFetchingNextPage ? '불러오는 중' : `더 보기 · ${items.length.toLocaleString()} / ${total.toLocaleString()}`}
+            </button>
+          </div>
         )}
 
         {empty && (
