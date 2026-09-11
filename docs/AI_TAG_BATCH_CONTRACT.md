@@ -20,23 +20,29 @@
 ## 생성 순서
 
 1. `RuleBasedTagger`가 분류·서지 필드에서 확정 가능한 태그를 결정적으로 생성한다.
-2. 선택적으로 `GmsTagProvider`를 주입해 애매한 태그를 오프라인에서 보강한다.
-3. GMS code가 taxonomy에 없거나 confidence가 범위를 벗어나면 버린다.
-4. 같은 code의 rule/GMS 결과는 confidence가 높은 결과를 사용하고, 동점이면 rule을 유지한다.
-5. provider 실패·rate limit은 설정된 횟수만큼 재시도하며, rule 결과는 유지한다.
+2. 규칙 태그 중 하나라도 `TAG_RULE_CONFIDENCE_THRESHOLD` 이상이면 GMS 호출을 생략하고
+   규칙 결과만 사용한다. 기본 threshold는 `0.85`다.
+3. threshold 미만이거나 규칙 태그가 없는 경우에만 선택적으로 `GmsTagProvider`를 호출해
+   애매한 태그를 오프라인에서 보강한다.
+4. GMS code가 taxonomy에 없거나 confidence가 범위를 벗어나면 버린다.
+5. 같은 code의 rule/GMS 결과는 confidence가 높은 결과를 사용하고, 동점이면 rule을 유지한다.
+6. provider 실패·rate limit은 설정된 횟수만큼 재시도하며, rule 결과는 유지한다.
 
 ## sidecar 레코드
 
 각 레코드는 `isbn13`, `inputHash`, `taxonomyVersion`, `tagVersion`, `status`, `tags`,
-`tagCodes`, `tagScores`, `tagConfidence`, `lowConfidence`, `gmsError`를 가진다. `tags[]`의
-각 항목은 `code`, `label`, `source`, `confidence`를 가진다.
+`tagCodes`, `tagScores`, `tagConfidence`, `lowConfidence`, `gmsError`, `gmsSkipped`,
+`gmsSkipReason`을 가진다. `tags[]`의 각 항목은 `code`, `label`, `source`, `confidence`를
+가진다. 규칙 기반으로 GMS를 생략한 레코드는 `gmsSkipped=true`,
+`gmsSkipReason=RULE_CONFIDENT`를 가진다.
 
 ## 재시작·통계
 
 `TagBatchRunner`는 같은 `inputHash`·`tagVersion`의 완료 레코드를 재사용하고 임시 파일을
 원자적으로 교체한다. report에는 성공·결측·저신뢰·재개 행 수, GMS 시도·실패 수,
-`outputHash`, `sourceDataCommitted=false`를 남긴다. 동일 입력·taxonomy·tag version에서
-같은 결과를 재현할 수 있다.
+생략 행 수(`gmsSkippedRows`), 적용 threshold(`ruleConfidenceThreshold`), `outputHash`,
+`sourceDataCommitted=false`를 남긴다. 동일 입력·taxonomy·tag version·threshold에서 같은
+결과를 재현할 수 있다.
 
 ## GMS provider와 실행
 
@@ -48,12 +54,20 @@
 
 운영에서는 다음처럼 `tags` 명령을 실행한다. `TAG_API_URL`과 `TAG_API_KEY`가 모두
 설정된 경우에만 GMS를 호출하고, 둘 다 없으면 rule-only sidecar를 생성한다.
+GMS를 사용하는 경우에도 규칙 confidence가 threshold 이상인 도서는 호출하지 않는다.
 
 ```bash
 uv run b102-recommendation --config config/local.toml tags \
   --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \
   --sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl \
   --tag-version d4l-tags-v1 --max-retries 2
+```
+
+선택적 호출 threshold는 환경변수 또는 CLI 옵션으로 조정할 수 있다.
+
+```bash
+export TAG_RULE_CONFIDENCE_THRESHOLD=0.85
+# 또는 tags 명령에 --rule-confidence-threshold 0.90 추가
 ```
 
 ```python
