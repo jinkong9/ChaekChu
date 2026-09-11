@@ -1,4 +1,5 @@
 import type { ServerBookSummary } from '../../api/types'
+import { coverAtWidth } from '../../lib/coverUrl'
 import type { PopularBook, PopularRingData, PopularSegment } from './types'
 
 /** GET /books/popular-segments 서버 응답 (API_SPEC §4.3) */
@@ -15,6 +16,20 @@ export interface ServerPopularSegmentsResponse {
 }
 
 const GENDER_LABEL = { M: '남', F: '여' } as const
+
+/** https 로 승격 — DB 표지 일부가 http 라 https 페이지에서 fetch 가 Mixed Content 로 막힌다. 세 CDN 모두 https 를 지원한다 */
+const toHttps = (url: string | null) => (url ? url.replace(/^http:\/\//, 'https://') : null)
+
+/** 네이버 책 썸네일 CDN 은 CORS 헤더를 주지 않아 WebGL 텍스처(캔버스 링)로 쓸 수 없다. 알라딘·카카오는 된다(운영 확인 9/11) */
+const isNaverCover = (url: string | null) => !!url && url.includes('pstatic.net')
+
+/** 링 표지가 실제로 그려지는 최대 CSS 폭(px) — 캔버스는 URL 을 그대로 텍스처로 올리므로 여기서 판을 줄여 준다 */
+const RING_COVER_W = 160
+
+/** 캔버스 링에 넣을 표지 — 네이버면 알라딘 큰 판을 링 크기로 줄여 대체하고, 대체가 없으면 그대로 둔다(그 책만 링에서 제목 칸).
+ *  <img> 로 그리는 미리보기·그리드는 CORS 와 무관해 네이버도 뜨므로 URL 을 버리지 않는다. */
+const canvasCover = (cover: string | null, large: string | null) =>
+  isNaverCover(cover) && large && !isNaverCover(large) ? coverAtWidth(large, RING_COVER_W) : cover
 
 /** 서버 응답 → 홈 링 화면 타입. 화면·캔버스는 정적 JSON 시절 타입을 그대로 쓰므로 여기서만 모양을 맞춘다.
  *  차이(§9-8): gender M/F → 남/여, publicationYear 숫자 → 문자열, 책 필드가 BookSummary 로 묶여 옴.
@@ -42,8 +57,8 @@ export function adaptPopularSegments(res: ServerPopularSegmentsResponse): Popula
       isbn13: it.book.isbn13 ?? it.book.bookId,
       loanCount: it.loanCount,
       classNo: it.book.classNo ?? '',
-      coverUrl: it.book.coverUrl,
-      coverLargeUrl: it.coverLargeUrl ?? it.book.coverUrl,
+      coverUrl: canvasCover(toHttps(it.book.coverUrl), toHttps(it.coverLargeUrl)),
+      coverLargeUrl: toHttps(it.coverLargeUrl ?? it.book.coverUrl),
     })),
   }))
 
