@@ -331,9 +331,16 @@ export const handlers = [
   http.get('*/books/search', ({ request }) => {
     const url = new URL(request.url)
     const q = url.searchParams.get('q')?.trim() ?? ''
+    const kdc = url.searchParams.get('kdc') ?? ''
     const page = Number(url.searchParams.get('page') ?? 0)
     const size = Math.min(50, Number(url.searchParams.get('size') ?? 20))
-    const hits = q.length < 1 ? [] : CATALOG.filter((bk) => bk.title.includes(q) || (bk.author ?? '').includes(q)).map(withCategory)
+    if (!q && !kdc) return HttpResponse.json({ code: 'VALIDATION_FAILED', message: 'q 또는 kdc 가 필요합니다.' }, { status: 400 })
+    // mock 카탈로그엔 KDC 코드가 없어 대분류 라벨로 대신 거른다(§4.1 kdc prefix 의 1자리만 흉내). 서버는 books.category_code prefix
+    const KDC_LABEL: Record<string, string> = { '1': '인문', '3': '사회', '4': '과학', '8': '문학', '9': '역사' }
+    const kdcLabel = KDC_LABEL[kdc[0]]
+    const hits = CATALOG.map(withCategory)
+      .filter((bk) => !q || bk.title.includes(q) || (bk.author ?? '').includes(q))
+      .filter((bk) => !kdc || (kdcLabel ? (bk.category ?? '').startsWith(kdcLabel) : false))
     const items: ServerBookSummary[] = hits.slice(page * size, page * size + size).map(toServerBook)
     return HttpResponse.json({ total: hits.length, page, size, items } satisfies ServerSearchResponse)
   }),
