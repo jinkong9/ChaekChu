@@ -16,8 +16,6 @@ import { coverPalette } from '../lib/coverPalette'
 import { coverAtWidth } from '../lib/coverUrl'
 import LibraryList from '../components/LibraryList'
 import bookArchiveTitle from '../assets/book-archive-title.png'
-import shelfPlant from '../assets/library-shelf-plant.png'
-import shelfFlowers from '../assets/library-shelf-flowers.png'
 import './LibraryPage.css'
 
 /** LIB-001 내 서재 — 완독 기록을 한 권의 책으로 엮어 보이는 메인 화면.
@@ -638,17 +636,13 @@ function WishShelves({ wish }: { wish: LibraryItem[] }) {
 
   return (
     <div className="libd-shelf">
-      {byGenre.map(([genre, books], rowIndex) => (
+      {byGenre.map(([genre, books]) => (
         <section className="libd-shelf__row" key={genre}>
           <div className="libd-shelf__head">
             <h3>{genre}</h3>
             <span>{books.length}권</span>
           </div>
           <div className="libd-shelf__display">
-            <div className={`libd-shelf__decor libd-shelf__decor--${rowIndex % 2 ? 'plant' : 'flowers'}`} aria-hidden="true">
-              <img src={rowIndex % 2 ? shelfPlant : shelfFlowers} alt="" loading="lazy" draggable={false} />
-              {rowIndex % 2 === 0 && <span className="libd-shelf__note">GOOD BOOKS<br />BRIGHTER DAYS</span>}
-            </div>
             <div className="libd-shelf__books">
               {books.map((li) => (
                 <div key={li.libraryItemId} className="libd-shelf__book"
@@ -660,11 +654,6 @@ function WishShelves({ wish }: { wish: LibraryItem[] }) {
                   </Link>
                 </div>
               ))}
-            </div>
-            <div className="libd-shelf__still-life" aria-hidden="true">
-              {rowIndex % 2 === 1 && <span className="libd-shelf__stone" />}
-              <span className="libd-shelf__stack-book">{rowIndex % 2 ? <>A MORE<br />BEAUTIFUL TOMORROW</> : <>Books<br /><em>Make a Kinder You</em></>}</span>
-              <span className="libd-shelf__stack-base" />
             </div>
           </div>
           <div className="libd-shelf__ledge" aria-hidden="true" />

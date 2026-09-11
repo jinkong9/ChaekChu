@@ -1036,17 +1036,8 @@
 .libd-shelf__row + .libd-shelf__row { margin-top: 52px; }
 .libd-shelf__head { padding-inline: 30px; }
 .libd-shelf__head h3 { font-size: 14px; }
-.libd-shelf__display { position: relative; padding-inline: 170px 200px; margin-top: 4px; }
+.libd-shelf__display { padding-inline: 20px; margin-top: 4px; }
 .libd-shelf__books { gap: 34px; padding: 16px 10px 0; scrollbar-width: thin; }
-.libd-shelf__decor { position: absolute; left: 0; bottom: 0; width: 164px; height: 150px; z-index: 3; pointer-events: none; }
-.libd-shelf__decor img { position: absolute; display: block; height: auto; filter: drop-shadow(5px 6px 5px rgba(58,46,28,.15)); }
-.libd-shelf__decor--flowers img { width: 124px; bottom: -6px; left: -8px; }
-.libd-shelf__decor--plant img { width: 206px; left: -28px; bottom: -43px; }
-.libd-shelf__note { position: absolute; right: 0; bottom: 0; padding: 10px 9px 8px; font: 8px/1.5 Georgia, serif; letter-spacing: .025em; color: #66533b; text-align: center; background: linear-gradient(110deg, #f7f0df, #e7d9bb); box-shadow: 2px 2px 5px rgba(52,38,23,.16); transform: rotate(-1deg); }
-.libd-shelf__still-life { position: absolute; right: 22px; bottom: 0; width: 158px; color: #64563f; font-family: Georgia, serif; pointer-events: none; }
-.libd-shelf__stack-book { position: relative; z-index: 1; display: block; margin-left: 6px; padding: 9px 16px 9px 23px; min-height: 44px; font-size: 10px; line-height: 1.4; background: linear-gradient(90deg, #b7ac96 0 3px, #e1d6c1 3px 7px, #f3ead6 7px 10px, #e7dcc4 10px 11px, #f0e7d5 13px, #e9ddc5); box-shadow: 3px 2px 7px rgba(60,45,26,.17), inset 0 1px rgba(255,255,255,.8); transform: rotate(-1deg); transform-origin: bottom right; }
-.libd-shelf__stack-base { display: block; height: 14px; margin-right: -5px; border-block: 2px solid #bcae94; border-left: 6px solid #c9bba3; background: repeating-linear-gradient(#e7e0d3 0 1px, #cfc5b4 1px 2px); box-shadow: 3px 1px 4px rgba(60,45,26,.18); }
-.libd-shelf__stone { display: block; width: 42px; height: 45px; margin: 0 27px -1px auto; border-radius: 48% 52% 44% 46%; background: radial-gradient(ellipse at 30% 24%, #e9e0ce, #c3b39a 58%, #91816c); box-shadow: inset -5px -4px 8px rgba(83,66,42,.14), 4px 5px 8px rgba(67,50,30,.12); }
 .libd-shelf__book { position: relative; padding-top: 2px; }
 .libd-shelf__book a { position: relative; display: block; border-radius: 2px; }
 .libd-shelf__book a:focus-visible { outline: 2px solid var(--ink); outline-offset: 5px; }
@@ -1070,12 +1061,6 @@
 }
 .libd-shelf__ledge::after { content: ''; position: absolute; inset: 1px 0; opacity: .24; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='40'%3E%3Cfilter id='wood'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.014 .65' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23856845' filter='url(%23wood)' opacity='.65' d='M0 0h360v40H0z'/%3E%3C/svg%3E"); mix-blend-mode: multiply; }
 .libd-shelf__ledge + i { height: 3px; margin-inline: 3px; background: #af916c; }
-@media (max-width: 900px) {
-  .libd-shelf__display { padding-inline: 138px 130px; }
-  .libd-shelf__decor { transform: scale(.8); transform-origin: bottom left; }
-  .libd-shelf__still-life { width: 112px; right: 5px; }
-  .libd-shelf__stack-book { font-size: 8px; padding-inline: 16px 5px; }
-}
 @media (max-width: 1280px) {
   .libd-wish__toolbar, .libd-wish__list { margin-inline: 34px; }
 }
@@ -1085,10 +1070,8 @@
   .libd-wish__toolbar { gap: 14px; flex-wrap: wrap; }
   .libd-shelf { padding: 24px 14px 80px; }
   .libd-shelf__head { padding-inline: 6px; }
-  .libd-shelf__display { padding-inline: 65px 0; }
+  .libd-shelf__display { padding-inline: 0; }
   .libd-shelf__books { gap: 22px; padding: 18px 8px 0; }
-  .libd-shelf__decor { transform: scale(.48); left: -7px; }
-  .libd-shelf__note, .libd-shelf__still-life { display: none; }
   .libd-shelf__row + .libd-shelf__row { margin-top: 44px; }
   .libd-cover { width: 118px; height: 170px; }
   .libd-timeline__grid { grid-template-columns: repeat(12, minmax(76px, 1fr)); }
