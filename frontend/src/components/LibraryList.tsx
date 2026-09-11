@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { patchLibraryItem } from '../api/library'
+import { patchLibraryItem, removeLibraryItem } from '../api/library'
 import type { LibraryItem, ShelfStatus } from '../api/types'
+import { useFinishModalStore } from '../stores/finishModalStore'
 
 const REVIEW_MAX = 300
 
@@ -20,13 +21,30 @@ const categoryKey = (li: LibraryItem) => {
 export default function LibraryList({ items }: { items: LibraryItem[] }) {
   const [reviewOpenId, setReviewOpenId] = useState<number | null>(null)
   const [reviewDraft, setReviewDraft] = useState('')
+  // 서재에서 빼기는 2단계 — 한 번 누르면 확인 버튼으로 바뀌고, 다른 행을 건드리면 풀린다
+  const [removeArmedId, setRemoveArmedId] = useState<number | null>(null)
   const qc = useQueryClient()
+  const openFinish = useFinishModalStore((s) => s.open)
 
   const patch = useMutation({
     mutationFn: (v: { id: number; status?: ShelfStatus; rating?: number | null; reviewText?: string | null }) =>
       patchLibraryItem(v.id, { status: v.status, rating: v.rating, reviewText: v.reviewText }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['library'] }),
   })
+  const remove = useMutation({
+    mutationFn: (id: number) => removeLibraryItem(id),
+    onSuccess: () => { setRemoveArmedId(null); qc.invalidateQueries({ queryKey: ['library'] }); qc.invalidateQueries({ queryKey: ['book'] }) },
+  })
+
+  /** READ 로의 전환은 완독 모달을 거친다(별점·한줄평·완독일). WISH 로 내리는 건 바로 PATCH — 서버가 완독일만 비우고 별점·감상은 남긴다(§6.3) */
+  const changeStatus = (li: LibraryItem, next: ShelfStatus) => {
+    if (next === li.status) return
+    if (next === 'READ') openFinish({ bookId: li.book.bookId, title: li.book.title, libraryItemId: li.libraryItemId, rating: li.rating, reviewText: li.reviewText })
+    else patch.mutate({ id: li.libraryItemId, status: next })
+  }
+  /** 완독일·별점·감상을 한 번에 고치는 자리 — 같은 모달을 기존 값으로 연다 */
+  const editRecord = (li: LibraryItem) =>
+    openFinish({ bookId: li.book.bookId, title: li.book.title, libraryItemId: li.libraryItemId, rating: li.rating, reviewText: li.reviewText, finishedDate: li.finishedDate })
 
   const openReview = (li: LibraryItem) => {
     setReviewOpenId(li.libraryItemId)
@@ -72,9 +90,25 @@ export default function LibraryList({ items }: { items: LibraryItem[] }) {
 
             <select className="eo-field eo-field--sm w-[86px] shrink-0" value={li.status}
               aria-label={`${li.book.title} 상태`}
-              onChange={(e) => patch.mutate({ id: li.libraryItemId, status: e.target.value as ShelfStatus })}>
+              onChange={(e) => changeStatus(li, e.target.value as ShelfStatus)}>
               <option value="WISH">찜</option><option value="READ">읽음</option>
             </select>
+          </div>
+
+          {/* 행 아래 보조 행동 — 완독 기록 고치기(READ 만) · 서재에서 빼기(2단계). 밑줄 링크로 낮춰 행의 주역(제목·별점·상태)과 다투지 않게 */}
+          <div className="mt-2 flex items-center gap-5 text-[11px]">
+            {li.status === 'READ' && (
+              <button className="eo-link" onClick={() => editRecord(li)}>완독일·기록 수정</button>
+            )}
+            {removeArmedId === li.libraryItemId ? (
+              <>
+                <span className="text-ink-faint">서재에서 뺄까요?</span>
+                <button className="eo-link" disabled={remove.isPending} onClick={() => remove.mutate(li.libraryItemId)}>빼기</button>
+                <button className="eo-link" onClick={() => setRemoveArmedId(null)}>취소</button>
+              </>
+            ) : (
+              <button className="eo-link text-ink-faint" onClick={() => setRemoveArmedId(li.libraryItemId)}>서재에서 빼기</button>
+            )}
           </div>
 
           {/* 한 줄 감상평 — READ만, 본인 기록 전용 */}

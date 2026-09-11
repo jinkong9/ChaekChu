@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
 import { toBookSummary } from '../../api/books'
 import { addToLibrary } from '../../api/library'
+import { useFinishModalStore } from '../../stores/finishModalStore'
 import type { BookDetail, BookSummary, CoLoansResponse, ShelfStatus } from '../../api/types'
 import { coverAtWidth } from '../../lib/coverUrl'
 import { trackEvent } from '../../lib/events'
@@ -89,6 +90,7 @@ export default function CardSpreadPage() {
   const fromRec = params.get('from') === 'rec' // 추천 경유 시에만 이유 문구 노출
 
   const qc = useQueryClient()
+  const openFinish = useFinishModalStore((s) => s.open)
   const { data: book, isPending, isError, refetch } = useQuery({
     queryKey: ['book', bookId],
     queryFn: async () => (await api.get<BookDetailDraft>(`/books/${bookId}`)).data,
@@ -142,7 +144,14 @@ export default function CardSpreadPage() {
   }
 
   const save = (status: ShelfStatus) => {
-    if (status === 'WISH') trackEvent('WISH', { bookId: book.bookId })
+    // 읽음은 완독 모달을 거친다(별점·한줄평·완독일). 이미 서재에 있으면 그 기록을 채워 열어 수정이 된다
+    if (status === 'READ') {
+      openFinish({ bookId: book.bookId, title: book.title, libraryItemId: book.my?.libraryItemId,
+        rating: book.my?.rating, reviewText: book.my?.reviewText, finishedDate: book.my?.status === 'READ' ? book.my.finishedDate : undefined })
+      return
+    }
+    // 서버로 바로 가는 건 찜하기뿐이다 — 왕복 동안 버튼을 잠그고, 실패하면 버튼 아래에 알린다
+    trackEvent('WISH', { bookId: book.bookId })
     setSaving(true)
     setSaveError(null)
     addToLibrary(book.bookId, status)

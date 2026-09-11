@@ -1,0 +1,103 @@
+import { useEffect, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { patchLibraryItem, saveLibraryRecord } from '../api/library'
+import { useFinishModalStore } from '../stores/finishModalStore'
+
+const REVIEW_MAX = 300
+/** 오늘(로컬 날짜, YYYY-MM-DD) — toISOString 은 UTC 라 한국 새벽엔 전날이 된다. 서버도 Asia/Seoul 기준(§6.2) */
+const today = () => new Date().toLocaleDateString('sv-SE')
+
+/** 완독 기록 모달 — READ 전환 시 별점(선택)·한줄평(선택 300자)·완독일(기본 오늘, 미래 금지)을 받는다.
+ *  완독일을 비우면 "서비스 이전에 읽은 책"(finishedDate null)로 저장되어 연표·통계에서 빠진다.
+ *  저장은 api/library 를 거친다 — 신규는 POST(이미 있으면 409 → PATCH), 기존 항목은 PATCH 한 번.
+ *  스타일은 DESIGN.md popover 문법(종이 면·1px 테두리·정사각 모서리·낮은 그림자)을 따른다. */
+export default function FinishReadModal() {
+  const target = useFinishModalStore((s) => s.target)
+  const close = useFinishModalStore((s) => s.close)
+  const qc = useQueryClient()
+  const [rating, setRating] = useState(0)
+  const [review, setReview] = useState('')
+  const [date, setDate] = useState(today())
+
+  // 대상이 바뀔 때 기존 기록으로 초기화 — 신규 완독과 기록 수정을 같은 모달이 감당한다
+  useEffect(() => {
+    if (!target) return
+    setRating(target.rating ?? 0)
+    setReview(target.reviewText ?? '')
+    setDate(target.finishedDate === null ? '' : (target.finishedDate ?? today()))
+  }, [target])
+
+  useEffect(() => {
+    if (!target) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [target, close])
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!target) throw new Error('완독 대상이 없습니다.')
+      // 미래 완독일 방어 — input max 와 별개로 제출 직전에 한 번 더 자른다
+      const fin = date && date > today() ? today() : date
+      const body = {
+        status: 'READ' as const,
+        rating: rating || null,
+        reviewText: review.trim() || null,
+        finishedDate: fin || null, // null = 완독일 지움(§6.3: READ 항목의 완독일을 seed 처럼 null 로)
+      }
+      return target.libraryItemId != null
+        ? patchLibraryItem(target.libraryItemId, body)
+        : saveLibraryRecord(target.bookId, body)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['library'] })
+      qc.invalidateQueries({ queryKey: ['book'] })
+      close()
+    },
+  })
+
+  if (!target) return null
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-7" role="dialog" aria-modal="true" aria-label={`${target.title} 완독 기록`}>
+      {/* 어둡게만 — 블러·글로우는 쓰지 않는다 */}
+      <button className="absolute inset-0 bg-black/25" aria-label="닫기" onClick={close} />
+      <div className="eo-panel relative w-[min(430px,calc(100vw-56px))] p-[18px]">
+        <p className="eo-label">완독 기록</p>
+        <h2 className="mt-1.5 line-clamp-2 text-[19px] font-[650] leading-[1.25] tracking-[-0.02em]">{target.title}</h2>
+
+        <div className="mt-5">
+          <p className="eo-utility">별점 — 선택</p>
+          <div className="mt-1.5 flex items-center gap-1">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} type="button" aria-label={`별점 ${n}점`} aria-pressed={rating === n}
+                onClick={() => setRating(rating === n ? 0 : n)}
+                className={`text-[19px] leading-none ${rating >= n ? 'text-ink' : 'text-rule-soft'}`}>★</button>
+            ))}
+            {rating > 0 && <button className="eo-link ml-2" onClick={() => setRating(0)}>지우기</button>}
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <p className="eo-utility">한 줄 감상평 — 선택, 나만 볼 수 있어요</p>
+          <textarea className="eo-field eo-field--sm mt-1.5 w-full resize-none leading-relaxed" rows={2}
+            maxLength={REVIEW_MAX} value={review} onChange={(e) => setReview(e.target.value)} />
+          <p className="eo-utility mt-1 text-right">{review.length} / {REVIEW_MAX}</p>
+        </div>
+
+        <div className="mt-4">
+          <p className="eo-utility">완독일 — 비우면 “서비스를 만나기 전에 읽은 책”으로 기록돼요</p>
+          <input type="date" className="eo-field eo-field--sm mt-1.5 w-[180px]" max={today()}
+            value={date} onChange={(e) => setDate(e.target.value)} aria-label="완독일" />
+        </div>
+
+        {save.isError && <p className="eo-utility mt-3 text-ink">저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>}
+
+        <div className="mt-7 flex items-center justify-end gap-6">
+          <button className="eo-link" onClick={close}>취소</button>
+          <button className="eo-button" disabled={save.isPending} onClick={() => save.mutate()}>완독으로 기록</button>
+        </div>
+      </div>
+    </div>
+  )
+}
