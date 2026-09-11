@@ -1,18 +1,37 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { isSearchUnavailable, searchBooks } from '../api/books'
 
+/** 검색 위치를 남겨 두는 자리 — 히스토리 항목(location.key)마다 목록 스크롤 offset 하나.
+ *  Safari 프라이빗 모드처럼 저장이 막히는 곳에서도 이동은 막히면 안 된다. */
+function rememberScroll(key: string, y: number) {
+  try { sessionStorage.setItem(key, String(y)) } catch { /* 저장 못 해도 검색은 그대로 */ }
+}
+function recallScroll(key: string) {
+  try { return Number(sessionStorage.getItem(key)) || 0 } catch { return 0 }
+}
+
 /** EXP-001 통합 검색 — debounce 300ms, 결과 행 → 상세.
- *  GET /books/search 실서버 연결 (§4.1). 응답 변환은 api/books.ts. 첫 페이지만 쓴다(§1.4 — 프론트는 아직 페이지를 넘기지 않는다). */
+ *  GET /books/search 실서버 연결 (§4.1). 응답 변환은 api/books.ts. 첫 페이지만 쓴다(§1.4 — 프론트는 아직 페이지를 넘기지 않는다).
+ *
+ *  검색어는 컴포넌트 state가 아니라 URL(?q=)에 둔다 — 상세로 갔다 뒤로 오면 이 화면은 새로 마운트되므로
+ *  state로는 검색어도 결과도 남지 않는다. URL에 있으면 뒤로가기가 검색어를 그대로 되돌려 주고,
+ *  react-query 캐시가 결과를 다시 그린다(아래 gcTime). 타이핑 중 갱신은 replace라 글자마다 히스토리가 쌓이지 않는다. */
 export default function SearchPage() {
-  const [input, setInput] = useState('')
-  const [q, setQ] = useState('')
+  const [params, setParams] = useSearchParams()
+  const location = useLocation()
+  const q = params.get('q') ?? ''
+  const [input, setInput] = useState(q)
+  // 히스토리 항목마다 다른 키 — 뒤로 와서 되돌아온 항목은 key가 같아 그때 저장한 위치를 찾는다
+  const scrollKey = `search-scroll:${location.key}`
 
   useEffect(() => {
-    const t = setTimeout(() => setQ(input.trim()), 300)
+    const next = input.trim()
+    if (next === q) return
+    const t = setTimeout(() => setParams(next ? { q: next } : {}, { replace: true }), 300)
     return () => clearTimeout(t)
-  }, [input])
+  }, [input, q, setParams])
 
   const { data, isFetching, error } = useQuery({
     queryKey: ['search', q],
@@ -21,11 +40,22 @@ export default function SearchPage() {
     // 503(검색 엔진 불가)·400 은 다시 보내도 같다 — 재시도 없이 바로 안내. 그 외(네트워크)는 한 번만
     retry: (count, err) => !isSearchUnavailable(err) && count < 1,
     staleTime: 60_000,
+    // 상세를 오래 보다 돌아와도 목록이 비어 보이지 않도록 캐시를 기본(5분)보다 길게 붙든다
+    gcTime: 30 * 60_000,
   })
 
   const items = data?.items ?? []
   const empty = q !== '' && data != null && data.total === 0 && !isFetching
   const tooLong = input.trim().length > 100
+
+  // 목록이 처음 그려질 때 한 번만 — 표지는 크기가 고정(46px)이라 이미지 로딩과 무관하게 높이가 맞는다
+  const restored = useRef(false)
+  useEffect(() => {
+    if (restored.current || items.length === 0) return
+    restored.current = true
+    const y = recallScroll(scrollKey)
+    if (y > 0) window.scrollTo(0, y)
+  }, [items.length, scrollKey])
 
   return (
     <main className="eo-page">
@@ -35,9 +65,10 @@ export default function SearchPage() {
           <h1 className="eo-headline">도서 검색</h1>
         </header>
 
-        {/* 검색은 이 화면의 유일한 입력 — 상자 대신 밑줄 한 줄로 둔다 */}
+        {/* 검색은 이 화면의 유일한 입력 — 상자 대신 밑줄 한 줄로 둔다.
+            돌아온 화면(?q= 있음)에서는 포커스를 뺏지 않는다 — 입력창으로 스크롤이 끌려가 읽던 자리를 잃는다 */}
         <input
-          autoFocus
+          autoFocus={q === ''}
           className="eo-field mt-7 w-full"
           placeholder="제목·저자·출판사로 검색 (예: 데미안, ISBN)"
           value={input}
@@ -57,7 +88,11 @@ export default function SearchPage() {
           <ul className="eo-rows mt-2">
             {items.map((bk) => (
               <li key={bk.bookId}>
-                <Link to={`/books/${bk.bookId}`} className="eo-row">
+                <Link
+                  to={`/books/${bk.bookId}`}
+                  className="eo-row"
+                  onClick={() => rememberScroll(scrollKey, window.scrollY)}
+                >
                   {bk.coverUrl
                     ? <img className="eo-row__cover" src={bk.coverUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
                     : <span className="eo-row__cover" aria-hidden />}
