@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { SUGGESTED_TAGS } from '../api/types'
-import { useRecommendations } from '../lib/useRecommendations'
+import { MAX_RECOMMEND_TAGS, useRecommendations } from '../lib/useRecommendations'
 import { useTuneStore } from '../stores/tuneStore'
 
-const MAX_TAGS = 5
+const MAX_TAGS = MAX_RECOMMEND_TAGS
 
 /** REC-002 추천 기준 조절 — 해시태그를 선택해 사용자에게 원하는 기준을 표현한다.
- *  태그 선택 = 캐시된 덱을 태그 겹침 순으로 재정렬 (후보 재생성·서버 재계산 없음).
- *  서버의 최종 추천은 태그 기반 taste와 feature 가중치를 함께 사용한다. */
+ *  적용하면 추천 화면이 `GET /recommendations?tags=` 로 서버에서 덱을 다시 받는다(§5.1).
+ *  이 화면의 미리보기만 현재 덱을 태그 겹침 순으로 재정렬해 보여 준다. */
 export default function TunePage() {
   const { data } = useRecommendations()
   const navigate = useNavigate()
@@ -66,8 +66,8 @@ export default function TunePage() {
               })}
             </div>
             <p className="eo-body mt-6 max-w-[58ch] text-[11px]">
-              태그는 추천 후보를 새로 계산하지 않고, 이미 준비된 추천을 재정렬해요.
-              다음 추천부터는 태그가 후보 선정에도 반영됩니다.
+              적용하면 이 태그로 추천을 다시 골라요. 미리보기는 지금 덱을 태그 겹침 순으로 늘어놓은 것이라
+              실제 순서와 조금 다를 수 있어요.
             </p>
           </section>
 

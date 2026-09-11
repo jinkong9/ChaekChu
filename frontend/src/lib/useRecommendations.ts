@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { api } from '../api/client'
 import type { RecommendationResponse } from '../api/types'
 
@@ -6,20 +7,33 @@ import type { RecommendationResponse } from '../api/types'
  *  훅이 아니라 상수로 두는 이유: 궤도 홈은 같은 덱으로 링을 표지로 채워야 해서 전체가 필요하다. */
 export const RECOMMEND_DECK_SIZE = 5
 
-/** 추천 덱 조회 — 홈·이유·기준조절 화면이 같은 캐시를 공유 */
-export function useRecommendations() {
-  return useQuery({
-    queryKey: ['recommendations'],
-    queryFn: async () => (await api.get<RecommendationResponse>('/recommendations')).data,
-    staleTime: 5 * 60_000,
-  })
+/** 서버가 받는 관심 태그 상한 (§5.1) */
+export const MAX_RECOMMEND_TAGS = 5
+
+/** GET /recommendations?tags= (§5.1) — tags 는 반복 파라미터(`tags=#소설&tags=#신간`)라 axios 의 `tags[]=` 직렬화를 끈다.
+ *  없으면 서버가 온보딩 관심 태그를 쓰고, 그것도 없으면 연령·성별 인기 콜드스타트로 대체한다. */
+async function fetchRecommendations(tags: string[]): Promise<RecommendationResponse> {
+  const params = tags.length > 0 ? { tags: tags.slice(0, MAX_RECOMMEND_TAGS) } : undefined
+  const res = await api.get<RecommendationResponse>('/recommendations', { params, paramsSerializer: { indexes: null } })
+  return res.data
 }
 
-/** 비회원 추천 — 요청 태그와 서버 기본 가중치만 사용하며 로그인 추천과 캐시를 분리한다. */
-export function useAnonymousRecommendations(tags: string[]) {
+/** 추천 덱 조회 — 홈·이유·기준조절 화면이 같은 캐시를 공유한다. 태그가 바뀌면 새 스냅샷(새 recommendationId).
+ *  서버 사전에 없는 태그로 400 이 오면 태그 없이 한 번 더 받아 덱이 비지 않게 한다 — THEME·SIGNAL 태그는 사전에 아직 없다. */
+export function useRecommendations(tags: string[] = []) {
   return useQuery({
-    queryKey: ['recommendations', 'anonymous', tags],
-    queryFn: async () => (await api.get<RecommendationResponse>('/recommendations/anonymous', { params: { tags } })).data,
+    queryKey: ['recommendations', tags],
+    queryFn: async () => {
+      try {
+        return await fetchRecommendations(tags)
+      } catch (err) {
+        if (tags.length > 0 && isAxiosError(err) && err.response?.status === 400) {
+          console.warn('[recommendations] 서버가 태그를 받지 않아 태그 없이 다시 요청합니다.', err.response.data)
+          return fetchRecommendations([])
+        }
+        throw err
+      }
+    },
     staleTime: 5 * 60_000,
   })
 }
