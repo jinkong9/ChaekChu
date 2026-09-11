@@ -81,7 +81,7 @@ function useReducedMotion() {
   return reduced
 }
 
-type BookMeta = { title: string; year: number; count: number; pages: number }
+type BookMeta = { title: string; year: number; count: number; pages: number; rating: string | null }
 
 /* ══════════════════ 지면 — 책 안에 들어가는 네 종류의 면 ══════════════════ */
 
@@ -92,9 +92,12 @@ function FrontFace({ meta }: { meta: BookMeta }) {
       <span className="libd-front__label">완독으로 엮은</span>
       <span className="libd-front__title">{meta.title}</span>
       <span className="libd-front__mark" />
-      <span className="libd-face__foot">
-        완독 {meta.count}권{meta.pages > 0 ? ` · ${meta.pages.toLocaleString()}쪽` : ''} · {meta.year}
-      </span>
+      <dl className="libd-front__stats">
+        <div><dt>완독</dt><dd>{meta.count}권</dd></div>
+        {meta.pages > 0 && <div><dt>쪽수</dt><dd>{meta.pages.toLocaleString()}쪽</dd></div>}
+        {meta.rating && <div><dt>평균 별점</dt><dd>★ {meta.rating}</dd></div>}
+        <div><dt>엮은 해</dt><dd>{meta.year}</dd></div>
+      </dl>
     </div>
   )
 }
@@ -103,8 +106,6 @@ function FrontFace({ meta }: { meta: BookMeta }) {
 function TocFace({ read, onPick }: { read: LibraryItem[]; onPick: (bookIndex: number) => void }) {
   const shown = read.slice(0, TOC_MAX)
   const rest = read.length - shown.length
-  const rated = read.filter((li) => li.rating != null)
-  const avg = rated.length ? (rated.reduce((s, li) => s + (li.rating ?? 0), 0) / rated.length).toFixed(1) : null
 
   return (
     <div className="libd-face">
@@ -134,9 +135,6 @@ function TocFace({ read, onPick }: { read: LibraryItem[]; onPick: (bookIndex: nu
             ))}
           </ul>
           {rest > 0 && <p className="libd-toc__more">그 밖 {rest}권</p>}
-          <span className="libd-face__foot">
-            완독 {read.length}권{avg ? ` · 평균 ★${avg}` : ''}
-          </span>
         </>
       )}
     </div>
@@ -790,6 +788,12 @@ export default function LibraryPage() {
     year: new Date().getFullYear(),
     count: read.length,
     pages: read.reduce((s, li) => s + (li.book.pageCount ?? 0), 0),
+    rating: (() => {
+      const rated = read.filter((li) => li.rating != null)
+      return rated.length
+        ? (rated.reduce((s, li) => s + (li.rating ?? 0), 0) / rated.length).toFixed(1)
+        : null
+    })(),
   }
 
   return (

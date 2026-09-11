@@ -596,13 +596,6 @@
   color: rgba(23, 32, 57, 0.4);
 }
 
-.libd-face__foot {
-  margin-top: auto;
-  padding-top: 1em;
-  font-size: 0.74em;
-  color: rgba(23, 32, 57, 0.45);
-}
-
 /* 쪽 번호 — 판면 밖, 아래 바깥쪽 */
 .libd-face__folio {
   position: absolute;
@@ -635,6 +628,21 @@
 }
 
 .libd-front__mark { margin-top: 1.1em; width: 2.2em; height: 1px; background: rgba(23, 32, 57, 0.24); }
+
+/* 속표지 판권 — 꼬리말로 흩어져 있던 숫자를 제목 아래 한자리에 모은다.
+   속표지는 조용해야 맞은편 목차가 읽히므로 줄과 색만 쓰고 크기는 올리지 않는다 */
+.libd-front__stats { margin-top: 1.9em; width: 68%; font-size: 0.76em; color: rgba(23, 32, 57, 0.46); }
+.libd-front__stats > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8em;
+  padding: 0.5em 0.1em;
+  border-top: 1px solid rgba(23, 32, 57, 0.1);
+}
+.libd-front__stats > div:last-child { border-bottom: 1px solid rgba(23, 32, 57, 0.1); }
+.libd-front__stats dt { letter-spacing: 0.02em; }
+.libd-front__stats dd { margin: 0; color: rgba(23, 32, 57, 0.7); font-variant-numeric: tabular-nums; }
 
 /* ── 목차 ────────────────────────────────────────────────────── */
 .libd-toc { margin-top: 1.5em; display: flex; flex-direction: column; }
