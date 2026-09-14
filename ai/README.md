@@ -110,10 +110,14 @@ TAG_MODEL=gpt-4o-mini
 TAG_API_TIMEOUT_SECONDS=30
 TAG_RULE_CONFIDENCE_THRESHOLD=0.85
 TAG_BATCH_SIZE=16
+TAG_CACHE_PATH=                         # 선택: tagVersion이 달라도 재사용할 영속 tag cache JSONL
 ```
 
 규칙 기반 태그 중 하나라도 `TAG_RULE_CONFIDENCE_THRESHOLD` 이상이면 해당 도서의 GMS 태그 호출을 생략한다. 기본값은 `0.85`이며, GMS 결과를 항상 확인하려면 threshold를 `1.0`으로 설정한다.
 GMS provider를 사용하는 tags 배치는 `TAG_BATCH_SIZE`만큼의 도서를 한 요청으로 묶으며, 기본값은 `16`이다.
+`TAG_CACHE_PATH`를 설정하면 메타데이터 hash가 일치하는 태그 결과를 재사용하므로 재실행이나
+겹치는 snapshot에서 GMS를 다시 호출하지 않는다. cache hit와 절감된 요청 수는 tags report의
+`cacheHitRows`, `gmsRequests`로 확인한다.
 
 기본 출력은 `ai/output/<command>.json`에, 로그는 `ai/logs/recommendation.log`에
 생성된다. `--output`으로 명령별 출력 위치를 덮어쓸 수 있다.

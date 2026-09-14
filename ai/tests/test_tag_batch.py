@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from recommendation.tag_batch import GmsTagProvider
@@ -62,6 +63,36 @@ def test_confident_rule_tags_skip_gms_and_are_reported() -> None:
     assert result.gms_skipped is True
     assert result.gms_skip_reason == "RULE_CONFIDENT"
     assert all(tag.source == "RULE" for tag in result.tags)
+
+
+def test_rule_tagger_derives_loan_signal_tags_locally() -> None:
+    book = load_d4l_jsonl(FIXTURE)[0]
+    trending = replace(
+        book,
+        loan_history=(
+            ("2026년 01월", 10, 1),
+            ("2026년 02월", 10, 1),
+            ("2026년 03월", 10, 1),
+            ("2026년 04월", 25, 1),
+        ),
+    )
+    steady = replace(
+        book,
+        loan_history=(
+            ("2026년 01월", 10, 1),
+            ("2026년 02월", 11, 1),
+            ("2026년 03월", 9, 1),
+            ("2026년 04월", 10, 1),
+        ),
+    )
+
+    trending_tags = {tag.code: tag for tag in RuleBasedTagger().generate(trending)}
+    steady_tags = {tag.code: tag for tag in RuleBasedTagger().generate(steady)}
+
+    assert trending_tags["TRENDING"].source == "RULE"
+    assert trending_tags["TRENDING"].confidence >= 0.85
+    assert steady_tags["STEADY"].source == "RULE"
+    assert steady_tags["STEADY"].confidence >= 0.85
 
 
 def test_tag_batch_report_counts_skipped_rows_and_keeps_sidecar_metadata(tmp_path: Path) -> None:
@@ -303,3 +334,43 @@ def test_tag_batch_writes_versioned_sidecar_and_is_restartable(tmp_path: Path) -
     assert all(record["tagVersion"] == "d4l-tags-test-v1" for record in records)
     assert all(record["tagCodes"] == sorted(record["tagCodes"]) for record in records)
     assert all("description" not in record and "keywords" not in record for record in records)
+
+
+def test_tag_cache_reuses_results_across_tag_versions(tmp_path: Path) -> None:
+    calls = 0
+
+    class EmptyRuleTagger:
+        def generate(self, _book):
+            return ()
+
+    class Provider:
+        def generate_batch(self, books):
+            nonlocal calls
+            calls += 1
+            return {book.isbn13: {"FANTASY": 0.9} for book in books}
+
+    cache = tmp_path / "tags.cache.jsonl"
+    first_output = tmp_path / "first.tags.jsonl"
+    second_output = tmp_path / "second.tags.jsonl"
+    first = TagBatchRunner(
+        generator=TagGenerator(rule_tagger=EmptyRuleTagger(), gms_provider=Provider()),
+        tag_version="d4l-tags-cache-first-v1",
+        batch_size=2,
+        cache_path=cache,
+    ).run(FIXTURE, first_output)
+    second = TagBatchRunner(
+        generator=TagGenerator(rule_tagger=EmptyRuleTagger(), gms_provider=Provider()),
+        tag_version="d4l-tags-cache-second-v1",
+        batch_size=2,
+        cache_path=cache,
+    ).run(FIXTURE, second_output)
+
+    assert calls == 2
+    assert first["cacheWriteRows"] == 4
+    assert first["cacheHitRows"] == 0
+    assert second["cacheHitRows"] == 4
+    assert second["cacheWriteRows"] == 0
+    assert second["gmsRequests"] == 0
+    records = [json.loads(line) for line in second_output.read_text(encoding="utf-8").splitlines()]
+    assert all(record["cacheHit"] is True for record in records)
+    assert all(record["gmsSkipReason"] == "CACHE_HIT" for record in records)
