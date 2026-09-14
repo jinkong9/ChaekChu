@@ -120,6 +120,11 @@ embeddingVersion, tagVersion, featureVersion
 백엔드가 보내는 태그와 도서에 저장된 태그는 자유 문자열이 아니라 통제된 taxonomy의
 `code`로 맞춘다.
 
+AI 내부 요청·Qdrant payload는 기존 배치와의 호환성을 위해 `FIC`, `ECONOMY`,
+`GROWTH`를 사용한다. 이 값들은 백엔드 공개 API 응답에서 각각 `FICTION`,
+`BUSINESS`, `SELF_HELP`로 변환한다. `/tags`의 `code`와 추천 응답의
+`appliedTags`·`items[].tags`는 백엔드 공개 code를 기준으로 비교한다.
+
 ```text
 분류: FIC, ESSAY, SCIENCE, HISTORY, ECONOMY
 장르: FANTASY, MYSTERY, ROMANCE
@@ -201,6 +206,10 @@ fixture, 집계 리포트만 저장소에서 관리한다.
 `tags[].code`는 대문자 taxonomy code 형식으로 검증한다. 현재 FastAPI는 taxonomy 목록에
 없는 형식상의 유효한 code를 별도 422로 거부하지 않는다. prototype이 없으면 해당 태그는
 query vector에서 제외되고, 백엔드는 `AI_TAG_BATCH_CONTRACT.md`의 등록 code만 보내야 한다.
+
+추천 응답의 태그는 FastAPI 내부 code가 아니라 백엔드 공개 code로 반환한다. 현재 별칭은
+`FIC → FICTION`, `ECONOMY → BUSINESS`, `GROWTH → SELF_HELP`이며, 양쪽에 동일한
+code가 있는 태그는 그대로 유지한다.
 
 ### 4.2 가중치
 

@@ -33,7 +33,7 @@ export default function RecommendPage() {
   const myTags = useTuneStore((s) => s.tags)
   // 기준 조절에서 고른 태그는 서버로 보낸다(§5.1) — 덱 순서·appliedTags 는 서버가 정한 그대로 그린다
   const { data, isPending, isError } = useRecommendations(myTags)
-  // 서버는 태그를 코드(`FIC`)로 돌려주고 기준 조절은 라벨(`#소설`)로 보낸다 — 사전으로 라벨을 붙이고 강조도 라벨끼리 맞춘다
+  // 서버는 태그 사전의 공개 코드(`FICTION`)로 돌려주고 기준 조절은 라벨(`#소설`)로 보낸다 — 사전으로 라벨을 붙이고 강조도 라벨끼리 맞춘다
   const { data: tagDict } = useTags('GENRE')
   const label = (t: string) => tagLabel(t, tagDict)
   const isMine = (t: string) => myTags.includes(label(t))

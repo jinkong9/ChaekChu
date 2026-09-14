@@ -13,7 +13,8 @@ export function useTags(kind: TagItem['kind'] = 'GENRE') {
 }
 
 /** 서버가 준 태그 값 → 화면 라벨('#소설').
- *  추천 응답의 `appliedTags`·`items[].tags` 는 코드(`FIC`, `SCIENCE`)로 오고, 기준 조절은 라벨(`#소설`)로 보낸다 —
+ *  추천 응답의 `appliedTags`·`items[].tags` 는 태그 사전의 공개 코드(`FICTION`, `SCIENCE`)로 오고,
+ *  기준 조절은 라벨(`#소설`)로 보낸다 —
  *  둘을 사전으로 이어 준다. 사전에 없는 값(THEME·SIGNAL 등 아직 코드만 있는 태그)은 `#` 만 붙여 그대로 보여 준다. */
 export function tagLabel(value: string, tags: readonly TagItem[] | undefined): string {
   const hit = tags?.find((t) => t.code === value || t.label === value)

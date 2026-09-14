@@ -84,6 +84,8 @@ class RecommendationServiceTest {
 		assertThat(request.tags()).extracting(AiRecommendationRequest.TagPreference::code).containsExactly("FIC");
 		assertThat(response.items()).hasSize(1);
 		assertThat(response.items().get(0).book().bookId()).isEqualTo("2");
+		assertThat(response.appliedTags()).containsExactly("FICTION");
+		assertThat(response.items().get(0).tags()).containsExactly("FICTION");
 		assertThat(response.items().get(0).reasonType()).isEqualTo("TAG_MATCH");
 		assertThat(response.generatedAt()).isEqualTo(Instant.parse("2026-09-10T00:00:00Z"));
 	}
