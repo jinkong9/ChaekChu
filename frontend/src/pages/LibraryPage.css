@@ -9,9 +9,7 @@
   overflow: hidden;
   padding: 28px 34px 20px;
   color: var(--ink);
-  background:
-    radial-gradient(circle at 55% 48%, rgba(255, 255, 255, 0.98) 0 18%, rgba(241, 245, 246, 0.64) 44%, transparent 70%),
-    linear-gradient(155deg, #f7f8f6 0%, #e8eef0 54%, #f2ede5 100%);
+  background: var(--eo-paper);
   isolation: isolate;
 }
 
@@ -46,6 +44,14 @@
   letter-spacing: -0.035em;
 }
 
+.libd__intro h2 em {
+  font-size: 0.42em;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: rgba(23, 32, 57, 0.38);
+}
+
 .libd__intro span {
   display: block;
   margin-top: 10px;
@@ -58,16 +64,6 @@
   height: calc(100vh - 58px);
   margin-top: 0;
   perspective-origin: 50% 44%;
-}
-
-.libd__grain {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.17;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.12'/%3E%3C/svg%3E");
-  mix-blend-mode: multiply;
 }
 
 .libd__stage {
@@ -160,6 +156,10 @@
   transform-style: preserve-3d;
 }
 
+/* 앞표지는 장식이다 — 펼친 뒤에도 지면 위를 덮고 있어 목차를 가로막는다.
+   표지를 여는 것은 libd-book__hit--cover 가 맡으니 클릭은 통과시킨다 */
+.libd-book__front-cover { pointer-events: none; }
+
 .libd-book__back-cover {
   border-radius: 7px 14px 14px 7px;
   background: #27314a;
@@ -190,6 +190,7 @@
 }
 
 .libd-book__static-page {
+  cursor: pointer;
   inset: 5px 6px 7px;
   overflow: hidden;
   background: var(--paper);
@@ -215,6 +216,7 @@
 
 .libd-book__paper-light {
   position: absolute;
+  pointer-events: none;   /* 종이 빛도 장식이다 — 지면의 글·버튼을 가리면 안 된다 */
   inset: 0;
   background:
     radial-gradient(circle at 52% 26%, rgba(255, 255, 255, 0.96), transparent 46%),
@@ -408,14 +410,13 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+
 .libd-book__hit:focus-visible {
   border-radius: 8px;
   outline: 2px solid var(--cobalt);
   outline-offset: 2px;
 }
 
-.libd-book__hit--previous { right: 100%; width: 100%; }
-.libd-book__hit--next { left: 0; width: 100%; }
 .libd-book__hit--cover { inset-inline: 0; width: 100%; }
 
 @media (hover: hover) and (pointer: fine) {
@@ -437,7 +438,7 @@
   z-index: 40;
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 18px;
   opacity: 1;
   pointer-events: auto;
   transform: translateX(-50%);
@@ -450,28 +451,60 @@
   transform: translate(-50%, 8px);
 }
 
-.libd__controls button {
+/* 화살표 — 상자 없이 글리프만. 종이 위에 얹히는 것이라 그림자도 유리도 두지 않는다
+   (흰 원 + 그림자는 앱의 다른 화면에 없는 문법이었다) */
+.libd__arrow {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
-  border: 1px solid rgba(23, 32, 57, 0.14);
-  border-radius: 50%;
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.66);
-  box-shadow: 0 8px 25px rgba(41, 52, 69, 0.1);
-  backdrop-filter: blur(14px);
-  transition: color 140ms ease, background-color 140ms ease, transform 140ms ease;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(23, 32, 57, 0.42);
   cursor: pointer;
+  transition: color 140ms ease;
 }
 
-.libd__controls button:hover { color: white; background: var(--cobalt); }
-.libd__controls button:active { transform: scale(0.96); }
-.libd__controls button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
+.libd__arrow:hover:not(:disabled) { color: var(--ink); }
+.libd__arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+.libd__arrow:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; border-radius: 4px; }
 .libd__controls svg { width: 18px; height: 18px; }
-.libd__controls svg.is-right { transform: rotate(180deg); }
-.libd__controls > span { min-width: 66px; color: rgba(23, 32, 57, 0.42); font-size: 10px; text-align: center; }
-.libd__controls b { color: var(--ink); font-size: 13px; font-variant-numeric: tabular-nums; }
+/* 글리프는 왼쪽을 보고 그렸다 — 오른쪽은 뒤집는다. 쓰는 자리(장 넘김·해 넘김)마다
+   따로 적다 보면 한 군데를 빠뜨린다. 아이콘이 직접 들고 있게 둔다 */
+.libd-arrow-icon.is-right { transform: rotate(180deg); }
+
+/* 책갈피 눈금 — 장 하나가 한 눈금이고, 지금 펼친 장은 잉크로 길다.
+   책배에 낸 색인처럼 몇 장짜리 책인지와 어디쯤인지를 한 줄이 같이 말한다. */
+.libd__ticks { display: flex; align-items: flex-end; gap: 7px; height: 16px; }
+
+.libd__tick {
+  position: relative;
+  width: 3px;
+  height: 9px;
+  padding: 0;
+  border: 0;
+  background: rgba(23, 32, 57, 0.22);
+  cursor: pointer;
+  transition: height 160ms ease, background-color 160ms ease;
+}
+
+/* 손이 닿는 자리는 눈에 보이는 눈금보다 넓다 */
+.libd__tick::after { content: ''; position: absolute; inset: -7px -4px; }
+.libd__tick:hover { height: 13px; background: rgba(23, 32, 57, 0.42); }
+.libd__tick.is-on { height: 16px; background: var(--ink); }
+.libd__tick:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 4px; }
+
+.libd__folio {
+  min-width: 4.4em;
+  color: rgba(23, 32, 57, 0.42);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.libd__folio b { color: var(--ink); font-weight: 700; }
 
 @media (max-width: 900px) {
   .libd-page { --book-w: clamp(200px, 34vw, 285px); padding: 22px 20px 18px; }
@@ -529,14 +562,14 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   여기부터 D안 추가분 — 위는 C안(완독 기록)의 책·표지·무대를 그대로 옮겨 온 것이다.
-   책의 재질과 넘김 물리는 건드리지 않고, 그 지면 위에 내용만 얹는다.
+   여기까지가 책·표지·무대 — 재질과 넘김 물리다.
+   아래부터는 그 지면 위에 얹는 내용과 둘레의 조작부다.
    ══════════════════════════════════════════════════════════════════ */
 
-/* 책 아래로 완독 연표가, 찜에서는 선반이 이어진다 — C안처럼 화면에 가둘 수 없다 */
+/* 책 아래로 완독 연표가, 찜에서는 선반이 이어진다 — 화면 하나에 가둘 수 없다 */
 .libd-page--scroll { overflow-y: auto; overflow-x: hidden; }
 
-/* 머리말이 상단 버튼 줄 아래로 내려앉는다 (C안은 top: 44px) */
+/* 머리말이 상단 버튼 줄 아래로 내려앉는다 */
 .libd-page .libd__intro { top: 86px; }
 
 /* 책 무대는 화면을 꽉 채우므로 머리말이 그 위에 떠 있어도 된다. 책장은 아래로 길어지니
@@ -592,13 +625,6 @@
   color: rgba(23, 32, 57, 0.4);
 }
 
-.libd-face__foot {
-  margin-top: auto;
-  padding-top: 1em;
-  font-size: 0.74em;
-  color: rgba(23, 32, 57, 0.45);
-}
-
 /* 쪽 번호 — 판면 밖, 아래 바깥쪽 */
 .libd-face__folio {
   position: absolute;
@@ -631,6 +657,21 @@
 }
 
 .libd-front__mark { margin-top: 1.1em; width: 2.2em; height: 1px; background: rgba(23, 32, 57, 0.24); }
+
+/* 속표지 판권 — 꼬리말로 흩어져 있던 숫자를 제목 아래 한자리에 모은다.
+   속표지는 조용해야 맞은편 목차가 읽히므로 줄과 색만 쓰고 크기는 올리지 않는다 */
+.libd-front__stats { margin-top: 1.9em; width: 68%; font-size: 0.76em; color: rgba(23, 32, 57, 0.46); }
+.libd-front__stats > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8em;
+  padding: 0.5em 0.1em;
+  border-top: 1px solid rgba(23, 32, 57, 0.1);
+}
+.libd-front__stats > div:last-child { border-bottom: 1px solid rgba(23, 32, 57, 0.1); }
+.libd-front__stats dt { letter-spacing: 0.02em; }
+.libd-front__stats dd { margin: 0; color: rgba(23, 32, 57, 0.7); font-variant-numeric: tabular-nums; }
 
 /* ── 목차 ────────────────────────────────────────────────────── */
 .libd-toc { margin-top: 1.5em; display: flex; flex-direction: column; }
@@ -684,7 +725,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.libd-toc__more { margin-top: 0.6em; font-size: 0.72em; color: rgba(23, 32, 57, 0.4); }
 
 /* 한 권도 없을 때 — 목차 자리에 대신 놓는다 */
 .libd-empty {
@@ -712,11 +752,11 @@
 
 .libd-empty__links a:hover { border-color: var(--cobalt); color: var(--cobalt); }
 
-/* ── 왼쪽 면 · 제목 ───────────────────────────────────────────── */
+/* ── 왼쪽 면 · 표지 ───────────────────────────────────────────── */
 .libd-title__cover {
-  width: 46%;
-  aspect-ratio: 1 / 1.45;
-  margin-top: 0.6em;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   border-radius: 1px 3px 3px 1px;
   box-shadow: 4px 7px 18px rgba(23, 32, 57, 0.26), 0 0 0 1px rgba(23, 32, 57, 0.08);
@@ -800,17 +840,17 @@
 
 .libd-rate__link:hover { color: var(--cobalt); border-color: var(--cobalt); }
 
-/* ── 찜 · 장르별 책장 (A안 선반을 이 무대 위로) ─────────────────── */
-.libd-shelf { position: relative; z-index: 10; padding: 26px 34px 72px; }
-.libd-shelf__row + .libd-shelf__row { margin-top: 30px; }
+/* ── 찜 · 장르별 책장 — 선반을 이 무대 위로 ─────────────────── */
+.libd-shelf { position: relative; z-index: 10; padding: 10px 34px 56px; }
+.libd-shelf__row + .libd-shelf__row { margin-top: 20px; }
 .libd-shelf__head { display: flex; align-items: baseline; gap: 9px; }
 .libd-shelf__head h3 { font-size: 13px; font-weight: 800; letter-spacing: 0.01em; }
 .libd-shelf__head span { font-size: 11px; color: rgba(23, 32, 57, 0.42); font-variant-numeric: tabular-nums; }
-.libd-shelf__books { display: flex; align-items: flex-end; gap: 16px; padding: 14px 14px 8px; overflow-x: auto; }
+.libd-shelf__books { display: flex; align-items: flex-end; gap: 16px; padding: 8px 14px 8px; overflow-x: auto; }
 .libd-shelf__book { flex: none; transition: transform 160ms ease; }
 .libd-shelf__book:hover { transform: translateY(-8px); }
 
-/* 선반턱 — 이미지 없이 나무 톤 두 겹으로 (A안과 같은 값) */
+/* 선반턱 — 이미지 없이 나무 톤 두 겹으로 */
 .libd-shelf__ledge { height: 12px; border-radius: 2px; background: linear-gradient(#d9c9ae, #c4b092); }
 .libd-shelf__ledge + i { display: block; height: 6px; margin: 0 4px; border-radius: 0 0 7px 7px; background: linear-gradient(#a8916f, #8f7855); }
 
@@ -849,7 +889,7 @@
 .libd-pop a { display: inline-block; margin-top: 10px; font-size: 11px; color: var(--cobalt); border-bottom: 1px solid currentColor; }
 
 /* ── 책 기록 수정 — 전체 화면 ─────────────────────────────────
-   고치는 자리는 보는 자리와 성격이 다르다. C안의 종이·무대를 끌고 오지 않고
+   고치는 자리는 보는 자리와 성격이 다르다. 보는 자리의 종이·무대를 끌고 오지 않고
    앱 공용 판(editorial.css 의 eo-*)을 그대로 쓴다. GNB까지 덮는 전체 화면이
    되려면 .libd-page 의 isolation 밖으로 나가야 해서 body 로 포털한다. */
 .libd-record {
@@ -874,14 +914,14 @@
 
 @media (max-width: 900px) {
   .libd__topbar { left: 20px; right: 20px; }
-  .libd-shelf { padding: 22px 20px 60px; }
+  .libd-shelf { padding: 8px 20px 48px; }
 }
 
 @media (max-width: 640px) {
   /* 홈의 좁은 화면 값과 같다 */
   .libd__topbar { top: 12px; left: 16px; right: 16px; }
   .libd-page .libd__intro { top: 74px; }
-  .libd-shelf { padding: 18px 14px 48px; }
+  .libd-shelf { padding: 6px 14px 40px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -890,15 +930,34 @@
   .libd-record { transition-duration: 0.01ms; animation-duration: 0.01ms; }
 }
 
-/* ── 완독 연표 (B안) ─────────────────────────────────────────────
+/* ── 완독 연표 ─────────────────────────────────────────────
    책 무대가 화면을 꽉 채우므로 연표는 그 아래 한 화면 뒤에 온다.
-   B안은 흰 종이 위 2px 테두리였지만, 여기는 C안의 차가운 바탕 위라
+   차가운 바탕 위라
    반투명 유리 한 장으로 앉힌다. */
 .libd-timeline { position: relative; z-index: 10; padding: 0 34px 76px; }
 .libd-timeline__head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 11px; }
 .libd-timeline__head h3 { font-size: 13px; font-weight: 800; letter-spacing: 0.01em; }
 .libd-timeline__head p { font-size: 11px; color: rgba(23, 32, 57, 0.45); }
-.libd-timeline__other { margin-left: auto; white-space: nowrap; }
+
+/* 해 넘김 — 연표가 올해에 갇히지 않게. 아래 장 넘김과 같은 문법이다 */
+.libd-timeline__years { display: inline-flex; align-items: center; gap: 5px; }
+.libd-timeline__years b { font-size: 13px; font-weight: 800; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+.libd-timeline__years button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(23, 32, 57, 0.42);
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+.libd-timeline__years button:hover:not(:disabled) { color: var(--ink); }
+.libd-timeline__years button:disabled { opacity: 0.28; cursor: not-allowed; }
+.libd-timeline__years button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; border-radius: 3px; }
+.libd-timeline__years svg { width: 14px; height: 14px; }
 
 .libd-timeline__grid {
   display: grid;
@@ -975,34 +1034,6 @@
 
 @keyframes libd-cover-in { from { opacity: 0 } to { opacity: 1 } }
 
-/* 그 달에 여러 권이면 — 어느 장인지, 몇 권인지 */
-.libd-timeline__dots { display: flex; gap: 2px; }
-
-.libd-timeline__dots button {
-  width: 12px;
-  height: 12px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-/* 누르는 자리는 12px, 보이는 점은 4px */
-.libd-timeline__dots button::after {
-  content: '';
-  display: block;
-  width: 4px;
-  height: 4px;
-  margin: 4px auto;
-  border-radius: 50%;
-  background: rgba(23, 32, 57, 0.22);
-  transition: background-color 140ms ease;
-}
-
-.libd-timeline__dots button:hover::after { background: rgba(23, 32, 57, 0.45); }
-.libd-timeline__dots button.is-on::after { background: var(--ink); }
-.libd-timeline__dots button:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 0; border-radius: 50%; }
-
 .libd-timeline__label {
   padding: 6px 0;
   border-top: 1px solid rgba(23, 32, 57, 0.12);
@@ -1024,9 +1055,93 @@
   .libd-timeline { padding: 0 14px 48px; }
   .libd-timeline__head { flex-wrap: wrap; gap: 6px; }
   .libd-timeline__head p { font-size: 10px; }
-  .libd-timeline__other { margin-left: 0; }
   /* 12칸을 375px 에 욱여넣으면 표지가 손톱만 해진다 — 칸 폭을 지키고 띠를 옆으로 굴린다 */
   .libd-timeline__grid { grid-template-columns: repeat(12, minmax(56px, 1fr)); overflow-x: auto; }
   .libd-timeline__slot { --cover-w: 40px; height: 96px; padding: 0 2px 7px; gap: 5px; }
   .libd-timeline__label { padding: 4px 0; font-size: 9px; }
+}
+
+/* 표지 한 면과 기록 한 면. 책의 크기와 넘김은 기존 무대를 따른다. */
+.libd-face--cover { padding: 7.5% 8.5% 12%; }
+.libd-face--cover .libd-title__cover img { object-fit: fill; }
+.libd-face--record { padding-top: 7.5%; }
+.libd-face--record .libd-title__name { margin-top: 0.7em; font-size: 1.65em; flex-shrink: 0; }
+.libd-face--record .libd-title__by { font-size: 0.76em; }
+.libd-rate__rule { flex: none; margin-top: 1.25em; border-top: 1px solid rgba(23, 32, 57, 0.16); }
+.libd-face--record .libd-rate__stars { margin-top: 0.85em; font-size: 1.1em; flex: none; }
+.libd-face--record .libd-rate__review {
+  min-height: 0;
+  font-size: 1.12em;
+  line-height: 1.7;
+  background: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 5;
+  margin-top: 1.1em;
+}
+.libd-face--record .libd-rate__blank { margin-top: 1.1em; font-size: 0.76em; }
+.libd-face--record .libd-rate__meta { padding-top: 0.7em; min-width: 0; flex-wrap: wrap; font-size: 0.65em; }
+.libd-face--record .libd-rate__tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* 완독 연표: 표지 전체를 좁혀 실제 책등처럼 한 권씩 꽂는다. */
+.libd-timeline__month { min-width: 0; }
+.libd-timeline__slot { --cover-w: 19px; height: 154px; padding: 12px 7px 9px; gap: 9px; }
+.libd-timeline__spines { display: flex; align-items: flex-end; gap: 5px; width: 100%; min-height: 0; overflow-x: auto; padding: 7px 3px; scrollbar-width: thin; }
+.libd-timeline__cover { flex: 0 0 var(--spine-w, 20px); width: var(--spine-w, 20px); height: 102px; border-radius: 1px 2px 2px 1px; overflow: hidden; }
+/* 책등의 둥근 맛 — 가운데가 밝고 양끝이 어둡다. 오른쪽 끝 한 줄은 종이가 물린 자리 */
+.libd-timeline__cover::after { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: linear-gradient(90deg, rgba(0,0,0,.34) 0, rgba(255,255,255,.26) 19%, rgba(255,255,255,.04) 46%, rgba(0,0,0,.15) 83%, rgba(0,0,0,.3) 100%); }
+/* 머리와 꼬리 — 책등 위아래를 눌러 주는 띠 */
+.libd-timeline__cover::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit; background: linear-gradient(180deg, rgba(0,0,0,.28) 0 2px, transparent 2px calc(100% - 3px), rgba(0,0,0,.2) calc(100% - 3px)); }
+/* 표지 전체를 눌러 담으면 뭉갠 자국이 된다. 책등 쪽 끝만 크게 띄워 색 띠로 남긴다 —
+   그림이 아니라 그 책의 색이 보이는 자리다 */
+.libd-timeline__cover img { object-fit: cover; object-position: left center; transform: scale(2.3); transform-origin: left center; }
+.libd-timeline__cover span { display: block; padding: 6px 2px; writing-mode: vertical-rl; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 9px; }
+
+/* 찜 책장: 따뜻한 벽과 길게 놓인 나무 선반 위에 표지를 세운다. */
+/* 머리말·툴바·선반이 한 기준선에 선다 — 선반 padding(34·20·14px)과 같은 값이다 */
+.libd-page--wish { --ink: #0b0b0b; --cobalt: #0b0b0b; --wish-inset: 34px; }
+/* dev 처럼 머리말 바로 아래가 선반이다 — 책장/목록 줄을 없앤 자리를 선반이 받는다 */
+.libd-page--wish .libd__intro--flow {
+  position: relative;
+  margin-inline: var(--wish-inset);
+  padding: 76px 0 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(11, 11, 11, 0.18);
+}
+
+/* 줄 하나를 더 쓰지 않도록 머리말 오른쪽 끝에 세운다 (머리말 자체는 pointer-events: none) */
+.libd__intro-action { position: absolute; right: 0; bottom: 12px; pointer-events: auto; }
+@media (max-width: 900px) { .libd-page--wish { --wish-inset: 20px; } }
+.libd-shelf__row { position: relative; }
+.libd-shelf__books { scrollbar-width: thin; }
+.libd-shelf__book { position: relative; padding-top: 2px; }
+.libd-shelf__book a { position: relative; display: block; border-radius: 2px; }
+.libd-shelf__book a:focus-visible { outline: 2px solid var(--ink); outline-offset: 5px; }
+.libd-cover { width: 92px; height: 132px; border-radius: 2px 4px 0 0; box-shadow: -5px 0 5px rgba(255,255,255,.6), 9px 8px 16px rgba(48,37,23,.24); }
+.libd-shelf__book a::after { content: ''; position: absolute; inset: 0; pointer-events: none; border: 1px solid rgba(0,0,0,.06); background: linear-gradient(90deg, rgba(0,0,0,.14), rgba(255,255,255,.3) 2%, rgba(0,0,0,.09) 4%, transparent 7%); }
+.libd-cover--fallback { padding: 7px; }
+.libd-cover--fallback b { font-size: 11px; font-weight: 550; }
+.libd-cover--fallback span { font-size: 9px; }
+.libd-shelf__ledge {
+  position: relative;
+  z-index: 2;
+  height: 12px;
+  border: 1px solid #b99b74;
+  border-radius: 3px;
+  background:
+    repeating-linear-gradient(1deg, transparent 0 3px, rgba(106,68,30,.18) 3.4px 4px, transparent 4.5px 8px),
+    repeating-linear-gradient(-.6deg, transparent 0 5px, rgba(255,238,202,.5) 5.5px 6px, transparent 6.5px 11px),
+    linear-gradient(#e8d2af 0%, #d1b28a 17%, #c1a078 75%, #b18d65 92%, #d8bb94 100%);
+  box-shadow: inset 0 2px 1px #f2e2c6, inset 0 -2px 2px rgba(100,66,31,.2), 0 2px 2px rgba(73,49,26,.2), 0 10px 12px -4px rgba(75,53,29,.3), 0 21px 23px -10px rgba(85,63,37,.2);
+}
+.libd-shelf__ledge::after { content: ''; position: absolute; inset: 1px 0; opacity: .24; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='40'%3E%3Cfilter id='wood'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.014 .65' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23856845' filter='url(%23wood)' opacity='.65' d='M0 0h360v40H0z'/%3E%3C/svg%3E"); mix-blend-mode: multiply; }
+.libd-shelf__ledge + i { height: 6px; margin-inline: 3px; background: #af916c; }
+@media (max-width: 640px) {
+  .libd-shelf { padding: 6px 14px 40px; }
+  .libd-page--wish .libd__intro--flow { padding: 62px 0 10px; }
+  .libd-page--wish { --wish-inset: 14px; }
+  .libd-timeline__grid { grid-template-columns: repeat(12, minmax(76px, 1fr)); }
+  .libd-timeline__slot { height: 136px; padding-inline: 4px; }
+  /* 좁은 화면에서는 두꺼운 책도 한 칸을 독차지하지 않게 상한을 둔다 */
+  .libd-timeline__cover { height: 85px; flex-basis: min(var(--spine-w, 20px), 22px); width: min(var(--spine-w, 20px), 22px); }
 }
