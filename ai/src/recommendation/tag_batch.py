@@ -363,6 +363,8 @@ class TagGenerator:
         max_retries: int = 2,
         low_confidence_threshold: float = 0.6,
         rule_confidence_threshold: float = 0.85,
+        estimated_credits_per_request: float = 2.0,
+        max_estimated_credits: float | None = None,
     ) -> None:
         if max_retries < 0:
             raise ValueError("max_retries must not be negative")
@@ -370,11 +372,38 @@ class TagGenerator:
             raise ValueError("low_confidence_threshold must be between 0 and 1")
         if not 0 <= rule_confidence_threshold <= 1:
             raise ValueError("rule_confidence_threshold must be between 0 and 1")
+        if not math.isfinite(estimated_credits_per_request) or estimated_credits_per_request <= 0:
+            raise ValueError("estimated_credits_per_request must be positive and finite")
+        if max_estimated_credits is not None and (
+            not math.isfinite(max_estimated_credits) or max_estimated_credits < 0
+        ):
+            raise ValueError("max_estimated_credits must be non-negative and finite")
         self.rule_tagger = rule_tagger or RuleBasedTagger()
         self.gms_provider = gms_provider
         self.max_retries = max_retries
         self.low_confidence_threshold = low_confidence_threshold
         self.rule_confidence_threshold = rule_confidence_threshold
+        self.estimated_credits_per_request = estimated_credits_per_request
+        self.max_estimated_credits = max_estimated_credits
+        self.estimated_gms_credits = 0.0
+
+    def _reserve_gms_request(self) -> bool:
+        if self.max_estimated_credits is not None and (
+            self.estimated_gms_credits + self.estimated_credits_per_request
+            > self.max_estimated_credits + 1e-9
+        ):
+            return False
+        self.estimated_gms_credits += self.estimated_credits_per_request
+        return True
+
+    @staticmethod
+    def _budget_limited_result(assignments: Mapping[str, TagAssignment]) -> TagGenerationResult:
+        return TagGenerationResult(
+            tuple(assignments[code] for code in sorted(assignments)),
+            0,
+            gms_skipped=True,
+            gms_skip_reason="BUDGET_LIMIT",
+        )
 
     def generate(self, book: D4LBook) -> TagGenerationResult:
         assignments = {tag.code: tag for tag in self.rule_tagger.generate(book)}
@@ -394,6 +423,8 @@ class TagGenerator:
         attempts = 0
         gms_error: str | None = None
         for attempt in range(self.max_retries + 1):
+            if not self._reserve_gms_request():
+                return self._budget_limited_result(assignments)
             attempts += 1
             try:
                 suggestions = self.gms_provider.generate(book)
@@ -462,6 +493,11 @@ class TagGenerator:
 
         batch_attempts = 0
         for attempt in range(self.max_retries + 1):
+            if not self._reserve_gms_request():
+                for book in pending:
+                    assignments = {tag.code: tag for tag in self.rule_tagger.generate(book)}
+                    results[book.isbn13] = self._budget_limited_result(assignments)
+                return TagBatchGenerationResult(results, 0, 0)
             batch_attempts += 1
             try:
                 suggestions_by_isbn = batch_generator(pending)
@@ -672,6 +708,7 @@ class TagBatchRunner:
         temporary = output_path.with_name(f".{output_path.name}.tmp")
         rows = succeeded = missing = low_confidence = resumed = gms_failures = gms_attempts = 0
         gms_skipped = 0
+        gms_budget_skipped = 0
         gms_requests = gms_batch_requests = 0
         cache_hits = cache_writes = 0
         cache_output = None
@@ -764,6 +801,7 @@ class TagBatchRunner:
                             missing += 1
                         low_confidence += bool(record["lowConfidence"])
                         gms_skipped += bool(record.get("gmsSkipped"))
+                        gms_budget_skipped += record.get("gmsSkipReason") == "BUDGET_LIMIT"
         finally:
             if cache_output is not None:
                 cache_output.close()
@@ -783,10 +821,14 @@ class TagBatchRunner:
             "gmsFailures": gms_failures,
             "gmsAttempts": gms_attempts,
             "gmsSkippedRows": gms_skipped,
+            "gmsBudgetSkippedRows": gms_budget_skipped,
             "ruleConfidenceThreshold": self.generator.rule_confidence_threshold,
             "gmsRequests": gms_requests,
             "gmsBatchRequests": gms_batch_requests,
             "batchSize": self.batch_size,
+            "estimatedCreditsPerRequest": self.generator.estimated_credits_per_request,
+            "estimatedGmsCredits": round(self.generator.estimated_gms_credits, 4),
+            "maxEstimatedCredits": self.generator.max_estimated_credits,
             "cacheVersion": self.cache_version if self.cache_path is not None else None,
             "cachePath": str(self.cache_path) if self.cache_path is not None else None,
             "cacheHitRows": cache_hits,

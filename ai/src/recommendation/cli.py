@@ -83,6 +83,18 @@ def create_parser() -> argparse.ArgumentParser:
                 default=None,
                 help="number of books per GMS request (default: TAG_BATCH_SIZE or 16)",
             )
+            command_parser.add_argument(
+                "--estimated-credits-per-request",
+                type=float,
+                default=None,
+                help="planning estimate for one GMS request (default: TAG_ESTIMATED_CREDITS_PER_REQUEST or 2.0)",
+            )
+            command_parser.add_argument(
+                "--max-estimated-credits",
+                type=float,
+                default=None,
+                help="hard cap for estimated GMS credits (default: TAG_MAX_ESTIMATED_CREDITS when set)",
+            )
         if command == "tag-quality":
             command_parser.add_argument("--baseline-sidecar", type=Path, required=True)
             command_parser.add_argument("--candidate-sidecar", type=Path, required=True)
@@ -284,8 +296,19 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
             if arguments.rule_confidence_threshold is not None
             else os.getenv("TAG_RULE_CONFIDENCE_THRESHOLD", "0.85")
         )
+        estimated_credits_per_request = float(
+            arguments.estimated_credits_per_request
+            if arguments.estimated_credits_per_request is not None
+            else os.getenv("TAG_ESTIMATED_CREDITS_PER_REQUEST", "2.0")
+        )
+        max_estimated_value = (
+            arguments.max_estimated_credits
+            if arguments.max_estimated_credits is not None
+            else os.getenv("TAG_MAX_ESTIMATED_CREDITS", "").strip()
+        )
+        max_estimated_credits = float(max_estimated_value) if max_estimated_value != "" else None
     except ValueError as error:
-        raise ConfigError("TAG_RULE_CONFIDENCE_THRESHOLD is invalid") from error
+        raise ConfigError("tag cost and confidence configuration is invalid") from error
     if (
         arguments.max_retries < 0
         or not 0 <= arguments.low_confidence <= 1
@@ -307,6 +330,8 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
             max_retries=arguments.max_retries,
             low_confidence_threshold=arguments.low_confidence,
             rule_confidence_threshold=rule_confidence_threshold,
+            estimated_credits_per_request=estimated_credits_per_request,
+            max_estimated_credits=max_estimated_credits,
         ),
         tag_version=tag_version,
         batch_size=batch_size,

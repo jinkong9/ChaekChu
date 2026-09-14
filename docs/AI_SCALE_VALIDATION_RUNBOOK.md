@@ -97,7 +97,7 @@ cd ~/S15P21B102/ai
 ## 4. 건수·해시·승격 검증
 
 ```bash
-jq '{status,rows,succeededRows,failedRows,gmsAttempts,gmsRequests,gmsBatchRequests,gmsFailures,gmsSkippedRows,ruleConfidenceThreshold,missingRows,lowConfidenceRows}' \
+jq '{status,rows,succeededRows,failedRows,gmsAttempts,gmsRequests,gmsBatchRequests,gmsFailures,gmsSkippedRows,gmsBudgetSkippedRows,estimatedGmsCredits,maxEstimatedCredits,cacheHitRows,cacheWriteRows,ruleConfidenceThreshold,missingRows,lowConfidenceRows}' \
   "$RUN_DIR/tags-report.json"
 
 jq '{status,promoted,rows,succeededRows,failedRows,skippedRows,retriedRows,dimension,indexVersion,tagVersion}' \

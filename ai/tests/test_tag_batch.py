@@ -374,3 +374,38 @@ def test_tag_cache_reuses_results_across_tag_versions(tmp_path: Path) -> None:
     records = [json.loads(line) for line in second_output.read_text(encoding="utf-8").splitlines()]
     assert all(record["cacheHit"] is True for record in records)
     assert all(record["gmsSkipReason"] == "CACHE_HIT" for record in records)
+
+
+def test_tag_batch_stops_gms_before_estimated_budget_and_reports_rule_only_rows(tmp_path: Path) -> None:
+    calls = 0
+
+    class EmptyRuleTagger:
+        def generate(self, _book):
+            return ()
+
+    class Provider:
+        def generate_batch(self, books):
+            nonlocal calls
+            calls += 1
+            return {book.isbn13: {"FANTASY": 0.9} for book in books}
+
+    output = tmp_path / "tags.jsonl"
+    report = TagBatchRunner(
+        generator=TagGenerator(
+            rule_tagger=EmptyRuleTagger(),
+            gms_provider=Provider(),
+            estimated_credits_per_request=2.0,
+            max_estimated_credits=2.0,
+        ),
+        tag_version="d4l-tags-budget-test-v1",
+        batch_size=2,
+    ).run(FIXTURE, output)
+
+    assert calls == 1
+    assert report["gmsRequests"] == 1
+    assert report["estimatedGmsCredits"] == 2.0
+    assert report["maxEstimatedCredits"] == 2.0
+    assert report["gmsBudgetSkippedRows"] == 2
+    assert report["missingRows"] == 2
+    records = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert [record["gmsSkipReason"] for record in records] == [None, None, "BUDGET_LIMIT", "BUDGET_LIMIT"]
