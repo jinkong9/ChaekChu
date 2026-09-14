@@ -262,6 +262,23 @@ const TAGS = [
 
 export const handlers = [
   // 태그 사전 — 온보딩 장르 칩·(추후) /tune 해시태그의 단일 원천
+  // §4.7 분류 사전 — 문학(8) 가지만 채운 mock. depth·parent 둘 다 오면 400, 모르는 parent 는 items: [] (서버와 같다)
+  http.get('*/kdc', ({ request }) => {
+    const url = new URL(request.url)
+    const depth = url.searchParams.get('depth')
+    const parent = url.searchParams.get('parent')
+    if (depth && parent) return HttpResponse.json({ code: 'VALIDATION_FAILED', message: 'depth 와 parent 는 함께 쓸 수 없습니다.' }, { status: 400 })
+    const row = (code: string, label: string) => ({ code, label, depth: code.length, parentCode: code.length > 1 ? code.slice(0, -1) : null })
+    const MAIN = [['0', '총류'], ['1', '철학'], ['2', '종교'], ['3', '사회과학'], ['4', '자연과학'], ['5', '기술과학'], ['6', '예술'], ['7', '언어'], ['8', '문학'], ['9', '역사']]
+    const CHILDREN: Record<string, [string, string][]> = {
+      '8': [['80', '문학'], ['81', '한국문학'], ['82', '중국문학'], ['83', '일본문학'], ['84', '영미문학'], ['85', '독일문학'], ['86', '프랑스문학'], ['87', '스페인·포르투갈문학'], ['88', '이탈리아문학'], ['89', '기타 문학']],
+      '81': [['810', '한국문학'], ['811', '시'], ['812', '희곡'], ['813', '소설'], ['814', '수필'], ['815', '연설·웅변'], ['816', '일기·서간·기행'], ['817', '풍자·유머'], ['818', '르포르타주']],
+    }
+    if (depth === '1' || (!depth && !parent)) return HttpResponse.json({ items: MAIN.map(([c, l]) => row(c, l)) })
+    if (parent) return HttpResponse.json({ items: (CHILDREN[parent] ?? []).map(([c, l]) => row(c, l)) })
+    return HttpResponse.json({ items: [] })
+  }),
+
   http.get('*/tags', ({ request }) => {
     const kind = new URL(request.url).searchParams.get('kind')
     return HttpResponse.json({ items: kind ? TAGS.filter((t) => t.kind === kind) : TAGS })
@@ -337,10 +354,14 @@ export const handlers = [
     if (!q && !kdc) return HttpResponse.json({ code: 'VALIDATION_FAILED', message: 'q 또는 kdc 가 필요합니다.' }, { status: 400 })
     // mock 카탈로그엔 KDC 코드가 없어 대분류 라벨로 대신 거른다(§4.1 kdc prefix 의 1자리만 흉내). 서버는 books.category_code prefix
     const KDC_LABEL: Record<string, string> = { '1': '인문', '3': '사회', '4': '과학', '8': '문학', '9': '역사' }
+    // 중분류(2자리)는 category 의 두 번째 마디로 흉내낸다 — "문학 > 독일문학" 에 '독일' 이 있으면 85. 3자리는 2자리처럼 본다
+    const MID_LABEL: Record<string, string> = { '81': '한국', '82': '중국', '83': '일본', '84': '영미', '85': '독일', '86': '프랑스' }
     const kdcLabel = KDC_LABEL[kdc[0]]
+    const midLabel = kdc.length >= 2 ? MID_LABEL[kdc.slice(0, 2)] : undefined
     const hits = CATALOG.map(withCategory)
       .filter((bk) => !q || bk.title.includes(q) || (bk.author ?? '').includes(q))
       .filter((bk) => !kdc || (kdcLabel ? (bk.category ?? '').startsWith(kdcLabel) : false))
+      .filter((bk) => !midLabel || (bk.category ?? '').includes(midLabel))
     const items: ServerBookSummary[] = hits.slice(page * size, page * size + size).map(toServerBook)
     return HttpResponse.json({ total: hits.length, page, size, items } satisfies ServerSearchResponse)
   }),

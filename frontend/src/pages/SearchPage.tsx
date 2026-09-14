@@ -3,7 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { isSearchUnavailable, searchBooks } from '../api/books'
 import type { BookSummary } from '../api/types'
-import { KDC_MAIN, isValidKdc, kdcLabel } from '../lib/kdc'
+import { KDC_MAIN, isValidKdc, kdcLabel, useKdcChildren } from '../lib/kdc'
 
 /** 검색 위치를 남겨 두는 자리 — 히스토리 항목(location.key)마다 목록 스크롤 offset 하나.
  *  Safari 프라이빗 모드처럼 저장이 막히는 곳에서도 이동은 막히면 안 된다. */
@@ -43,6 +43,7 @@ function pageNumbers(current: number, last: number): (number | null)[] {
 /** EXP-001 통합 검색 — 검색어(q)와 분류 토큰(kdc)을 함께 쓴다. GET /books/search (§4.1).
  *  - 정렬은 서버가 정한다: q 가 있으면 관련도, kdc 만이면 누적 대출순. 정렬 선택 UI 는 두지 않는다(명세).
  *  - 분류는 "필터 패널"이 아니라 검색창 옆 토큰이다 — 사용자에겐 검색어의 일부, 서버엔 정확한 filter.
+ *  - 대분류 칩(상수) → 중분류 → 소분류로 한 줄씩 내려간다. 아래 단계 라벨은 GET /kdc?parent= 사전(§4.7)에서 받는다.
  *  - 쪽은 URL ?page= (1부터). 서버는 0부터라 보낼 때 -1. 탐색 한도 10,000건 — 그 위는 쪽 번호를 만들지 않고 좁히기를 안내한다.
  *
  *  검색어·분류·쪽은 전부 URL 에 둔다 — 상세로 갔다 뒤로 오면 이 화면은 새로 마운트되므로 state 로는 남지 않는다.
@@ -123,8 +124,19 @@ export default function SearchPage() {
     window.scrollTo({ top: 0 })
   }
   const toggleKdc = (code: string) => update({ kdc: kdc === code ? '' : code, page: 1 })
+  /** 자식 칩 — 같은 걸 다시 누르면 한 단계 위(부모)로 돌아간다 */
+  const pickChild = (code: string, parent: string) => update({ kdc: kdc === code ? parent : code, page: 1 })
 
-  const summary = [q && `“${q}”`, kdc && `#${kdcLabel(kdc)}`].filter(Boolean).join(' · ')
+  // 드릴다운 사전 — 대분류가 정해지면 그 중분류를, 중분류까지 정해지면 그 소분류를 받는다. 각 하루 캐시
+  const mainCode = kdc ? kdc[0] : ''
+  const midCode = kdc.length >= 2 ? kdc.slice(0, 2) : ''
+  const mids = useKdcChildren(mainCode).data ?? []
+  const subs = useKdcChildren(midCode).data ?? []
+  // 코드 → 라벨. 토큰·건수 문구가 "문학 › 한국문학 › 소설"을 그리는 데 쓴다. 사전이 없으면 코드가 그대로 보인다
+  const dict = new Map([...mids, ...subs].map((k) => [k.code, k.label] as const))
+  const label = (code: string) => kdcLabel(code, dict)
+
+  const summary = [q && `“${q}”`, kdc && `#${label(kdc)}`].filter(Boolean).join(' · ')
 
   return (
     <main className="eo-page">
@@ -138,14 +150,14 @@ export default function SearchPage() {
             돌아온 화면(?q= 있음)에서는 포커스를 뺏지 않는다 — 입력창으로 스크롤이 끌려가 읽던 자리를 잃는다 */}
         <div className="mt-7 flex items-center gap-2.5 border-b border-rule focus-within:border-ink">
           {kdc && (
-            <button type="button" className="eo-tag is-on shrink-0" onClick={() => toggleKdc(kdc)} aria-label={`${kdcLabel(kdc)} 분류 해제`}>
-              #{kdcLabel(kdc)}<span className="ml-1.5 opacity-70">×</span>
+            <button type="button" className="eo-tag is-on shrink-0" onClick={() => toggleKdc('')} aria-label={`${label(kdc)} 분류 해제`}>
+              #{label(kdc)}<span className="ml-1.5 opacity-70">×</span>
             </button>
           )}
           <input
             autoFocus={q === '' && kdc === ''}
             className="eo-field min-w-0 flex-1" style={{ border: 0 }}
-            placeholder={kdc ? `${kdcLabel(kdc)} 안에서 찾기 — 비우면 대출 많은 순` : '제목·저자·출판사로 검색 (예: 데미안, ISBN) — 또는 아래 분류를 골라 시작'}
+            placeholder={kdc ? `${label(kdc)} 안에서 찾기 — 비우면 대출 많은 순` : '제목·저자·출판사로 검색 (예: 데미안, ISBN) — 또는 아래 분류를 골라 시작'}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             aria-label="제목 또는 저자"
@@ -156,12 +168,36 @@ export default function SearchPage() {
         {/* 대분류 칩 — 검색어가 없어도 누르면 그 분류의 대출 많은 책이 나온다(서버 정렬 §4.1). 활성은 잉크 반전 */}
         <div className="mt-3.5 flex flex-wrap gap-2" role="group" aria-label="분류">
           {KDC_MAIN.map((k) => (
-            <button key={k.code} type="button" className={`eo-tag ${kdc === k.code ? 'is-on' : ''}`}
-              aria-pressed={kdc === k.code} onClick={() => toggleKdc(k.code)}>
+            <button key={k.code} type="button" className={`eo-tag ${mainCode === k.code ? 'is-on' : ''}`}
+              aria-pressed={mainCode === k.code} onClick={() => toggleKdc(mainCode === k.code ? '' : k.code)}>
               {k.label}
             </button>
           ))}
         </div>
+
+        {/* 중분류 — 대분류를 고르면 한 줄 더 열린다. 같은 칩을 다시 누르면 대분류로 돌아간다.
+            사전이 비어 있으면(kdc_codes 미적재) 줄 자체가 없다 — 대분류 필터는 그대로 동작한다 */}
+        {mainCode && mids.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="중분류">
+            {mids.map((k) => (
+              <button key={k.code} type="button" className={`eo-tag ${midCode === k.code ? 'is-on' : ''}`} style={{ minHeight: 24, fontSize: 10.5 }}
+                aria-pressed={midCode === k.code} onClick={() => pickChild(k.code, mainCode)}>
+                {k.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* 소분류 — 중분류까지 고르면 한 줄 더. 서버 필터는 kdc=813 처럼 3자리 prefix */}
+        {midCode && subs.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-label="소분류">
+            {subs.map((k) => (
+              <button key={k.code} type="button" className={`eo-tag ${kdc === k.code ? 'is-on' : ''}`} style={{ minHeight: 24, fontSize: 10.5 }}
+                aria-pressed={kdc === k.code} onClick={() => pickChild(k.code, midCode)}>
+                {k.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* 결과 개수는 목록 위에 고정 높이로 예약 — 타이핑 중 목록이 위아래로 흔들리지 않게 */}
         <p className="eo-utility mt-4 flex min-h-[1.2em] items-baseline justify-between gap-3 tabular-nums">
@@ -225,11 +261,11 @@ export default function SearchPage() {
           <div className="eo-empty mt-2">
             <p className="eo-body">
               {kdc && q
-                ? <>{kdcLabel(kdc)} 분류 안에서는 &ldquo;{q}&rdquo;와 맞는 책이 없어요.</>
+                ? <>{label(kdc)} 분류 안에서는 &ldquo;{q}&rdquo;와 맞는 책이 없어요.</>
                 : <>&ldquo;{q}&rdquo;와 맞는 책을 찾지 못했어요. 제목 일부나 저자 이름만으로도 찾을 수 있어요.</>}
             </p>
             {kdc && q
-              ? <button className="eo-text-button" onClick={() => toggleKdc(kdc)}>분류 없이 찾기</button>
+              ? <button className="eo-text-button" onClick={() => toggleKdc('')}>분류 없이 찾기</button>
               : <button className="eo-text-button" onClick={() => setInput('')}>검색어 지우기</button>}
           </div>
         )}
