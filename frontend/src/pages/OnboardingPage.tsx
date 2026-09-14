@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
-import type { PopularBooksResponse, TagItem } from '../api/types'
+import type { PopularBooksResponse } from '../api/types'
+import { useTags } from '../lib/useTags'
 import { useAuthStore } from '../stores/authStore'
 
 const MAX_GENRES = 5
@@ -19,12 +20,8 @@ export default function OnboardingPage() {
   const [genres, setGenres] = useState<string[]>([])
   const [picked, setPicked] = useState<Map<number, number | null>>(new Map()) // bookId -> rating
 
-  // 장르 칩 — 태그 사전(DB tags)이 목록의 주인. 라벨의 '#'는 온보딩 화면에서만 뗀다 (§3.3)
-  const { data: tagData } = useQuery({
-    queryKey: ['tags', 'GENRE'],
-    queryFn: async () => (await api.get<{ items: TagItem[] }>('/tags?kind=GENRE')).data.items,
-    staleTime: Infinity,
-  })
+  // 장르 칩 — 태그 사전(DB tags)이 목록의 주인. 라벨의 '#'는 온보딩 화면에서만 뗀다 (§3.3). 기준 조절 화면과 같은 캐시
+  const { data: tagData } = useTags('GENRE')
   const GENRES = (tagData ?? []).map((t) => t.label.replace(/^#/, ''))
 
   // Step 0 프로필 저장 뒤에만 조회 — 연령·성별이 있어야 세그먼트 인기가 나온다 (§4.2)

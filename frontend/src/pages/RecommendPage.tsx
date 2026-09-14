@@ -5,6 +5,7 @@ import { useReducedMotion } from 'motion/react'
 import { addToLibrary } from '../api/library'
 import type { RecommendationItem, ShelfStatus } from '../api/types'
 import { useRecommendations, RECOMMEND_DECK_SIZE } from '../lib/useRecommendations'
+import { tagLabel, useTags } from '../lib/useTags'
 import { useTuneStore } from '../stores/tuneStore'
 import { useAuthStore } from '../stores/authStore'
 import { trackEvent } from '../lib/events'
@@ -32,6 +33,10 @@ export default function RecommendPage() {
   const myTags = useTuneStore((s) => s.tags)
   // 기준 조절에서 고른 태그는 서버로 보낸다(§5.1) — 덱 순서·appliedTags 는 서버가 정한 그대로 그린다
   const { data, isPending, isError } = useRecommendations(myTags)
+  // 서버는 태그를 코드(`FIC`)로 돌려주고 기준 조절은 라벨(`#소설`)로 보낸다 — 사전으로 라벨을 붙이고 강조도 라벨끼리 맞춘다
+  const { data: tagDict } = useTags('GENRE')
+  const label = (t: string) => tagLabel(t, tagDict)
+  const isMine = (t: string) => myTags.includes(label(t))
   const nickname = useAuthStore((s) => s.nickname)
   const reduced = useReducedMotion()
 
@@ -133,7 +138,7 @@ export default function RecommendPage() {
           <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
             {appliedTags.length === 0
               ? <span className="text-[11px] text-ink-faint">아직 없어요 — 태그를 고르면 그 결이 먼저 올라와요</span>
-              : appliedTags.map((t) => <span key={t} className={`eo-tag ${myTags.includes(t) ? 'is-on' : ''}`}>{t}</span>)}
+              : appliedTags.map((t) => <span key={t} className={`eo-tag ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
           </div>
           <Link to="/tune" className="eo-link shrink-0">기준 조절하기</Link>
         </div>
@@ -169,7 +174,7 @@ export default function RecommendPage() {
         {/* 꺼낸 책의 태그 + 행동 — 우표 면을 깨지 않도록 밖에 둔다 */}
         <div className="mt-8 flex flex-col items-center gap-4 text-center">
           <div className="flex flex-wrap justify-center gap-1.5">
-            {featured.tags.map((t) => <span key={t} className={`eo-tag ${myTags.includes(t) ? 'is-on' : ''}`}>{t}</span>)}
+            {featured.tags.map((t) => <span key={t} className={`eo-tag ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
           </div>
           <p className="max-w-[46ch]">
             <span className="text-[15px] font-semibold">{featured.book.title}</span>
@@ -193,7 +198,7 @@ export default function RecommendPage() {
             <span>손을 올리면 표지가 보이고, 누르면 위로 꺼내 놓아요</span>
           </div>
           <div className="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-4">
-            {rest.map((item) => <MiniFolder key={item.book.bookId} item={item} onSelect={() => feature(item)} />)}
+            {rest.map((item) => <MiniFolder key={item.book.bookId} item={item} label={label} onSelect={() => feature(item)} />)}
           </div>
         </section>
       </div>
@@ -203,7 +208,7 @@ export default function RecommendPage() {
 
 /** 후보 한 통 — hover(=우표첩을 집는 순간)에 열리고, 누르면 히어로 자리로 올라간다.
  *  열리면 표지가 옆 칸까지 밀려 나오므로 그동안만 z를 올려 이웃 위에 그린다. */
-function MiniFolder({ item, onSelect }: { item: RecommendationItem; onSelect: () => void }) {
+function MiniFolder({ item, label, onSelect }: { item: RecommendationItem; label: (t: string) => string; onSelect: () => void }) {
   const [open, setOpen] = useState(false)
   return (
     <button type="button" onClick={onSelect}
@@ -222,7 +227,7 @@ function MiniFolder({ item, onSelect }: { item: RecommendationItem; onSelect: ()
       <p className="mt-3 line-clamp-2 text-[12px] font-semibold leading-snug" style={{ width: MINI.folderW + 24 }}>{item.book.title}</p>
       {/* 태그 = 이 우표의 요약 이유 (2줄 수용 고정 높이로 카드 높이 정렬) */}
       <div className="mt-2 flex h-[62px] flex-wrap content-start gap-1" style={{ width: MINI.folderW + 24 }}>
-        {item.tags.slice(0, 2).map((t) => <span key={t} className="eo-tag">{t}</span>)}
+        {item.tags.slice(0, 2).map((t) => <span key={t} className="eo-tag">{label(t)}</span>)}
       </div>
     </button>
   )

@@ -83,27 +83,6 @@ export interface RecommendationResponse {
   items: RecommendationItem[]
 }
 
-/** 사용자가 선택하거나 추천 이유로 볼 수 있는 통제된 태그 목록.
- *  태그는 책·사용자 취향을 표현하고, 최종 순위는 weights가 조절한다. */
-export const SUGGESTED_TAGS = [
-  '#소설',       // 국중도 SUBJECT/KDC·외부 카테고리
-  '#에세이',     // 국중도 SUBJECT/KDC·외부 카테고리
-  '#과학',       // 국중도 SUBJECT/KDC·외부 카테고리
-  '#판타지',     // 카테고리·책소개 기반 콘텐츠 분류
-  '#추리',       // 카테고리·책소개 기반 콘텐츠 분류
-  '#성장',       // 책소개·목차 기반 콘텐츠 분류
-  '#내취향근접', // 책 소개 임베딩 ↔ 내 서재(별점 가중) 프로필 벡터 유사도
-  '#같은작가',   // books.authors 일치 (내 서재 고평점 저자)
-  '#함께대출',   // 정보나루 item-item 연관 신호 — 개인별 협업 필터링 아님
-  '#내또래인기', // 세그먼트(연령×성별) 인기대출 상위
-  '#지금뜨는',   // book_demand_features.loan_3m_count 급증
-  '#스테디셀러', // loan_24m_count 꾸준 (유행 무관 안정성)
-  '#베스트셀러', // 알라딘 등 판매지표. 공공 대출량과 분리
-  '#신간',       // published_date 최근 1~2년
-  '#새로운분야', // 내 관심 분야 밖 + 유사도 하한선 통과
-  '#짧은호흡',   // page_count 하위 구간 — 가볍게 읽는 책
-]
-
 export type ShelfStatus = 'WISH' | 'READ' // 찜 / 읽음 — 2단 확정(9/2), 읽는 중 폐기
 
 export interface LibraryItem {
