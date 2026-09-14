@@ -94,6 +94,22 @@ cd ~/S15P21B102/ai
 
 태그 생성은 GMS 비용과 시간이 가장 크게 늘어날 수 있으므로 1만 건 결과를 확인한 뒤 10만 건으로 진행한다. 실패하거나 SSH가 끊겨도 같은 `RUN_ID`와 출력 경로로 재실행한다.
 
+## 3-1. MVP 데이터셋 축소
+
+100만 건 전체를 MVP에 사용하지 않을 때는 단순히 원본 앞부분을 자르지 않는다. `recommendation.dataset_selection`은 `KDC 대분류 × 출판연도 구간`을 층으로 나누고, 전체 분포에 비례해 각 층의 수를 배정한 뒤 층 안에서 `loan_total`이 높은 도서를 우선 선택한다. ISBN이 중복되면 대출량과 메타데이터가 더 풍부한 레코드를 유지한다. 같은 입력과 제한값에 대해 결과가 재현된다.
+
+```bash
+cd ~/S15P21B102/ai
+
+uv run python -m recommendation.dataset_selection \
+  --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl \
+  --output /home/ubuntu/pipeline_data/data4library/scale-inputs/d4l_usage.100000.mvp-stratified.jsonl.gz \
+  --report /home/ubuntu/pipeline_data/data4library/mvp-validation/dataset-selection-100000.json \
+  --limit 100000
+```
+
+`dataset-selection-100000.json`의 `inputDistribution`, `selectedDistribution`, `stratumSelectedCounts`를 확인한 뒤 태깅을 시작한다. MVP 후보를 바꾸면 해당 후보의 태그·인덱스 버전도 새로 발급한다.
+
 ## 4. 건수·해시·승격 검증
 
 ```bash
