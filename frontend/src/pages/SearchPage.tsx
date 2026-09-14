@@ -3,7 +3,8 @@ import { Link, useLocation, useSearchParams } from 'react-router'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { isSearchUnavailable, searchBooks } from '../api/books'
 import type { BookSummary } from '../api/types'
-import { KDC_MAIN, isValidKdc, kdcLabel, useKdcChildren } from '../lib/kdc'
+import { KDC_MAIN, isValidKdc, kdcAncestors, kdcLabel, useKdcChildren } from '../lib/kdc'
+import type { KdcCode } from '../lib/kdc'
 
 /** 검색 위치를 남겨 두는 자리 — 히스토리 항목(location.key)마다 목록 스크롤 offset 하나.
  *  Safari 프라이빗 모드처럼 저장이 막히는 곳에서도 이동은 막히면 안 된다. */
@@ -43,7 +44,8 @@ function pageNumbers(current: number, last: number): (number | null)[] {
 /** EXP-001 통합 검색 — 검색어(q)와 분류 토큰(kdc)을 함께 쓴다. GET /books/search (§4.1).
  *  - 정렬은 서버가 정한다: q 가 있으면 관련도, kdc 만이면 누적 대출순. 정렬 선택 UI 는 두지 않는다(명세).
  *  - 분류는 "필터 패널"이 아니라 검색창 옆 토큰이다 — 사용자에겐 검색어의 일부, 서버엔 정확한 filter.
- *  - 대분류 칩(상수) → 중분류 → 소분류로 한 줄씩 내려간다. 아래 단계 라벨은 GET /kdc?parent= 사전(§4.7)에서 받는다.
+ *  - 분류 칩은 항상 한 줄이다. 고른 분류의 자식으로 줄이 바뀌고(대분류 → 중분류 → 소분류), 경로는 검색창 토큰이 보여 준다.
+ *    아래 단계 라벨은 GET /kdc?parent= 사전(§4.7)에서 받는다.
  *  - 쪽은 URL ?page= (1부터). 서버는 0부터라 보낼 때 -1. 탐색 한도 10,000건 — 그 위는 쪽 번호를 만들지 않고 좁히기를 안내한다.
  *
  *  검색어·분류·쪽은 전부 URL 에 둔다 — 상세로 갔다 뒤로 오면 이 화면은 새로 마운트되므로 state 로는 남지 않는다.
@@ -123,9 +125,7 @@ export default function SearchPage() {
     update({ page: p })
     window.scrollTo({ top: 0 })
   }
-  const toggleKdc = (code: string) => update({ kdc: kdc === code ? '' : code, page: 1 })
-  /** 자식 칩 — 같은 걸 다시 누르면 한 단계 위(부모)로 돌아간다 */
-  const pickChild = (code: string, parent: string) => update({ kdc: kdc === code ? parent : code, page: 1 })
+  const setKdc = (code: string) => update({ kdc: code, page: 1 })
 
   // 드릴다운 사전 — 대분류가 정해지면 그 중분류를, 중분류까지 정해지면 그 소분류를 받는다. 각 하루 캐시
   const mainCode = kdc ? kdc[0] : ''
@@ -135,6 +135,15 @@ export default function SearchPage() {
   // 코드 → 라벨. 토큰·건수 문구가 "문학 › 한국문학 › 소설"을 그리는 데 쓴다. 사전이 없으면 코드가 그대로 보인다
   const dict = new Map([...mids, ...subs].map((k) => [k.code, k.label] as const))
   const label = (code: string) => kdcLabel(code, dict)
+  const parentOf = (code: string) => code.slice(0, -1)
+
+  // 분류 줄은 한 줄만 — 고른 분류에 자식이 있으면 그 자식들을, 없으면(소분류·사전 미적재) 형제들을 보여 준다.
+  // listing = 지금 줄에 펼친 부모 코드('' = 대분류). 되돌아가기 칩은 listing 의 부모로 올라간다
+  const MAIN_ROWS: KdcCode[] = KDC_MAIN.map((k) => ({ code: k.code, label: k.label, depth: 1, parentCode: null }))
+  const childrenOf = (code: string) => (code === '' ? MAIN_ROWS : code.length === 1 ? mids : code.length === 2 ? subs : [])
+  const listing = childrenOf(kdc).length > 0 ? kdc : parentOf(kdc)
+  const rows = childrenOf(listing)
+  const backTo = listing === '' ? null : parentOf(listing)
 
   const summary = [q && `“${q}”`, kdc && `#${label(kdc)}`].filter(Boolean).join(' · ')
 
@@ -149,10 +158,24 @@ export default function SearchPage() {
         {/* 검색창 — 상자 대신 밑줄 한 줄. 분류 토큰이 검색어 앞에 붙어 "검색어의 일부"로 읽힌다.
             돌아온 화면(?q= 있음)에서는 포커스를 뺏지 않는다 — 입력창으로 스크롤이 끌려가 읽던 자리를 잃는다 */}
         <div className="mt-7 flex items-center gap-2.5 border-b border-rule focus-within:border-ink">
+          {/* 분류 토큰 — "#문학 › 한국문학 › 수필". 마디를 누르면 그 단계로 올라가고, × 는 분류를 뗀다 */}
           {kdc && (
-            <button type="button" className="eo-tag is-on shrink-0" onClick={() => toggleKdc('')} aria-label={`${label(kdc)} 분류 해제`}>
-              #{label(kdc)}<span className="ml-1.5 opacity-70">×</span>
-            </button>
+            <span className="eo-tag is-on shrink-0" style={{ padding: '0 4px 0 9px' }} role="group" aria-label={`분류 ${label(kdc)}`}>
+              #
+              {kdcAncestors(kdc).map((c, i) => (
+                <span key={c} className="inline-flex items-center">
+                  {i > 0 && <span className="mx-1 opacity-60">›</span>}
+                  <button type="button" onClick={() => setKdc(c)} className="hover:underline underline-offset-4"
+                    style={{ padding: 0, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', cursor: 'pointer' }}
+                    aria-label={`${label(c)}(으)로 올라가기`}>
+                    {i === 0 ? label(c) : dict.get(c) ?? c}
+                  </button>
+                </span>
+              ))}
+              <button type="button" onClick={() => setKdc('')} className="ml-1.5 opacity-70 hover:opacity-100"
+                style={{ padding: '0 5px', border: 0, background: 'transparent', color: 'inherit', font: 'inherit', cursor: 'pointer' }}
+                aria-label="분류 해제">×</button>
+            </span>
           )}
           <input
             autoFocus={q === '' && kdc === ''}
@@ -165,39 +188,30 @@ export default function SearchPage() {
           />
         </div>
 
-        {/* 대분류 칩 — 검색어가 없어도 누르면 그 분류의 대출 많은 책이 나온다(서버 정렬 §4.1). 활성은 잉크 반전 */}
-        <div className="mt-3.5 flex flex-wrap gap-2" role="group" aria-label="분류">
-          {KDC_MAIN.map((k) => (
-            <button key={k.code} type="button" className={`eo-tag ${mainCode === k.code ? 'is-on' : ''}`}
-              aria-pressed={mainCode === k.code} onClick={() => toggleKdc(mainCode === k.code ? '' : k.code)}>
-              {k.label}
-            </button>
-          ))}
+        {/* 분류 칩 한 줄 — 처음엔 대분류 10개. 하나를 누르면 그 자리가 자식 분류로 바뀐다(검색어 없어도 대출 많은 순, §4.1).
+            맨 앞 ‹ 칩은 한 단계 위로. 지금 고른 분류가 이 줄에 있으면(소분류·자식 없음) 잉크 반전, 다시 누르면 부모로 */}
+        <div className="mt-3.5 flex flex-wrap items-center gap-2" role="group" aria-label={listing ? `${label(listing)} 하위 분류` : '분류'}>
+          {/* 되돌아가기 — 분류 칩과 같은 모양이면 "또 하나의 분류"로 읽히므로, 칩이 아니라 이동 링크(eo-link)로 두고
+              세로 규칙선으로 칩 무리와 떼어 놓는다. 글자는 돌아갈 곳(iOS back 관례) — 대분류로 가면 '전체 분류' */}
+          {backTo !== null && (
+            <>
+              <button type="button" className="eo-link shrink-0" style={{ minHeight: 28 }} onClick={() => setKdc(backTo)}
+                aria-label={`${backTo ? label(backTo) : '전체 분류'}(으)로 돌아가기`}>
+                <span aria-hidden>‹</span>{backTo ? dict.get(backTo) ?? label(backTo) : '전체 분류'}
+              </button>
+              <span aria-hidden className="shrink-0" style={{ width: 1, height: 16, background: 'var(--eo-rule-soft)' }} />
+            </>
+          )}
+          {rows.map((k) => {
+            const on = kdc === k.code
+            return (
+              <button key={k.code} type="button" className={`eo-tag ${on ? 'is-on' : ''}`}
+                aria-pressed={on} onClick={() => setKdc(on ? parentOf(k.code) : k.code)}>
+                {k.label}
+              </button>
+            )
+          })}
         </div>
-
-        {/* 중분류 — 대분류를 고르면 한 줄 더 열린다. 같은 칩을 다시 누르면 대분류로 돌아간다.
-            사전이 비어 있으면(kdc_codes 미적재) 줄 자체가 없다 — 대분류 필터는 그대로 동작한다 */}
-        {mainCode && mids.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="중분류">
-            {mids.map((k) => (
-              <button key={k.code} type="button" className={`eo-tag ${midCode === k.code ? 'is-on' : ''}`} style={{ minHeight: 24, fontSize: 10.5 }}
-                aria-pressed={midCode === k.code} onClick={() => pickChild(k.code, mainCode)}>
-                {k.label}
-              </button>
-            ))}
-          </div>
-        )}
-        {/* 소분류 — 중분류까지 고르면 한 줄 더. 서버 필터는 kdc=813 처럼 3자리 prefix */}
-        {midCode && subs.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-label="소분류">
-            {subs.map((k) => (
-              <button key={k.code} type="button" className={`eo-tag ${kdc === k.code ? 'is-on' : ''}`} style={{ minHeight: 24, fontSize: 10.5 }}
-                aria-pressed={kdc === k.code} onClick={() => pickChild(k.code, midCode)}>
-                {k.label}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* 결과 개수는 목록 위에 고정 높이로 예약 — 타이핑 중 목록이 위아래로 흔들리지 않게 */}
         <p className="eo-utility mt-4 flex min-h-[1.2em] items-baseline justify-between gap-3 tabular-nums">
@@ -265,7 +279,7 @@ export default function SearchPage() {
                 : <>&ldquo;{q}&rdquo;와 맞는 책을 찾지 못했어요. 제목 일부나 저자 이름만으로도 찾을 수 있어요.</>}
             </p>
             {kdc && q
-              ? <button className="eo-text-button" onClick={() => toggleKdc('')}>분류 없이 찾기</button>
+              ? <button className="eo-text-button" onClick={() => setKdc('')}>분류 없이 찾기</button>
               : <button className="eo-text-button" onClick={() => setInput('')}>검색어 지우기</button>}
           </div>
         )}
