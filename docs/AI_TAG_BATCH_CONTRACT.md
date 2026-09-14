@@ -50,6 +50,10 @@ GMS 실패 수, 생략 행 수(`gmsSkippedRows`), cache 적중 수(`cacheHitRows
 (`cacheWriteRows`), 적용 threshold(`ruleConfidenceThreshold`), `outputHash`,
 `sourceDataCommitted=false`를 남긴다. cache hit sidecar 레코드는 `cacheHit=true`,
 `gmsSkipReason=CACHE_HIT`로 표시한다.
+`TAG_MAX_ESTIMATED_CREDITS`를 설정하면 각 GMS 요청 전에 `TAG_ESTIMATED_CREDITS_PER_REQUEST`
+(기본 2.0)을 더해 예산을 초과하지 않도록 보호한다. 한도에 도달한 도서는 규칙 태그만 저장하고
+`gmsSkipReason=BUDGET_LIMIT`으로 표시한다. `estimatedGmsCredits`, `maxEstimatedCredits`,
+`gmsBudgetSkippedRows`로 확인할 수 있으며, 추정치는 실제 GMS 청구액과 별도로 샘플에서 검증해야 한다.
 
 ## GMS provider와 실행
 

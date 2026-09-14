@@ -111,6 +111,8 @@ TAG_API_TIMEOUT_SECONDS=30
 TAG_RULE_CONFIDENCE_THRESHOLD=0.85
 TAG_BATCH_SIZE=16
 TAG_CACHE_PATH=                         # 선택: tagVersion이 달라도 재사용할 영속 tag cache JSONL
+TAG_ESTIMATED_CREDITS_PER_REQUEST=2.0   # 예산 사전 계산용 평균 GMS 요청 비용
+TAG_MAX_ESTIMATED_CREDITS=              # 설정 시 예상 비용을 넘기기 전에 GMS 호출 중단
 ```
 
 규칙 기반 태그 중 하나라도 `TAG_RULE_CONFIDENCE_THRESHOLD` 이상이면 해당 도서의 GMS 태그 호출을 생략한다. 기본값은 `0.85`이며, GMS 결과를 항상 확인하려면 threshold를 `1.0`으로 설정한다.
@@ -118,6 +120,10 @@ GMS provider를 사용하는 tags 배치는 `TAG_BATCH_SIZE`만큼의 도서를 
 `TAG_CACHE_PATH`를 설정하면 메타데이터 hash가 일치하는 태그 결과를 재사용하므로 재실행이나
 겹치는 snapshot에서 GMS를 다시 호출하지 않는다. cache hit와 절감된 요청 수는 tags report의
 `cacheHitRows`, `gmsRequests`로 확인한다.
+`TAG_MAX_ESTIMATED_CREDITS`를 설정하면 GMS 요청 전에 예상 비용을 확인하고, 한도를 넘는
+도서는 규칙 기반 결과로 마무리한다. report의 `estimatedGmsCredits`, `maxEstimatedCredits`,
+`gmsBudgetSkippedRows`로 예산 보호 결과를 확인한다. 이 값은 실제 청구액이 아닌 사전 계획용
+추정치이므로, 작은 샘플에서 GMS 콘솔 사용량과 별도로 대조한다.
 
 기본 출력은 `ai/output/<command>.json`에, 로그는 `ai/logs/recommendation.log`에
 생성된다. `--output`으로 명령별 출력 위치를 덮어쓸 수 있다.
