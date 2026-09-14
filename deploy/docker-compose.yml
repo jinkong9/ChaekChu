@@ -116,6 +116,7 @@ services:
       AI_LOG_LEVEL: ${AI_LOG_LEVEL:-info}
       AI_MODEL_VERSION: ${AI_MODEL_VERSION:-d4l-hybrid-v1}
       AI_INDEX_VERSION: ${AI_INDEX_VERSION:-none}
+      AI_TAG_VERSION: ${AI_TAG_VERSION:-none}
       QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-books_active}
