@@ -22,8 +22,8 @@
 1. `RuleBasedTagger`가 분류·서지 필드에서 확정 가능한 태그를 결정적으로 생성한다.
 2. 규칙 태그 중 하나라도 `TAG_RULE_CONFIDENCE_THRESHOLD` 이상이면 GMS 호출을 생략하고
    규칙 결과만 사용한다. 기본 threshold는 `0.85`다.
-3. threshold 미만이거나 규칙 태그가 없는 경우에만 선택적으로 `GmsTagProvider`를 호출해
-   애매한 태그를 오프라인에서 보강한다.
+3. 대출 이력으로 판정 가능한 `TRENDING`·`STEADY`는 로컬에서 생성한다. threshold 미만이거나
+   규칙 태그가 없는 경우에만 선택적으로 `GmsTagProvider`를 호출해 애매한 태그를 오프라인에서 보강한다.
 4. GMS code가 taxonomy에 없거나 confidence가 범위를 벗어나면 버린다.
 5. 같은 code의 rule/GMS 결과는 confidence가 높은 결과를 사용하고, 동점이면 rule을 유지한다.
 6. provider 실패·rate limit은 설정된 횟수만큼 재시도하며, rule 결과는 유지한다.
@@ -39,11 +39,17 @@
 ## 재시작·통계
 
 `TagBatchRunner`는 같은 `inputHash`·`tagVersion`의 완료 레코드를 재사용하고 임시 파일을
-원자적으로 교체한다. report에는 성공·결측·저신뢰·재개 행 수, 도서별 GMS 시도 수
+원자적으로 교체한다. 선택적으로 `--cache` 또는 `TAG_CACHE_PATH`를 지정하면 정규화된 서지·대출
+메타데이터 hash를 영속 cache key로 사용한다. cache는 ISBN과 현재 sidecar의 `tagVersion`을
+key에 포함하지 않으므로, 같은 taxonomy·규칙·GMS 모델 설정의 후속 배치에서 다른 tagVersion으로도
+재사용할 수 있다. cache에 저장되는 것은 태그 결과뿐이며 GMS 실패·빈 결과는 저장하지 않는다.
+
+report에는 성공·결측·저신뢰·재개 행 수, 도서별 GMS 시도 수
 (`gmsAttempts`), 실제 HTTP 요청 수(`gmsRequests`), 다건 요청 수(`gmsBatchRequests`),
-GMS 실패 수, 생략 행 수(`gmsSkippedRows`), 적용 threshold(`ruleConfidenceThreshold`), `outputHash`,
-`sourceDataCommitted=false`를 남긴다. 동일 입력·taxonomy·tag version·threshold에서 같은
-결과를 재현할 수 있다.
+GMS 실패 수, 생략 행 수(`gmsSkippedRows`), cache 적중 수(`cacheHitRows`), cache 신규 저장 수
+(`cacheWriteRows`), 적용 threshold(`ruleConfidenceThreshold`), `outputHash`,
+`sourceDataCommitted=false`를 남긴다. cache hit sidecar 레코드는 `cacheHit=true`,
+`gmsSkipReason=CACHE_HIT`로 표시한다.
 
 ## GMS provider와 실행
 
@@ -73,6 +79,8 @@ export TAG_RULE_CONFIDENCE_THRESHOLD=0.85
 # 또는 tags 명령에 --rule-confidence-threshold 0.90 추가
 export TAG_BATCH_SIZE=16
 # 또는 tags 명령에 --batch-size 16 추가
+export TAG_CACHE_PATH=/home/ubuntu/pipeline_data/data4library/tag-cache/d4l-tags.jsonl
+# 또는 tags 명령에 --cache /home/ubuntu/pipeline_data/data4library/tag-cache/d4l-tags.jsonl 추가
 ```
 
 ```python

@@ -94,6 +94,20 @@ def test_index_command_accepts_tag_sidecar_option() -> None:
     assert arguments.tag_sidecar == Path("tags.jsonl")
 
 
+def test_tags_command_accepts_persistent_cache_option() -> None:
+    arguments = parse(
+        "tags",
+        "--input",
+        str(D4L_FIXTURE),
+        "--sidecar",
+        "tags.jsonl",
+        "--cache",
+        "tags.cache.jsonl",
+    )
+
+    assert arguments.cache == Path("tags.cache.jsonl")
+
+
 def test_tag_index_command_accepts_prototype_options() -> None:
     arguments = parse(
         "tag-index",

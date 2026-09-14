@@ -16,7 +16,7 @@ from recommendation.normalization import NormalizationError, normalized_input_ha
 from recommendation.quality import evaluate_weight_grid, load_tag_sidecar
 from recommendation.runtime import build_artifact, configure_logging, refresh_artifact_hash, set_seed, write_artifact
 from recommendation.smoke import run_smoke
-from recommendation.tag_batch import GmsTagProvider, TagBatchRunner, TagGenerator
+from recommendation.tag_batch import GmsTagProvider, TAG_CACHE_VERSION, TagBatchRunner, TagGenerator
 from recommendation.tag_index import load_validated_tag_sidecar
 from recommendation.tag_quality import TagQualityError, compare_tag_sidecars
 from recommendation.tag_prototype import (
@@ -62,6 +62,12 @@ def create_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--max-retries", type=int, default=2)
         if command == "tags":
             command_parser.add_argument("--sidecar", type=Path, required=True)
+            command_parser.add_argument(
+                "--cache",
+                type=Path,
+                default=None,
+                help="persistent tag cache JSONL path (default: TAG_CACHE_PATH when set)",
+            )
             command_parser.add_argument("--tag-version", default=None)
             command_parser.add_argument("--max-retries", type=int, default=2)
             command_parser.add_argument("--low-confidence", type=float, default=0.6)
@@ -252,6 +258,7 @@ def _run_embedding_index(arguments: argparse.Namespace, input_path: Path) -> dic
 def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
     endpoint = os.getenv("TAG_API_URL", "").strip()
     api_key = (os.getenv("TAG_API_KEY") or os.getenv("GMS_API_KEY") or "").strip()
+    tag_model = os.getenv("TAG_MODEL", "gpt-4o-mini").strip()
     provider = None
     if endpoint or api_key:
         if not endpoint or not api_key:
@@ -263,7 +270,7 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
         provider = GmsTagProvider(
             endpoint=endpoint,
             api_key=api_key,
-            model_version=os.getenv("TAG_MODEL", "gpt-4o-mini"),
+            model_version=tag_model,
             timeout_seconds=timeout,
         )
     try:
@@ -289,6 +296,11 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
     tag_version = (arguments.tag_version or os.getenv("AI_TAG_VERSION", "d4l-tags-v1")).strip()
     if not tag_version:
         raise ConfigError("tag version must not be empty")
+    cache_value = arguments.cache or os.getenv("TAG_CACHE_PATH", "").strip()
+    cache_path = Path(cache_value).expanduser().resolve() if cache_value else None
+    cache_version = os.getenv("TAG_CACHE_VERSION", f"{TAG_CACHE_VERSION}:{tag_model}").strip()
+    if not cache_version:
+        raise ConfigError("TAG_CACHE_VERSION must not be empty")
     return TagBatchRunner(
         generator=TagGenerator(
             gms_provider=provider,
@@ -298,6 +310,8 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
         ),
         tag_version=tag_version,
         batch_size=batch_size,
+        cache_path=cache_path,
+        cache_version=cache_version,
     ).run(input_path, arguments.sidecar.expanduser().resolve())
 
 

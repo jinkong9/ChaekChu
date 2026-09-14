@@ -16,6 +16,8 @@ from recommendation.normalization import normalized_input_hash
 
 TAXONOMY_VERSION = "book-taxonomy-v1"
 DEFAULT_TAG_VERSION = "d4l-tags-v1"
+TAG_CACHE_VERSION = "d4l-tag-cache-v1"
+RULE_TAGGER_VERSION = "d4l-rule-tagger-v2"
 _TOKEN_PATTERN = re.compile(r"[0-9A-Za-z가-힣]+")
 
 
@@ -314,6 +316,24 @@ class RuleBasedTagger:
             add("TIME_TRAVEL", 0.95)
         if book.pub_year and book.pub_year.isdigit() and int(book.pub_year) >= self.reference_year - 1:
             add("NEW_BOOK", 0.78)
+
+        # These tags are derived from fields already present in the D4L snapshot.
+        # Keeping them local avoids asking the LLM to infer popularity signals
+        # that are better represented by the source statistics themselves.
+        loan_counts = tuple(count for _, count, _ in book.loan_history if count > 0)
+        if len(loan_counts) >= 3:
+            latest = loan_counts[-1]
+            previous = loan_counts[:-1]
+            previous_mean = sum(previous) / len(previous)
+            if latest >= max(10, previous_mean * 1.5):
+                add("TRENDING", 0.95)
+
+        if len(loan_counts) >= 4:
+            mean = sum(loan_counts) / len(loan_counts)
+            variance = sum((count - mean) ** 2 for count in loan_counts) / len(loan_counts)
+            coefficient_of_variation = math.sqrt(variance) / mean if mean else math.inf
+            if mean >= 10 and coefficient_of_variation <= 0.35:
+                add("STEADY", 0.9)
         return tuple(assignments[code] for code in sorted(assignments))
 
 
@@ -324,6 +344,7 @@ class TagGenerationResult:
     gms_error: str | None = None
     gms_skipped: bool = False
     gms_skip_reason: str | None = None
+    cache_hit: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -499,7 +520,89 @@ def _record(
         "gmsError": result.gms_error,
         "gmsSkipped": result.gms_skipped,
         "gmsSkipReason": result.gms_skip_reason,
+        "cacheHit": result.cache_hit,
     }
+
+
+def tag_cache_key(
+    book: D4LBook,
+    *,
+    cache_version: str = TAG_CACHE_VERSION,
+    rule_confidence_threshold: float = 0.85,
+) -> str:
+    """Return a stable key for reusable tag output, excluding ISBN identity."""
+
+    source = {
+        "title": book.title,
+        "authors": book.authors,
+        "publisher": book.publisher,
+        "pub_year": book.pub_year,
+        "class_no": book.class_no,
+        "class_nm": book.class_nm,
+        "loan_total": book.loan_total,
+        "loan_history": book.loan_history,
+    }
+    payload = {
+        "cacheVersion": cache_version,
+        "ruleTaggerVersion": RULE_TAGGER_VERSION,
+        "taxonomyVersion": TAXONOMY_VERSION,
+        "ruleConfidenceThreshold": round(rule_confidence_threshold, 6),
+        "source": source,
+    }
+    return sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _parse_cached_tags(value: Any) -> tuple[TagAssignment, ...] | None:
+    if not isinstance(value, list) or not value:
+        return None
+    assignments: dict[str, TagAssignment] = {}
+    for item in value:
+        if not isinstance(item, dict):
+            return None
+        code = item.get("code")
+        label = item.get("label")
+        source = item.get("source")
+        confidence = item.get("confidence")
+        if (
+            not isinstance(code, str)
+            or not isinstance(label, str)
+            or not isinstance(source, str)
+            or not isinstance(confidence, (int, float))
+            or isinstance(confidence, bool)
+        ):
+            return None
+        if code not in TAXONOMY_BY_CODE or label != TAXONOMY_BY_CODE[code].label:
+            return None
+        try:
+            assignments[code] = TagAssignment(code, label, source, float(confidence))
+        except (TypeError, ValueError):
+            return None
+    return tuple(assignments[code] for code in sorted(assignments)) or None
+
+
+def _load_tag_cache(path: Path, *, cache_version: str, rule_confidence_threshold: float) -> dict[str, tuple[TagAssignment, ...]]:
+    if not path.is_file():
+        return {}
+    cache: dict[str, tuple[TagAssignment, ...]] = {}
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            record = json.loads(line)
+            if not isinstance(record, dict):
+                continue
+            if (
+                record.get("cacheVersion") != cache_version
+                or record.get("ruleTaggerVersion") != RULE_TAGGER_VERSION
+                or record.get("taxonomyVersion") != TAXONOMY_VERSION
+                or record.get("ruleConfidenceThreshold") != round(rule_confidence_threshold, 6)
+                or not isinstance(record.get("cacheKey"), str)
+            ):
+                continue
+            tags = _parse_cached_tags(record.get("tags"))
+            if tags is not None:
+                cache[record["cacheKey"]] = tags
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return cache
 
 
 def _load_existing(path: Path, *, input_hash: str, tag_version: str) -> dict[str, dict[str, Any]]:
@@ -538,6 +641,8 @@ class TagBatchRunner:
         generator: TagGenerator,
         tag_version: str = DEFAULT_TAG_VERSION,
         batch_size: int = 16,
+        cache_path: Path | None = None,
+        cache_version: str = TAG_CACHE_VERSION,
     ) -> None:
         if not tag_version.strip():
             raise ValueError("tag_version must not be empty")
@@ -546,49 +651,122 @@ class TagBatchRunner:
         self.generator = generator
         self.tag_version = tag_version
         self.batch_size = batch_size
+        if not cache_version.strip():
+            raise ValueError("cache_version must not be empty")
+        self.cache_path = cache_path
+        self.cache_version = cache_version
 
     def run(self, input_path: Path, output_path: Path) -> dict[str, Any]:
         input_hash = normalized_input_hash(input_path)
         existing = _load_existing(output_path, input_hash=input_hash, tag_version=self.tag_version)
+        cache = (
+            _load_tag_cache(
+                self.cache_path,
+                cache_version=self.cache_version,
+                rule_confidence_threshold=self.generator.rule_confidence_threshold,
+            )
+            if self.cache_path is not None
+            else {}
+        )
         output_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = output_path.with_name(f".{output_path.name}.tmp")
         rows = succeeded = missing = low_confidence = resumed = gms_failures = gms_attempts = 0
         gms_skipped = 0
         gms_requests = gms_batch_requests = 0
-        with temporary.open("w", encoding="utf-8", newline="\n") as output:
-            iterator = iter_d4l_jsonl(input_path)
-            while True:
-                batch = tuple(_take(iterator, self.batch_size))
-                if not batch:
-                    break
-                generated = self.generator.generate_many(
-                    [book for book in batch if book.isbn13 not in existing]
-                )
-                gms_requests += generated.gms_requests
-                gms_batch_requests += generated.gms_batch_requests
-                for book in batch:
-                    rows += 1
-                    record = existing.get(book.isbn13)
-                    if record is not None:
-                        resumed += 1
-                    else:
-                        result = generated.results[book.isbn13]
-                        gms_attempts += result.gms_attempts
-                        gms_failures += bool(result.gms_error)
-                        record = _record(
-                            book,
-                            result,
-                            input_hash=input_hash,
-                            tag_version=self.tag_version,
-                            low_confidence_threshold=self.generator.low_confidence_threshold,
+        cache_hits = cache_writes = 0
+        cache_output = None
+        if self.cache_path is not None:
+            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_output = self.cache_path.open("a", encoding="utf-8", newline="\n")
+        try:
+            with temporary.open("w", encoding="utf-8", newline="\n") as output:
+                iterator = iter_d4l_jsonl(input_path)
+                while True:
+                    batch = tuple(_take(iterator, self.batch_size))
+                    if not batch:
+                        break
+                    to_generate: list[D4LBook] = []
+                    generated_results: dict[str, TagGenerationResult] = {}
+                    for book in batch:
+                        if book.isbn13 in existing:
+                            continue
+                        cached_tags = cache.get(
+                            tag_cache_key(
+                                book,
+                                cache_version=self.cache_version,
+                                rule_confidence_threshold=self.generator.rule_confidence_threshold,
+                            )
                         )
-                    output.write(json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
-                    if record["tags"]:
-                        succeeded += 1
-                    else:
-                        missing += 1
-                    low_confidence += bool(record["lowConfidence"])
-                    gms_skipped += bool(record.get("gmsSkipped"))
+                        if cached_tags is None:
+                            to_generate.append(book)
+                            continue
+                        generated_results[book.isbn13] = TagGenerationResult(
+                            cached_tags,
+                            0,
+                            gms_skipped=True,
+                            gms_skip_reason="CACHE_HIT",
+                            cache_hit=True,
+                        )
+                        cache_hits += 1
+
+                    generated = self.generator.generate_many(to_generate)
+                    generated_results.update(generated.results)
+                    gms_requests += generated.gms_requests
+                    gms_batch_requests += generated.gms_batch_requests
+                    for book in batch:
+                        rows += 1
+                        record = existing.get(book.isbn13)
+                        if record is not None:
+                            resumed += 1
+                        else:
+                            result = generated_results[book.isbn13]
+                            gms_attempts += result.gms_attempts
+                            gms_failures += bool(result.gms_error)
+                            record = _record(
+                                book,
+                                result,
+                                input_hash=input_hash,
+                                tag_version=self.tag_version,
+                                low_confidence_threshold=self.generator.low_confidence_threshold,
+                            )
+                            if cache_output is not None and record["tags"] and not result.cache_hit:
+                                cache_key = tag_cache_key(
+                                    book,
+                                    cache_version=self.cache_version,
+                                    rule_confidence_threshold=self.generator.rule_confidence_threshold,
+                                )
+                                if cache_key not in cache:
+                                    cache_output.write(
+                                        json.dumps(
+                                            {
+                                                "cacheKey": cache_key,
+                                                "cacheVersion": self.cache_version,
+                                                "ruleTaggerVersion": RULE_TAGGER_VERSION,
+                                                "taxonomyVersion": TAXONOMY_VERSION,
+                                                "ruleConfidenceThreshold": round(
+                                                    self.generator.rule_confidence_threshold, 6
+                                                ),
+                                                "tags": record["tags"],
+                                            },
+                                            ensure_ascii=False,
+                                            sort_keys=True,
+                                            separators=(",", ":"),
+                                        )
+                                        + "\n"
+                                    )
+                                    cache_output.flush()
+                                    cache[cache_key] = tuple(result.tags)
+                                    cache_writes += 1
+                        output.write(json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+                        if record["tags"]:
+                            succeeded += 1
+                        else:
+                            missing += 1
+                        low_confidence += bool(record["lowConfidence"])
+                        gms_skipped += bool(record.get("gmsSkipped"))
+        finally:
+            if cache_output is not None:
+                cache_output.close()
         temporary.replace(output_path)
         output_hash = sha256(output_path.read_bytes()).hexdigest()
         return {
@@ -609,6 +787,10 @@ class TagBatchRunner:
             "gmsRequests": gms_requests,
             "gmsBatchRequests": gms_batch_requests,
             "batchSize": self.batch_size,
+            "cacheVersion": self.cache_version if self.cache_path is not None else None,
+            "cachePath": str(self.cache_path) if self.cache_path is not None else None,
+            "cacheHitRows": cache_hits,
+            "cacheWriteRows": cache_writes,
             "outputHash": output_hash,
             "sourceDataCommitted": False,
         }
@@ -627,4 +809,7 @@ __all__ = [
     "TagGenerationResult",
     "TagBatchGenerationResult",
     "TagGenerator",
+    "TAG_CACHE_VERSION",
+    "RULE_TAGGER_VERSION",
+    "tag_cache_key",
 ]
