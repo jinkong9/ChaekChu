@@ -262,10 +262,27 @@ class QdrantQueryVectorStore:
         return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{index_version}:{key}"))
 
     def _get_vector(self, collection: str, point_key: str) -> tuple[float, ...] | None:
+        return self._vector_from_point(self._get_point(collection, point_key))
+
+    def _vector_from_point(self, result: dict[str, Any]) -> tuple[float, ...]:
+        raw_vector = result.get("vector") if isinstance(result, dict) else None
+        if isinstance(raw_vector, dict):
+            if self.vector_name:
+                raw_vector = raw_vector.get(self.vector_name)
+            else:
+                raw_vector = next(iter(raw_vector.values()), None)
+        if not isinstance(raw_vector, (list, tuple)):
+            raise QueryVectorStoreError("Qdrant point did not contain a vector")
+        vector = tuple(float(value) for value in raw_vector)
+        if not vector or any(not math.isfinite(value) for value in vector):
+            raise QueryVectorStoreError("Qdrant point vector was not finite")
+        return vector
+
+    def _get_point(self, collection: str, point_key: str) -> dict[str, Any]:
         point_id = self._point_id(self.index_version, point_key)
         endpoint = (
             f"{self.base_url}/collections/{quote(collection, safe='')}/points/"
-            f"{quote(point_id, safe='')}?with_vector=true"
+            f"{quote(point_id, safe='')}?with_vector=true&with_payload=true"
         )
         headers = {"Content-Type": "application/json"}
         if self.api_key:
@@ -284,18 +301,9 @@ class QdrantQueryVectorStore:
         except (KeyError, TypeError, json.JSONDecodeError, UnicodeDecodeError) as error:
             raise QueryVectorStoreError("Qdrant returned an invalid query vector") from error
 
-        raw_vector = result.get("vector") if isinstance(result, dict) else None
-        if isinstance(raw_vector, dict):
-            if self.vector_name:
-                raw_vector = raw_vector.get(self.vector_name)
-            else:
-                raw_vector = next(iter(raw_vector.values()), None)
-        if not isinstance(raw_vector, (list, tuple)):
-            raise QueryVectorStoreError("Qdrant point did not contain a vector")
-        vector = tuple(float(value) for value in raw_vector)
-        if not vector or any(not math.isfinite(value) for value in vector):
-            raise QueryVectorStoreError("Qdrant point vector was not finite")
-        return vector
+        if not isinstance(result, dict):
+            raise QueryVectorStoreError("Qdrant point response was not an object")
+        return result
 
     def get_book_vector(self, isbn13: str, index_version: str) -> Sequence[float] | None:
         if index_version != self.index_version:
@@ -306,6 +314,29 @@ class QdrantQueryVectorStore:
         if index_version != self.index_version or not self.tag_collection:
             return None
         return self._get_vector(self.tag_collection, f"tag:{code}")
+
+    def get_book_dna_record(self, isbn13: str, index_version: str):
+        """Read the indexed vector and DNA payload for one seed book."""
+
+        if index_version != self.index_version:
+            return None
+        from recommendation.book_dna import BookDnaRecord
+
+        point = self._get_point(self.book_collection, isbn13)
+        payload = point.get("payload")
+        if not isinstance(payload, dict):
+            raise QueryVectorStoreError("Qdrant book point did not contain a payload")
+        vector = self._vector_from_point(point)
+        raw_tags = payload.get("tagCodes", ())
+        tag_codes = tuple(code for code in raw_tags if isinstance(code, str)) if isinstance(raw_tags, (list, tuple)) else ()
+        class_no = payload.get("class_no", payload.get("classNo"))
+        return BookDnaRecord(
+            isbn13=isbn13,
+            vector=vector,
+            tag_codes=tag_codes,
+            genre_code=payload.get("genreCode") if isinstance(payload.get("genreCode"), str) else None,
+            class_no=class_no if isinstance(class_no, str) else None,
+        )
 
 
 class CandidateSearchService:

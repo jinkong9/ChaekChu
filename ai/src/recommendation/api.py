@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import hashlib
 import math
 import os
 import re
 from typing import Any, Literal, Mapping, Protocol
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from recommendation.dedup import deduplicate_candidates, join_relation_isbns
+from recommendation.book_dna import BookDnaRecord, UserBookSeed, build_book_dna_profile
 from recommendation.fallback import RecommendationFallbackPolicy
 from recommendation.query_vector import QueryTagPreference, QueryVectorBuilder
 from recommendation.reranking import HybridWeights
@@ -209,6 +210,48 @@ class RecommendationResponse(BaseModel):
     weights: RecommendationWeights
     appliedTags: list[str]
     items: list[RecommendationItem]
+
+
+class BookDnaSeedRequest(BaseModel):
+    """User library signal used to calculate Book DNA."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    isbn13: str = Field(pattern=r"^97[89]\d{10}$")
+    status: Literal["READ", "WISH"] = "READ"
+    rating: int | None = Field(default=None, ge=1, le=5)
+    finishedDate: date | None = None
+
+
+class BookDnaProfileRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    requestId: str = Field(min_length=1, max_length=128)
+    userId: str = Field(min_length=1, max_length=128)
+    declaredTags: list[str] = Field(default_factory=list, max_length=20)
+    books: list[BookDnaSeedRequest] = Field(default_factory=list, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_declared_tags(self) -> "BookDnaProfileRequest":
+        if any(not re.fullmatch(r"^[A-Z][A-Z0-9_]{1,39}$", tag) for tag in self.declaredTags):
+            raise ValueError("declaredTags must contain canonical uppercase tag codes")
+        if len(self.declaredTags) != len(set(self.declaredTags)):
+            raise ValueError("declaredTags must not contain duplicates")
+        return self
+
+
+class BookDnaProfileResponse(BaseModel):
+    requestId: str
+    dnaVersion: str
+    modelVersion: str
+    indexVersion: str
+    tagVersion: str
+    profile: dict[str, Any]
+    unresolvedIsbns: list[str]
+
+
+class BookDnaProfileEngine(Protocol):
+    def profile(self, request: BookDnaProfileRequest) -> BookDnaProfileResponse: ...
 
 
 def _relation_map(book: D4LBookInput, isbn: str) -> dict[str, float]:
@@ -497,6 +540,55 @@ class IndexedRecommendationEngine:
         )
 
 
+class IndexedBookDnaProfileEngine:
+    """Calculate a user profile from Qdrant's precomputed book DNA records."""
+
+    def __init__(
+        self,
+        *,
+        record_store: Any,
+        index_version: str,
+        model_version: str,
+        tag_version: str,
+        dna_version: str = "book-dna-v1",
+    ) -> None:
+        self.record_store = record_store
+        self.index_version = index_version
+        self.model_version = model_version
+        self.tag_version = tag_version
+        self.dna_version = dna_version
+
+    def profile(self, request: BookDnaProfileRequest) -> BookDnaProfileResponse:
+        seeds = [
+            UserBookSeed(
+                isbn13=book.isbn13,
+                status=book.status,
+                rating=book.rating,
+                finished_date=book.finishedDate,
+            )
+            for book in request.books
+        ]
+        records: dict[str, BookDnaRecord] = {}
+        for seed in seeds:
+            if seed.isbn13 in records:
+                continue
+            record = self.record_store.get_book_dna_record(seed.isbn13, self.index_version)
+            if record is not None:
+                records[seed.isbn13] = record
+        result = build_book_dna_profile(seeds, records)
+        profile_payload = result.to_dict()
+        profile_payload.pop("unresolvedIsbns", None)
+        return BookDnaProfileResponse(
+            requestId=request.requestId,
+            dnaVersion=self.dna_version,
+            modelVersion=self.model_version,
+            indexVersion=self.index_version,
+            tagVersion=self.tag_version,
+            profile=profile_payload,
+            unresolvedIsbns=list(result.unresolved_isbns),
+        )
+
+
 def _merge_candidate_searches(
     primary: CandidateSearchResponse,
     secondary: CandidateSearchResponse | None,
@@ -654,20 +746,54 @@ def build_runtime_engine(environment: Mapping[str, str] | None = None) -> Contra
     )
 
 
+def build_book_dna_profile_engine(environment: Mapping[str, str] | None = None) -> BookDnaProfileEngine | None:
+    """Build the DNA engine from the same active Qdrant index as recommendations."""
+
+    settings = os.environ if environment is None else environment
+    index_version = _configured_index_version(settings)
+    qdrant_url = settings.get("QDRANT_URL", "").strip()
+    if index_version is None or not qdrant_url:
+        return None
+    timeout = _timeout_seconds(settings)
+    query_store = QdrantQueryVectorStore(
+        base_url=qdrant_url,
+        index_version=index_version,
+        book_collection=settings.get("QDRANT_COLLECTION", "books_active").strip() or "books_active",
+        tag_collection=settings.get("QDRANT_TAG_COLLECTION", "").strip() or None,
+        vector_name=settings.get("QDRANT_VECTOR_NAME", "").strip() or None,
+        timeout_seconds=timeout,
+        api_key=settings.get("QDRANT_API_KEY", "").strip() or None,
+    )
+    return IndexedBookDnaProfileEngine(
+        record_store=query_store,
+        index_version=index_version,
+        model_version=settings.get("AI_MODEL_VERSION", "d4l-hybrid-v1").strip() or "d4l-hybrid-v1",
+        tag_version=settings.get("AI_TAG_VERSION", "book-taxonomy-v1").strip() or "book-taxonomy-v1",
+        dna_version=settings.get("AI_DNA_VERSION", "book-dna-v1").strip() or "book-dna-v1",
+    )
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Connect the configured Qdrant runtime when the ASGI app starts."""
 
     previous = getattr(application.state, "recommendation_engine", None)
+    previous_dna = getattr(application.state, "book_dna_engine", None)
     if previous is None:
         engine = build_runtime_engine()
         if not isinstance(engine, EmptyRecommendationEngine):
             application.state.recommendation_engine = engine
+    if previous_dna is None:
+        dna_engine = build_book_dna_profile_engine()
+        if dna_engine is not None:
+            application.state.book_dna_engine = dna_engine
     try:
         yield
     finally:
         if previous is None and hasattr(application.state, "recommendation_engine"):
             application.state.__dict__.pop("recommendation_engine", None)
+        if previous_dna is None and hasattr(application.state, "book_dna_engine"):
+            application.state.__dict__.pop("book_dna_engine", None)
 
 
 app = FastAPI(title="B102 Recommendation API", version="0.4.0", lifespan=lifespan)
@@ -677,6 +803,12 @@ def configure_recommendation_engine(engine: ContractRecommendationEngine) -> Non
     """Install the production or test engine without coupling app creation to Qdrant."""
 
     app.state.recommendation_engine = engine
+
+
+def configure_book_dna_profile_engine(engine: BookDnaProfileEngine) -> None:
+    """Install a DNA engine for tests or an embedding application."""
+
+    app.state.book_dna_engine = engine
 
 
 @app.get("/health")
@@ -698,3 +830,25 @@ def create_recommendations(request: RecommendationRequest) -> RecommendationResp
         return generate_recommendations(request)
     engine = getattr(app.state, "recommendation_engine", None) or EmptyRecommendationEngine()
     return engine.recommend(request)
+
+
+@app.post("/internal/v1/dna/profile", response_model=BookDnaProfileResponse)
+def create_book_dna_profile(request: BookDnaProfileRequest) -> BookDnaProfileResponse:
+    engine = getattr(app.state, "book_dna_engine", None)
+    if engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "DNA_ENGINE_UNAVAILABLE", "requestId": request.requestId},
+        )
+    try:
+        return engine.profile(request)
+    except QueryVectorStoreTimeoutError as error:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "DNA_INDEX_TIMEOUT", "requestId": request.requestId},
+        ) from error
+    except QueryVectorStoreError as error:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "DNA_INDEX_UNAVAILABLE", "requestId": request.requestId},
+        ) from error
