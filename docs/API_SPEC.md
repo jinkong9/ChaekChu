@@ -22,7 +22,7 @@
 | 태그 | `GET /tags` | ● | (없음 — GENRES 하드코딩) | **구현(09-10)** · FE 연결 선택 |
 | 분류 | `GET /kdc` | ● | (없음 — 검색 분류 칩·드릴다운용) | **구현(09-11)** · FE 연결 |
 | | `GET /books/{bookId}` | ● | BookDetailPage · 홈 링 | **구현(09-10)** · ISBN13 도 받는다 |
-| | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 — Qdrant 적재량이 아직 1만 권(전체의 0.3%) |
+| | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 — Qdrant 적재량이 아직 10만 점(09-15, 추천 후보 44만의 23%) |
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | **구현(09-10)** · FE 연결 |
 | 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 · 09-11 부터 덱을 DB 에 저장 |
 | 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
@@ -394,7 +394,7 @@ GET /kdc?parent=8
 **PostgreSQL 은 이 API 에 관여하지 않는다.** 벡터는 Qdrant 에 있고(`books_active` 별칭, 1536차원 `text-embedding-3-small`) 적재·검색은 FastAPI 쪽이 한다.
 V2 가 만든 `book_embeddings` 표는 한 번도 쓰이지 않았고 **V4(09-11)에서 지웠다** — 08-31 운영안이 이미 「만들지 않는다」고 정해 둔 표였다.
 
-막고 있는 것은 **적재량**이다. 09-11 EC2 기준 `books_active` 에 1만 권, 카탈로그 331만 권의 0.3% 다. 지금 열면 대부분의 책에서 빈 결과가 나온다.
+막고 있는 것은 **적재량**이다. 09-15 EC2 실측 `books_active`(→ `books_b04801c5421585b8`) 에 10만 점으로, 추천 후보 440,757권의 23% 다(09-14 비용 검증용 배치분). 지금 열면 상당수 책에서 빈 결과가 나온다.
 만드는 방법 자체는 열려 있다 — AI 서비스의 `POST /internal/v1/recommendations` 에 `seedIsbns=[그 책]` 을 넣으면 그게 「이 책과 비슷한 책」이라 백엔드는 얇은 프록시면 된다.
 
 ```json
@@ -585,7 +585,7 @@ LibraryItem {
 | `metrics` 「전국 대출 순위」「누적 대출」 | 원장 `loans` · `loan_rank` | 월 갱신 |
 | `loanByAge` | 정보나루 `loan_grps` | 3.2% 만 존재 |
 | `co-loans` | 정보나루 `co_loan` | 82.9% |
-| `similar` | Qdrant `books_active`(1536d `text-embedding-3-small`) ‖ 어휘 이웃 | 09-11 기준 1만 권 적재. PG 에는 벡터를 두지 않는다(V4) |
+| `similar` | Qdrant `books_active`(1536d `text-embedding-3-small`) ‖ 어휘 이웃 | 09-15 기준 10만 점 적재(후보 44만 목표). PG 에는 벡터를 두지 않는다(V4) |
 | `popular-segments` | 정보나루 세그먼트 인기 (홈 링 빌드 스크립트의 원천) | 월 배치 |
 
 <br/>

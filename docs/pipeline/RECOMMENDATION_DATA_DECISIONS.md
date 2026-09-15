@@ -362,7 +362,7 @@ books_dedup.parquet    ISBN 단위 + 서지·KDC + lib_count          (2,953,587
 `candidates/2026-09-15/` — `d4l_usage.candidates.jsonl.gz`(정보나루 스냅샷과 같은 형식, 440,377줄 · ai/ 의 d4l-usage 계약 그대로 · **추천 배치 `--input` 용**) · `kakao_enriched.candidates.jsonl.gz`(440,757줄) · `candidates.csv`(L1 1,047,435 전부 — layer CORE/NEW/TAIL, include=추천 후보, 제외 사유) · `manifest.json`. EC2 `~/pipeline_data/candidates/2026-09-15/` 동일(SHA256).
 
 ### 추천 서비스가 실제로 읽는 것 (09-15 파악)
-`ai/` 는 요청 시 **Qdrant `books_active` 만** 읽고(seed 벡터·후보 검색·payload 의 함께대출·대출 이력), PostgreSQL·ES 는 읽지 않는다. 배치는 `d4l_usage.jsonl.gz` + 태그 사이드카를 읽어 GMS 경유 `text-embedding-3-small`(1536d, 서지 6필드) 로 임베딩해 Qdrant 에 넣는다(현재 1만 점). 후보 게이트는 배치 입력 파일이 유일하다 → `--input` 을 위 파일로 바꾸면 Qdrant 후보가 44만으로 맞춰진다(입력 해시가 바뀌므로 태그 사이드카 재생성 필요). 백엔드는 seed·태그 없으면 PG `book_loaned_top20` 콜드스타트, AI 응답 ISBN 은 PG `books` 로 조회해 없으면 조용히 뺀다. 어긋남: 임베딩 모델·입력이 결정 5(e5-large + STRUCT, 소개 둘)와 다르다 · 수요 폴백이 운영 빌드에서 비활성 · compose 기본 `AI_INDEX_VERSION: none` 이면 빈 엔진.
+`ai/` 는 요청 시 **Qdrant `books_active` 만** 읽고(seed 벡터·후보 검색·payload 의 함께대출·대출 이력), PostgreSQL·ES 는 읽지 않는다. 배치는 `d4l_usage.jsonl.gz` + 태그 사이드카를 읽어 GMS 경유 `text-embedding-3-small`(1536d, 서지 6필드) 로 임베딩해 Qdrant 에 넣는다. **09-15 실측: `books_active` → `books_b04801c5421585b8` 10만 점** (`AI_INDEX_VERSION=d4l-small-cost-validate-100000-20260914-034256` — 추천 담당이 09-14 에 올린 비용 검증분. 컬렉션은 `books_*`·`tags_*` 각 4벌이 남아 있다). 즉 지금 추천이 도는 후보는 이 10만 점이고, 아래 후보 44만은 배치를 한 번 더 돌려야 반영된다. 후보 게이트는 배치 입력 파일이 유일하다 → `--input` 을 위 파일로 바꾸면 Qdrant 후보가 44만으로 맞춰진다(입력 해시가 바뀌므로 태그 사이드카 재생성 필요). 백엔드는 seed·태그 없으면 PG `book_loaned_top20` 콜드스타트, AI 응답 ISBN 은 PG `books` 로 조회해 없으면 조용히 뺀다. 어긋남: 임베딩 모델·입력이 결정 5(e5-large + STRUCT, 소개 둘)와 다르다 · 수요 폴백이 운영 빌드에서 비활성 · compose 기본 `AI_INDEX_VERSION: none` 이면 빈 엔진.
 
 <br/>
 
