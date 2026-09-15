@@ -97,6 +97,7 @@ src/main/java/com/ssafy/b102/
   book/controller/BookDetailController   # GET /books/{bookId} · /{bookId}/co-loans (§4.4·§4.6). 경로 변수는 \d+ — /search·/popular 와 안 겹친다
   book/service/BookDetailService.java    # id 또는 ISBN13 조회 · metrics 문자열 조립 · my(본인 서재) 조인
   book/service/BookIdentifiers.java      # 「13자리 978/979 면 ISBN13, 아니면 내부 id」 판별 한 곳. 상세와 이벤트가 같은 값을 받는다
+  book/service/WorkKey.java              # 「정규화 제목 + 대표 저자」 = 같은 작품 판별. 비슷한 책에서 다른 판본을 접는다(§4.5)
   book/service/BookDemandRankResolver    # 기준월 경계값 5개(1·3·5·10·25%) 캐시 → "상위 N%". 275만 행 등수 세기를 대체
   book/repository/BookDetailRepository   # book_demand_features · book_relations 조회(JdbcClient)
   user/controller/TagController.java     # GET /tags — 태그 사전(§10-0). 프론트 GENRES 하드코딩의 원천

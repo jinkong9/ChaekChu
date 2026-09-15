@@ -572,6 +572,18 @@
   margin-top: 22px;
 }
 
+/* 스켈레톤의 제목·저자 줄 — 실제 타일의 두 줄과 같은 높이를 차지해 결과가 와도 화면이 안 튄다 */
+.bd-tile__line {
+  display: block;
+  height: 10px;
+  margin-top: 8px;
+}
+
+.bd-tile__line--short {
+  width: 62%;
+  margin-top: 5px;
+}
+
 .bd-list__empty {
   margin-top: 20px;
   color: var(--eo-ink-faint);

@@ -65,6 +65,23 @@ function Barcode({ isbn13 }: { isbn13: string | null }) {
   )
 }
 
+/** 불러오는 동안 타일 자리를 지킨다 — 비었다는 문구를 먼저 보여주면 「없다」로 읽힌다.
+ *  유사도 계산이 AI 왕복이라 1초 안팎 걸리는데, 그 사이 「임베딩이 붙으면 채워집니다」가 떴다가
+ *  결과가 와서 바뀌면 화면이 두 번 말을 바꾸는 셈이다. */
+function TileSkeletons() {
+  return (
+    <div className="bd-list" aria-hidden="true">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="eo-tile">
+          <span className="eo-cover eo-skeleton" />
+          <span className="bd-tile__line eo-skeleton" />
+          <span className="bd-tile__line bd-tile__line--short eo-skeleton" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** 표지 넷 — 홈 타일과 같은 리듬(순위 없이 표지·제목·저자) */
 function BookTiles({ items }: { items: BookSummary[] }) {
   return (
@@ -298,24 +315,28 @@ export default function CardSpreadPage() {
               : <p className="bd-list__empty">이 책의 연령대별 대출 기록이 아직 없습니다.</p>}
           </section>
 
-          <section>
+          <section aria-busy={similar.isPending}>
             <div className="bd-block__head">
               <h2 className="eo-title">비슷한 책</h2>
               <span>소개 임베딩</span>
             </div>
-            {similar.data?.length
-              ? <BookTiles items={similar.data} />
-              : <p className="bd-list__empty">소개 임베딩 색인이 붙으면 이 자리가 채워집니다.</p>}
+            {similar.isPending
+              ? <TileSkeletons />
+              : similar.data?.length
+                ? <BookTiles items={similar.data} />
+                : <p className="bd-list__empty">이 책과 닮은 책을 아직 찾지 못했어요. 소개 임베딩 색인이 넓어지면 채워집니다.</p>}
           </section>
 
-          <section>
+          <section aria-busy={coLoans.isPending}>
             <div className="bd-block__head">
               <h2 className="eo-title">함께 대출된 책</h2>
               <span>정보나루</span>
             </div>
-            {coLoans.data?.length
-              ? <BookTiles items={coLoans.data} />
-              : <p className="bd-list__empty">정보나루 함께 대출 데이터가 붙으면 이 자리가 채워집니다.</p>}
+            {coLoans.isPending
+              ? <TileSkeletons />
+              : coLoans.data?.length
+                ? <BookTiles items={coLoans.data} />
+                : <p className="bd-list__empty">이 책과 함께 빌린 기록이 아직 없어요.</p>}
           </section>
         </div>
       </div>

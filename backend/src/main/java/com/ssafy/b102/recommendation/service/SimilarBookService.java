@@ -1,9 +1,11 @@
 package com.ssafy.b102.recommendation.service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -18,6 +20,7 @@ import com.ssafy.b102.book.dto.SimilarBookResponse;
 import com.ssafy.b102.book.entity.Book;
 import com.ssafy.b102.book.repository.BookRepository;
 import com.ssafy.b102.book.service.BookIdentifiers;
+import com.ssafy.b102.book.service.WorkKey;
 import com.ssafy.b102.global.error.BusinessException;
 import com.ssafy.b102.global.error.ErrorCode;
 import com.ssafy.b102.recommendation.client.AiRecommendationClient;
@@ -41,6 +44,8 @@ public class SimilarBookService {
 	public static final int DEFAULT_SIZE = 8;
 	/** AI 계약이 size 를 1~10 으로 막는다(api.py RecommendationRequest.size). 넘겨 보내면 422 라 여기서 같은 값으로 제한한다. */
 	public static final int MAX_SIZE = 10;
+	/** 같은 작품을 접고 나면 줄어드니 넉넉히 받는다. 상한은 어차피 MAX_SIZE 라 요청 비용이 더 들지 않는다. */
+	private static final int OVERFETCH = 2;
 
 	/**
 	 * 의미 유사도만 쓴다. 「비슷한 책」은 말 그대로 닮은 책이어야 하는데, trending·steady 에 가중치를 주면
@@ -74,7 +79,7 @@ public class SimilarBookService {
 		}
 
 		AiRecommendationRequest request = new AiRecommendationRequest(
-			"similar-" + UUID.randomUUID(), "0", "PERSONALIZED", Math.min(size, MAX_SIZE),
+			"similar-" + UUID.randomUUID(), "0", "PERSONALIZED", Math.min(size * OVERFETCH, MAX_SIZE),
 			List.of(isbn13), List.of(), List.of(), SEMANTIC_ONLY);
 		AiRecommendationResponse ai = aiClient.recommend(request);
 
@@ -85,15 +90,22 @@ public class SimilarBookService {
 			return SimilarBookResponse.empty();
 		}
 
-		List<SimilarBookResponse.Item> items = itemsOf(ai);
+		List<SimilarBookResponse.Item> items = itemsOf(ai, book, size);
 		if (items.isEmpty()) {
 			return SimilarBookResponse.empty();
 		}
 		return new SimilarBookResponse(items, ai.modelVersion(), ai.indexVersion());
 	}
 
-	/** AI 가 준 ISBN 순서를 지키면서 카탈로그 서지를 붙인다. 카탈로그에 없는 ISBN 은 빠진다. */
-	private List<SimilarBookResponse.Item> itemsOf(AiRecommendationResponse ai) {
+	/**
+	 * AI 가 준 ISBN 순서를 지키면서 카탈로그 서지를 붙인다. 카탈로그에 없는 ISBN 은 빠진다.
+	 *
+	 * 그러면서 <b>같은 작품을 접는다</b>(§4.5) — 카탈로그는 ISBN 하나가 한 행이라 같은 책의 다른 판본·다른 출판사가
+	 * 전부 별개 행이고, 판본끼리는 임베딩이 거의 같아 이웃 상위에 나란히 올라온다. 두 가지를 버린다:
+	 * 기준 책과 같은 작품(다른 판본), 그리고 이미 담은 작품의 또 다른 판본.
+	 * AI 의 work_penalty(15점 감점)는 점수 차가 크면 뚫리므로 여기서 확실히 끊는다.
+	 */
+	private List<SimilarBookResponse.Item> itemsOf(AiRecommendationResponse ai, Book seed, int size) {
 		List<String> isbns = ai.items().stream()
 			.map(AiRecommendationResponse.Item::isbn13)
 			.filter(isbn -> isbn != null && !isbn.isBlank())
@@ -107,10 +119,16 @@ public class SimilarBookService {
 			.collect(Collectors.toMap(b -> b.getIsbn13().strip(), Function.identity(),
 				(first, ignored) -> first, LinkedHashMap::new));
 
-		List<SimilarBookResponse.Item> items = new ArrayList<>(isbns.size());
+		Set<String> seenWorks = new HashSet<>();
+		seenWorks.add(WorkKey.of(seed));   // 기준 책의 다른 판본이 「비슷한 책」에 끼지 않게
+
+		List<SimilarBookResponse.Item> items = new ArrayList<>(size);
 		for (AiRecommendationResponse.Item item : ai.items()) {
+			if (items.size() >= size) {
+				break;
+			}
 			Book book = books.get(item.isbn13() == null ? "" : item.isbn13().strip());
-			if (book == null) {
+			if (book == null || !seenWorks.add(WorkKey.of(book))) {
 				continue;
 			}
 			items.add(new SimilarBookResponse.Item(
