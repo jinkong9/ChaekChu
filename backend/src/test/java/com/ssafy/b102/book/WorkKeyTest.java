@@ -34,10 +34,27 @@ class WorkKeyTest {
 	}
 
 	@Test
-	@DisplayName("시리즈는 뭉개지 않는다 — 부제(:)로 자르지 않는 이유")
-	void seriesStaysSeparate() {
+	@DisplayName("시리즈는 뭉개지 않는다 — 부제(:)로 자르지 않는다")
+	void seriesStaysSeparateBySubtitle() {
 		assertThat(WorkKey.of("해리 포터: 마법사의 돌", "조앤 K. 롤링", "9790000000006"))
 			.isNotEqualTo(WorkKey.of("해리 포터: 비밀의 방", "조앤 K. 롤링", "9790000000007"));
+	}
+
+	@Test
+	@DisplayName("권차·시즌이 병기 제목(=) 뒤에 있어도 갈라진다 — 실측 7,747 묶음이 여기서 뭉쳤다")
+	void seasonsStaySeparate() {
+		assertThat(WorkKey.of("치즈 인 더 트랩=Cheese in the trap:Season 1", "순끼", "9790000000012"))
+			.isNotEqualTo(WorkKey.of("치즈 인 더 트랩=Cheese in the trap:Season 4", "순끼", "9790000000013"));
+		assertThat(WorkKey.of("미생", "윤태호", "9790000000014"))
+			.isNotEqualTo(WorkKey.of("미생=未生:아직 살아 있지 못한 자:시즌 2", "윤태호", "9790000000015"));
+	}
+
+	@Test
+	@DisplayName("괄호 안 연도·판차는 작품을 가르지 않는다 — 개정판이 원본과 합쳐져야 한다")
+	void parentheticalNumbersIgnored() {
+		String base = WorkKey.of("작별하지 않는다", "한강", "9790000000016");
+		assertThat(WorkKey.of("(2024년 개정판)작별하지 않는다", "한강", "9790000000017")).isEqualTo(base);
+		assertThat(WorkKey.of("(200쇄 기념본)작별하지 않는다", "한강", "9790000000018")).isEqualTo(base);
 	}
 
 	@Test
