@@ -22,7 +22,7 @@
 | 태그 | `GET /tags` | ● | (없음 — GENRES 하드코딩) | **구현(09-10)** · FE 연결 선택 |
 | 분류 | `GET /kdc` | ● | (없음 — 검색 분류 칩·드릴다운용) | **구현(09-11)** · FE 연결 |
 | | `GET /books/{bookId}` | ● | BookDetailPage · 홈 링 | **구현(09-10)** · ISBN13 도 받는다 |
-| | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 — Qdrant 적재량이 아직 1만 권(전체의 0.3%) |
+| | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 — Qdrant 적재량이 아직 10만 점(09-15, 추천 후보 44만의 23%) |
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | **구현(09-10)** · FE 연결 |
 | 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 · 09-11 부터 덱을 DB 에 저장 |
 | 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
@@ -287,6 +287,7 @@ BOOK DNA 화면(`features/dna`)의 공개 API. 서재의 **READ 항목**은 표�
 - 형태소 분석은 조사·어미만 떼고 부사·관형사는 남긴다(`지금 추천` → 지금, 추천). 한자는 독음으로 바꾸지 않아 중국어·일본어 도서가 한국어 검색어에 섞이지 않는다(매핑 v2, 2026-09-09).
 - **표지 없는 책은 점수 × 0.7** (매핑 v3, 2026-09-11 · `app.search.no-cover-weight`, 1 이면 끔). 후보를 빼지 않고 순서만 바꾼다 — 같은 작품의 판본 사이에서 표지 있는 쪽이 먼저 오고, 관련도가 훨씬 높은 책이 표지가 없다고 무관한 책 아래로 내려가지는 않는다(완전일치 ×10 유지). 판본 접기(작품 단위 중복 제거)는 하지 않는다.
 - `items[]` 의 `category` 는 `kdc_codes`(V2) 로 만든 2단계 경로 `"문학 > 한국문학"`(대·중분류 라벨이 같으면 `"문학"` 하나). 사전을 못 읽으면 대분류 1단계로 폴백. `pageCount` 는 `null`(키는 있다) — `books` 에 컬럼이 없다.
+- **색인 범위(v5, 09-15)**: `books` 전 행이 아니라 `books.catalog_layer` 가 있는 **L1 1,047,435권**(누적 대출 72+ ∪ 신간)만 색인한다. L0 만 구간 226만 권(93% 가 소개·표지 없음)은 검색 결과에 나오지 않는다. ISBN 정확 조회·상세·찜은 `books` 전체가 대상이라 영향 없다. 추천 후보(`is_candidate`, 440,757권 = 누적 843+ ∪ 신간 − 전자책·교과서·학습참고서·신호 없음)는 검색보다 좁은 별개 집합이다. 규칙·건수는 `database/_pipeline/scripts/build_candidates.py` · `candidates/<날짜>/manifest.json`.
 - **분류 필터**는 ES `bool.filter` 의 `prefix: { categoryCode }` 한 절이다(이미 keyword 라 재색인 없이 붙었다). `kdc` 가 1~3자리 숫자가 아니면 `400 VALIDATION_FAILED` · `details.fields[{ field: "kdc" }]`.
 - **`kdc` 만 보낼 때의 대출순**은 매핑 v4 의 `loanCum` — 색인할 때 `book_demand_features` 최신 스냅샷(`2026-08`)의 `loan_cum` 을 LEFT JOIN 해 넣는다. 수요 지표가 없는 책(약 57만 권)은 `null` 이고 정렬에서 뒤로 간다. 스냅샷이 더 늘지 않는 전제라 월 배치·증분 갱신 경로는 두지 않았다(추가되면 전체 재색인).
 - 정렬에 `unmapped_type` 을 주므로 v4 재색인 중 alias 가 아직 v3 를 가리켜도 `500` 이 아니라 「전부 값 없음」으로 동작한다 — 그 15분 동안 대출순만 정확하지 않고 검색은 살아 있다.
@@ -393,7 +394,7 @@ GET /kdc?parent=8
 **PostgreSQL 은 이 API 에 관여하지 않는다.** 벡터는 Qdrant 에 있고(`books_active` 별칭, 1536차원 `text-embedding-3-small`) 적재·검색은 FastAPI 쪽이 한다.
 V2 가 만든 `book_embeddings` 표는 한 번도 쓰이지 않았고 **V4(09-11)에서 지웠다** — 08-31 운영안이 이미 「만들지 않는다」고 정해 둔 표였다.
 
-막고 있는 것은 **적재량**이다. 09-11 EC2 기준 `books_active` 에 1만 권, 카탈로그 331만 권의 0.3% 다. 지금 열면 대부분의 책에서 빈 결과가 나온다.
+막고 있는 것은 **적재량**이다. 09-15 EC2 실측 `books_active`(→ `books_b04801c5421585b8`) 에 10만 점으로, 추천 후보 440,757권의 23% 다(09-14 비용 검증용 배치분). 지금 열면 상당수 책에서 빈 결과가 나온다.
 만드는 방법 자체는 열려 있다 — AI 서비스의 `POST /internal/v1/recommendations` 에 `seedIsbns=[그 책]` 을 넣으면 그게 「이 책과 비슷한 책」이라 백엔드는 얇은 프록시면 된다.
 
 ```json
@@ -584,7 +585,7 @@ LibraryItem {
 | `metrics` 「전국 대출 순위」「누적 대출」 | 원장 `loans` · `loan_rank` | 월 갱신 |
 | `loanByAge` | 정보나루 `loan_grps` | 3.2% 만 존재 |
 | `co-loans` | 정보나루 `co_loan` | 82.9% |
-| `similar` | Qdrant `books_active`(1536d `text-embedding-3-small`) ‖ 어휘 이웃 | 09-11 기준 1만 권 적재. PG 에는 벡터를 두지 않는다(V4) |
+| `similar` | Qdrant `books_active`(1536d `text-embedding-3-small`) ‖ 어휘 이웃 | 09-15 기준 10만 점 적재(후보 44만 목표). PG 에는 벡터를 두지 않는다(V4) |
 | `popular-segments` | 정보나루 세그먼트 인기 (홈 링 빌드 스크립트의 원천) | 월 배치 |
 
 <br/>
