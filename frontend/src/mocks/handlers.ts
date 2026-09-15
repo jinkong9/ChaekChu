@@ -394,17 +394,28 @@ export const handlers = [
     })
   }),
 
-  /** 시안용 — 비슷한 책(소개 임베딩) · 함께 대출된 책(정보나루). 둘 다 계약에 없는 임시 경로다.
+  /** 비슷한 책(§4.5) · 함께 대출된 책(§4.6).
    *  무작위를 쓰지 않는다: 같은 책을 새로 열어도 같은 목록이 나와야 시안을 비교할 수 있다. */
-  http.get('*/books/:id/similar', ({ params }) => {
+  http.get('*/books/:id/similar', ({ params, request }) => {
     const self = CATALOG.find((bk) => bk.bookId === Number(params.id)) ?? CATALOG[0]
+    const size = Number(new URL(request.url).searchParams.get('size') ?? 8)
     // 같은 저자 → 같은 분류 → 나머지 순
     const rank = (bk: BookSummary) =>
       (bk.author === self.author ? 0 : 2) + (CATEGORY[bk.bookId] === CATEGORY[self.bookId] ? 0 : 1)
+    // 서버 모양(§4.5): {book, reason, score} + 모델·색인 버전
     const items = CATALOG.filter((bk) => bk.bookId !== self.bookId)
       .sort((a, z) => rank(a) - rank(z) || a.bookId - z.bookId)
-      .slice(0, 4).map(withCategory)
-    return HttpResponse.json({ items })
+      .slice(0, size)
+      .map((bk, i) => ({
+        book: toServerBook(withCategory(bk)),
+        reason: '관심 도서와 서지·분류 특성이 비슷한 책이에요.',
+        score: Number((60 - i * 4).toFixed(1)),
+      }))
+    return HttpResponse.json({
+      items,
+      modelVersion: 'mock-embedding-v1',
+      indexVersion: 'mock-index-v1',
+    })
   }),
   http.get('*/books/:id/co-loans', ({ params }) => {
     const self = Number(params.id)

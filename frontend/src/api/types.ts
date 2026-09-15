@@ -44,6 +44,15 @@ export interface CoLoansResponse {
   asOf: string | null
 }
 
+/** GET /books/{id}/similar (§4.5) — 소개 임베딩 이웃. 화면은 book 만 그린다.
+ *  임베딩이 아직 없는 책이 많아 items:[] 가 정상 응답이다. 그때 modelVersion·indexVersion 도 null 이라
+ *  「아직 준비 안 됨」과 「이웃 없음」을 구분할 필요 없이 섹션을 숨기면 된다. */
+export interface SimilarResponse {
+  items: { book: ServerBookSummary; reason: string; score: number }[]
+  modelVersion: string | null
+  indexVersion: string | null
+}
+
 /** 최종 추천 랭킹에 사용하는 요인. 태그는 taste 점수를 만드는 책 단위 재료다. */
 export type FeatureKey = 'taste' | 'coLoan' | 'trending' | 'steady' | 'newField'
 

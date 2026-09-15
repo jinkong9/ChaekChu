@@ -22,7 +22,7 @@
 | 태그 | `GET /tags` | ● | (없음 — GENRES 하드코딩) | **구현(09-10)** · FE 연결 선택 |
 | 분류 | `GET /kdc` | ● | (없음 — 검색 분류 칩·드릴다운용) | **구현(09-11)** · FE 연결 |
 | | `GET /books/{bookId}` | ● | BookDetailPage · 홈 링 | **구현(09-10)** · ISBN13 도 받는다 |
-| | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 스켈레톤 | 2차 — Qdrant 적재량이 아직 10만 점(09-15, 추천 후보 44만의 23%) |
+| | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 | **구현(09-15)** · 적재 23% 라 빈 배열이 잦다 |
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | **구현(09-10)** · FE 연결 |
 | 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 · 09-11 부터 덱을 DB 에 저장 |
 | 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
@@ -387,19 +387,34 @@ GET /kdc?parent=8
   A안 상세의 「이 책을 빌린 사람들」 막대그래프와 목차 섹션은 **데이터가 오지 않는다** — 화면에서 빼거나 키워드·소장 도서관 수로 대체해야 한다.
 - `my` 는 **본인 서재 항목**. 프론트 타입은 `myLibraryStatus`/`myRating`/`myReviewText` 세 필드인데 `libraryItemId` 가 없어 상세에서 편집을 못 해 서재로 보낸다. `my` 객체로 묶고 `libraryItemId` 를 넣는다 — §9-5. 비로그인·타인 것은 절대 노출하지 않는다(계약 §6.2).
 
-### 4.5 `GET /books/{bookId}/similar?size=` ● (2차 — Qdrant 적재량 부족으로 아직 만들지 않음)
+### 4.5 `GET /books/{bookId}/similar?size=` ● (09-15 구현)
 
-「비슷한 책」. 임베딩 연구 결론(`docs/pipeline/EMBEDDING_STUDY_REPORT.md` §0·§8)대로 **어휘 이웃 ‖ 밀집 이웃 역순위 융합**, 같은 작품(`set_isbn`·제목+저자) 묶어 1권만. `size` 기본 8, 최대 20.
-
-**PostgreSQL 은 이 API 에 관여하지 않는다.** 벡터는 Qdrant 에 있고(`books_active` 별칭, 1536차원 `text-embedding-3-small`) 적재·검색은 FastAPI 쪽이 한다.
-V2 가 만든 `book_embeddings` 표는 한 번도 쓰이지 않았고 **V4(09-11)에서 지웠다** — 08-31 운영안이 이미 「만들지 않는다」고 정해 둔 표였다.
-
-막고 있는 것은 **적재량**이다. 09-15 EC2 실측 `books_active`(→ `books_b04801c5421585b8`) 에 10만 점으로, 추천 후보 440,757권의 23% 다(09-14 비용 검증용 배치분). 지금 열면 상당수 책에서 빈 결과가 나온다.
-만드는 방법 자체는 열려 있다 — AI 서비스의 `POST /internal/v1/recommendations` 에 `seedIsbns=[그 책]` 을 넣으면 그게 「이 책과 비슷한 책」이라 백엔드는 얇은 프록시면 된다.
+「비슷한 책」. 기준 책의 소개 임베딩과 가까운 책을 유사도 내림차순으로 준다. 기준 책 자신은 빠진다.
+`size` 기본 8, **최대 10** — AI 계약(`RecommendationRequest.size`)이 1~10 으로 막는다. 초안의 「최대 20」을 실제 상한으로 정정했다(09-15).
 
 ```json
-{ "items": [ { "book": BookSummary, "reason": "같은 작가 · #성장", "score": 0.83 }, … ] }
+{ "items": [ { "book": BookSummary, "reason": "관심 도서와 서지·분류 특성이 비슷한 책이에요.", "score": 57.8 } ],
+  "modelVersion": "gms-text-embedding-3-small-20260909-1000",
+  "indexVersion": "d4l-small-cost-validate-100000-20260914-034256" }
 ```
+
+**구현은 얇은 프록시다.** AI 의 `POST /internal/v1/recommendations` 에 **이 책 한 권만 `seedIsbns`** 로 넣는다.
+태그가 없으면 질의 벡터의 가중 평균 원소가 하나뿐이라 결과가 곧 그 책의 벡터이고, 그걸로 Qdrant 이웃을 찾는 것이 「비슷한 책」이다.
+기준 책 제외는 AI 가 두 곳에서 한다(`hard_excluded_isbns` · 폴백 필터). PostgreSQL 은 서지를 붙이는 데만 쓴다 — 벡터는 Qdrant 에 있다(V4 에서 `book_embeddings` 제거).
+
+`weights` 는 **의미 유사도만 1, 나머지 0** 으로 보낸다. `trending`·`steady` 에 가중치를 주면 덜 닮았지만 많이 빌린 책이 위로 올라와 「비슷한 책」이라는 이름과 어긋난다.
+AI 는 가중치 0 인 feature 를 분모에서 빼므로 최종 점수가 곧 의미 유사도가 된다(합이 1 일 필요는 없고 비율만 의미가 있다).
+
+**빈 배열이 정상 응답이다.** 09-15 기준 `books_active` 에 10만 점으로 추천 후보 440,757권의 23% 라 상당수 책에서 `items: []` 가 나온다. 적재가 늘면 같은 요청이 저절로 채워진다.
+
+| 빈 배열이 되는 상황 | 처리 |
+| --- | --- |
+| 기준 책의 벡터가 아직 없다 | AI 가 수요 인기 도서로 대체해 `fallback: true` 를 준다. 그대로 내보내면 「비슷한 책」 자리에 무관한 베스트셀러가 뜨므로 **버리고 빈 배열** |
+| 기준 책에 ISBN13 이 없다 | AI 계약이 `^97[89]\d{10}$` 를 강제한다. **부르지 않고** 빈 배열(지금 `books` CHECK 상 발생하지 않지만 방어) |
+| 이웃 ISBN 이 카탈로그에 없다 | 그 항목만 빠진다. 전부 빠지면 빈 배열 |
+
+빈 배열일 때 `modelVersion`·`indexVersion` 도 `null` 이다 — 프론트는 「아직 준비되지 않았다」와 「정말 이웃이 없다」를 구분할 필요 없이 섹션을 숨기면 된다.
+AI 에 닿지 못하면 `503 RECOMMENDATION_UNAVAILABLE` 이다. 상세 화면의 다른 영역은 별도 요청이라 그대로 뜬다.
 
 ### 4.6 `GET /books/{bookId}/co-loans?size=` ● (09-10 구현)
 
@@ -585,7 +600,7 @@ LibraryItem {
 | `metrics` 「전국 대출 순위」「누적 대출」 | 원장 `loans` · `loan_rank` | 월 갱신 |
 | `loanByAge` | 정보나루 `loan_grps` | 3.2% 만 존재 |
 | `co-loans` | 정보나루 `co_loan` | 82.9% |
-| `similar` | Qdrant `books_active`(1536d `text-embedding-3-small`) ‖ 어휘 이웃 | 09-15 기준 10만 점 적재(후보 44만 목표). PG 에는 벡터를 두지 않는다(V4) |
+| `similar` | Qdrant `books_active`(1536d `text-embedding-3-small`) | 09-15 기준 10만 점 적재(후보 44만 목표). PG 에는 벡터를 두지 않는다(V4) |
 | `popular-segments` | 정보나루 세그먼트 인기 (홈 링 빌드 스크립트의 원천) | 월 배치 |
 
 <br/>
