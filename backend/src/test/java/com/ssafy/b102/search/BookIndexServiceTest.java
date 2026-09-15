@@ -104,6 +104,26 @@ class BookIndexServiceTest {
 	}
 
 	@Test
+	@DisplayName("is_candidate 가 아닌 책(L0 만 · 제외 사유 있음)은 indexAll·증분·sourceCount 모두에서 빠진다 (V5)")
+	void non_candidates_are_not_indexed() {
+		Long metaOnly = insertBook(uniqueIsbn(4), "어느 지역 향토지", "편찬위원회", "시청", 1998, "911", Instant.now(), false);
+		jdbc.update("update books set catalog_layer = 'CORE', candidate_exclusion = 'STUDY_AID' where id = ?", oldBook);   // 모집단이지만 제외
+		jdbc.update("update books set is_candidate = false where id = ?", oldBook);
+		long candidates = jdbc.queryForObject("select count(*) from books where is_candidate", Long.class);
+
+		IndexReport report = indexService.indexAll();
+		assertThat(report.failed()).isZero();
+		assertThat(indexService.sourceCount()).isEqualTo(candidates);                        // 완전성 검사 기준도 후보 수
+		assertThat(get(freshBook)).isNotNull();
+		assertThat(operations.get(String.valueOf(metaOnly), BookDocument.class, IndexCoordinates.of(props.alias()))).isNull();
+		assertThat(operations.get(String.valueOf(oldBook), BookDocument.class, IndexCoordinates.of(props.alias()))).isNull();
+
+		IndexReport incremental = indexService.indexUpdatedSince(Instant.now().minus(1, ChronoUnit.DAYS));
+		assertThat(incremental.failed()).isZero();
+		assertThat(operations.get(String.valueOf(metaOnly), BookDocument.class, IndexCoordinates.of(props.alias()))).isNull();
+	}
+
+	@Test
 	@DisplayName("indexUpdatedSince: updated_at 이 기준 이후인 책만 색인한다")
 	void indexUpdatedSince_only_recent_rows() {
 		IndexReport report = indexService.indexUpdatedSince(Instant.now().minus(1, ChronoUnit.DAYS));
@@ -159,10 +179,18 @@ class BookIndexServiceTest {
 		return operations.get(String.valueOf(id), BookDocument.class, IndexCoordinates.of(props.alias()));
 	}
 
+	/** 색인 대상(is_candidate=true, catalog_layer CORE)으로 넣는다 — V5 부터 색인기는 후보만 읽는다. */
 	private Long insertBook(String isbn13, String title, String author, String publisher, Integer pubYear, String kdc, Instant updatedAt) {
+		return insertBook(isbn13, title, author, publisher, pubYear, kdc, updatedAt, true);
+	}
+
+	private Long insertBook(String isbn13, String title, String author, String publisher, Integer pubYear, String kdc, Instant updatedAt,
+		boolean candidate) {
 		Long id = jdbc.queryForObject(
-			"insert into books(isbn13, title, author, publisher, pub_year, category_code, updated_at) values (?, ?, ?, ?, ?, ?, ?) returning id",
-			Long.class, isbn13, title, author, publisher, pubYear, kdc, java.sql.Timestamp.from(updatedAt));
+			"insert into books(isbn13, title, author, publisher, pub_year, category_code, updated_at, catalog_layer, is_candidate) "
+				+ "values (?, ?, ?, ?, ?, ?, ?, ?, ?) returning id",
+			Long.class, isbn13, title, author, publisher, pubYear, kdc, java.sql.Timestamp.from(updatedAt),
+			candidate ? "CORE" : null, candidate);
 		bookIds.add(id);
 		return id;
 	}

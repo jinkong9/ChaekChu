@@ -413,3 +413,15 @@ py scripts/build_service_tables.py --snapshot ../project_personal/snapshots/2026
 PG_CONTAINER=b102-postgres-local bash scripts/load_service_tables.sh ../project_personal/load
 scp load/* ubuntu@EC2:~/load/ && ssh ubuntu@EC2 'bash ~/load/load_service_tables.sh ~/load'
 ```
+
+### `build_candidates.py` · 150줄 (09-15)
+검색 색인·추천 후보 층(결정 6)을 만든다. 원장 누적 대출 커버리지(기본 0.90 → 임계 843+)를 곡선에서 유도하고, `books.csv.gz` ∩ (임계 이상 ∪ 큐 2단계 신간)을 모집단으로 잡은 뒤
+전자책(EBOOK) · 교과서(TEXTBOOK) · 학습참고서(STUDY_AID) · 신호 없음(NO_SIGNAL) 을 순서대로 뺀다. 규칙은 파일 상단 상수, 판정 근거는 결정 문서 §9.
+
+```
+py scripts/build_candidates.py --snapshot ../project_personal/snapshots/2026-09-10 [--coverage 0.90 | --threshold 843] [--out ../project_personal/candidates/<날짜>]
+→ d4l_usage.candidates.jsonl.gz (정보나루 스냅샷 줄 그대로 · isbn13 중복은 desc 긴 줄) · kakao_enriched.candidates.jsonl.gz · candidates.csv · manifest.json
+PG_CONTAINER=… bash scripts/load_service_tables.sh ../project_personal/candidates/<날짜> --only candidates   # books.catalog_layer · is_candidate · candidate_exclusion 전체 재계산 (V5 컬럼 있을 때만)
+```
+09-15 결과: 모집단 481,381 → 포함 440,757 (CORE 356,707 · NEW 84,050) · 제외 NO_SIGNAL 28,795 · STUDY_AID 9,483 · TEXTBOOK 1,785 · EBOOK 561. 빌드 4분, 적재 로컬 1분 · EC2 1분.
+`d4l_usage.candidates.jsonl.gz` 는 `ai/src/recommendation/d4l.py` 의 d4l-usage 계약을 그대로 통과한다(중복 ISBN 제거, ok·bookname 없는 줄 제외).
