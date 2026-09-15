@@ -138,7 +138,7 @@ class RecommendationSnapshotTest {
 
 	private RecommendationResponse.Item item(long bookId, int rank, double score, String reasonType) {
 		BookSummaryResponse summary = new BookSummaryResponse(String.valueOf(bookId), null, "제목", List.of("한강"),
-			null, null, null, null, null, null);
+			null, null, null, null, null, null, null);
 		return new RecommendationResponse.Item(summary, rank, score,
 			List.of(new RecommendationResponse.FeatureScore("semantic", 0.8)), List.of("#소설"),
 			reasonType, "테스트 이유");

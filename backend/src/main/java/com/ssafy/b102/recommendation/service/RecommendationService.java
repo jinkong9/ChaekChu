@@ -195,7 +195,7 @@ public class RecommendationService {
 			String.valueOf(book.getId()), book.getIsbn13().strip(), book.getTitle(),
 			AuthorNameParser.parse(book.getAuthor()), book.getPublisher(),
 			book.getPubYear() == null ? null : book.getPubYear().intValue(), book.getCoverUrl(), null,
-			KdcMainClass.labelOf(book.getCategoryCode()), book.getCategoryCode());
+			KdcMainClass.labelOf(book.getCategoryCode()), book.getCategoryCode(), book.getVol());
 	}
 
 	private static Map<String, Double> weightsAsMap(RecommendationWeights weights) {

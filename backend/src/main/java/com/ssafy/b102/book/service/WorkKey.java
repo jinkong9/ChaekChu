@@ -13,7 +13,13 @@ import com.ssafy.b102.search.service.AuthorNameParser;
  * 「비슷한 책」에 기준 책과 같은 작품이 끼면 반칙이므로(API_SPEC §4.5 「같은 작품 묶어 1권만」) 여기서 접는다.
  * 실제 사례: `9788954677158` 긴긴밤·루리·문학동네 2021 의 이웃으로 `9788954684033` 긴긴밤·루리·문학동네 2021 이 올라왔다.
  *
- * 키는 <b>제목 줄기 + 괄호 밖 숫자 + 대표 저자</b> 세 조각이다.
+ * 원장 권차(`vol`)·세트 ISBN(`set_isbn`)이 있으면 그것을 먼저 본다(V6). 시리즈는 권마다 제목이 같아
+ * 제목·저자로는 원리적으로 못 가른다 — 비룡소 셜록 홈즈 7권이 제목·저자·출판사·연도·소개문까지 같다.
+ * 추천 후보 44만 기준으로 제목+저자가 겹치는 39,096묶음 중 16,513(42.2%)이 `vol` 로 갈라지고,
+ * `vol` 은 없지만 `set_isbn` 이 있는 393묶음(1.0%)도 세트 구성원이라 접지 않는다.
+ * 남는 22,190묶음(56.8%)은 세트 표시가 없는 판본 중복이라 접는 것이 맞다.
+ *
+ * 권차가 없을 때의 키는 <b>제목 줄기 + 괄호 밖 숫자 + 대표 저자</b> 세 조각이다.
  *
  * 줄기만으로는 시리즈가 뭉개진다 — 도서관 서지는 권차·시즌을 병기 제목 뒤에 다는 일이 흔해서
  * (「치즈 인 더 트랩=Cheese in the trap:Season 1」) `=` 를 자르면 시즌 1과 시즌 4가 같은 작품이 된다.
@@ -40,18 +46,52 @@ public final class WorkKey {
 	private WorkKey() {
 	}
 
-	/** 같은 작품이면 같은 문자열. 제목이 비면 ISBN 으로 떨어져 절대 겹치지 않는다. */
+	/** 같은 작품이면 같은 문자열. */
 	public static String of(Book book) {
-		return of(book.getTitle(), book.getAuthor(), book.getIsbn13());
+		return of(book.getTitle(), book.getAuthor(), book.getIsbn13(), book.getVol(), book.getSetIsbn());
 	}
 
+	/** 권차 정보가 없던 시절의 호출부용. 새 코드는 vol·setIsbn 을 넘기는 쪽을 쓴다. */
 	public static String of(String title, String rawAuthor, String isbn13) {
+		return of(title, rawAuthor, isbn13, null, null);
+	}
+
+	/**
+	 * 판단 순서가 곧 정확도 순서다.
+	 *
+	 * <ol>
+	 *   <li><b>세트의 한 권이면 접지 않는다</b>(V6 `set_isbn`). 시리즈는 권마다 제목이 같아 제목·저자로는 절대 못 가른다.
+	 *       권차까지 있으면 그것으로, 없으면 ISBN 으로 떨어뜨려 각자 남긴다 —
+	 *       셜록 홈즈 7권이 한 권으로 뭉개지던 것이 이 줄에서 풀린다.</li>
+	 *   <li>세트 표시는 없는데 권차만 있으면 제목·저자에 권차를 얹는다.</li>
+	 *   <li>둘 다 없으면 제목 줄기·괄호 밖 숫자·대표 저자로 본다(같은 책의 다른 판본을 접는 원래 규칙).</li>
+	 * </ol>
+	 */
+	public static String of(String title, String rawAuthor, String isbn13, String vol, String setIsbn) {
+		String set = trimToNull(setIsbn);
+		String volume = trimToNull(vol);
+		if (set != null) {
+			return "set:" + set + "/" + (volume != null ? volume : "isbn:" + trimOrEmpty(isbn13));
+		}
 		String outsideParentheses = title == null ? "" : PARENTHESES.matcher(title).replaceAll(" ");
 		String stem = normalizeTitle(outsideParentheses);
 		if (stem.isEmpty()) {
-			return "isbn:" + (isbn13 == null ? "" : isbn13.strip());
+			return "isbn:" + trimOrEmpty(isbn13);
 		}
-		return stem + "#" + NON_DIGIT.matcher(outsideParentheses).replaceAll("") + "|" + firstAuthor(rawAuthor);
+		String key = stem + "#" + NON_DIGIT.matcher(outsideParentheses).replaceAll("") + "|" + firstAuthor(rawAuthor);
+		return volume == null ? key : key + "@" + volume;
+	}
+
+	private static String trimToNull(String value) {
+		if (value == null) {
+			return null;
+		}
+		String trimmed = value.strip();
+		return trimmed.isEmpty() ? null : trimmed;
+	}
+
+	private static String trimOrEmpty(String value) {
+		return value == null ? "" : value.strip();
 	}
 
 	/** 병기 제목을 떼고 한글·영숫자만 남긴다. 한자는 남지 않아 줄기가 빌 수 있다(그러면 ISBN 으로 떨어진다). */

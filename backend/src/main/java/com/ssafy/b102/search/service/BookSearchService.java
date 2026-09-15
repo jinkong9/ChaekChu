@@ -129,6 +129,7 @@ public class BookSearchService {
 			d.getCoverUrl(),
 			null,                                        // pageCount — books 에 없음
 			kdc.pathOf(d.getCategoryCode()),             // "문학 > 한국문학" (kdc_codes 2단계, 없으면 대분류 폴백)
-			d.getCategoryCode());
+			d.getCategoryCode(),
+			null);                                       // volume — ES 문서에 없다. 매핑에 넣으려면 전체 재색인이라 다음 재색인 때 함께 올린다
 	}
 }

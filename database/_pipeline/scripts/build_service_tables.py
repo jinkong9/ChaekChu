@@ -164,7 +164,8 @@ def main() -> int:
                      maximum_object_size=4000000)
       where ok and isbn13 is not null group by 1""")
     con.sql(f"""create table l as select isbn13, title l_title, author l_author, publisher l_publisher,
-             pub_year l_year, kdc l_kdc, loans l_loans, lib_count l_libs from '{args.ledger}'""")
+             pub_year l_year, kdc l_kdc, loans l_loans, lib_count l_libs,
+             set_isbn l_set_isbn, vol l_vol from '{args.ledger}'""")
     con.sql(f"""create table nl as select isbn13_norm isbn13, any_value(TITLE) n_title, any_value(AUTHOR) n_author,
              any_value(PUBLISHER) n_publisher, any_value(pub_year) n_year, any_value(add_kdc3) n_kdc3,
              any_value(EBOOK_YN) n_ebook from '{args.nl}' where isbn13_norm is not null group by 1""")
@@ -242,6 +243,15 @@ def main() -> int:
     n_am = con.sql("select count(*) from pick where rn = 1 and amatch").fetchone()[0]
     log(f"형제 권 소개 빌려온 책 {before - after:,} (저자 일치 {n_am:,} · 어간 6자+ 만으로 {before - after - n_am:,})")
 
+    # 권차·세트 ISBN: 원장 「권」·「세트 ISBN」 그대로. 시리즈의 권을 가르는 유일한 값이라 서비스 테이블로 올린다(V6).
+    # 임베딩 입력(embedding_text)에도 text_hash 에도 들어가지 않는다 — 재임베딩을 부르지 않는다.
+    con.sql("""alter table b add column vol varchar""")
+    con.sql("""alter table b add column set_isbn varchar""")
+    con.sql("""update b set vol = l.l_vol, set_isbn = l.l_set_isbn from l where l.isbn13 = b.isbn13""")
+    n_vol = con.sql("select count(vol) from b").fetchone()[0]
+    n_set = con.sql("select count(set_isbn) from b").fetchone()[0]
+    log(f"권차 {n_vol:,} · 세트 ISBN {n_set:,}")
+
     # text_hash: STRUCT 임베딩 입력(제목/저자/분류명/키워드 30/소개 둘) 의 SHA-256 — 바뀐 책만 재임베딩
     con.sql("""alter table b add column text_hash varchar""")
     con.sql("""create table kw30 as
@@ -255,7 +265,7 @@ def main() -> int:
         coalesce(description,'') || '|' || coalesce(description_kakao,''))""")
     books_csv = out / "books.csv.gz"
     con.sql(f"""copy (select isbn13, title, author, publisher, pub_year, category_code, description, cover_url,
-                           description_source, description_kakao, text_hash
+                           description_source, description_kakao, text_hash, vol, set_isbn
                     from b order by isbn13) to '{books_csv.as_posix()}' (format csv, header true, compression gzip)""")
 
     # ── V2 적재 파일 ─────────────────────────────────────────────

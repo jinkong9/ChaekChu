@@ -29,8 +29,21 @@ say "대상 $PGC/$PGD · 적재 전 books=$(count books) book_tags=$(count book_
 
 if want books && [[ -f "$DIR/books.csv.gz" ]]; then
   say "books ← $DIR/books.csv.gz"
-  # V2 컬럼(description_source · description_kakao · text_hash)이 있는 DB 면 함께 넣는다. V1 만 있으면 8컬럼만.
-  if "${PSQL[@]}" -tAc "select 1 from information_schema.columns where table_name='books' and column_name='text_hash'" | grep -q 1; then
+  # 컬럼 집합은 DB 에 실제로 있는 것에 맞춘다 — V6(vol·set_isbn) > V2(description_source·description_kakao·text_hash) > V1(8컬럼).
+  if "${PSQL[@]}" -tAc "select 1 from information_schema.columns where table_name='books' and column_name='vol'" | grep -q 1; then
+    POST_SQL='
+insert into books (isbn13, title, author, publisher, pub_year, category_code, description, cover_url, description_source, description_kakao, text_hash, vol, set_isbn)
+select isbn13, title, author, publisher, pub_year, category_code, description, cover_url, description_source, description_kakao, text_hash, vol, set_isbn from stg_books
+on conflict (isbn13) do update set
+  title = excluded.title, author = excluded.author, publisher = excluded.publisher, pub_year = excluded.pub_year,
+  category_code = excluded.category_code, description = excluded.description, cover_url = excluded.cover_url,
+  description_source = excluded.description_source, description_kakao = excluded.description_kakao, text_hash = excluded.text_hash,
+  vol = excluded.vol, set_isbn = excluded.set_isbn,
+  updated_at = now()
+where (books.title, books.author, books.publisher, books.pub_year, books.category_code, books.description, books.cover_url, books.description_source, books.description_kakao, books.text_hash, books.vol, books.set_isbn)
+   is distinct from (excluded.title, excluded.author, excluded.publisher, excluded.pub_year, excluded.category_code, excluded.description, excluded.cover_url, excluded.description_source, excluded.description_kakao, excluded.text_hash, excluded.vol, excluded.set_isbn);
+analyze books;'
+  elif "${PSQL[@]}" -tAc "select 1 from information_schema.columns where table_name='books' and column_name='text_hash'" | grep -q 1; then
     POST_SQL='
 insert into books (isbn13, title, author, publisher, pub_year, category_code, description, cover_url, description_source, description_kakao, text_hash)
 select isbn13, title, author, publisher, pub_year, category_code, description, cover_url, description_source, description_kakao, text_hash from stg_books
@@ -54,9 +67,10 @@ where (books.title, books.author, books.publisher, books.pub_year, books.categor
    is distinct from (excluded.title, excluded.author, excluded.publisher, excluded.pub_year, excluded.category_code, excluded.description, excluded.cover_url);
 analyze books;'
   fi
+  # stg 는 CSV 헤더와 같은 컬럼 순서여야 한다(build_service_tables.py 의 copy 문). 옛 DB 면 뒤 두 칸은 그냥 안 쓰인다.
   stream 'create temp table stg_books (isbn13 char(13), title varchar(500), author varchar(300), publisher varchar(200),
   pub_year smallint, category_code varchar(10), description text, cover_url varchar(500),
-  description_source varchar(20), description_kakao text, text_hash char(64));
+  description_source varchar(20), description_kakao text, text_hash char(64), vol varchar(20), set_isbn varchar(13));
 \copy stg_books from stdin with (format csv, header true)' gzip -dc "$DIR/books.csv.gz"
   say "books=$(count books)"
 fi
