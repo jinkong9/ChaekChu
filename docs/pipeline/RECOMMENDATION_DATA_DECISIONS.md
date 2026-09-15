@@ -12,8 +12,9 @@
 ```
 L0 카탈로그      국중 ∪ 정보나루 (약 300만) + 온디맨드 등록      ← 조회 누락 구조적 0
 L1 수집 범위     누적 대출 "수요 99% 유지" 임계 (72+, 1,098,550건 수집 완료 09-10) ∪ 신간 트랙
-색인·추천 후보   **결정 6 (09-15)** — 누적 대출 90% 커버리지(843+) ∪ 신간 − 전자책·교과서·학습참고서·신호 없음 = **440,757권**
-                books.is_candidate 로 표시. L0 331만 행은 메타데이터(정확 조회·찜·상세)로 유지, ES·임베딩은 후보만
+검색 색인        **결정 6 (09-15)** — 기존 L1 그대로 1,047,435권 (books.catalog_layer 있음). L0 331만 행은 메타데이터(정확 조회·찜·상세)
+추천 후보        **결정 6 (09-15)** — 누적 대출 90% 커버리지(843+) ∪ 신간 − 전자책·교과서·학습참고서·신호 없음 = **440,757권** (books.is_candidate)
+                임베딩·Qdrant 배치 입력 = candidates/2026-09-15/d4l_usage.candidates.jsonl.gz (정보나루 형식 그대로)
 랭킹 신호        직전 2년 차분 + 4 × 3개월 모멘텀
 누적 대출        필터·prior 전용. 랭킹 주신호 금지
 보유 원장        holdings_full.parquet 1.42억 행 (lib × ISBN + 원본 12컬럼)
@@ -329,12 +330,13 @@ books_dedup.parquet    ISBN 단위 + 서지·KDC + lib_count          (2,953,587
 
 <br/>
 
-## 9. 결정 6 — 검색 색인·추천 후보는 「90% 커버리지 ∪ 신간」에서 빈 책을 뺀 44만 권 (2026-09-15)
+## 9. 결정 6 — 검색은 L1 그대로, 추천 후보만 「90% 커버리지 ∪ 신간」에서 빈 책을 뺀 44만 권 (2026-09-15)
 
 ### 결정
-`books` 는 L0 331만 권을 **메타데이터로 그대로 두고**, ES 색인과 임베딩·추천 후보만 좁힌다.
-후보 = 원장 누적 대출 **90% 커버리지 임계(09-15 실측 843+) ∪ 신간 트랙(2단계)** 에서 아래 네 가지를 뺀 **440,757권** (CORE 356,707 · NEW 84,050).
-표시는 `books.catalog_layer`(CORE/NEW/NULL) · `is_candidate` · `candidate_exclusion` (V5). 색인기·완전성 검사·추천 배치가 모두 이 플래그 하나를 본다.
+`books` 는 L0 331만 권을 **메타데이터로 그대로 두고**, 층을 둘로 나눈다.
+- **검색 색인 = 기존 L1 전체 1,047,435권** (`catalog_layer` CORE 362,787 · NEW 118,594 · TAIL 566,054). 사용자가 아는 책은 찾혀야 하므로 좁히지 않는다. 색인기·완전성 검사가 `catalog_layer IS NOT NULL` 만 본다.
+- **추천 후보 = `is_candidate` 440,757권** (CORE 356,707 · NEW 84,050) = 원장 누적 대출 **90% 커버리지 임계(09-15 실측 843+) ∪ 신간 트랙(2단계)** 에서 아래 네 가지를 뺀 집합. TAIL 은 후보가 아니다.
+표시는 `books.catalog_layer` · `is_candidate` · `candidate_exclusion` (V5). 추천 배치(ai/)는 DB 가 아니라 파일을 읽으므로 같은 집합을 `d4l_usage.candidates.jsonl.gz` 로도 낸다.
 
 | 제외 사유 | 규칙 | 건수 |
 | --- | --- | ---: |
@@ -352,11 +354,15 @@ books_dedup.parquet    ISBN 단위 + 서지·KDC + lib_count          (2,953,587
 
 ### 기각한 대안
 - **books 를 L1 로 좁힘** — 드문 책의 ISBN·제목 정확 조회와 찜이 불가능해진다. 얻는 것은 2.8GB 저장 공간뿐.
+- **검색 색인도 44만으로 좁힘** — 처음 안이었으나 기각(09-15). 3단계 꼬리 56.6만 권은 추천 신호는 약해도 사용자가 제목으로 찾는 책이다. 검색은 L1, 추천만 좁힌다.
 - **등급 E 를 DB 정확 조회로만 노출** — 색인기가 `books` 전 행을 읽는 구조라 두 경로가 필요했다. 플래그 하나가 더 단순하다.
 - **결측 채움만으로 해결** — 같은 제목·저자 소개 빌림은 L1 안에서 16,942권을 회복할 뿐, 빈 카드 226만의 답이 아니다(별건으로 진행 가능).
 
 ### 산출물
-`candidates/2026-09-15/` — `d4l_usage.candidates.jsonl.gz`(정보나루 스냅샷과 같은 형식, 440,377줄 · ai/ 의 d4l-usage 계약 그대로) · `kakao_enriched.candidates.jsonl.gz`(440,757줄) · `candidates.csv`(모집단 481,381 전부, 포함/제외 사유) · `manifest.json`. EC2 `~/pipeline_data/candidates/2026-09-15/` 동일(SHA256).
+`candidates/2026-09-15/` — `d4l_usage.candidates.jsonl.gz`(정보나루 스냅샷과 같은 형식, 440,377줄 · ai/ 의 d4l-usage 계약 그대로 · **추천 배치 `--input` 용**) · `kakao_enriched.candidates.jsonl.gz`(440,757줄) · `candidates.csv`(L1 1,047,435 전부 — layer CORE/NEW/TAIL, include=추천 후보, 제외 사유) · `manifest.json`. EC2 `~/pipeline_data/candidates/2026-09-15/` 동일(SHA256).
+
+### 추천 서비스가 실제로 읽는 것 (09-15 파악)
+`ai/` 는 요청 시 **Qdrant `books_active` 만** 읽고(seed 벡터·후보 검색·payload 의 함께대출·대출 이력), PostgreSQL·ES 는 읽지 않는다. 배치는 `d4l_usage.jsonl.gz` + 태그 사이드카를 읽어 GMS 경유 `text-embedding-3-small`(1536d, 서지 6필드) 로 임베딩해 Qdrant 에 넣는다(현재 1만 점). 후보 게이트는 배치 입력 파일이 유일하다 → `--input` 을 위 파일로 바꾸면 Qdrant 후보가 44만으로 맞춰진다(입력 해시가 바뀌므로 태그 사이드카 재생성 필요). 백엔드는 seed·태그 없으면 PG `book_loaned_top20` 콜드스타트, AI 응답 ISBN 은 PG `books` 로 조회해 없으면 조용히 뺀다. 어긋남: 임베딩 모델·입력이 결정 5(e5-large + STRUCT, 소개 둘)와 다르다 · 수요 폴백이 운영 빌드에서 비활성 · compose 기본 `AI_INDEX_VERSION: none` 이면 빈 엔진.
 
 <br/>
 

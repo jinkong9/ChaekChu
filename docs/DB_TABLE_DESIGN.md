@@ -15,7 +15,7 @@
 | **V2** | **`docs/sql/V2__recommendation_layer.sql`** (09-09 적용 — 로컬·EC2, Flyway CLI) | `kdc_codes` `book_keywords` `book_relations` `book_demand_features` `book_embeddings`(표만) + `books` 컬럼 3개(`description_source` `description_kakao` `text_hash`) |
 | **V3** | **`docs/sql/V3__events_and_recommendation_snapshot.sql`** (09-11) | 추천 스냅샷을 쓸 수 있게 — `recommendations.public_id`·`index_version`, `recommendation_items.ck_ri_reason` 확대(AI 계약값), `user_actions` 의 `display_position`·`session_id`·`payload` + `DISMISS`·`SEARCH` |
 | **V4** | **`docs/sql/V4__drop_book_embeddings.sql`** (09-11) | `book_embeddings` 제거. 벡터는 Qdrant 가 보관한다 — 08-31 운영안 §7.3 이 애초에 만들지 말라고 정해 둔 표를 V2 가 만들었고, 쓰는 코드는 없었다 |
-| **V5** | **`docs/sql/V5__candidate_layer.sql`** (09-15 적용 — 로컬·EC2, Flyway CLI) | `books.catalog_layer`(CORE/NEW/NULL) · `is_candidate` · `candidate_exclusion` + 부분 인덱스. **검색 색인·추천 후보 = is_candidate 440,757권**(누적 대출 90% 커버리지 843+ ∪ 신간 − 전자책·교과서·학습참고서·신호 없음). books 331만 행은 메타데이터로 그대로. 값은 `build_candidates.py` → `load_service_tables.sh --only candidates` |
+| **V5** | **`docs/sql/V5__candidate_layer.sql`** (09-15 적용 — 로컬·EC2, Flyway CLI) | `books.catalog_layer`(CORE/NEW/TAIL/NULL) · `is_candidate` · `candidate_exclusion` + 부분 인덱스 2개. **검색 색인 = catalog_layer 있음 = 기존 L1 1,047,435권** · **추천 후보 = is_candidate 440,757권**(누적 대출 90% 커버리지 843+ ∪ 신간 − 전자책·교과서·학습참고서·신호 없음). books 331만 행은 메타데이터로 그대로. 값은 `build_candidates.py` → `load_service_tables.sh --only candidates` |
 
 **`book_texts` 는 만들지 않는다 (09-09 결정).** 소개문 소스가 정보나루·카카오 둘뿐이고 필요한 건 「임베딩 입력이 둘을 다 쓴다」는 것뿐이라, 표 대신
 `books.description_kakao`(두 번째 소개문) + `description_source` + `text_hash` 로 흡수했다. 소스가 셋이 되면(YES24 목차 등) 그때 표로 분리한다 — §4.1 의 DDL 은 그 시점의 참고안.
@@ -161,11 +161,12 @@ CREATE TABLE books (
     catalog_layer      CHAR(4),
     is_candidate       BOOLEAN      NOT NULL DEFAULT FALSE,
     candidate_exclusion VARCHAR(12),
-    -- ∵ (V5, 09-15) 「어느 책을 ES 에 색인하고 추천 후보로 쓰는가」. L0 만 구간 226만 권은 93% 가 소개·표지가 없고 수요의 0.97% 라
+    -- ∵ (V5, 09-15) 「어느 책을 ES 에 색인하는가」와 「어느 책을 추천 후보로 쓰는가」. L0 만 구간 226만 권은 93% 가 소개·표지가 없고 수요의 0.97% 라
     --   검색 결과에 빈 카드로만 나왔다(09-14 전수조사). 행은 지우지 않는다 — ISBN·상세·찜은 L0 전체.
-    --   catalog_layer CORE = 원장 누적 대출 90% 커버리지(임계 843+, 09-15 실측) · NEW = 신간 트랙 · NULL = L0 만.
-    --   is_candidate = 층 안에서 candidate_exclusion 이 NULL 인 책. 제외 사유 EBOOK / TEXTBOOK / STUDY_AID / NO_SIGNAL(소개·표지·키워드·관계 전부 없음).
-    --   색인기(BookIndexRowRepository)·완전성 검사 모두 is_candidate 만 본다. 규칙·임계는 candidates/<날짜>/manifest.json 이 정본.
+    --   catalog_layer CORE = 원장 누적 대출 90% 커버리지(임계 843+, 09-15 실측) · NEW = 신간 트랙 · TAIL = 그 외 L1(누적 72+ 꼬리) · NULL = L0 만.
+    --   **검색 색인 대상 = catalog_layer IS NOT NULL (= 기존 L1 1,047,435권)** — 색인기(BookIndexRowRepository)·완전성 검사가 이 조건만 본다.
+    --   **추천 후보 = is_candidate** = CORE·NEW 중 candidate_exclusion 이 NULL 인 책(440,757권). 제외 사유 EBOOK / TEXTBOOK / STUDY_AID / NO_SIGNAL(소개·표지·키워드·관계 전부 없음).
+    --   규칙·임계는 candidates/<날짜>/manifest.json 이 정본.
     content_status     VARCHAR(15)  NOT NULL DEFAULT 'PENDING',
     -- ∵ PENDING / TEXT_RICH / TEXT_SHORT / TEXT_NONE. PENDING 이 필요한 이유: "아직 안 긁음"과
     --   "긁었는데 없음"을 섞으면 쿼터 소진을 결측으로 기록했던 사고(19,472건)와 같은 구조가 된다.

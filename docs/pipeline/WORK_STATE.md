@@ -1,6 +1,6 @@
 # 작업 상태 (재개 지점)
 
-갱신 2026-09-11 · 수집 전부 종료(정보나루 09-09 · 카카오 09-10) · 서비스 DB V1·V2 적재 완료 · 임베딩 진행 중(Qdrant)
+갱신 2026-09-15 · 수집 전부 종료(정보나루 09-09 · 카카오 09-10) · 서비스 DB V1·V2 적재 완료 · **V5 층 표시 로컬·EC2 — 검색 L1 1,047,435 · 추천 후보 440,757** · 임베딩 진행 중(Qdrant, 후보 파일 전달)
 
 > **09-11 정정 — 벡터 저장소는 Qdrant 로 굳었다.** 아래 「ES dense_vector 권고 · Qdrant 보류」와 「e5-large 1024d」는 09-10 시점의 계획이고,
 > 실제로 돌아가는 것은 08-31 운영안(`EMBEDDING_QDRANT_OPERATING_PLAN.md`) 쪽이다. EC2 확인 결과:
@@ -24,7 +24,9 @@
 [완료] V1 적재 — books 3,312,467 · book_tags 2,023,895 · book_loaned_top20 1,200   로컬 · EC2 둘 다 (09-09) → books 는 09-10 카카오 완주본으로 upsert
 [완료] V2 스키마 — V2__recommendation_layer.sql, Flyway CLI 로 로컬·EC2 적용 (09-09 14:40). book_texts 는 books 컬럼 3개로 흡수
 [완료] V2 적재 — kdc_codes 949 · book_keywords 8,784,823 · book_relations 13,699,166 (대상 연결 99.5~99.9%) · book_demand_features 2,749,303   로컬 · EC2 (09-09 16:40)
-[진행] 임베딩 → Qdrant `books_active` (09-11 1만 권 / 1단계 34만 목표) · ES 는 BM25(nori) 어휘 색인만 — `book_embeddings` 표는 V4 로 제거
+[완료] 층 표시(V5, 결정 6) — 검색 색인 = L1 1,047,435 (books.catalog_layer CORE/NEW/TAIL) · 추천 후보 = 누적 843+ ∪ 신간 − 전자책·교과서·학습참고서·신호없음 = 440,757 (is_candidate)   로컬 · EC2 (09-15)
+[완료] 추천 배치 입력 파일 — candidates/2026-09-15/d4l_usage.candidates.jsonl.gz (정보나루 형식 그대로 · 후보 440,377줄) · EC2 ~/pipeline_data/candidates/2026-09-15/ 동일
+[진행] 임베딩 → Qdrant `books_active` (09-11 1만 권 / 후보 44만 목표 — 위 파일을 --input 으로) · ES 는 BM25(nori) 어휘 색인만(L1 105만, books_v5 재색인은 배포로) — `book_embeddings` 표는 V4 로 제거
 ```
 
 <br/>
@@ -93,7 +95,7 @@ L1 추천 후보  누적 대출 72+ (수요 99%) ∪ 2025+ 신간 = 1,098,550   
 
 ## 6. 다음 작업
 
-0. **검색 재색인** — 머지·배포 뒤 `books_v5` 로 자동 rebuild(색인기가 `is_candidate` 만 읽음). ES 문서 331만 → 44만
+0. **검색 재색인** — 머지·배포 뒤 `books_v5` 로 자동 rebuild(색인기가 `catalog_layer` 있는 L1 만 읽음). ES 문서 331만 → 105만
 1. **임베딩** — 후보 440,757권(`candidates/2026-09-15/d4l_usage.candidates.jsonl.gz` = ai/ 계약 형식) STRUCT(제목/저자/분류/키워드 30/소개 둘) → **Qdrant `books_active`**. 09-11 기준 1만 권(0.3%)이라 `GET /books/{id}/similar` 은 아직 열 수 없다. 적재분 관리는 `ndjson` 작업 파일(08-31 운영안 §7.3)
 2. **ES 색인** — `books` BM25(nori: 제목·저자·출판사·`book_keywords`·소개 둘) + `dense_vector` int8_hnsw. 컨테이너 상한 4G → 5G
 3. **`book_demand_features` 다음 달** — 10월 원장 스냅샷이 오면 `loan_24m`·`trending_score`·`steady_score` 계산 시작(결정 3). 지금은 누적·3/12개월·소장관만
@@ -119,7 +121,7 @@ L1 추천 후보  누적 대출 72+ (수요 99%) ∪ 2025+ 신간 = 1,098,550   
 
 ## 8. 반복된 사고와 교훈 (누적)
 
-- **색인기는 `books` 전 행을 읽는다** — 파일만 좁혀서는 검색이 안 바뀐다. DB 플래그(is_candidate)가 있어야 색인·추천·API 가 같은 기준을 본다 (09-15)
+- **색인기는 `books` 전 행을 읽고, 추천 배치는 파일만 읽는다** — 검색을 바꾸려면 DB 플래그(catalog_layer), 추천을 바꾸려면 배치 입력 파일. 둘을 같은 스크립트가 만들어야 어긋나지 않는다 (09-15)
 - **HTTP 429 는 쿼터가 아니라 초당 제한** — 카카오 수집기가 429 를 키 소진으로 오판해 키 5개를 40초 만에 은퇴시켰다(키마다 3만이 남아 있었다). 상태 코드 하나로 「하루 끝」을 판정하지 말고, 0 호출에 소진이 뜨면 의심할 것 (09-10)
 - **`py` 런처와 `python` 은 다른 인터프리터일 수 있다** — duckdb 는 3.11 에만 있다. 빌드는 `python`(3.11) 으로 (09-10)
 - **Python UDF 를 DuckDB 에 행 단위로 걸지 말 것** — 350만 행에서 단일 스레드 30분+ 미완. SQL 매크로로 바꾸면 4분 (09-09)
