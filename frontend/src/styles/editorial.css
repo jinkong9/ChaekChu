@@ -307,6 +307,14 @@ button.eo-tag:hover {
   font-weight: 650;
 }
 
+/* 활성 칩은 hover·focus 해도 글자가 종이색으로 남아야 한다.
+   `button.eo-tag:hover`(0,2,1)가 `.eo-tag.is-on`(0,2,0)보다 구체적이라 잉크 배경 위에 잉크 글자가 되던 버그 */
+button.eo-tag.is-on:hover,
+button.eo-tag.is-on:focus-visible {
+  color: var(--eo-paper);
+  opacity: 0.85;
+}
+
 .eo-tag--lg { min-height: 36px; padding: 0 13px; font-size: 12px; }
 
 @media (max-width: 640px) {
