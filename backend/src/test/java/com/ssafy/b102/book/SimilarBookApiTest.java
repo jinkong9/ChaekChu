@@ -157,6 +157,24 @@ class SimilarBookApiTest {
 	}
 
 	@Test
+	@DisplayName("같은 시리즈의 다른 권은 살린다 — 셜록 홈즈 7권이 한 권으로 뭉개지던 문제")
+	void similar_keepsOtherVolumesOfSameSeries() throws Exception {
+		String set = "9788949124209";
+		String v2 = uniqueIsbn();
+		String v3 = uniqueIsbn();
+		insertVolume(v2, "셜록 홈즈", "아서 코난 도일", "2", set);
+		insertVolume(v3, "셜록 홈즈", "아서 코난 도일", "3", set);
+		jdbc.update("update books set title='셜록 홈즈', author='아서 코난 도일', vol='1', set_isbn=? where id=?", set, seedId);
+		when(aiClient.recommend(any())).thenReturn(response(false, item(v2, 90.0), item(v3, 88.0)));
+
+		mvc.perform(get("/api/v1/books/" + seedId + "/similar").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items.length()").value(2))
+			.andExpect(jsonPath("$.items[0].book.volume").value("2"))
+			.andExpect(jsonPath("$.items[1].book.volume").value("3"));
+	}
+
+	@Test
 	@DisplayName("이웃끼리 같은 작품이면 첫 권만 남긴다 — 출판사·부제·병기 제목이 달라도 같은 작품이다")
 	void similar_keepsOneEditionPerWork() throws Exception {
 		String munhak = uniqueIsbn();
@@ -241,6 +259,11 @@ class SimilarBookApiTest {
 	private static AiRecommendationResponse.Item item(String isbn13, double score) {
 		return new AiRecommendationResponse.Item(isbn13, null, score, Map.of(), List.of(),
 			new AiRecommendationResponse.Reason("SEMANTIC", "관심 도서와 서지·분류 특성이 비슷한 책이에요."), List.of());
+	}
+
+	private void insertVolume(String isbn13, String title, String author, String vol, String setIsbn) {
+		jdbc.update("insert into books(isbn13, title, author, vol, set_isbn) values (?, ?, ?, ?, ?)",
+			isbn13, title, author, vol, setIsbn);
 	}
 
 	private Long insertBook(String isbn13, String title, String author) {

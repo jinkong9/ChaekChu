@@ -19,6 +19,7 @@ public record BookSummaryResponse(
 	@Schema(description = "표지 URL(가장 큰 변형). 축소는 프론트 lib/coverUrl.ts", nullable = true) String coverUrl,
 	@Schema(description = "쪽수. V1 에는 없어 항상 null", nullable = true) Integer pageCount,
 	@Schema(description = "분류 경로 2단계 \"대분류 > 중분류\"(kdc_codes). 중분류가 없거나 같으면 대분류만. 서재 선반·DNA 장르 키가 이 값을 쓴다", example = "문학 > 한국문학", nullable = true) String category,
-	@Schema(description = "KDC 코드(books.category_code)", example = "813.7", nullable = true) String classNo
+	@Schema(description = "KDC 코드(books.category_code)", example = "813.7", nullable = true) String classNo,
+	@Schema(description = "시리즈 권차(books.vol). 시리즈는 권마다 제목이 같아 이게 없으면 화면에서 구별되지 않는다 — 비룡소 셜록 홈즈 7권이 모두 「셜록 홈즈」다. null 은 「단권」이 아니라 「미상」이다", example = "3", nullable = true) String volume
 ) {
 }

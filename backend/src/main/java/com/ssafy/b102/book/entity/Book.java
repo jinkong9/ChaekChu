@@ -63,6 +63,17 @@ public class Book {
 	@Column(name = "embedding_version", length = 30)
 	private String embeddingVersion;
 
+	/**
+	 * 원장 권차(V6). 시리즈는 권마다 제목이 같아 이 값이 유일한 구분자다 — 비룡소 셜록 홈즈 7권이 제목·저자·연도까지 같다.
+	 * <b>NULL 은 「단권」이 아니라 「미상」이다.</b> 도서관이 안 적었을 수 있으니 단권 판정에 쓰면 안 된다.
+	 */
+	@Column(name = "vol", length = 20)
+	private String vol;
+
+	/** 세트(시리즈) 대표 ISBN(V6). 같은 세트의 권들이 공유한다 — 작품 식별자가 아니라 「세트의 한 권」이라는 신호다. */
+	@Column(name = "set_isbn", length = 13)
+	private String setIsbn;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;

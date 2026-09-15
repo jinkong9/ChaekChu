@@ -42,7 +42,7 @@ class BookDnaServiceTest {
 		Book book = mock(Book.class);
 		LibraryItem item = mock(LibraryItem.class);
 		BookSummaryResponse summary = new BookSummaryResponse("1", "9780000000001", "테스트 책", List.of("작가"),
-			"출판사", 2026, null, null, "문학", "813.7");
+			"출판사", 2026, null, null, "문학", "813.7", null);
 		when(library.findByUser_IdOrderByUpdatedAtDesc(userId)).thenReturn(List.of(item));
 		when(item.getBook()).thenReturn(book);
 		when(book.getIsbn13()).thenReturn("9780000000001");

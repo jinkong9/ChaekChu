@@ -58,6 +58,44 @@ class WorkKeyTest {
 	}
 
 	@Test
+	@DisplayName("세트의 권들은 접지 않는다 — 실제 사례: 비룡소 셜록 홈즈 7권이 제목·저자·연도까지 같다")
+	void setMembersStaySeparate() {
+		String v1 = WorkKey.of("셜록 홈즈", "아서 코난 도일", "9788949124216", "1", "9788949124209");
+		String v7 = WorkKey.of("셜록 홈즈", "아서 코난 도일", "9788949124278", "7", "9788949124209");
+		assertThat(v1).isNotEqualTo(v7);
+	}
+
+	@Test
+	@DisplayName("세트 표시만 있고 권차가 없으면 ISBN 으로 떨어져 각자 남는다 — 접는 것보다 안전하다")
+	void setMemberWithoutVolumeNeverMerges() {
+		String a = WorkKey.of("어떤 시리즈", "저자", "9790000000020", null, "9790000000019");
+		String b = WorkKey.of("어떤 시리즈", "저자", "9790000000021", null, "9790000000019");
+		assertThat(a).isNotEqualTo(b);
+	}
+
+	@Test
+	@DisplayName("같은 세트의 같은 권은 한 작품이다 — 재쇄가 따로 잡히지 않는다")
+	void sameVolumeInSameSetMerges() {
+		assertThat(WorkKey.of("셜록 홈즈", "아서 코난 도일", "9788949124216", "3", "9788949124209"))
+			.isEqualTo(WorkKey.of("셜록 홈즈", "아서 코난 도일 · 김석희", "9790000000022", "3", "9788949124209"));
+	}
+
+	@Test
+	@DisplayName("세트 표시가 없고 권차만 있으면 제목·저자에 권차를 얹는다")
+	void volumeAloneSplitsWork() {
+		String base = WorkKey.of("토지", "박경리", "9790000000023", "1", null);
+		assertThat(WorkKey.of("토지", "박경리", "9790000000024", "2", null)).isNotEqualTo(base);
+		assertThat(WorkKey.of("토지", "박경리", "9790000000025", "1", null)).isEqualTo(base);
+	}
+
+	@Test
+	@DisplayName("권차·세트가 모두 없으면 예전 규칙 그대로 — 긴긴밤 두 판본은 여전히 한 작품이다")
+	void withoutVolumeFallsBackToTitleAndAuthor() {
+		assertThat(WorkKey.of("긴긴밤", "루리", "9788954677158", null, null))
+			.isEqualTo(WorkKey.of("긴긴밤", "루리", "9788954684033", null, null));
+	}
+
+	@Test
 	@DisplayName("제목이 같아도 저자가 다르면 다른 작품이다")
 	void differentAuthorIsDifferentWork() {
 		assertThat(WorkKey.of("밤", "김승옥", "9790000000008"))

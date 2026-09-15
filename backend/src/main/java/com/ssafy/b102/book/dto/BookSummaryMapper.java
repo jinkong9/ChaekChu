@@ -25,11 +25,18 @@ public class BookSummaryMapper {
 
 	public BookSummaryResponse from(Book book) {
 		return of(book.getId(), book.getIsbn13(), book.getTitle(), book.getAuthor(), book.getPublisher(),
-			book.getPubYear() == null ? null : book.getPubYear().intValue(), book.getCategoryCode(), book.getCoverUrl());
+			book.getPubYear() == null ? null : book.getPubYear().intValue(), book.getCategoryCode(), book.getCoverUrl(),
+			book.getVol());
+	}
+
+	/** 권차를 모르는 호출부용(조인 결과 등). 시리즈면 화면에서 권이 구별되지 않는다. */
+	public BookSummaryResponse of(Long id, String isbn13, String title, String authorRaw, String publisher,
+		Integer pubYear, String categoryCode, String coverUrl) {
+		return of(id, isbn13, title, authorRaw, publisher, pubYear, categoryCode, coverUrl, null);
 	}
 
 	public BookSummaryResponse of(Long id, String isbn13, String title, String authorRaw, String publisher,
-		Integer pubYear, String categoryCode, String coverUrl) {
+		Integer pubYear, String categoryCode, String coverUrl, String vol) {
 		return new BookSummaryResponse(
 			String.valueOf(id),
 			isbn13 == null ? null : isbn13.trim(),
@@ -40,6 +47,7 @@ public class BookSummaryMapper {
 			coverUrl,
 			null,                          // pageCount — books 에 없음
 			kdc.pathOf(categoryCode),      // "문학 > 한국문학" (kdc_codes 2단계, 없으면 대분류 폴백)
-			categoryCode);
+			categoryCode,
+			vol);
 	}
 }

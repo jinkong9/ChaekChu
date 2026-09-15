@@ -178,7 +178,7 @@ class RecommendationServiceTest {
 
 	private static BookSummaryResponse summary(String isbn, String title) {
 		return new BookSummaryResponse("1", isbn, title, List.of("작가"), "출판사", 2020,
-			"https://img.example/book.jpg", null, "문학", "813.7");
+			"https://img.example/book.jpg", null, "문학", "813.7", null);
 	}
 
 	private static Book book(String isbn, Long id, String title) {
