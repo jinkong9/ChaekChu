@@ -121,6 +121,8 @@ src/main/java/com/ssafy/b102/
     config/RecommendationProperties.java # app.recommendation.*
     service/RecommendationSnapshotService # 내보낸 덱을 recommendations·items 에 저장(REQUIRES_NEW — 부르는 쪽이 readOnly). 실패해도 응답은 나간다
     repository/RecommendationSnapshotRepository # 덱·항목 쓰기 + public_id → 내부 id (이벤트가 덱을 되찾는 통로)
+    service/SimilarBookService.java      # §4.5 비슷한 책 — 기준 책 한 권만 seed 로 넣은 추천. fallback=true 면 버리고 빈 배열
+    controller/SimilarBookController.java # GET /books/{bookId}/similar?size= (경로는 /books 아래, 구현이 추천이라 여기 둔다)
   event/                                  # POST /events — 행동 이벤트 수집 (API_SPEC §7). 언제나 202
     controller/EventController.java
     service/EventService.java            # 절대 던지지 않는다. 타입별 필수값·도서 실재·컬럼 폭을 보고 못 채우면 저장하지 않고 버린다
