@@ -5,7 +5,7 @@ import { api } from '../../api/client'
 import { toBookSummary } from '../../api/books'
 import { addToLibrary } from '../../api/library'
 import { useFinishModalStore } from '../../stores/finishModalStore'
-import type { BookDetail, BookSummary, CoLoansResponse, ShelfStatus } from '../../api/types'
+import type { BookDetail, BookSummary, CoLoansResponse, ShelfStatus, SimilarResponse } from '../../api/types'
 import { coverAtWidth } from '../../lib/coverUrl'
 import { trackEvent } from '../../lib/events'
 import { ean13Bars, ean13Modules } from './ean13'
@@ -14,11 +14,10 @@ import './card-spread.css'
 /** BOOK-001 도서 상세 — 도서 카드 펼침면(확정안). 왼쪽에 표지와 도서 카드를
  *  나란히 펼치고, 오른쪽에 표제·지표·읽을거리를 세우고, 아래에 세 단으로 이웃 책을 둔다.
  *
- *  계약에 아직 없어 시안용으로 임시 경로를 쓰는 것 셋 (docs/BACKEND_DATA_CONTRACT.md 합의 대기):
- *   - keywords         : 'AI 추천 키워드' — BookDetail의 선택 필드로 가정
- *   - /similar         : 비슷한 책(소개 임베딩)
- *   - /co-loans        : 함께 대출된 책(정보나루)
- *  세 곳 모두 값이 없으면 그 자리를 비우고 왜 비었는지 적는다 — 가짜 데이터를 채우지 않는다. */
+ *  /similar(§4.5) · /co-loans(§4.6) 는 계약에 들어왔다. 아직 임시인 것은 keywords 하나다
+ *  ('AI 추천 키워드' — BookDetail 의 선택 필드로 가정, docs/BACKEND_DATA_CONTRACT.md 합의 대기).
+ *  세 자리 모두 값이 없으면 비우고 왜 비었는지 적는다 — 가짜 데이터를 채우지 않는다.
+ *  /similar 는 임베딩 적재가 진행 중이라 빈 배열이 잦다(§4.5). 그것도 정상 응답이다. */
 
 /** 시안 단계의 확장 — 계약에 들어가면 api/types.ts로 옮긴다 */
 type BookDetailDraft = BookDetail & { keywords?: string[] | null }
@@ -98,13 +97,17 @@ export default function CardSpreadPage() {
   // 이웃 책은 상세와 별개로 온다 — 실패해도 상세 화면은 그대로 뜬다
   const similar = useQuery({
     queryKey: ['book', bookId, 'similar'],
-    queryFn: async () => (await api.get<{ items: BookSummary[] }>(`/books/${bookId}/similar`)).data.items,
+    // 서버는 {book, reason, score} 로 준다(§4.5) — 타일은 책만 그리므로 co-loans 와 같은 어댑터로 화면 타입에 맞춘다.
+    // size=4 는 BookTiles 가 네 권만 그리기 때문이다(기본 8 을 받아 절반을 버리지 않는다).
+    queryFn: async () => (await api.get<SimilarResponse>(`/books/${bookId}/similar`, { params: { size: 4 } }))
+      .data.items.map((i) => toBookSummary(i.book)),
     retry: false,
   })
   const coLoans = useQuery({
     queryKey: ['book', bookId, 'co-loans'],
     // 서버는 {book, rank} 로 준다(§4.6) — 타일은 책만 그리므로 검색과 같은 어댑터로 화면 타입에 맞춘다
-    queryFn: async () => (await api.get<CoLoansResponse>(`/books/${bookId}/co-loans`)).data.items.map((i) => toBookSummary(i.book)),
+    queryFn: async () => (await api.get<CoLoansResponse>(`/books/${bookId}/co-loans`, { params: { size: 4 } }))
+      .data.items.map((i) => toBookSummary(i.book)),
     retry: false,
   })
 
