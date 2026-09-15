@@ -99,7 +99,7 @@ class SimilarBookApiTest {
 		AiRecommendationRequest sent = captor.getValue();
 		org.assertj.core.api.Assertions.assertThat(sent.seedIsbns()).containsExactly(seedIsbn);
 		org.assertj.core.api.Assertions.assertThat(sent.tags()).isEmpty();
-		org.assertj.core.api.Assertions.assertThat(sent.size()).isEqualTo(4);
+		org.assertj.core.api.Assertions.assertThat(sent.size()).isEqualTo(8);   // 같은 작품을 접으니 넉넉히 받는다
 		org.assertj.core.api.Assertions.assertThat(sent.weights().semantic()).isEqualTo(1.0);
 		org.assertj.core.api.Assertions.assertThat(sent.weights().trending()).isZero();
 		org.assertj.core.api.Assertions.assertThat(sent.weights().steady()).isZero();
@@ -137,6 +137,59 @@ class SimilarBookApiTest {
 		mvc.perform(get("/api/v1/books/" + seedId + "/similar").header(HttpHeaders.AUTHORIZATION, bearer))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items").isEmpty());
+	}
+
+	@Test
+	@DisplayName("기준 책의 다른 판본은 뺀다 — 실제 사례: 긴긴밤(9788954677158)의 이웃에 같은 긴긴밤이 올라왔다")
+	void similar_dropsOtherEditionOfSeed() throws Exception {
+		String otherEdition = uniqueIsbn();
+		String different = uniqueIsbn();
+		insertBook(otherEdition, "긴긴밤", "루리");           // seed 와 같은 작품, 다른 ISBN
+		insertBook(different, "달 내리는 밤", "이순원");
+		jdbc.update("update books set title = '긴긴밤', author = '루리' where id = ?", seedId);
+		when(aiClient.recommend(any()))
+			.thenReturn(response(false, item(otherEdition, 92.0), item(different, 50.0)));
+
+		mvc.perform(get("/api/v1/books/" + seedId + "/similar").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].book.isbn13").value(different));
+	}
+
+	@Test
+	@DisplayName("이웃끼리 같은 작품이면 첫 권만 남긴다 — 출판사·부제·병기 제목이 달라도 같은 작품이다")
+	void similar_keepsOneEditionPerWork() throws Exception {
+		String munhak = uniqueIsbn();
+		String other = uniqueIsbn();
+		String third = uniqueIsbn();
+		insertBook(munhak, "작별하지 않는다", "한강 지음");
+		insertBook(other, "(2024년 개정판)작별하지 않는다=We do not part", "한강 지음 ;김유경 옮김");
+		insertBook(third, "소년이 온다", "한강");
+		when(aiClient.recommend(any()))
+			.thenReturn(response(false, item(munhak, 90.0), item(other, 88.0), item(third, 70.0)));
+
+		mvc.perform(get("/api/v1/books/" + seedId + "/similar").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items.length()").value(2))
+			.andExpect(jsonPath("$.items[0].book.isbn13").value(munhak))
+			.andExpect(jsonPath("$.items[1].book.isbn13").value(third));
+	}
+
+	@Test
+	@DisplayName("접고 나서도 size 를 채우려 AI 에는 넉넉히(size×2, 상한 10) 요청한다")
+	void similar_overfetchesForDedup() throws Exception {
+		when(aiClient.recommend(any())).thenReturn(response(false));
+
+		mvc.perform(get("/api/v1/books/" + seedId + "/similar?size=4").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk());
+		mvc.perform(get("/api/v1/books/" + seedId + "/similar?size=8").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk());
+
+		ArgumentCaptor<AiRecommendationRequest> captor = ArgumentCaptor.forClass(AiRecommendationRequest.class);
+		verify(aiClient, org.mockito.Mockito.times(2)).recommend(captor.capture());
+		org.assertj.core.api.Assertions.assertThat(captor.getAllValues())
+			.extracting(AiRecommendationRequest::size)
+			.containsExactly(8, SimilarBookService.MAX_SIZE);   // 8 → 8, 16 → 10 으로 잘린다
 	}
 
 	@Test
