@@ -200,7 +200,9 @@ JWT: `sub=userId`, `exp` 24시간, HS256. 갱신 토큰은 MVP 에서 두지 않
 
 ### 3.4 `GET /users/me/dna` ●
 
-BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대로 준다. 집계(장르 비율·작가 빈도·스펙트럼)는 프론트가 한다 — 지금 mock 훅이 그렇게 되어 있고 표지 색 추출은 브라우저에서만 가능하다.
+BOOK DNA 화면(`features/dna`)의 공개 API. 서재의 **READ 항목**은 표지·근거 표시용으로
+주고, 장르 비율·성향·키워드·독서타입은 AI가 계산한 `profile`을 함께 반환한다.
+전체 요청·응답 DTO와 FastAPI 내부 계약은 `docs/BOOK_DNA_API_CONTRACT.md`에서 관리한다.
 
 ```json
 {
@@ -216,6 +218,40 @@ BOOK DNA 화면(`features/dna`)의 재료. 서재의 **READ 항목**을 그대�
 
 `books` 는 `finishedDate` 내림차순(**`null` 은 마지막**), 최대 200권. 온보딩 seed(`finishedDate=null`, §3.3)도 `books`·`readCount` 에 **포함**한다 —
 장르 비율·작가 빈도는 언제 읽었든 취향이다. 연표·월별 통계에서 빼는 것은 프론트가 `finishedDate` 로 거른다. `rating` 이 없는 완독 책은 `null`. `declaredTags` = `interestTags`.
+
+응답에는 다음 AI profile 필드가 추가된다.
+
+```json
+{
+  "dnaVersion": "book-dna-v1",
+  "modelVersion": "gms-text-embedding-3-small-20260909-1000",
+  "indexVersion": "d4l-small-scale-450000-20260915",
+  "tagVersion": "d4l-tags-scale-450000-20260915",
+  "profile": {
+    "status": "READY",
+    "basedOnCount": 23,
+    "axes": [{ "code": "FICTION", "label": "소설", "score": 82.4 }],
+    "metrics": [{ "code": "IMMERSION", "label": "몰입", "score": 88.1 }],
+    "keywords": [{ "code": "RELATIONSHIP", "label": "관계", "score": 84.2 }],
+    "type": {
+      "code": "EMPATH",
+      "name": "감성적인 공감가",
+      "phrase": "사람의 마음이 움직이는 순간을 따라 읽는",
+      "summary": "사람과 관계를 다룬 이야기를 오래 기억하는 독자예요."
+    },
+    "evidence": {
+      "readBookCount": 23,
+      "ratedBookCount": 18,
+      "topGenres": ["FICTION", "ESSAY"],
+      "topTags": ["FIC", "FAMILY"]
+    }
+  }
+}
+```
+
+`profile.status`는 `READY` 또는 `INSUFFICIENT_DATA`다. profile 점수는 0~100 범위이며,
+온라인 조회에서 GMS를 호출하지 않는다. `books`의 표지 색상·애니메이션과 가챠·월드컵·사주
+콘텐츠는 프론트 기능으로 유지한다.
 
 <br/>
 
