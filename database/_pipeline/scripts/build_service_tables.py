@@ -247,7 +247,11 @@ def main() -> int:
     # 임베딩 입력(embedding_text)에도 text_hash 에도 들어가지 않는다 — 재임베딩을 부르지 않는다.
     con.sql("""alter table b add column vol varchar""")
     con.sql("""alter table b add column set_isbn varchar""")
-    con.sql("""update b set vol = l.l_vol, set_isbn = l.l_set_isbn from l where l.isbn13 = b.isbn13""")
+    # 원장 「권」에 서지 오류가 섞여 있다 — 20자를 넘는 값 8건은 'littlehorses--littlecows-…' 처럼 권차가 아니다.
+    # 정상 값은 99.9% 가 4자 이하이고(748,267/759,392) 나머지도 '상' '하' '1-2' 수준이라 길이로 거른다.
+    con.sql("""update b set vol = case when length(l.l_vol) <= 20 then l.l_vol end,
+                           set_isbn = case when length(l.l_set_isbn) = 13 then l.l_set_isbn end
+               from l where l.isbn13 = b.isbn13""")
     n_vol = con.sql("select count(vol) from b").fetchone()[0]
     n_set = con.sql("select count(set_isbn) from b").fetchone()[0]
     log(f"권차 {n_vol:,} · 세트 ISBN {n_set:,}")

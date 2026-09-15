@@ -15,3 +15,17 @@
 - `V6__books_volume.sql` 은 `books` 에 `vol`(원장 권차)·`set_isbn`(세트 대표 ISBN)을 더한다. 시리즈는 권마다 제목이 같아
   이 둘이 없으면 「비슷한 책」이 셜록 홈즈 7권을 한 권으로 접는다. 원장에 있던 값을 적재 때 버리고 있었다.
   임베딩에는 영향이 없다 — 임베딩 입력에도 `text_hash` 에도 들어가지 않는다.
+
+  **적용 뒤 백필이 필요하다.** V6 는 컬럼만 만든다. 원장 파케이에서 값을 넣는다:
+
+  ```
+  # 1) books_dedup.parquet → CSV (길이 가드: isbn13 13자 · set_isbn 13자 · vol 20자 이하)
+  #    원장 「권」에 'littlehorses--littlecows-…' 같은 서지 오류가 8건 섞여 있다
+  # 2) \copy 로 stg 에 올린 뒤 books 를 update
+  # 3) vacuum (analyze, parallel 0) books;
+  ```
+
+  마지막 `parallel 0` 이 중요하다 — 컨테이너 `/dev/shm` 이 기본 64MB 라 병렬 VACUUM 이
+  `could not resize shared memory segment` 로 실패한다(compose 에 `shm_size` 를 두지 않았다).
+
+  로컬 실측(09-15): 갱신 693,792행 · 2분 5초 · 표 크기 3,278MB → 3,284MB(**+6MB**).
