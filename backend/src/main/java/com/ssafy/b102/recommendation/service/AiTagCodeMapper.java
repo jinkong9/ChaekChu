@@ -1,6 +1,7 @@
 package com.ssafy.b102.recommendation.service;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +29,13 @@ final class AiTagCodeMapper {
 		"GROWTH", "FAMILY", "TIME_TRAVEL", "TRENDING", "STEADY", "NEW_BOOK"
 	);
 
+	/** AI/Qdrant 내부 taxonomy code를 백엔드 공개 tags 사전의 canonical code로 변환한다. */
+	private static final Map<String, String> PUBLIC_CODES = Map.of(
+		"FIC", "FICTION",
+		"ECONOMY", "BUSINESS",
+		"GROWTH", "SELF_HELP"
+	);
+
 	private AiTagCodeMapper() {
 	}
 
@@ -48,5 +56,11 @@ final class AiTagCodeMapper {
 			}
 		}
 		return result;
+	}
+
+	static List<String> toPublicCodes(Iterable<String> rawCodes) {
+		return map(rawCodes).keySet().stream()
+			.map(code -> PUBLIC_CODES.getOrDefault(code, code))
+			.toList();
 	}
 }

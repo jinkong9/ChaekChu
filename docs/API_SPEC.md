@@ -394,16 +394,21 @@ V2 가 만든 `book_embeddings` 표는 한 번도 쓰이지 않았고 **V4(09-11
   "fallback": false,                      // true = 개인화 실패로 세그먼트 인기 대체
   "basedOnCount": 4,                      // "최근 기록한 N권을 보고 골랐어요"
   "weights": { "taste": 60, "coLoan": 0, "trending": 15, "steady": 10, "newField": 15 },
-  "appliedTags": ["#소설", "#신간"],
+  "appliedTags": ["FICTION", "SCIENCE"],
   "items": [
     { "book": BookSummary, "rank": 1, "score": 91.2,
       "featureScores": [ { "key": "taste", "rawScore": 88 }, { "key": "coLoan", "rawScore": null }, … ],
-      "tags": ["#소설", "#내취향근접"],
+      "tags": ["FICTION", "SCIENCE"],
       "reasonType": "TEXT_SIMILARITY",
       "reasonText": "최근 별 다섯 개를 준 『소년이 온다』와 문장 결이 닿아 있어요." }
   ]
 }
 ```
+
+`appliedTags`와 `items[].tags`는 태그 사전(`GET /tags`)의 불변 `code`를 사용한다.
+표시명은 프론트가 `GET /tags`의 `label`로 변환한다. AI 내부 인덱스의 별칭은 백엔드
+응답 경계에서 공개 code로 변환한다(`FIC → FICTION`, `ECONOMY → BUSINESS`,
+`GROWTH → SELF_HELP`).
 
 - `items` 는 `rank` 오름차순, 서재에 있는 책 제외, 같은 작품 1권.
 - 관심 태그와 행동 seed가 모두 없으면 `book_loaned_top20` 최신 기준월을 사용한다. 출생연도·성별이 있으면 해당 연령×성별, 성별이 없으면 연령대 남녀 합산, 연령도 없거나 해당 세그먼트가 비어 있으면 전체 세그먼트 합산 순위로 완화한다. 이 경로의 `mode` 는 `COLD_START`, `fallback` 은 `true`, `reasonType` 은 `SEGMENT_POPULAR` 이다.

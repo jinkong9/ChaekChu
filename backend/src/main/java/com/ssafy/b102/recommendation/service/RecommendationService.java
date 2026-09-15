@@ -180,12 +180,13 @@ public class RecommendationService {
 				item.score() == null ? 0.0 : item.score(),
 				item.featureScores().entrySet().stream()
 					.map(entry -> new RecommendationResponse.FeatureScore(entry.getKey(), entry.getValue())).toList(),
-				item.matchedTags(), reasonType, reasonText));
+				AiTagCodeMapper.toPublicCodes(item.matchedTags()), reasonType, reasonText));
 		}
 
 		return new RecommendationResponse(
 			ai.recommendationId(), generatedAt, request.mode(), ai.fallback(), basedOnCount,
-			weightsAsMap(request.weights()), request.tags().stream().map(AiRecommendationRequest.TagPreference::code).toList(),
+			weightsAsMap(request.weights()),
+			AiTagCodeMapper.toPublicCodes(request.tags().stream().map(AiRecommendationRequest.TagPreference::code).toList()),
 			ai.modelVersion(), ai.indexVersion(), items);
 	}
 
