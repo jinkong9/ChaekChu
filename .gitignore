@@ -26,3 +26,6 @@ frontend/design-qa.md
 .cache/
 __pycache__/
 *.pyc
+
+# 디자인 훅 — 예외 결정(config.json)은 함께 두고 캐시만 뺀다
+.impeccable/hook.cache.json

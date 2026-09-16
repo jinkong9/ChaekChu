@@ -1,0 +1,164 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-color",
+        "value": "#000",
+        "createdAt": "2026-09-15T08:33:49.374Z",
+        "reason": "mask-image 그라데이션의 알파 스톱 — 화면에 칠해지는 색이 아니라 마스크 불투명도다 (LandingPage 표지 배경)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#fee500",
+        "createdAt": "2026-09-15T08:33:49.465Z",
+        "reason": "카카오 로그인 버튼 브랜드 규정 색 — 카카오 디자인 가이드가 지정한 값이라 팔레트로 대체할 수 없다"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#191919",
+        "createdAt": "2026-09-15T08:33:49.560Z",
+        "reason": "카카오 로그인 버튼 브랜드 규정 글자색 — 카카오 디자인 가이드가 지정한 값"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0, 0, 0, 0.15)",
+        "createdAt": "2026-09-15T08:58:24.177Z",
+        "reason": "DESIGN.md Elevation 절이 '표지 확대'에 지정한 값(0 14px 36px rgba(0,0,0,.15)) — 팔레트 검사기가 그 절을 안 봐서 나는 오탐"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "13px",
+        "createdAt": "2026-09-15T08:58:24.375Z",
+        "reason": "editorial.css .eo-button 의 라벨 크기와 동일 — 디자인 시스템이 이미 쓰는 버튼 글자 크기다"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "15px",
+        "createdAt": "2026-09-15T08:58:24.563Z",
+        "reason": "로그인 뒤 GNB 브랜드와 같은 크기 (Layout.tsx text-[15px], editorial.css .eo-text-button) — 랜딩 제호를 GNB에 맞춘 것"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "6px",
+        "createdAt": "2026-09-15T08:58:36.158Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "14px",
+        "createdAt": "2026-09-15T08:58:36.309Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "6px",
+        "createdAt": "2026-09-15T08:58:36.558Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다 (표지에 인쇄된 아주 작은 글줄 — 책 너비에 비례한다)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "9px",
+        "createdAt": "2026-09-15T08:58:36.768Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다 (표지에 인쇄된 아주 작은 글줄 — 책 너비에 비례한다)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(14, 26, 38, 0.6)",
+        "createdAt": "2026-09-15T08:58:37.067Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다 (표지 글자 그림자)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(14, 26, 38, 0.45)",
+        "createdAt": "2026-09-15T08:58:37.298Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다 (표지 글자 그림자)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(4, 11, 29, 0.5)",
+        "createdAt": "2026-09-16T00:36:09.137Z",
+        "reason": "내 서재 '나의 책' 표지의 그늘색(rgba(4,11,29,…)) 계열 — 시안 C에서 표지를 뚫은 창의 잘린 단면에 쓴다 (LibraryPage.css 표지 면과 같은 색)"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "3px",
+        "createdAt": "2026-09-16T00:45:00.351Z",
+        "reason": "랜딩 시안 C가 그리는 '책'이라는 사물의 묘사 — 모서리 굴림·표지에 인쇄된 괘선·책 그림자다. DESIGN.md의 모서리 스케일과 팔레트는 UI 면을 위한 규칙이라 그림으로 그린 사물에는 적용되지 않는다"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "8px",
+        "createdAt": "2026-09-16T00:45:00.493Z",
+        "reason": "랜딩 시안 C가 그리는 '책'이라는 사물의 묘사 — 모서리 굴림·표지에 인쇄된 괘선·책 그림자다. DESIGN.md의 모서리 스케일과 팔레트는 UI 면을 위한 규칙이라 그림으로 그린 사물에는 적용되지 않는다"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "9px",
+        "createdAt": "2026-09-16T00:45:00.625Z",
+        "reason": "랜딩 시안 C가 그리는 '책'이라는 사물의 묘사 — 모서리 굴림·표지에 인쇄된 괘선·책 그림자다. DESIGN.md의 모서리 스케일과 팔레트는 UI 면을 위한 규칙이라 그림으로 그린 사물에는 적용되지 않는다"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0, 0, 0, 0.12)",
+        "createdAt": "2026-09-16T00:45:00.745Z",
+        "reason": "랜딩 시안 C가 그리는 '책'이라는 사물의 묘사 — 모서리 굴림·표지에 인쇄된 괘선·책 그림자다. DESIGN.md의 모서리 스케일과 팔레트는 UI 면을 위한 규칙이라 그림으로 그린 사물에는 적용되지 않는다 (책 그림자)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(232, 220, 192, 0.45)",
+        "createdAt": "2026-09-16T00:45:00.848Z",
+        "reason": "랜딩 시안 C가 그리는 '책'이라는 사물의 묘사 — 모서리 굴림·표지에 인쇄된 괘선·책 그림자다. DESIGN.md의 모서리 스케일과 팔레트는 UI 면을 위한 규칙이라 그림으로 그린 사물에는 적용되지 않는다 (표지에 인쇄된 크림색 괘선)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(232, 220, 192, 0.22)",
+        "createdAt": "2026-09-16T00:45:00.958Z",
+        "reason": "랜딩 시안 C가 그리는 '책'이라는 사물의 묘사 — 모서리 굴림·표지에 인쇄된 괘선·책 그림자다. DESIGN.md의 모서리 스케일과 팔레트는 UI 면을 위한 규칙이라 그림으로 그린 사물에는 적용되지 않는다 (표지에 인쇄된 크림색 괘선)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "38px",
+        "createdAt": "2026-09-16T01:17:57.101Z",
+        "reason": "시안 A(기존 랜딩)와 같은 타입 램프 — 사용자가 B의 글을 A만큼 키우라고 지정했다. DESIGN.md 램프는 headline 42px에서 끊기고 그 위는 워드마크 전용 display라, 랜딩 첫 화면의 히어로가 들어갈 단이 없다"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "64px",
+        "createdAt": "2026-09-16T01:17:57.525Z",
+        "reason": "시안 A(기존 랜딩)와 같은 타입 램프 — 사용자가 B의 글을 A만큼 키우라고 지정했다. DESIGN.md 램프는 headline 42px에서 끊기고 그 위는 워드마크 전용 display라, 랜딩 첫 화면의 히어로가 들어갈 단이 없다"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "17px",
+        "createdAt": "2026-09-16T01:17:57.907Z",
+        "reason": "시안 A(기존 랜딩)와 같은 타입 램프 — 사용자가 B의 글을 A만큼 키우라고 지정했다. DESIGN.md 램프는 headline 42px에서 끊기고 그 위는 워드마크 전용 display라, 랜딩 첫 화면의 히어로가 들어갈 단이 없다"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "34px",
+        "createdAt": "2026-09-16T03:18:48.464Z",
+        "reason": "랜딩 히어로의 타입 램프 — DESIGN.md 램프는 headline 42px에서 끊기고 그 위는 워드마크 전용 display라 랜딩 첫 화면의 제목이 들어갈 단이 없다. 시안 B에 이미 같은 사유로 38/64/17px을 열어 뒀고, C도 같은 자리다"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "36px",
+        "createdAt": "2026-09-16T03:18:48.555Z",
+        "reason": "랜딩 히어로의 타입 램프 — DESIGN.md 램프는 headline 42px에서 끊기고 그 위는 워드마크 전용 display라 랜딩 첫 화면의 제목이 들어갈 단이 없다. 시안 B에 이미 같은 사유로 38/64/17px을 열어 뒀고, C도 같은 자리다"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "82px",
+        "createdAt": "2026-09-16T03:18:48.640Z",
+        "reason": "랜딩 히어로의 타입 램프 — DESIGN.md 램프는 headline 42px에서 끊기고 그 위는 워드마크 전용 display라 랜딩 첫 화면의 제목이 들어갈 단이 없다. 시안 B에 이미 같은 사유로 38/64/17px을 열어 뒀고, C도 같은 자리다"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "16px",
+        "createdAt": "2026-09-16T06:21:55.410Z",
+        "reason": "로그인 뒤 GNB의 브랜드 크기 (Layout.tsx sm:text-base) — 랜딩 제호를 그것에 맞춘 값이다. 15px 은 이미 같은 사유로 열려 있다"
+      }
+    ]
+  }
+}
