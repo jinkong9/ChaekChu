@@ -39,6 +39,7 @@ class SimilarBookServiceTest {
 		when(books.findById(7L)).thenReturn(Optional.of(seed));
 
 		SimilarBookService service = new SimilarBookService(aiClient, books,
+			mock(com.ssafy.b102.book.repository.WorkSeriesRepository.class),
 			new BookSummaryMapper(KdcCategoryResolver.fromLabels(java.util.Map.of())));
 
 		SimilarBookResponse response = service.similar("7", 8);
