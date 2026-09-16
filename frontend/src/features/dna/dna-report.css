@@ -52,37 +52,6 @@
   margin: 0;
 }
 
-/* ---------- 시안 검증용 도구 영역 ----------
-   A안과 같은 페르소나 전환. 클래스를 따로 두는 이유는, A안 CSS(dna-mock.css)를
-   빌려 쓰면 나중에 A안을 정리할 때 B안이 같이 무너지기 때문이다. */
-
-.dnar-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  min-height: 40px;
-  padding-top: 12px;
-  flex-wrap: wrap;
-}
-.dnar-personas { display: flex; gap: 18px; }
-.dnar-persona {
-  min-height: 40px;
-  padding: 0;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--eo-ink-faint);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 650;
-  cursor: pointer;
-  transition: color var(--eo-motion) ease-out;
-}
-.dnar-persona:hover { color: var(--eo-ink); }
-.dnar-persona.is-active { color: var(--eo-ink); border-bottom-color: currentColor; }
-.dnar-persona:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
-
 /* ---------- 히어로 ---------- */
 
 .dnar-hero {
