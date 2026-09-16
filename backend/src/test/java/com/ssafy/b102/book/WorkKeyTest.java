@@ -12,6 +12,7 @@ import com.ssafy.b102.book.service.WorkKey;
  *
  * 접기에 실패하는 쪽보다 <b>잘못 접는 쪽이 더 나쁘다</b> — 중복은 한 번 더 보이고 끝이지만,
  * 잘못 접으면 다른 책이 목록에서 사라진다. 그래서 시리즈가 뭉개지지 않는지를 함께 고정한다.
+ * 숫자가 붙은 사례는 추천 후보 440,757권을 실제 코드로 돌려 잰 것이다(09-16).
  */
 class WorkKeyTest {
 
@@ -57,6 +58,8 @@ class WorkKeyTest {
 		assertThat(WorkKey.of("(200쇄 기념본)작별하지 않는다", "한강", "9790000000018")).isEqualTo(base);
 	}
 
+	// ── 권차(vol)·세트(set_isbn) ──
+
 	@Test
 	@DisplayName("세트의 권들은 접지 않는다 — 실제 사례: 비룡소 셜록 홈즈 7권이 제목·저자·연도까지 같다")
 	void setMembersStaySeparate() {
@@ -66,11 +69,35 @@ class WorkKeyTest {
 	}
 
 	@Test
+	@DisplayName("같은 권의 다른 판은 세트 ISBN 이 달라도 한 작품이다 — 불의 잔 4-1 이 2010·2014·2019 판으로 세 번 보이던 문제")
+	void sameVolumeAcrossEditionsMerges() {
+		String ed2010 = WorkKey.of("해리포터와 불의 잔", "조앤 K. 롤링", "9788983920928", "41", "9788983920676");
+		String ed2014 = WorkKey.of("해리포터와 불의 잔", "조앤 K. 롤링", "9788983925589", "41", "9788983925664");
+		String ed2019 = WorkKey.of("해리포터와 불의 잔", "조앤 K. 롤링", "9788983927682", "41", "9788983927613");
+		assertThat(ed2010).isEqualTo(ed2014).isEqualTo(ed2019);
+		// 4-2 는 다른 권
+		assertThat(WorkKey.of("해리포터와 불의 잔", "조앤 K. 롤링", "9788983927699", "42", "9788983927613")).isNotEqualTo(ed2019);
+	}
+
+	@Test
+	@DisplayName("세트 ISBN 과 권차가 같아도 제목이 다르면 다른 작품이다 — 전집 한 세트 아래 14작품이 «1권» 으로 뭉개지던 문제")
+	void sameSetAndVolumeButDifferentTitleStaysSeparate() {
+		String set = "9788901082042";   // 웅진 세계문학: 드라큘라·제인 에어·논어… 가 전부 vol=1
+		String dracula = WorkKey.of("드라큘라", "브램 스토커 · 박종윤", "9788901099057", "1", set);
+		String janeEyre = WorkKey.of("제인 에어", "샬럿 브론테 · 류경희", "9788901106311", "1", set);
+		String analects = WorkKey.of("논어", "최영갑 · 공자", "9788901100197", "1", set);
+		assertThat(dracula).isNotEqualTo(janeEyre).isNotEqualTo(analects);
+		assertThat(janeEyre).isNotEqualTo(analects);
+	}
+
+	@Test
 	@DisplayName("세트 표시만 있고 권차가 없으면 ISBN 으로 떨어져 각자 남는다 — 접는 것보다 안전하다")
 	void setMemberWithoutVolumeNeverMerges() {
 		String a = WorkKey.of("어떤 시리즈", "저자", "9790000000020", null, "9790000000019");
 		String b = WorkKey.of("어떤 시리즈", "저자", "9790000000021", null, "9790000000019");
 		assertThat(a).isNotEqualTo(b);
+		// 세트 없는 같은 제목·저자와도 합쳐지지 않는다 — 한쪽으로라도 접히면 세트 형제가 사라질 수 있다
+		assertThat(a).isNotEqualTo(WorkKey.of("어떤 시리즈", "저자", "9790000000022", null, null));
 	}
 
 	@Test
@@ -89,9 +116,25 @@ class WorkKeyTest {
 	}
 
 	@Test
+	@DisplayName("권차의 앞자리 0 은 뗀다 — 광마회귀 위즈덤하우스 «01» 과 문학수첩 «1» 은 같은 권이다")
+	void volumeLeadingZerosNormalized() {
+		assertThat(WorkKey.of("광마회귀", "유진성", "9791171713509", "01", "9791171713493"))
+			.isEqualTo(WorkKey.of("광마회귀", "유진성", "9791193790205", "1", "9791193790243"));
+		assertThat(WorkKey.of("Biscuit", "Alyssa Satin Capucilli", "9788953922433", "017", null))
+			.isEqualTo(WorkKey.of("Biscuit", "Alyssa Satin Capucilli", "9780060741723", "17", null));
+		// 비숫자 권차는 그대로 — 상·하는 다른 권
+		assertThat(WorkKey.of("토지", "박경리", "9790000000026", "상", null))
+			.isNotEqualTo(WorkKey.of("토지", "박경리", "9790000000027", "하", null));
+		assertThat(WorkKey.of("토지", "박경리", "9790000000028", " 상 ", null))
+			.isEqualTo(WorkKey.of("토지", "박경리", "9790000000029", "상", null));
+	}
+
+	@Test
 	@DisplayName("권차·세트가 모두 없으면 예전 규칙 그대로 — 긴긴밤 두 판본은 여전히 한 작품이다")
 	void withoutVolumeFallsBackToTitleAndAuthor() {
 		assertThat(WorkKey.of("긴긴밤", "루리", "9788954677158", null, null))
+			.isEqualTo(WorkKey.of("긴긴밤", "루리", "9788954684033", null, null));
+		assertThat(WorkKey.of("긴긴밤", "루리", "9788954677158", "", ""))
 			.isEqualTo(WorkKey.of("긴긴밤", "루리", "9788954684033", null, null));
 	}
 
@@ -103,9 +146,11 @@ class WorkKeyTest {
 	}
 
 	@Test
-	@DisplayName("제목이 비면 ISBN 으로 떨어져 절대 겹치지 않는다")
+	@DisplayName("제목이 비면 ISBN 으로 떨어져 절대 겹치지 않는다 — 권차·세트가 있어도 같다")
 	void emptyTitleFallsBackToIsbn() {
 		assertThat(WorkKey.of(null, "저자", "9790000000010"))
 			.isNotEqualTo(WorkKey.of("", "저자", "9790000000011"));
+		assertThat(WorkKey.of("太白山脈", "조정래", "9790000000030", "1", "9790000000031"))
+			.isNotEqualTo(WorkKey.of("太白山脈", "조정래", "9790000000032", "1", "9790000000031"));
 	}
 }

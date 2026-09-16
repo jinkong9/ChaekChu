@@ -175,6 +175,47 @@ class SimilarBookApiTest {
 	}
 
 	@Test
+	@DisplayName("같은 권의 다른 판은 세트 ISBN 이 달라도 한 권만 남긴다 — 불의 잔 4-1 이 2010·2014·2019 판으로 세 번 뜨던 문제")
+	void similar_foldsSameVolumeAcrossEditions() throws Exception {
+		String ed2010 = uniqueIsbn();
+		String ed2014 = uniqueIsbn();
+		String ed2019 = uniqueIsbn();
+		String nextVolume = uniqueIsbn();
+		insertVolume(ed2010, "해리포터와 불의 잔", "조앤 K. 롤링", "41", "9788983920676");
+		insertVolume(ed2014, "해리포터와 불의 잔", "조앤 K. 롤링", "41", "9788983925664");
+		insertVolume(ed2019, "해리포터와 불의 잔", "조앤 K. 롤링", "41", "9788983927613");
+		insertVolume(nextVolume, "해리포터와 불의 잔", "조앤 K. 롤링", "42", "9788983927613");
+		when(aiClient.recommend(any())).thenReturn(response(false,
+			item(ed2019, 95.0), item(ed2014, 94.0), item(ed2010, 93.0), item(nextVolume, 80.0)));
+
+		mvc.perform(get("/api/v1/books/" + seedId + "/similar").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items.length()").value(2))
+			.andExpect(jsonPath("$.items[0].book.isbn13").value(ed2019))
+			.andExpect(jsonPath("$.items[1].book.isbn13").value(nextVolume));
+	}
+
+	@Test
+	@DisplayName("세트 ISBN 과 권차가 같아도 제목이 다르면 전부 살린다 — 전집 한 세트의 «1권» 들이 한 권으로 뭉개지던 문제")
+	void similar_keepsDifferentWorksSharingSetAndVolume() throws Exception {
+		String set = "9788901082042";   // 웅진 세계문학: 14작품이 전부 vol=1
+		String dracula = uniqueIsbn();
+		String janeEyre = uniqueIsbn();
+		String analects = uniqueIsbn();
+		insertVolume(dracula, "드라큘라", "브램 스토커 · 박종윤", "1", set);
+		insertVolume(janeEyre, "제인 에어", "샬럿 브론테 · 류경희", "1", set);
+		insertVolume(analects, "논어", "최영갑 · 공자", "1", set);
+		when(aiClient.recommend(any())).thenReturn(response(false, item(dracula, 90.0), item(janeEyre, 85.0), item(analects, 80.0)));
+
+		mvc.perform(get("/api/v1/books/" + seedId + "/similar").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items.length()").value(3))
+			.andExpect(jsonPath("$.items[0].book.isbn13").value(dracula))
+			.andExpect(jsonPath("$.items[1].book.isbn13").value(janeEyre))
+			.andExpect(jsonPath("$.items[2].book.isbn13").value(analects));
+	}
+
+	@Test
 	@DisplayName("이웃끼리 같은 작품이면 첫 권만 남긴다 — 출판사·부제·병기 제목이 달라도 같은 작품이다")
 	void similar_keepsOneEditionPerWork() throws Exception {
 		String munhak = uniqueIsbn();
