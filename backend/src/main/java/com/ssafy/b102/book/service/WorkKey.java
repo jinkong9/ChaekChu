@@ -47,10 +47,10 @@ import com.ssafy.b102.search.service.AuthorNameParser;
  *   </li>
  * </ol>
  *
- * <p>추천 후보 440,757권을 이 클래스 그대로 탐욕적으로 접어 보면(AI 순서 대신 id 순, 시리즈 판정은 로컬 카탈로그 331만 행) 42,263권이 접히고
+ * <p>추천 후보 440,757권을 이 클래스 그대로 탐욕적으로 접어 보면(AI 순서 대신 id 순, 시리즈 판정은 로컬 카탈로그 331만 행) 41,829권이 접히고
  * (09-16 오전 규칙 35,118권), 데미안 94권은 24묶음 → 5묶음, 어린 왕자 207권은 42 → 53(카탈로그가 시리즈로 아는 출판사가 많아 오히려 덜 접힌다).
  * 시리즈는 그대로다 — 토지 78권 33묶음, 학사검전 9권 9묶음, 먼나라 이웃나라 64권 16묶음, 셜록 홈즈 41권 17묶음.
- * 출판사가 다르고 권차도 다른데 접힌 6,172쌍을 표본 조사하면 크리스마스 캐럴 여원미디어 30·웅진닷컴 23 처럼 문고 번호였다.
+ * 출판사가 다르고 권차도 다른데 접힌 5,696쌍을 표본 조사하면 크리스마스 캐럴 여원미디어 30·웅진닷컴 23 처럼 문고 번호였다.
  *
  * <p>원칙은 그대로다 — 덜 접는 실패(중복이 한 번 더 보임)가 잘못 접는 실패(다른 책이 사라짐)보다 낫다. 그래서 «한쪽만 권차 있음»과
  * «같은 세트 권차 미상»은 접지 않고, 시리즈 판정은 «어느 한쪽이라도» 로 넓게 잡는다.
@@ -158,7 +158,7 @@ public final class WorkKey {
 			if (volume.equals(other.volume)) {
 				return true;
 			}
-			if (!publisher.isEmpty() && publisher.equals(other.publisher)) {
+			if (samePublisher(other)) {
 				return false;     // 같은 출판사의 다른 권차 = 시리즈의 다른 권
 			}
 			if (sameSet || knownSeries || other.knownSeries) {
@@ -170,6 +170,23 @@ public final class WorkKey {
 			return !sameSet;      // 같은 세트의 권차 미상 형제만 갈라 둔다
 		}
 		return false;             // 한쪽만 권차가 있다 — 모르므로 접지 않는다
+	}
+
+	/**
+	 * 출판사 표기가 원장마다 다르다 — 「그레이트북스」/「그레이트Books(그레이트북스)」, 「크레용하우스」/「(주)크레용하우스」, 「학산문화사」/「학산문화사(만화)」.
+	 * 한글·영숫자만 남긴 뒤 한쪽이 다른 쪽을 품으면(3자 이상) 같은 출판사로 본다. 실측: 출판사·권차가 모두 다르다고 접힌 6,172쌍 중 491쌍이 이 표기 차이였다.
+	 * 「비룡소」/「비룡소플래닛」·「김영사」/「주니어김영사」 같은 임프린트도 같은 곳으로 묶여 권차를 믿게 된다 — 덜 접는 쪽이라 안전하다.
+	 */
+	private boolean samePublisher(WorkKey other) {
+		if (publisher.isEmpty() || other.publisher.isEmpty()) {
+			return false;
+		}
+		if (publisher.equals(other.publisher)) {
+			return true;          // 「나남」처럼 두 글자 출판사는 완전일치로만 본다
+		}
+		String shorter = publisher.length() <= other.publisher.length() ? publisher : other.publisher;
+		String longer = shorter == publisher ? other.publisher : publisher;
+		return shorter.length() >= 3 && longer.contains(shorter);
 	}
 
 	public String isbn13() {

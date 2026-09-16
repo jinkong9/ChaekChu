@@ -90,6 +90,18 @@ class WorkKeyTest {
 	}
 
 	@Test
+	@DisplayName("출판사 표기가 달라도 한쪽이 다른 쪽을 품으면 같은 출판사다 — 「(주)크레용하우스」 2권과 「크레용하우스」 4권은 다른 책")
+	void publisherNameVariantsCountAsSamePublisher() {
+		assertThat(same(WorkKey.of("공룡유치원", "저자", "9790000000080", "(주)크레용하우스", "2", null, false),
+			WorkKey.of("공룡유치원", "저자", "9790000000081", "크레용하우스", "4", null, false))).isFalse();
+		assertThat(same(WorkKey.of("담아 나라가 시끌시끌", "저자", "9790000000082", "그레이트북스", "29", null, false),
+			WorkKey.of("담아 나라가 시끌시끌", "저자", "9790000000083", "그레이트Books(그레이트북스)", "34", null, false))).isFalse();
+		// 전혀 다른 출판사면 문고 번호 — 같은 작품
+		assertThat(same(WorkKey.of("어린 왕자", "생텍쥐페리 · 이효숙", "9790000000084", "푸른책들", "2", null, false),
+			WorkKey.of("어린 왕자", "생텍쥐페리 · 박기종", "9790000000085", "삼성당", "5", null, false))).isTrue();
+	}
+
+	@Test
 	@DisplayName("같은 권의 다른 판은 세트 ISBN 이 달라도 한 작품이다 — 불의 잔 4-1 이 2010·2014·2019 판으로 세 번 보이던 문제")
 	void sameVolumeAcrossEditionsMerges() {
 		WorkKey ed2010 = WorkKey.of("해리포터와 불의 잔", "최인자 · 조앤 K. 롤링", "9788983920928", "문학수첩", "41", "9788983920676", true);
