@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import LandingAurora from '../features/landing/LandingAurora'
+import LandingCover from '../features/landing/LandingCover'
+import LandingOku from '../features/landing/LandingOku'
 import LandingShelf from '../features/landing/LandingShelf'
 
 /** 비로그인 랜딩. OAuth 버튼을 랜딩에 직접 배치 (별도 로그인 페이지 없음, 8/28 피드백).
@@ -11,16 +13,20 @@ import LandingShelf from '../features/landing/LandingShelf'
 const VARIANTS = [
   { key: 'aurora', label: 'A 오로라 (기존)' },
   { key: 'shelf', label: 'B 표지 지면' },
+  { key: 'cover', label: 'C 한 권의 표지' },
+  { key: 'oku', label: 'D 에디토리얼' },
 ] as const
 
 type Variant = (typeof VARIANTS)[number]['key']
 
 export default function LandingPage() {
-  const [variant, setVariant] = useState<Variant>('aurora')
+  const [variant, setVariant] = useState<Variant>('oku')
   return (
     <>
       {variant === 'aurora' && <LandingAurora />}
       {variant === 'shelf' && <LandingShelf />}
+      {variant === 'cover' && <LandingCover />}
+      {variant === 'oku' && <LandingOku />}
       {/* 시안 전환은 제품 UI가 아니라 팀용 도구다 — 화면 오른쪽 아래에 조용히 띄워
           랜딩의 로그인 버튼과 자리를 다투지 않게 한다. 랜딩 루트가 position:fixed 라
           그 위로 올라오려면 z-40 이 필요하다 */}
