@@ -12,10 +12,25 @@
 
 ## taxonomy
 
-현재 `TAXONOMY_VERSION=book-taxonomy-v1`이며 `FIC`, `ESSAY`, `SCIENCE`, `HISTORY`,
+현재 `TAXONOMY_VERSION=book-taxonomy-v1`이며 20개 code를 사용한다 — `FIC`, `ESSAY`, `SCIENCE`, `HISTORY`,
 `ECONOMY`, `FANTASY`, `MYSTERY`, `ROMANCE`, `GROWTH`, `FAMILY`, `TIME_TRAVEL`,
-`TRENDING`, `STEADY`, `NEW_BOOK` code를 사용한다. code와 화면 label은
-`recommendation.tag_batch.TAXONOMY`에서 함께 관리한다.
+`TRENDING`, `STEADY`, `NEW_BOOK` 과, 2026-09-16 에 더한 `HUMANITIES`, `ART`, `SOCIETY`, `POETRY`, `TRAVEL`, `TECH`.
+code와 화면 label은 `recommendation.tag_batch.TAXONOMY`에서 함께 관리한다.
+
+뒤의 6개는 백엔드 온보딩 태그(`tags` 표 12개) 중 AI 가 모르던 것이다. 사용자가 골라도 `AiTagCodeMapper` 가 조용히 버려
+추천이 바뀌지 않았다. 전부 KDC 로 결정되는 분류 장르라 `RuleBasedTagger` 의 `KDC_PREFIXES` 규칙만으로 붙이며(GMS 호출 없음),
+구간은 백엔드 파이프라인 `build_service_tables.py` 의 `KDC_TAGS` 와 같다 — 그쪽이 `book_tags` 표를, 이쪽이 Qdrant payload 를 만든다.
+`TAXONOMY_VERSION` 은 올리지 않았다: code 추가는 상위집합이라 기존 sidecar·cache 가 그대로 유효하고, 올리면 43만 행 cache 가 무효가 된다.
+백엔드 온보딩 태그와의 대응은 `AiTagCodeMapperTest.everyOnboardingTagReachesAi` 가 고정한다.
+
+**taxonomy 를 늘리는 절차(재임베딩 없음)** — 벡터 입력에는 태그가 없으므로 payload 만 바꾸면 된다.
+
+1. `TAXONOMY` 와 규칙을 더한다. 온라인 허용 코드(`query_vector.DEFAULT_TAG_CODES`)는 `TAXONOMY` 에서 파생된다.
+2. `tags --rule-only --cache <기존 cache> --tag-version <새 버전>` 으로 sidecar 를 다시 만든다. cache hit 행은 **지금 규칙을 다시 돌려 cache 의 GMS 태그와 합치므로**
+   GMS 를 부르지 않고도 새 code 가 붙는다. `gmsRequests=0` 을 확인한다.
+3. `tag-payload-sync --sidecar <새 sidecar> --index-version <현행> --tag-version <새 버전>` 으로 현행 index 의 `tagCodes`·`tagScores`·`tagConfidence`·`tagVersion` 만 덮어쓴다.
+4. `tag-index --tag-version <새 버전>` 으로 prototype 을 채운다 — 이미 있는 code 는 건너뛰고 새 code 만 임베딩한다(6회).
+5. 런타임 `AI_TAG_VERSION` 을 새 버전으로 바꾸고 배포한다.
 
 ## 생성 순서
 

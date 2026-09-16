@@ -510,7 +510,9 @@ AI 에 닿지 못하면 `503 RECOMMENDATION_UNAVAILABLE` 이다. 상세 화면�
 `appliedTags`와 `items[].tags`는 태그 사전(`GET /tags`)의 불변 `code`를 사용한다.
 표시명은 프론트가 `GET /tags`의 `label`로 변환한다. AI 내부 인덱스의 별칭은 백엔드
 응답 경계에서 공개 code로 변환한다(`FIC → FICTION`, `ECONOMY → BUSINESS`,
-`GROWTH → SELF_HELP`).
+`GROWTH → SELF_HELP`). **온보딩 태그 12개는 전부 AI 로 전달된다(09-16).** 09-10~09-16 에는 `HUMANITIES` `ART` `SOCIETY`
+`POETRY` `TRAVEL` `TECH` 가 AI taxonomy 에 없어 조용히 버려졌고, 그 태그만 고른 사용자는 `appliedTags: []` 에 콜드스타트로 갈렸다.
+AI taxonomy 에 같은 철자로 6개를 넣고(KDC 규칙, 재임베딩 없이 payload 갱신) `AiTagCodeMapperTest` 가 12개 왕복을 고정한다.
 
 - `items` 는 `rank` 오름차순, 서재에 있는 책 제외, 같은 작품 1권.
 - 관심 태그와 행동 seed가 모두 없으면 `book_loaned_top20` 최신 기준월을 사용한다. 출생연도·성별이 있으면 해당 연령×성별, 성별이 없으면 연령대 남녀 합산, 연령도 없거나 해당 세그먼트가 비어 있으면 전체 세그먼트 합산 순위로 완화한다. 이 경로의 `mode` 는 `COLD_START`, `fallback` 은 `true`, `reasonType` 은 `SEGMENT_POPULAR` 이다.

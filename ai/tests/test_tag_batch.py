@@ -119,6 +119,87 @@ def test_tag_batch_report_counts_skipped_rows_and_keeps_sidecar_metadata(tmp_pat
     assert all(record["gmsSkipReason"] == "RULE_CONFIDENT" for record in records)
 
 
+def test_taxonomy_covers_every_backend_onboarding_tag_through_the_mapper_aliases() -> None:
+    # 백엔드 tags 표(V1_1 seed) 12개. FICTION/BUSINESS/SELF_HELP 는 AiTagCodeMapper 가 FIC/ECONOMY/GROWTH 로 바꿔 보낸다.
+    backend = {"FICTION", "ESSAY", "HUMANITIES", "HISTORY", "SCIENCE", "ART", "SELF_HELP", "BUSINESS", "SOCIETY", "POETRY", "TRAVEL", "TECH"}
+    aliases = {"FICTION": "FIC", "BUSINESS": "ECONOMY", "SELF_HELP": "GROWTH"}
+    codes = {definition.code for definition in TAXONOMY}
+
+    assert {aliases.get(code, code) for code in backend} <= codes
+
+
+def test_rule_tagger_assigns_kdc_genre_tags_with_the_backend_boundaries() -> None:
+    base = load_d4l_jsonl(FIXTURE)[0]
+
+    def tags_for(class_no: str, class_nm: str = "") -> set[str]:
+        book = replace(base, title="제목", authors="저자", publisher="출판사", class_no=class_no, class_nm=class_nm)
+        return {tag.code for tag in RuleBasedTagger().generate(book)}
+
+    assert "HUMANITIES" in tags_for("150.1")      # 심리학
+    assert "HUMANITIES" not in tags_for("190")    # 190 은 백엔드도 제외
+    assert "ART" in tags_for("650")               # 회화
+    assert "ART" not in tags_for("692")           # 스포츠는 제외
+    assert "SOCIETY" in tags_for("340")           # 정치
+    assert "SOCIETY" not in tags_for("370")       # 교육은 제외
+    assert "POETRY" in tags_for("811.7")          # 한국 현대시
+    assert "TRAVEL" in tags_for("981.1")          # 기행
+    assert "TRAVEL" in tags_for("816")            # 기행문학
+    assert "TECH" in tags_for("005.1")            # 프로그래밍
+    assert "TECH" in tags_for("569")              # 제조
+    assert "TECH" not in tags_for("510")          # 의학은 제외
+
+
+def test_cache_hit_reapplies_current_rules_so_new_taxonomy_codes_appear_without_gms(tmp_path: Path) -> None:
+    """The 450k cache was written before the KDC genre codes existed; a rule-only re-run must add them from cache hits."""
+    book = replace(load_d4l_jsonl(FIXTURE)[0], class_no="150.1", class_nm="심리학")
+    source = tmp_path / "input.jsonl"
+    source.write_text(
+        json.dumps(
+            {
+                "isbn13": book.isbn13, "bookname": book.title, "authors": book.authors, "publisher": book.publisher,
+                "pub_year": book.pub_year, "class_no": book.class_no, "class_nm": book.class_nm,
+                "loan_total": book.loan_total, "co_loan": [], "mania_rec": [], "reader_rec": [], "loan_history": [],
+            },
+            ensure_ascii=False,
+        ) + "\n",
+        encoding="utf-8",
+    )
+    cache = tmp_path / "cache.jsonl"
+    calls = 0
+
+    class Provider:
+        def generate(self, _book):
+            nonlocal calls
+            calls += 1
+            return {"FANTASY": 0.9}
+
+    class NoRules:
+        def generate(self, _book):
+            return ()
+
+    # 1) 옛 규칙(여기서는 규칙 없음)으로 GMS 결과를 cache 에 쓴다
+    TagBatchRunner(
+        generator=TagGenerator(rule_tagger=NoRules(), gms_provider=Provider()),
+        tag_version="tags-v1", cache_path=cache,
+    ).run(source, tmp_path / "v1.jsonl")
+    assert calls == 1
+
+    # 2) 새 규칙으로 rule-only 재실행 — GMS 는 부르지 않고 cache 의 FANTASY 와 새 규칙의 HUMANITIES 가 함께 붙는다
+    report = TagBatchRunner(
+        generator=TagGenerator(gms_provider=None),
+        tag_version="tags-v2", cache_path=cache,
+    ).run(source, tmp_path / "v2.jsonl")
+    record = json.loads((tmp_path / "v2.jsonl").read_text(encoding="utf-8").splitlines()[0])
+
+    assert calls == 1
+    assert report["cacheHitRows"] == 1 and report["gmsRequests"] == 0
+    assert record["gmsSkipReason"] == "CACHE_HIT"
+    assert {"FANTASY", "HUMANITIES"} <= set(record["tagCodes"])
+    assert {tag["code"]: tag["source"] for tag in record["tags"]}["HUMANITIES"] == "RULE"
+    assert {tag["code"]: tag["source"] for tag in record["tags"]}["FANTASY"] == "GMS"
+    assert record["taxonomyVersion"] == TAXONOMY_VERSION
+
+
 def test_gms_tag_provider_parses_openai_compatible_json_without_leaking_source() -> None:
     captured: dict[str, object] = {}
 

@@ -71,6 +71,20 @@ class InMemoryVersionedIndexStore:
     def count(self, version: str) -> int:
         return len(self._versions.get(version, {}))
 
+    def update_payloads(self, version: str, updates: Mapping[str, Mapping[str, Any]]) -> int:
+        """Merge payload fields into existing points; unknown ISBNs are skipped. Returns how many points changed."""
+        records = self._versions.get(version, {})
+        changed = 0
+        for isbn13, fields in updates.items():
+            record = records.get(isbn13)
+            if record is None:
+                continue
+            records[isbn13] = VectorRecord(
+                record.isbn13, record.vector, {**record.payload, **fields}, active=record.active, index_version=record.index_version
+            )
+            changed += 1
+        return changed
+
     def get(self, version: str, isbn13: str) -> VectorRecord | None:
         return self._versions.get(version, {}).get(isbn13)
 
@@ -178,6 +192,22 @@ class QdrantVersionedIndexStore:
             {"points": points},
         )
         self._indexed.setdefault(version, set()).update(record.isbn13 for record in records)
+
+    def update_payloads(self, version: str, updates: Mapping[str, Mapping[str, Any]]) -> int:
+        """Merge payload fields into existing points with one batch request (Qdrant set_payload keeps other fields).
+
+        A point that does not exist is silently ignored by Qdrant, so the returned count is the number of
+        operations sent, not confirmed changes — callers compare it with the sidecar size, not with the index.
+        """
+        if not updates:
+            return 0
+        collection = self._collection_name(version)
+        operations = [
+            {"set_payload": {"payload": dict(fields), "points": [self._point_id(version, isbn13)]}}
+            for isbn13, fields in updates.items()
+        ]
+        self._call("POST", f"/collections/{collection}/points/batch?wait=true", {"operations": operations})
+        return len(operations)
 
     def promote(self, version: str) -> None:
         collection = self._collection_name(version)
