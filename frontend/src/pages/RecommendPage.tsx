@@ -70,13 +70,15 @@ export default function RecommendPage() {
   }, [reduced])
   useEffect(() => () => clearTimeout(reopen.current), [])
 
-  // 노출 이벤트 — 덱(recommendationId)당 1회
-  const impressed = useRef<string | null>(null)
+  // 노출 이벤트 — 덱(recommendationId)당 1회 + 실제로 편 카드마다 1회(§7.1: 둘 다 받는다).
+  // 서버가 10권을 보내도 화면은 RECOMMEND_DECK_SIZE 장만 펴므로, 카드 노출이 없으면 안 보인 책이 「보여줬는데 안 눌렀다」로 집계된다.
+  // position 은 첫 화면 기준(히어로 = 0). 중복 방지는 lib/events 가 (덱, 책) 키로 세션 안에서 막는다
   useEffect(() => {
-    if (data && impressed.current !== data.recommendationId) {
-      impressed.current = data.recommendationId
-      trackEvent('IMPRESSION', { recommendationId: data.recommendationId })
-    }
+    if (!data) return
+    const rid = data.recommendationId
+    trackEvent('IMPRESSION', { recommendationId: rid, context: 'RECOMMEND' })
+    data.items.slice(0, RECOMMEND_DECK_SIZE).forEach((it, position) =>
+      trackEvent('IMPRESSION', { recommendationId: rid, bookId: it.book.bookId, rank: it.rank, position, context: 'RECOMMEND' }))
   }, [data])
 
   if (isPending) {
@@ -107,6 +109,8 @@ export default function RecommendPage() {
   // 꺼내 둔 책이 곧 히어로. 나머지는 순위 그대로 아래에 남는다 (원래 1순위도 여기로 내려온다)
   const featured = items.find((i) => i.book.bookId === featuredId) ?? items[0]
   const rest = items.filter((i) => i !== featured)
+  // 화면에서 보이는 자리 — 서버 순위(rank)와 다르다. 히어로가 0, 아래 후보는 왼쪽부터 1
+  const positionOf = (item: RecommendationItem) => (item === featured ? 0 : rest.indexOf(item) + 1)
   const appliedTags = data.appliedTags
   const postmark = new Date(data.generatedAt).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
 
@@ -121,7 +125,7 @@ export default function RecommendPage() {
       return
     }
     // 찜은 서버로 바로 간다. 이미 담긴 책이면 409 → api/library 가 PATCH 로 처리한다
-    trackEvent('WISH', { bookId, recommendationId: data.recommendationId, rank: item.rank })
+    trackEvent('WISH', { bookId, recommendationId: data.recommendationId, rank: item.rank, position: positionOf(item), context: 'RECOMMEND' })
     setSaving(true)
     setSaveError(null)
     addToLibrary(bookId, status)
@@ -131,13 +135,15 @@ export default function RecommendPage() {
       .finally(() => setSaving(false))
   }
   const click = (item: RecommendationItem) =>
-    trackEvent('CLICK', { bookId: item.book.bookId, recommendationId: data.recommendationId, rank: item.rank })
+    trackEvent('CLICK', { bookId: item.book.bookId, recommendationId: data.recommendationId, rank: item.rank, position: positionOf(item), context: 'RECOMMEND' })
 
   /** 후보를 히어로 자리로 꺼낸다 — 폴더를 한 번 닫았다 여는 것으로 '바꿔 꺼냈다'를 보여 준다.
    *  선택 자체는 상세로 가는 행동이 아니므로 CLICK 이벤트를 보내지 않는다
-   *  (계약의 CLICK은 도서 상세 진입을 뜻한다 — 히어로의 표지 우표를 누를 때 나간다). */
+   *  (계약의 CLICK은 도서 상세 진입을 뜻한다 — 히어로의 표지 우표를 누를 때 나간다).
+   *  대신 밀려나는 히어로는 DISMISS 로 남긴다 — 「다른 책으로 바꿔 꺼냄」, 이 화면의 유일한 부정 신호(§7.1) */
   const feature = (item: RecommendationItem) => {
     if (item.book.bookId === featured.book.bookId) return
+    trackEvent('DISMISS', { bookId: featured.book.bookId, recommendationId: data.recommendationId, rank: featured.rank, position: 0, context: 'RECOMMEND' })
     setFeaturedId(item.book.bookId)
     clearTimeout(reopen.current)
     if (reduced) {
