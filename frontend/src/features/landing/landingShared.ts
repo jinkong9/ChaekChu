@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
 import { useAuthStore } from '../../stores/authStore'
 
-/** 랜딩 시안 A·B가 함께 쓰는 재료. 로그인 분기와 롤링 제목을 시안마다 복사해 두면
+/** 랜딩 시안 A·B·C가 함께 쓰는 재료. 로그인 분기·제목 넘김·배경 책을 시안마다 복사해 두면
  *  한쪽만 고쳐져 조용히 어긋난다 — 겉모습만 시안별로 다르게 둔다. */
 
 export const LANDING_TITLES = ['『데미안』', '『노르웨이의 숲』', '『아몬드』', '『1984』', '『채식주의자』',
@@ -56,4 +56,57 @@ export function useRollingTitles(lineEm: number) {
   }, [lineEm])
 
   return ulRef
+}
+
+/** 제목을 넘기는 자리(index). 롤링(A·B)과 달리 C는 제목과 표지를 함께 바꿔야 해서
+ *  DOM 대신 상태로 든다. reduced motion 이면 첫 권에서 멈춘다. */
+export function useTitleCycle(length: number) {
+  const [index, setIndex] = useState(0)
+
+  useEffect(() => {
+    if (length <= 1 || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const timer = setInterval(() => setIndex((i) => i + 1), 2200)
+    return () => clearInterval(timer)
+  }, [length])
+
+  // 책이 늦게 도착해 목록이 짧아져도 자리를 벗어나지 않게 여기서 접는다
+  return length > 0 ? index % length : 0
+}
+
+export type LandingBook = { title: string; coverUrl: string }
+
+/** 랜딩 배경에 쓸 책 — 비로그인이라 인증이 필요한 API 대신 홈 링이 폴백으로 쓰는
+ *  정적 스냅샷을 읽는다 (features/popular-ring/usePopularRingData.ts).
+ *  세그먼트를 가로질러 한 권씩 집어 한 독자 그룹의 취향으로 화면이 쏠리지 않게 한다.
+ *  못 받으면 빈 배열 — 시안은 종이만 남기고 버틴다. */
+const SNAPSHOT_URL = '/data/popular-ring.json'
+
+export function useLandingBooks(count: number, maxTitleLength = Number.MAX_SAFE_INTEGER) {
+  const [books, setBooks] = useState<LandingBook[]>([])
+
+  useEffect(() => {
+    let alive = true
+    fetch(SNAPSHOT_URL, { cache: 'no-cache' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then((data: { segments?: { items?: { title?: string, coverUrl?: string }[] }[] }) => {
+        if (!alive) return
+        const picked: LandingBook[] = []
+        const seen = new Set<string>()
+        outer: for (let rank = 0; rank < 20; rank++) {
+          for (const segment of data.segments ?? []) {
+            const item = segment.items?.[rank]
+            if (!item?.coverUrl || !item.title || seen.has(item.coverUrl)) continue
+            if (item.title.length > maxTitleLength) continue
+            seen.add(item.coverUrl)
+            picked.push({ title: item.title, coverUrl: item.coverUrl })
+            if (picked.length >= count) break outer
+          }
+        }
+        setBooks(picked)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [count, maxTitleLength])
+
+  return books
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { LANDING_TITLES, useLandingOAuth, useRollingTitles } from './landingShared'
+import { LANDING_TITLES, useLandingBooks, useLandingOAuth, useRollingTitles } from './landingShared'
 
 /** 랜딩 시안 B — 종이·잉크(Editorial Orbit) 위로 실제 인기 도서 표지가 천천히 흐르고,
  *  가운데는 비워 지면(글)을 얹는다. DESIGN.md의 "색은 표지가 담당한다"를 그대로 따르고,
@@ -8,9 +8,6 @@ import { LANDING_TITLES, useLandingOAuth, useRollingTitles } from './landingShar
 /** 롤링 제목 한 칸의 높이(em) — 아래 CSS의 한 칸 높이와 같은 수여야 한다 */
 const LINE = 1.34
 
-/** 배경 표지 — 비로그인이라 인증이 필요한 API 대신 정적 스냅샷만 읽는다.
- *  홈 링이 폴백으로 쓰는 바로 그 파일이다 (features/popular-ring/usePopularRingData.ts) */
-const SHELF_URL = '/data/popular-ring.json'
 const COVER_POOL = 24   // 내려받는 표지 수. 칸이 더 많으면 이 묶음을 돌려 쓴다(같은 URL이라 추가 전송 없음)
 const COL_TARGET = 208  // 열 하나의 목표 너비(px) — 실제 열 수는 화면 너비에서 나온다.
                         // 좁게 잡아 열을 늘리면 표지가 배경이 아니라 벽처럼 읽힌다
@@ -98,33 +95,8 @@ const CSS = `
 export default function LandingShelf() {
   const { oauth, oauthFailed } = useLandingOAuth()
   const ulRef = useRollingTitles(LINE)
-  const [covers, setCovers] = useState<string[]>([])
+  const books = useLandingBooks(COVER_POOL)
   const [grid, setGrid] = useState(shelfGrid)
-
-  // 배경 표지 — 세그먼트를 가로질러 한 권씩 집어 한 독자 그룹의 취향으로 화면이 쏠리지 않게 한다.
-  // 못 받으면 종이만 남는다 (랜딩이 막히지는 않는다)
-  useEffect(() => {
-    let alive = true
-    fetch(SHELF_URL, { cache: 'no-cache' })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-      .then((data: { segments?: { items?: { coverUrl?: string }[] }[] }) => {
-        if (!alive) return
-        const picked: string[] = []
-        const seen = new Set<string>()
-        outer: for (let rank = 0; rank < 20; rank++) {
-          for (const segment of data.segments ?? []) {
-            const url = segment.items?.[rank]?.coverUrl
-            if (!url || seen.has(url)) continue
-            seen.add(url)
-            picked.push(url)
-            if (picked.length >= COVER_POOL) break outer
-          }
-        }
-        setCovers(picked)
-      })
-      .catch(() => {})
-    return () => { alive = false }
-  }, [])
 
   useEffect(() => {
     const onResize = () => setGrid(shelfGrid())
@@ -134,10 +106,10 @@ export default function LandingShelf() {
 
   // 열마다 집는 자리를 어긋나게 해 옆 칸에 같은 표지가 붙지 않게 한다
   const columns = useMemo(() => {
-    if (covers.length === 0) return []
+    if (books.length === 0) return []
     return Array.from({ length: grid.cols }, (_, c) =>
-      Array.from({ length: grid.rows }, (_, r) => covers[(r * grid.cols + c * 5) % covers.length]))
-  }, [covers, grid])
+      Array.from({ length: grid.rows }, (_, r) => books[(r * grid.cols + c * 5) % books.length].coverUrl))
+  }, [books, grid])
 
   return (
     <div className="landing-shelf">
