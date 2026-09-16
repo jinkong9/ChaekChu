@@ -43,8 +43,9 @@ uv run b102-recommendation --config config/local.toml tags \
   --tag-version d4l-tags-v1 --max-retries 2
 
 # EC2/운영: taxonomy 확장 뒤 재임베딩 없이 현행 index 의 태그 payload 만 갱신 (rule-only sidecar → payload sync)
-uv run b102-recommendation --config config/local.toml tags \n  --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \n  --sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v2.jsonl \n  --tag-version d4l-tags-v2 --cache /home/ubuntu/pipeline_data/data4library/tag-cache/d4l-tags.jsonl --rule-only
-uv run b102-recommendation --config config/local.toml tag-payload-sync \n  --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz \n  --sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v2.jsonl \n  --index-version d4l-2026-09-v1 --tag-version d4l-tags-v2
+#   호스트에서는 QDRANT_URL=http://127.0.0.1:6333. 바뀐 점만 보내려면 --baseline-sidecar 를 준다 (런북 §3.4a)
+uv run b102-recommendation --config config/local.toml tags   --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz   --sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v2.jsonl   --tag-version d4l-tags-v2 --cache /home/ubuntu/pipeline_data/data4library/tag-cache/d4l-tags.jsonl --rule-only
+uv run b102-recommendation --config config/local.toml tag-payload-sync   --input /home/ubuntu/pipeline_data/data4library/d4l_usage.jsonl.gz   --sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v2.jsonl   --baseline-sidecar /home/ubuntu/pipeline_data/data4library/d4l_tags.v1.jsonl --baseline-tag-version d4l-tags-v1   --index-version d4l-2026-09-v1 --tag-version d4l-tags-v2 --batch-size 100 --pause-seconds 0.5
 
 # EC2/운영: taxonomy tag prototype을 Qdrant tags_active alias에 적재
 uv run b102-recommendation --config config/local.toml tag-index \

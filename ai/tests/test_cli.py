@@ -151,7 +151,10 @@ def test_tag_payload_sync_command_accepts_sidecar_and_versions() -> None:
     assert arguments.sidecar == Path("tags.jsonl")
     assert arguments.index_version == "index-v1"
     assert arguments.tag_version == "tags-v2"
-    assert arguments.batch_size == 256
+    assert arguments.batch_size == 100          # 09-16 운영 장애 뒤 기본값을 낮췄다
+    assert arguments.pause_seconds == 0.5
+    assert arguments.max_retries == 3
+    assert arguments.baseline_sidecar is None
 
 
 def test_tune_command_writes_weight_report(tmp_path: Path) -> None:

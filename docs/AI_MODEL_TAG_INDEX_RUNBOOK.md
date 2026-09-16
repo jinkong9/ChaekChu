@@ -199,8 +199,14 @@ uv run b102-recommendation --config config/local.toml tags   --input "$SOURCE"  
 jq -e '.tags.gmsRequests == 0 and .tags.rows == .tags.succeededRows + .tags.missingRows' "$RUN_DIR/tags-kdc6-report.json"
 
 # 2) 현행 index 의 태그 payload 만 덮어쓴다 (벡터·서지·관계는 그대로)
-uv run b102-recommendation --config config/local.toml tag-payload-sync   --input "$SOURCE"   --sidecar "$RUN_DIR/tags.kdc6.jsonl"   --index-version "$INDEX_VERSION"   --tag-version "$NEW_TAG_VERSION"   --output "$RUN_DIR/tag-payload-sync-report.json"
+#    호스트에서 돌리므로 QDRANT_URL 은 컨테이너 이름(qdrant)이 아니라 127.0.0.1 이어야 한다. timeout 도 넉넉히.
+#    --baseline-sidecar 로 이전 sidecar 를 주면 태그가 실제로 바뀐 점만 보낸다 — KDC 6개 추가는 440k 중 약 85k 행.
+#    첫 실행(09-16)에서 440k 전부를 256건 배치로 쉼 없이 보내자 optimizer 가 모든 segment 를 재작성해 메모리가 3GiB 한도에 닿고
+#    온라인 검색이 0.13초 → 39초로 늘었다. 배치 100·0.5초 휴식·재시도 3회가 기본값이다.
+export QDRANT_URL=http://127.0.0.1:6333 QDRANT_TIMEOUT_SECONDS=60
+uv run b102-recommendation --config config/local.toml tag-payload-sync   --input "$SOURCE"   --sidecar "$RUN_DIR/tags.kdc6.jsonl"   --baseline-sidecar "$RUN_DIR/tags.jsonl" --baseline-tag-version "$TAG_VERSION"   --index-version "$INDEX_VERSION"   --tag-version "$NEW_TAG_VERSION"   --batch-size 100 --pause-seconds 0.5 --max-retries 3   --output "$RUN_DIR/tag-payload-sync-report.json"
 jq -e '.tagPayloadSync.status == "SUCCESS" and .tagPayloadSync.skippedRows == 0' "$RUN_DIR/tag-payload-sync-report.json"
+# 끝난 뒤 collection status 가 green 으로 돌아오고 검색 지연이 1초 아래인지 Qdrant 로그로 확인한다. count 조회는 payload index 가 없어 60초씩 걸리니 쓰지 않는다"
 
 # 3) prototype — 이미 있는 code 는 건너뛰고 새 code 만 임베딩한다
 uv run b102-recommendation --config config/local.toml tag-index   --input "$SOURCE" --index-version "$INDEX_VERSION" --tag-version "$NEW_TAG_VERSION"   --output "$RUN_DIR/tag-index-kdc6-report.json"
@@ -209,6 +215,7 @@ uv run b102-recommendation --config config/local.toml tag-index   --input "$SOUR
 ```
 
 `skippedRows` 가 0 이 아니면 sidecar 에는 있는데 index 에 없는 ISBN 이다 — 같은 `$SOURCE` 로 두 배치를 돌렸는지 확인한다.
+바뀌지 않은 점은 옛 `tagVersion` 문자열을 그대로 가진다 — 온라인 경로는 `tagVersion` 으로 걸러 읽지 않으므로 무해하다.
 `TAXONOMY_VERSION` 은 올리지 않는다. code 추가는 상위집합이라 기존 sidecar·cache 가 유효하고, 올리면 cache 전체가 무효가 된다.
 
 ### 3.5 온라인 tag 연동 확인
