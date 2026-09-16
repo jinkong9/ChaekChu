@@ -3,9 +3,10 @@
 #   bash deploy/scripts/deploy.sh                 # origin/dev 최신을 받아 배포 (서버 작업 트리)
 #   bash deploy/scripts/deploy.sh --no-pull       # 현재 체크아웃 그대로 (Jenkins 는 항상 이 모드)
 #   bash deploy/scripts/deploy.sh --skip-backup   # 배포 전 pg_dump 생략 (DB 없이 시험할 때만)
+#   bash deploy/scripts/deploy.sh --force-backup  # 마이그레이션이 없어도 배포 전 pg_dump 를 뜬다
 #   PROFILES="--profile recsys" bash deploy/scripts/deploy.sh
 #
-# 순서: env·락 → (pull) → 릴리스 SHA·마이그레이션 지문 → 배포 전 pg_dump → build → up --wait
+# 순서: env·락 → (pull) → 릴리스 SHA·마이그레이션 지문 → (지문이 바뀐 배포만) 배포 전 pg_dump → build → up --wait
 #       → 내부 readiness + nginx http + (TLS) 공개 도메인 https → 상태 기록 → prune
 # 실패 시(기동 실패든 배포 후 헬스 실패든 같은 경로): 새 릴리스의 마이그레이션 지문이 직전 성공 릴리스와 같으면 코드만 직전 SHA 로 자동 복구한다.
 #          지문이 다르면(=이번 배포에 migration 이 있었으면) 자동 복구하지 않는다. Flyway 는 전진 전용이라 DB 는 사람이 dump 를 보고 판단한다.
@@ -15,11 +16,12 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
 BRANCH="${BRANCH:-dev}"
-PULL=true; BACKUP=true
+PULL=true; BACKUP=true; FORCE_BACKUP=false
 for arg in "$@"; do
   case "$arg" in
     --no-pull) PULL=false ;;
     --skip-backup) BACKUP=false ;;
+    --force-backup) FORCE_BACKUP=true ;;
     *) echo "알 수 없는 인자: $arg" >&2; exit 1 ;;
   esac
 done
@@ -86,16 +88,21 @@ rollback_or_explain() {
     fi
   else
     local backup_dir; backup_dir="$(envval BACKUP_DIR)"; backup_dir="${backup_dir:-/var/lib/b102/backups}"
-    echo "자동 복구 안 함 (마이그레이션 변경 포함 또는 직전 이미지 없음). 배포 전 백업: ${backup_dir}/pre_${RELEASE}_*.sql.gz" >&2
+    echo "자동 복구 안 함 (마이그레이션 변경 포함 또는 직전 이미지 없음). 배포 전 백업: ${backup_dir}/pre_${RELEASE}_*.sql.gz (마이그레이션 포함 배포에만 있음), 일일 백업: ${backup_dir}/bookdb_*.sql.gz" >&2
   fi
 }
 
+# 배포 전 pg_dump 는 이번 배포에 DB 마이그레이션이 들어 있을 때(지문 변경)와 직전 릴리스 기록이 없을 때만 뜬다(09-16).
+# 코드만 바뀐 배포는 실패해도 코드 롤백으로 끝나고 DB 는 건드리지 않으므로 덤프가 쓰일 일이 없다 — 5GB DB 덤프가 배포마다 2.5~3분을 먹었다.
+# 일일 백업(bookdb_*, 크론)은 그대로다. 억지로 뜨려면 --force-backup.
 if $BACKUP; then
   section "배포 전 pg_dump"
-  if docker ps --format '{{.Names}}' | grep -qx b102-postgres; then
-    ENV_FILE="$ENV_FILE" bash "$REPO_ROOT/deploy/scripts/backup-postgres.sh" --prefix "pre_${RELEASE}" --keep 5
-  else
+  if ! docker ps --format '{{.Names}}' | grep -qx b102-postgres; then
     echo "postgres 컨테이너가 없어 건너뜀 (첫 배포)"
+  elif ! $FORCE_BACKUP && [[ -n "$prev_fingerprint" && "$prev_fingerprint" == "$migration_fingerprint" ]]; then
+    echo "마이그레이션 지문이 직전 성공 릴리스와 같아 건너뜀 (코드만 바뀐 배포). 억지로 뜨려면 --force-backup. 일일 백업은 크론이 계속 남긴다"
+  else
+    ENV_FILE="$ENV_FILE" bash "$REPO_ROOT/deploy/scripts/backup-postgres.sh" --prefix "pre_${RELEASE}" --keep 5
   fi
 fi
 
