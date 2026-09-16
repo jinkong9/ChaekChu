@@ -18,6 +18,7 @@ from recommendation.runtime import build_artifact, configure_logging, refresh_ar
 from recommendation.smoke import run_smoke
 from recommendation.tag_batch import GmsTagProvider, TAG_CACHE_VERSION, TagBatchRunner, TagGenerator
 from recommendation.tag_index import load_validated_tag_sidecar
+from recommendation.tag_payload_sync import TagPayloadSyncRunner
 from recommendation.tag_quality import TagQualityError, compare_tag_sidecars
 from recommendation.tag_prototype import (
     QdrantTagPrototypeIndexStore,
@@ -28,7 +29,9 @@ from recommendation.validation import validate_d4l_jsonl
 
 
 LOGGER = logging.getLogger(__name__)
-COMMANDS = ("build", "validate", "evaluate", "recommend", "index", "tags", "tag-index", "tune", "smoke", "tag-quality")
+COMMANDS = (
+    "build", "validate", "evaluate", "recommend", "index", "tags", "tag-index", "tag-payload-sync", "tune", "smoke", "tag-quality",
+)
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -69,6 +72,11 @@ def create_parser() -> argparse.ArgumentParser:
                 help="persistent tag cache JSONL path (default: TAG_CACHE_PATH when set)",
             )
             command_parser.add_argument("--tag-version", default=None)
+            command_parser.add_argument(
+                "--rule-only",
+                action="store_true",
+                help="never call GMS: rule tags plus cached tags only (taxonomy 확장 재실행처럼 비용 0 이어야 할 때)",
+            )
             command_parser.add_argument("--max-retries", type=int, default=2)
             command_parser.add_argument("--low-confidence", type=float, default=0.6)
             command_parser.add_argument(
@@ -105,6 +113,11 @@ def create_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--tag-version", default=None)
             command_parser.add_argument("--batch-size", type=int, default=32)
             command_parser.add_argument("--max-retries", type=int, default=2)
+        if command == "tag-payload-sync":
+            command_parser.add_argument("--sidecar", type=Path, required=True)
+            command_parser.add_argument("--index-version", default=None)
+            command_parser.add_argument("--tag-version", default=None)
+            command_parser.add_argument("--batch-size", type=int, default=256)
         if command == "tune":
             command_parser.add_argument("--tag-sidecar", type=Path)
             command_parser.add_argument("--k", type=int, default=5)
@@ -140,7 +153,7 @@ def run(arguments: argparse.Namespace) -> Path:
         elif arguments.command == "validate":
             artifact["validation"] = validate_d4l_jsonl(input_path)
             books = None
-        elif arguments.command in {"index", "tags", "tag-index", "smoke", "tag-quality"}:
+        elif arguments.command in {"index", "tags", "tag-index", "tag-payload-sync", "smoke", "tag-quality"}:
             books = None
         else:
             books = load_d4l_jsonl(input_path)
@@ -150,6 +163,8 @@ def run(arguments: argparse.Namespace) -> Path:
             artifact["tags"] = _run_tag_batch(arguments, input_path)
         elif arguments.command == "tag-index":
             artifact["tagIndex"] = _run_tag_prototype_index(arguments)
+        elif arguments.command == "tag-payload-sync":
+            artifact["tagPayloadSync"] = _run_tag_payload_sync(arguments, input_path)
         elif arguments.command == "smoke":
             try:
                 artifact["smoke"] = run_smoke(
@@ -272,6 +287,8 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
     api_key = (os.getenv("TAG_API_KEY") or os.getenv("GMS_API_KEY") or "").strip()
     tag_model = os.getenv("TAG_MODEL", "gpt-4o-mini").strip()
     provider = None
+    if getattr(arguments, "rule_only", False):
+        endpoint = api_key = ""
     if endpoint or api_key:
         if not endpoint or not api_key:
             raise ConfigError("TAG_API_URL and tag provider API key must be configured together")
@@ -338,6 +355,41 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
         cache_path=cache_path,
         cache_version=cache_version,
     ).run(input_path, arguments.sidecar.expanduser().resolve())
+
+
+def _run_tag_payload_sync(arguments: argparse.Namespace, input_path: Path) -> dict:
+    """Copy a sidecar's tags onto the already indexed points of one index version — no re-embedding."""
+    qdrant_url = os.getenv("QDRANT_URL", "").strip()
+    index_version = (arguments.index_version or os.getenv("AI_INDEX_VERSION", "")).strip()
+    tag_version = (arguments.tag_version or os.getenv("AI_TAG_VERSION", "")).strip()
+    if index_version.lower() == "none":
+        index_version = ""
+    if not qdrant_url or not index_version or not tag_version:
+        raise ConfigError("tag-payload-sync requires QDRANT_URL, an index version, and the sidecar tag version")
+    if arguments.batch_size < 1:
+        raise ConfigError("batch size must be positive")
+    try:
+        dimension = int(os.getenv("EMBEDDING_DIMENSION", "512"))
+        qdrant_timeout = float(os.getenv("QDRANT_TIMEOUT_SECONDS", "10"))
+    except ValueError as error:
+        raise ConfigError("Qdrant timeout/dimension configuration is invalid") from error
+    try:
+        sidecar = load_validated_tag_sidecar(
+            arguments.sidecar.expanduser().resolve(),
+            expected_input_hash=normalized_input_hash(input_path),
+            expected_tag_version=tag_version,
+        )
+    except ValueError as error:
+        raise ConfigError(f"tag sidecar validation failed: {error}") from error
+    store = QdrantVersionedIndexStore(
+        base_url=qdrant_url,
+        collection_prefix=os.getenv("QDRANT_COLLECTION_PREFIX", "books"),
+        active_alias=os.getenv("QDRANT_COLLECTION", "books_active"),
+        dimension=dimension,
+        timeout_seconds=qdrant_timeout,
+        api_key=os.getenv("QDRANT_API_KEY") or None,
+    )
+    return TagPayloadSyncRunner(store=store, index_version=index_version, batch_size=arguments.batch_size).run(sidecar)
 
 
 def _run_tag_prototype_index(arguments: argparse.Namespace) -> dict:

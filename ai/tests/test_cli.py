@@ -124,6 +124,36 @@ def test_tag_index_command_accepts_prototype_options() -> None:
     assert arguments.tag_version == "tags-v1"
 
 
+def test_tags_command_rule_only_never_calls_gms_even_when_provider_is_configured(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TAG_API_URL", "https://gms.example/v1/chat/completions")
+    monkeypatch.setenv("TAG_API_KEY", "test-secret")
+    sidecar = tmp_path / "tags.jsonl"
+    output = tmp_path / "tags-report.json"
+
+    result = run(parse("tags", "--input", str(D4L_FIXTURE), "--sidecar", str(sidecar), "--rule-only", "--output", str(output)))
+
+    artifact = json.loads(result.read_text(encoding="utf-8"))
+    assert artifact["tags"]["gmsRequests"] == 0
+    assert artifact["tags"]["gmsAttempts"] == 0
+    assert artifact["tags"]["rows"] == 4
+
+
+def test_tag_payload_sync_command_accepts_sidecar_and_versions() -> None:
+    arguments = parse(
+        "tag-payload-sync",
+        "--input", str(D4L_FIXTURE),
+        "--sidecar", "tags.jsonl",
+        "--index-version", "index-v1",
+        "--tag-version", "tags-v2",
+    )
+
+    assert arguments.command == "tag-payload-sync"
+    assert arguments.sidecar == Path("tags.jsonl")
+    assert arguments.index_version == "index-v1"
+    assert arguments.tag_version == "tags-v2"
+    assert arguments.batch_size == 256
+
+
 def test_tune_command_writes_weight_report(tmp_path: Path) -> None:
     output = tmp_path / "tune.json"
 

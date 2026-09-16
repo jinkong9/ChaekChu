@@ -3,11 +3,19 @@ from __future__ import annotations
 import pytest
 
 from recommendation.query_vector import (
+    DEFAULT_TAG_CODES,
     InMemoryQueryVectorStore,
     QueryVectorBuilder,
     QueryVectorReason,
     QueryVectorStatus,
 )
+from recommendation.tag_batch import TAXONOMY
+
+
+def test_online_default_tag_codes_are_exactly_the_batch_taxonomy() -> None:
+    # 손으로 복사한 목록이 taxonomy 확장 때 빠져 새 태그가 unknown 으로 버려지던 문제를 막는다
+    assert DEFAULT_TAG_CODES == frozenset(definition.code for definition in TAXONOMY)
+    assert {"HUMANITIES", "ART", "SOCIETY", "POETRY", "TRAVEL", "TECH"} <= DEFAULT_TAG_CODES
 
 
 def _builder() -> QueryVectorBuilder:

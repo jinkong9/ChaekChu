@@ -186,6 +186,31 @@ AI runtime의 `QDRANT_TAG_COLLECTION=tags_active`를 반영한다. point key는
 `tag:{code}`이며 query vector reader와 같은 versioned UUID 규칙을 사용한다.
 일부 prototype 생성이 실패하면 기존 `tags_active` alias를 유지한다.
 
+### 3.4a taxonomy 확장 — 재임베딩 없이 payload 만 갱신 (2026-09-16 추가)
+
+tag code 를 더할 때 도서 벡터는 바뀌지 않는다(임베딩 입력에 태그가 없다). 그러므로 `index` 를 다시 돌리지 않고
+현행 index 의 payload 만 바꾼다. 450k index 가 이미 promote 된 뒤 KDC 장르 6개를 더할 때 처음 썼다.
+
+```bash
+export NEW_TAG_VERSION="d4l-tags-${RUN_ID}-kdc6"
+
+# 1) rule-only 재생성 — cache hit 행도 지금 규칙을 다시 돌려 합치므로 GMS 요청 0 이어야 한다
+uv run b102-recommendation --config config/local.toml tags   --input "$SOURCE"   --sidecar "$RUN_DIR/tags.kdc6.jsonl"   --tag-version "$NEW_TAG_VERSION"   --cache /home/ubuntu/pipeline_data/data4library/tag-cache/d4l-tags.jsonl   --rule-only   --output "$RUN_DIR/tags-kdc6-report.json"
+jq -e '.tags.gmsRequests == 0 and .tags.rows == .tags.succeededRows + .tags.missingRows' "$RUN_DIR/tags-kdc6-report.json"
+
+# 2) 현행 index 의 태그 payload 만 덮어쓴다 (벡터·서지·관계는 그대로)
+uv run b102-recommendation --config config/local.toml tag-payload-sync   --input "$SOURCE"   --sidecar "$RUN_DIR/tags.kdc6.jsonl"   --index-version "$INDEX_VERSION"   --tag-version "$NEW_TAG_VERSION"   --output "$RUN_DIR/tag-payload-sync-report.json"
+jq -e '.tagPayloadSync.status == "SUCCESS" and .tagPayloadSync.skippedRows == 0' "$RUN_DIR/tag-payload-sync-report.json"
+
+# 3) prototype — 이미 있는 code 는 건너뛰고 새 code 만 임베딩한다
+uv run b102-recommendation --config config/local.toml tag-index   --input "$SOURCE" --index-version "$INDEX_VERSION" --tag-version "$NEW_TAG_VERSION"   --output "$RUN_DIR/tag-index-kdc6-report.json"
+
+# 4) 런타임 env 의 AI_TAG_VERSION 을 NEW_TAG_VERSION 으로 바꾸고 deploy.sh 로 배포한다 (compose 직접 호출 금지 — RELEASE 태그가 latest 로 돌아간다)
+```
+
+`skippedRows` 가 0 이 아니면 sidecar 에는 있는데 index 에 없는 ISBN 이다 — 같은 `$SOURCE` 로 두 배치를 돌렸는지 확인한다.
+`TAXONOMY_VERSION` 은 올리지 않는다. code 추가는 상위집합이라 기존 sidecar·cache 가 유효하고, 올리면 cache 전체가 무효가 된다.
+
 ### 3.5 온라인 tag 연동 확인
 
 runtime의 `QDRANT_TAG_COLLECTION`은 prototype을 적재한 alias와 동일하게 설정하고,

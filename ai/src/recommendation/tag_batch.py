@@ -42,8 +42,31 @@ TAXONOMY: tuple[TagDefinition, ...] = (
     TagDefinition("TRENDING", "최근 인기"),
     TagDefinition("STEADY", "꾸준한 대출"),
     TagDefinition("NEW_BOOK", "신간"),
+    # 2026-09-16: 백엔드 온보딩 태그(tags 표, V1_1 seed) 12개 중 AI 가 모르던 6개. 사용자가 골라도 조용히 버려지고 있었다.
+    # 전부 KDC 로 결정되는 분류 장르라 규칙만으로 붙인다(GMS 호출 없음). code 는 백엔드와 같은 철자를 쓴다 — 매퍼가 그대로 통과시킨다.
+    # TAXONOMY_VERSION 은 올리지 않는다: 추가는 상위집합이라 기존 sidecar·cache 가 그대로 유효하고, 올리면 43만 행 cache 가 무효가 된다.
+    TagDefinition("HUMANITIES", "인문"),
+    TagDefinition("ART", "예술"),
+    TagDefinition("SOCIETY", "사회"),
+    TagDefinition("POETRY", "시"),
+    TagDefinition("TRAVEL", "여행"),
+    TagDefinition("TECH", "기술·IT"),
 )
 TAXONOMY_BY_CODE = {definition.code: definition for definition in TAXONOMY}
+
+# KDC 접두 규칙 — 백엔드 파이프라인 database/_pipeline/scripts/build_service_tables.py 의 KDC_TAGS 와 같은 구간이어야 한다.
+# 그쪽이 book_tags 표를 만들고 이쪽이 Qdrant payload 를 만드니, 두 구간이 어긋나면 같은 책이 화면과 추천에서 다른 태그를 갖는다.
+# 09-09 표본 감사로 좁힌 구간(그쪽 주석): TECH 에서 51x 의학·52x 농업·59x 생활과학 제외, ART 에서 69x 스포츠 제외,
+#   SOCIETY 에서 37x 교육·388 설화 제외, TRAVEL 에서 896 제외. 태그 없는 KDC 구간에는 억지로 붙이지 않는다.
+KDC_PREFIXES: dict[str, tuple[str, ...]] = {
+    "HUMANITIES": tuple(f"1{x}" for x in range(0, 9)),                                   # 100~189 철학·심리·윤리
+    "ART": tuple(f"6{x}" for x in range(0, 9)),                                          # 600~689 (69x 스포츠 제외)
+    "SOCIETY": ("30", "31", "33", "34", "35", "36", "380", "381", "382", "383", "384", "385", "386", "387", "389", "39"),
+    "POETRY": tuple(f"8{x}1" for x in range(1, 10)),                                     # 811 한국시 … 891
+    "TRAVEL": tuple(f"98{x}" for x in range(0, 10)) + tuple(f"8{x}6" for x in range(1, 9)),  # 98x 지리·기행 + 8x6 기행문학
+    "TECH": tuple(f"5{x}" for x in range(3, 9)) + ("004", "005"),                        # 530~589 공학 + 컴퓨터
+}
+KDC_RULE_CONFIDENCE = 0.88
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,6 +340,13 @@ class RuleBasedTagger:
         if book.pub_year and book.pub_year.isdigit() and int(book.pub_year) >= self.reference_year - 1:
             add("NEW_BOOK", 0.78)
 
+        # KDC 분류 장르(백엔드 book_tags 와 같은 구간). class_no 는 "813.7" 처럼 소수점이 있을 수 있어 접두 비교로 충분하다.
+        class_no = (book.class_no or "").strip()
+        if class_no:
+            for code, prefixes in KDC_PREFIXES.items():
+                if class_no.startswith(prefixes):
+                    add(code, KDC_RULE_CONFIDENCE)
+
         # These tags are derived from fields already present in the D4L snapshot.
         # Keeping them local avoids asking the LLM to infer popularity signals
         # that are better represented by the source statistics themselves.
@@ -436,6 +466,17 @@ class TagGenerator:
                 if attempt >= self.max_retries:
                     break
         return TagGenerationResult(tuple(assignments[code] for code in sorted(assignments)), attempts, gms_error)
+
+    def merge_with_rules(self, book: D4LBook, cached: Sequence[TagAssignment]) -> tuple[TagAssignment, ...]:
+        """Fresh rule tags plus cached (mostly GMS) tags; same tie rule as _merge_suggestions — rule wins ties."""
+        assignments = {tag.code: tag for tag in self.rule_tagger.generate(book)}
+        for tag in cached:
+            if tag.code not in TAXONOMY_BY_CODE:
+                continue
+            current = assignments.get(tag.code)
+            if current is None or tag.confidence > current.confidence:
+                assignments[tag.code] = tag
+        return tuple(assignments[code] for code in sorted(assignments))
 
     @staticmethod
     def _merge_suggestions(
@@ -737,8 +778,10 @@ class TagBatchRunner:
                         if cached_tags is None:
                             to_generate.append(book)
                             continue
+                        # cache 는 GMS 결과를 아끼기 위한 것이다. 규칙은 결정적이고 값싸니 지금 규칙을 다시 돌려
+                        # cache 의 태그와 합친다 — 규칙이 늘어도(taxonomy 확장) cache 를 버리지 않고 새 태그가 붙는다.
                         generated_results[book.isbn13] = TagGenerationResult(
-                            cached_tags,
+                            self.generator.merge_with_rules(book, cached_tags),
                             0,
                             gms_skipped=True,
                             gms_skip_reason="CACHE_HIT",

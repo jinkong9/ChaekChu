@@ -5,25 +5,12 @@ from enum import Enum
 import math
 from typing import Any, Iterable, Literal, Mapping, Protocol, Sequence
 
+from recommendation.tag_batch import TAXONOMY
 
-DEFAULT_TAG_CODES = frozenset(
-    {
-        "FIC",
-        "ESSAY",
-        "SCIENCE",
-        "HISTORY",
-        "ECONOMY",
-        "FANTASY",
-        "MYSTERY",
-        "ROMANCE",
-        "GROWTH",
-        "FAMILY",
-        "TIME_TRAVEL",
-        "TRENDING",
-        "STEADY",
-        "NEW_BOOK",
-    }
-)
+
+# 온라인 질의가 받아 주는 태그 = 배치 taxonomy 그대로. 따로 적어 두면 taxonomy 를 늘릴 때 여기가 빠져
+# 새 태그가 unknown 으로 버려진다(09-16 까지 14개가 손으로 복사되어 있었다).
+DEFAULT_TAG_CODES = frozenset(definition.code for definition in TAXONOMY)
 QUERY_WEIGHT_NAMES = frozenset({"semantic", "tagMatch", "coLoan", "trending", "steady"})
 
 
