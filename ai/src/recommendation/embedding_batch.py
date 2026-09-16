@@ -151,8 +151,31 @@ class QdrantVersionedIndexStore:
         except HTTPError as error:
             if error.code != 409:
                 raise
+        self._ensure_payload_indexes(collection)
         self._metadata.setdefault(version, dict(metadata))
         self._indexed.setdefault(version, set())
+
+    # 모든 온라인 검색이 거는 필터 필드. payload index 가 없으면 Qdrant 는 HNSW 후보를 하나씩 payload 로 확인하거나 전수 스캔한다 —
+    # 09-16 운영에서 index 가 하나도 없어 tagCodes should 필터가 44만 점 전수 스캔(11~20초)이었고 AI 의 10초 timeout 에 걸려 폴백됐다.
+    # 손으로 만든 index 는 다음 index version 의 새 collection 에 없으므로 여기서 매번 보장한다(멱등).
+    PAYLOAD_INDEXES: tuple[tuple[str, str], ...] = (
+        ("indexVersion", "keyword"),   # must 필터
+        ("active", "bool"),            # must 필터
+        ("isbn13", "keyword"),         # must_not any(excludeIsbns)·seed 조회
+        ("tagCodes", "keyword"),       # 태그 leg 의 should 필터
+    )
+
+    def _ensure_payload_indexes(self, collection: str) -> None:
+        for field_name, schema in self.PAYLOAD_INDEXES:
+            try:
+                self._call(
+                    "PUT",
+                    f"/collections/{collection}/index?wait=true",
+                    {"field_name": field_name, "field_schema": schema},
+                )
+            except HTTPError as error:
+                if error.code not in (400, 409):   # 이미 있으면 그대로 둔다
+                    raise
 
     def contains(self, version: str, isbn13: str) -> bool:
         if isbn13 in self._indexed.get(version, set()):

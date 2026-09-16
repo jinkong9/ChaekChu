@@ -165,6 +165,20 @@ index report의 `tagSidecarRows`, `taggedRows`, `missingTagRows`,
 무시되지만, 수가 예상과 다르면 같은 원본 snapshot으로 tags 단계를 다시 실행한다.
 `QDRANT_TAG_COLLECTION`을 사용하는 query vector용 prototype 적재는 별도의 후속 작업이다.
 
+### 3.3a payload index (2026-09-16 추가)
+
+`index` 명령은 collection 을 만든 직후 온라인 검색이 거는 필터 필드 네 개(`indexVersion`·`active`·`isbn13`·`tagCodes`)의
+payload index 를 만든다(`QdrantVersionedIndexStore.PAYLOAD_INDEXES`, 멱등). 09-16 까지는 하나도 없어 태그 leg 의 `tagCodes`
+should 필터가 44만 점 전수 스캔(11~20초)이었고 AI 의 10초 timeout 에 걸려 폴백됐다. 이 코드 이전에 만든 collection 에는 손으로 만든다:
+
+```bash
+for f in indexVersion:keyword active:bool isbn13:keyword tagCodes:keyword; do
+  curl -s -H "api-key: $QDRANT_API_KEY" -H "Content-Type: application/json" -X PUT     "http://127.0.0.1:6333/collections/<books_xxxx>/index?wait=true"     -d "{\"field_name\":\"${f%%:*}\",\"field_schema\":\"${f##*:}\"}"
+done
+```
+
+index 하나를 만드는 데 44만 점 기준 약 10초, 메모리가 수백 MB 늘어난다. Qdrant 메모리 상한이 빠듯하면(3g) 한 번에 하나씩, 트래픽 없는 시간에.
+
 ### 3.4 태그 prototype index 생성 및 promote
 
 taxonomy의 code·label prototype은 도서 snapshot과 별도로 임베딩하지만, 동일한
