@@ -417,13 +417,14 @@ export const handlers = [
       indexVersion: 'mock-index-v1',
     })
   }),
-  http.get('*/books/:id/co-loans', ({ params }) => {
+  http.get('*/books/:id/co-loans', ({ params, request }) => {
     const self = Number(params.id)
+    const size = Number(new URL(request.url).searchParams.get('size') ?? 8)
     // 함께 대출은 취향이 아니라 '같이 빌려 간' 신호다 — 저자·분류를 맞추지 않고 덱에서 고른다
     const pool = CATALOG.filter((bk) => bk.bookId !== self)
-    const start = (self * 7) % Math.max(pool.length - 4, 1)
+    const start = (self * 7) % Math.max(pool.length - size, 1)
     // 서버 모양(§4.6): {book, rank} + 출처·기준월
-    const items = pool.slice(start, start + 4).map((bk, i) => ({ book: toServerBook(withCategory(bk)), rank: i + 1 }))
+    const items = pool.slice(start, start + size).map((bk, i) => ({ book: toServerBook(withCategory(bk)), rank: i + 1 }))
     return HttpResponse.json({ items, source: 'DATA4LIBRARY', asOf: '2026-08' })
   }),
 
