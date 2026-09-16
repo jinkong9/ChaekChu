@@ -5,7 +5,7 @@
 
 | 파일 | 역할 | 이미지 |
 | --- | --- | --- |
-| `changed_components.py` | 변경 경로 → 컴포넌트(frontend·backend·data·deploy) 선택. 모르는 경로·base 없음 → 전부 | 호스트 python3 |
+| `changed_components.py` | 변경 경로 → 컴포넌트(frontend·backend·data·deploy) 선택. 모르는 경로·base 없음 → 전부. dev 머지 커밋은 MR 빌드 검증 재사용 판단 | 호스트 python3 |
 | `tests/test_changed_components.py` | 위 분류 규칙 테스트. 매 빌드 먼저 실행 | 호스트 python3 |
 | `run-frontend-ci.sh` | `npm ci` → `npm run lint` → `npm run build` | `node:24-bookworm-slim` |
 | `run-backend-ci.sh` | CI 전용 PG+ES(nori) 를 임시 compose 프로젝트 `b102-ci` 로 띄우고 `./gradlew test`. 끝나면 `down -v` | `eclipse-temurin:21-jdk-noble` |
@@ -27,6 +27,16 @@ Jenkinsfile 은 frontend·data·deploy 만 병렬로 돌리고 backend 는 그 �
 - `scripts/ci/run-X-ci.sh` → X + deploy. `scripts/ci/lib.sh`, `.gitattributes` → 전부
 - 문서(`*.md`, `docs/`, reports·samples·metadata), `ai/`, `.gitlab/` → 선택 없음(빌드 설명이 `docs-only`)
 - MR 은 target(dev) 과의 merge-base 기준, dev 는 직전 성공 커밋 → 직전 커밋 → 머지 커밋 첫 부모. 기준을 못 찾으면 전부
+
+## MR 검증 재사용 (dev, 09-16)
+
+Jenkins 는 MR 을 **타깃과 머지한 상태**로 빌드한다(`OriginMergeRequestDiscoveryTrait(1)`). 그래서 MR 빌드가 검증한 트리는
+「그때의 dev + MR head」이고, GitLab 이 만든 dev 머지 커밋의 두 부모가 바로 그 쌍이다. `changed_components.py --jenkins` 는 dev 에서
+`$JENKINS_HOME/jobs/b102/branches/MR-*/builds/*/build.xml` 의 `SCMRevisionAction` 해시 쌍이 머지 커밋의 부모 쌍과 같고 `result=SUCCESS` 이며
+`archive/ci-plan.json` 이 이번에 필요한 컴포넌트를 전부 돌렸던 빌드를 찾으면 `reuse_merge_request_validation: true` 를 낸다.
+Jenkinsfile 은 그때 컴포넌트 CI 를 건너뛰고 이미지 빌드·배포만 한다(설명 `mr-verified MR-176 #1`). 머지 커밋 메시지의 `See merge request …!176` 으로 폴더를 먼저 찾는다.
+- MR 빌드 뒤에 dev 가 움직였으면(첫 부모가 다름) 재사용하지 않고 전부 다시 돈다 — 검증한 트리와 배포할 트리가 다르기 때문
+- `FORCE_ALL` 이면 재사용 안 함. 끄려면 Jenkins 전역 env `B102_REUSE_MR_VALIDATION=false`
 
 ## 로컬에서 돌려보기
 

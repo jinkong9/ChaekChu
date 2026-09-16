@@ -1,6 +1,7 @@
-// B102 CI. 트리거: GitLab 웹훅 (MR-* 와 dev). executor 1개.
-// 3단계: CI 만. 배포(CD) 는 4단계에서 dev + gate 조건으로 추가한다.
-// 컴포넌트 선택은 scripts/ci/changed_components.py, 실제 검증은 scripts/ci/run-*-ci.sh (고정 버전 docker 이미지 안에서 실행).
+// B102 CI/CD. 트리거: GitLab 웹훅 (MR-* 와 dev). executor 1개.
+// MR 은 타깃(dev)과 머지한 상태로 검증한다. dev 머지 커밋은 같은 (dev, MR head) 부모 쌍을 SUCCESS 로 검증한 MR 빌드가 있으면
+// 컴포넌트 CI 를 건너뛰고 이미지 빌드·배포만 한다(mr-verified, 09-16) — 같은 트리를 두 번 검증하느라 머지마다 3분이 들었다.
+// 컴포넌트 선택·재사용 판단은 scripts/ci/changed_components.py, 실제 검증은 scripts/ci/run-*-ci.sh (고정 버전 docker 이미지 안에서 실행).
 pipeline {
     agent none
 
@@ -75,16 +76,24 @@ pipeline {
                             env.CI_BACKEND = planValue('backend')
                             env.CI_DATA = planValue('data')
                             env.CI_DEPLOY = planValue('deploy')
+                            // dev 머지 커밋: 같은 (dev, MR head) 쌍을 SUCCESS 로 검증한 MR 빌드가 있으면 true → 컴포넌트 CI 건너뜀
+                            env.CI_REUSE_MR_VALIDATION = planValue('reuse_merge_request_validation')
+                            env.CI_VERIFIED_BY = planValue('verified_by')
 
                             def selected = ['frontend', 'backend', 'data', 'deploy'].findAll { env."CI_${it.toUpperCase()}" == 'true' }
-                            currentBuild.description = selected ? selected.join(', ') : 'docs-only'
+                            env.CI_DOCS_ONLY = selected ? 'false' : 'true'
+                            def label = selected ? selected.join(', ') : 'docs-only'
+                            if (env.CI_REUSE_MR_VALIDATION == 'true') {
+                                label = "${label} · mr-verified ${env.CI_VERIFIED_BY}"
+                            }
+                            currentBuild.description = label
                             echo "CI 실행 계획: ${readFile(file: 'ci-plan.json', encoding: 'UTF-8').trim()}"
                         }
                     }
                 }
 
                 stage('컴포넌트 CI') {
-                    when { expression { env.CI_SUPERSEDED != 'true' } }
+                    when { expression { env.CI_SUPERSEDED != 'true' && env.CI_REUSE_MR_VALIDATION != 'true' } }
                     options { timeout(time: 40, unit: 'MINUTES') }
                     failFast false
                     // 같은 서버에서 운영 컨테이너와 메모리를 나눠 쓴다. 병렬은 frontend·data·deploy 처럼 가벼운 것만,
@@ -106,20 +115,20 @@ pipeline {
                 }
 
                 stage('backend') {
-                    when { expression { env.CI_SUPERSEDED != 'true' && env.CI_BACKEND == 'true' } }
+                    when { expression { env.CI_SUPERSEDED != 'true' && env.CI_REUSE_MR_VALIDATION != 'true' && env.CI_BACKEND == 'true' } }
                     options { timeout(time: 40, unit: 'MINUTES') }
                     steps { sh 'bash scripts/ci/run-backend-ci.sh' }
                 }
 
-                // 4단계: 얇은 CD. dev 에서 CI 가 전부 통과했고, 운영 스위치(/etc/b102/cd-enabled)가 있을 때만
+                // 4단계: 얇은 CD. dev 에서 CI 가 전부 통과했거나 MR 빌드 검증을 재사용했고, 운영 스위치(/etc/b102/cd-enabled)가 있을 때만
                 // 이 workspace 의 SHA 로 이미지를 빌드해 deploy.sh 를 호출한다. 서버 작업 트리의 git 은 건드리지 않는다.
-                // deploy.sh 가 배포 전 pg_dump, 마이그레이션 지문 비교, 실패 시 조건부 자동 복구를 담당한다.
+                // deploy.sh 가 마이그레이션 지문 비교, (지문이 바뀐 배포만) 배포 전 pg_dump, 실패 시 조건부 자동 복구를 담당한다.
                 stage('deploy (dev)') {
                     when {
                         allOf {
                             branch 'dev'
                             expression { env.CI_SUPERSEDED != 'true' }
-                            expression { currentBuild.description != 'docs-only' }
+                            expression { env.CI_DOCS_ONLY != 'true' }
                         }
                     }
                     options { timeout(time: 20, unit: 'MINUTES') }

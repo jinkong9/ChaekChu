@@ -18,7 +18,7 @@ deploy/
     local-up.sh             로컬 전체 스택 기동/중지 (팀원용)
     setup-ec2.sh            최초 1회: Docker · 데몬 로그 상한 · 스왑 2G · ufw 80/443 · vm.max_map_count
     setup-cd.sh             최초 1회: 그룹 b102, /etc/b102/{deploy.env,deploy.lock,git-credentials}, /var/lib/b102, Jenkins 그룹 반영
-    deploy.sh               (pull) → 배포 전 pg_dump → build → up --wait → 헬스 → 상태 기록. 실패 시 조건부 자동 복구. Jenkins 도 호출
+    deploy.sh               (pull) → (마이그레이션 포함 시) 배포 전 pg_dump → build → up --wait → 헬스 → 상태 기록. 실패 시 조건부 자동 복구. Jenkins 도 호출
     issue-cert.sh           Let's Encrypt 최초 발급 (webroot)
     renew-cert.sh           갱신 cron
     backup-postgres.sh      pg_dump gzip 7세대 cron
@@ -109,7 +109,7 @@ sudo rm /etc/b102/cd-enabled      # 끔 (장애 대응·수동 작업 중에는 
 
 ### 배포 전 백업과 롤백 규칙
 
-- `deploy.sh` 는 `up` 직전에 `pg_dump` 를 `pre_<sha>_*.sql.gz` 로 남긴다(5세대). 일일 백업(`bookdb_*`, 7세대)과 별도.
+- `deploy.sh` 는 **이번 배포에 마이그레이션이 들어 있을 때(지문 변경)와 직전 릴리스 기록이 없을 때만** `up` 직전에 `pg_dump` 를 `pre_<sha>_*.sql.gz` 로 남긴다(5세대, 09-16). 코드만 바뀐 배포는 실패해도 코드 롤백으로 끝나 덤프가 쓰이지 않는데, 5GB 덤프가 배포마다 2.5~3분을 먹었다. `--force-backup` 으로 억지로 뜰 수 있고 일일 백업(`bookdb_*`, 7세대)은 그대로다.
 - 마이그레이션 지문(`db/migration/*.sql` 의 sha256)을 릴리스마다 기록한다.
 - 새 릴리스 기동이 실패하거나 **배포 후 헬스체크(readiness·http·https)가 실패하면** 같은 경로로: **지문이 직전 성공 릴리스와 같을 때만** 코드를 직전 SHA 로 자동 복구한다. `current-release` 는 헬스까지 통과한 뒤에만 갱신되고, 실패는 `/var/lib/b102/last-failed-release` 에 남는다. **지문이 다르면(이번 배포에 migration 이 있으면) 자동 복구하지 않는다.** Flyway 는 전진 전용이라 DB 를 자동으로 되돌리면 데이터가 유실될 수 있다. 사람이 `pre_<sha>` dump 를 보고 판단한다.
 - 배포 = 마이그레이션 실행이다. migration 이 든 MR 은 머지 전에 스키마 담당 리뷰를 거친다.
