@@ -24,6 +24,13 @@ const ILLUSTRATIONS = [
     caption: '수많은 책 사이, 당신의 한 권',
   },
   {
+    src: '/images/landing-reader-bookshelf-only.png',
+    label: '3 추천 선반',
+    alt: '책이 빼곡한 선반 가운데 추천된 한 권이 살짝 앞으로 나온 모습',
+    eyebrow: 'PICKED FROM THE SHELF',
+    caption: '선반 가운데 눈에 들어온 한 권',
+  },
+  {
     src: '/images/landing-reader-taste-thread.png',
     label: '4 취향의 실',
     alt: '독자의 취향을 나타내는 실이 여러 책을 지나 한 권의 펼친 책으로 이어지는 모습',
