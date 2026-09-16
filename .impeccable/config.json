@@ -1,0 +1,80 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-color",
+        "value": "#000",
+        "createdAt": "2026-09-15T08:33:49.374Z",
+        "reason": "mask-image 그라데이션의 알파 스톱 — 화면에 칠해지는 색이 아니라 마스크 불투명도다 (LandingPage 표지 배경)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#fee500",
+        "createdAt": "2026-09-15T08:33:49.465Z",
+        "reason": "카카오 로그인 버튼 브랜드 규정 색 — 카카오 디자인 가이드가 지정한 값이라 팔레트로 대체할 수 없다"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#191919",
+        "createdAt": "2026-09-15T08:33:49.560Z",
+        "reason": "카카오 로그인 버튼 브랜드 규정 글자색 — 카카오 디자인 가이드가 지정한 값"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0, 0, 0, 0.15)",
+        "createdAt": "2026-09-15T08:58:24.177Z",
+        "reason": "DESIGN.md Elevation 절이 '표지 확대'에 지정한 값(0 14px 36px rgba(0,0,0,.15)) — 팔레트 검사기가 그 절을 안 봐서 나는 오탐"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "13px",
+        "createdAt": "2026-09-15T08:58:24.375Z",
+        "reason": "editorial.css .eo-button 의 라벨 크기와 동일 — 디자인 시스템이 이미 쓰는 버튼 글자 크기다"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "15px",
+        "createdAt": "2026-09-15T08:58:24.563Z",
+        "reason": "로그인 뒤 GNB 브랜드와 같은 크기 (Layout.tsx text-[15px], editorial.css .eo-text-button) — 랜딩 제호를 GNB에 맞춘 것"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "6px",
+        "createdAt": "2026-09-15T08:58:36.158Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "14px",
+        "createdAt": "2026-09-15T08:58:36.309Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "6px",
+        "createdAt": "2026-09-15T08:58:36.558Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다 (표지에 인쇄된 아주 작은 글줄 — 책 너비에 비례한다)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "9px",
+        "createdAt": "2026-09-15T08:58:36.768Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다 (표지에 인쇄된 아주 작은 글줄 — 책 너비에 비례한다)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(14, 26, 38, 0.6)",
+        "createdAt": "2026-09-15T08:58:37.067Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다 (표지 글자 그림자)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(14, 26, 38, 0.45)",
+        "createdAt": "2026-09-15T08:58:37.298Z",
+        "reason": "내 서재 '나의 책' 표지 면(LibraryPage.css .libd-book__front-cover-face--outside)에서 그대로 가져온 값 — 랜딩 시안 C가 같은 책으로 보이려면 어긋나면 안 된다 (표지 글자 그림자)"
+      }
+    ]
+  }
+}
