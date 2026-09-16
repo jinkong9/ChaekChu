@@ -184,13 +184,19 @@ def test_qdrant_store_writes_versioned_points_and_promotes_alias() -> None:
 
     assert calls[0][0] == "PUT"
     assert "/collections/books_" in calls[0][1]
-    assert calls[1][0] == "PUT"
-    assert calls[1][2]["points"][0]["payload"] == {
+    # 컬렉션 생성 직후 온라인 필터 필드 4개의 payload index 를 만든다 — 없으면 태그 필터가 전수 스캔이다(09-16 운영)
+    index_calls = calls[1:5]
+    assert all(method == "PUT" and url.endswith("/index?wait=true") for method, url, _ in index_calls)
+    assert [(body["field_name"], body["field_schema"]) for _, _, body in index_calls] == [
+        ("indexVersion", "keyword"), ("active", "bool"), ("isbn13", "keyword"), ("tagCodes", "keyword"),
+    ]
+    assert calls[5][0] == "PUT"
+    assert calls[5][2]["points"][0]["payload"] == {
         "bookname": "A",
         "indexVersion": "d4l-index-v1",
         "active": True,
     }
-    assert calls[2] == ("POST", "http://qdrant:6333/collections/aliases", {
+    assert calls[6] == ("POST", "http://qdrant:6333/collections/aliases", {
         "actions": [
             {"delete_alias": {"alias_name": "books_active"}},
             {"create_alias": {"collection_name": calls[0][1].split("/collections/")[1], "alias_name": "books_active"}},

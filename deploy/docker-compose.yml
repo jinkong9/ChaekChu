@@ -5,7 +5,9 @@
 #
 # 메모리 상한 (16GiB 서버)
 #   web 128m · backend 1.5g · postgres 3g · elasticsearch 4g(힙 2g)   = 기본 8.6g
-#   qdrant 3g (--profile recsys)                                     = 켜면 11.6g
+#   qdrant 5g (--profile recsys)                                     = 켜면 13.6g
+#     ← 09-16 3g → 5g. 추천 후보 44만 × 1536 float32 벡터만 2.7GB 라 3g 에서는 HNSW·payload index 가 함께 못 들어가
+#        페이지 캐시가 계속 밀려났다(검색 0.13초 → 2~4초, 대량 payload 갱신 때는 39초). 실제 사용은 캡이 아니라 상주 크기(약 3GB)다.
 #   여기에 수집기 systemd 상한 3g 와 (도입 후) Jenkins 1~1.5g 가 더해진다. Qdrant 를 켜기 전에 수집기 상한을 내린다.
 #   CPU 상한은 걸지 않는다. 수집기와 함께 실측한 뒤 필요하면 추가.
 # 외부 노출은 web 의 80/443 만. 나머지는 127.0.0.1 에만 바인딩한다.
@@ -224,7 +226,7 @@ services:
       TZ: UTC
     volumes:
       - qdrant-data:/qdrant/storage
-    mem_limit: 3g
+    mem_limit: 5g                        # 09-16: 3g 에서 벡터 2.7GB + HNSW + payload index 가 한도에 붙어 검색이 15배 느려졌다. 위 메모리 상한 표 참조
     logging: *default-logging
 
 # 볼륨 이름은 고정한다. compose 프로젝트명(brbbr)이 바뀌어도 서버에 이미 있는 b102_* 볼륨(PG 데이터·ES 인덱스·인증서)을 그대로 쓴다.
