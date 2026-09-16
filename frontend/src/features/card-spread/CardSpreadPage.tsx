@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
 import { toBookSummary } from '../../api/books'
-import { addToLibrary } from '../../api/library'
+import { addToLibrary, removeLibraryItem } from '../../api/library'
 import { useFinishModalStore } from '../../stores/finishModalStore'
 import type { BookDetail, BookSummary, CoLoansResponse, ShelfStatus, SimilarResponse } from '../../api/types'
 import { coverAtWidth } from '../../lib/coverUrl'
@@ -12,7 +12,10 @@ import { ean13Bars, ean13Modules } from './ean13'
 import './card-spread.css'
 
 /** BOOK-001 도서 상세 — 도서 카드 펼침면(확정안). 왼쪽에 표지와 도서 카드를
- *  나란히 펼치고, 오른쪽에 표제·지표·읽을거리를 세우고, 아래에 세 단으로 이웃 책을 둔다.
+ *  나란히 펼치고, 오른쪽에 표제·지표·읽을거리를 세우고, 아래에 두 단으로 이웃 책을 둔다.
+ *
+ *  「이 책을 빌린 사람들」(연령대별 대출)은 뺐다 — 정보나루 loan_grps 수집률이 낮아 적재하지 않기로 했고(API_SPEC §4.4),
+ *  화면에는 늘 「기록이 아직 없습니다」 한 줄만 서 있었다. BookDetail.loanByAge 는 계약에 남으니 값이 붙으면 되살린다.
  *
  *  /similar(§4.5) · /co-loans(§4.6) 는 계약에 들어왔다. 아직 임시인 것은 keywords 하나다
  *  ('AI 추천 키워드' — BookDetail 의 선택 필드로 가정, docs/BACKEND_DATA_CONTRACT.md 합의 대기).
@@ -23,6 +26,10 @@ import './card-spread.css'
 type BookDetailDraft = BookDetail & { keywords?: string[] | null }
 
 const CTA_LABEL: Record<ShelfStatus, string> = { READ: '읽었어요', WISH: '읽고 싶어요' }
+/** 이미 읽은 책의 라벨 — 누를 수 있는 행동이 아니라 서재에 기록된 상태의 표시다 */
+const READ_DONE_LABEL = '이미 읽었어요'
+/** 찜이 담긴 뒤의 라벨 — 같은 버튼이 해제를 맡으므로 눌러서 무슨 일이 나는지 라벨에 적는다 */
+const WISH_CANCEL_LABEL = '읽고 싶어요 취소'
 
 /** 카드에 인쇄된 문장 — 책이 아니라 서비스의 말이다 */
 const CARD_LINE = '“당신의 오늘도,\n좋은 책과 함께하길.”'
@@ -43,6 +50,8 @@ const PATH = {
   chart: 'M2.5 13.5v-4M6.5 13.5v-8M10.5 13.5v-5M14 13.5v-10',
   star: 'M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6L8 1.8z',
   book: 'M2 3.2h4.2c1 0 1.8.8 1.8 1.8v8c0-1-.8-1.8-1.8-1.8H2v-8zM14 3.2H9.8c-1 0-1.8.8-1.8 1.8v8c0-1 .8-1.8 1.8-1.8H14v-8z',
+  // 담긴 찜을 끄는 자리 — 같은 책갈피에 사선 하나(끄기의 관용 표현)
+  bookmarkOff: 'M4 2h8v12l-4-3-4 3V2z M2.6 13.4L13.4 2.6',
 }
 
 /** 지표 아이콘은 값의 성격을 따른다 — 별점은 별, 대출 횟수는 책, 순위처럼 분포를 읽는 값은 막대.
@@ -65,13 +74,16 @@ function Barcode({ isbn13 }: { isbn13: string | null }) {
   )
 }
 
+/** 이웃 책은 한 단에 여섯 권 — 연령대 단이 빠지며 넓어진 단 폭을 표지 크기가 아니라 권수로 받는다 */
+const NEIGHBOR_COUNT = 6
+
 /** 불러오는 동안 타일 자리를 지킨다 — 비었다는 문구를 먼저 보여주면 「없다」로 읽힌다.
  *  유사도 계산이 AI 왕복이라 1초 안팎 걸리는데, 그 사이 「임베딩이 붙으면 채워집니다」가 떴다가
  *  결과가 와서 바뀌면 화면이 두 번 말을 바꾸는 셈이다. */
 function TileSkeletons() {
   return (
     <div className="bd-list" aria-hidden="true">
-      {[0, 1, 2, 3].map((i) => (
+      {Array.from({ length: NEIGHBOR_COUNT }, (_, i) => (
         <div key={i} className="eo-tile">
           <span className="eo-cover eo-skeleton" />
           <span className="bd-tile__line eo-skeleton" />
@@ -82,11 +94,11 @@ function TileSkeletons() {
   )
 }
 
-/** 표지 넷 — 홈 타일과 같은 리듬(순위 없이 표지·제목·저자) */
+/** 표지 여섯 — 홈 타일과 같은 리듬(순위 없이 표지·제목·저자) */
 function BookTiles({ items }: { items: BookSummary[] }) {
   return (
     <div className="bd-list">
-      {items.slice(0, 4).map((bk) => (
+      {items.slice(0, NEIGHBOR_COUNT).map((bk) => (
         <Link key={bk.bookId} to={`/books/${bk.bookId}`} className="eo-tile">
           {bk.coverUrl
             ? <img className="eo-cover" src={coverAtWidth(bk.coverUrl, COVER_W.tile)!} alt=""
@@ -115,20 +127,20 @@ export default function CardSpreadPage() {
   const similar = useQuery({
     queryKey: ['book', bookId, 'similar'],
     // 서버는 {book, reason, score} 로 준다(§4.5) — 타일은 책만 그리므로 co-loans 와 같은 어댑터로 화면 타입에 맞춘다.
-    // size=4 는 BookTiles 가 네 권만 그리기 때문이다(기본 8 을 받아 절반을 버리지 않는다).
-    queryFn: async () => (await api.get<SimilarResponse>(`/books/${bookId}/similar`, { params: { size: 4 } }))
+    // size 는 BookTiles 가 그리는 수와 같게 둔다(기본 8 을 받아 둘을 버리지 않는다).
+    queryFn: async () => (await api.get<SimilarResponse>(`/books/${bookId}/similar`, { params: { size: NEIGHBOR_COUNT } }))
       .data.items.map((i) => toBookSummary(i.book)),
     retry: false,
   })
   const coLoans = useQuery({
     queryKey: ['book', bookId, 'co-loans'],
     // 서버는 {book, rank} 로 준다(§4.6) — 타일은 책만 그리므로 검색과 같은 어댑터로 화면 타입에 맞춘다
-    queryFn: async () => (await api.get<CoLoansResponse>(`/books/${bookId}/co-loans`, { params: { size: 4 } }))
+    queryFn: async () => (await api.get<CoLoansResponse>(`/books/${bookId}/co-loans`, { params: { size: NEIGHBOR_COUNT } }))
       .data.items.map((i) => toBookSummary(i.book)),
     retry: false,
   })
 
-  // 담기는 서버 왕복이라 끝날 때까지 티가 나야 한다 — 실패하면 조용히 넘기지 않고 버튼 아래에 적는다
+  // 담기·해제는 서버 왕복이라 끝날 때까지 티가 나야 한다 — 실패하면 조용히 넘기지 않고 버튼 아래에 적는다
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -163,27 +175,37 @@ export default function CardSpreadPage() {
     )
   }
 
-  const save = (status: ShelfStatus) => {
-    // 읽음은 완독 모달을 거친다(별점·한줄평·완독일). 이미 서재에 있으면 그 기록을 채워 열어 수정이 된다
-    if (status === 'READ') {
-      openFinish({ bookId: book.bookId, title: book.title, libraryItemId: book.my?.libraryItemId,
-        rating: book.my?.rating, reviewText: book.my?.reviewText, finishedDate: book.my?.status === 'READ' ? book.my.finishedDate : undefined })
-      return
-    }
-    // 서버로 바로 가는 건 찜하기뿐이다 — 왕복 동안 버튼을 잠그고, 실패하면 버튼 아래에 알린다
-    trackEvent('WISH', { bookId: book.bookId })
+  // 두 버튼의 모양은 전부 book.my 에서 나온다 — 서버가 주는 '내 서재' 항목이다(§4.4).
+  // 서재에 없으면 null, 있으면 READ 아니면 WISH 둘 중 하나라 상태가 겹치지 않는다.
+  const readItem = book.my?.status === 'READ' ? book.my : null
+  const wishedItem = book.my?.status === 'WISH' ? book.my : null
+
+  /** 읽음은 완독 모달을 거친다(별점·한줄평·완독일).
+   *  이미 찜으로 담겨 있으면 그 항목 id 를 넘겨 새로 담지 않고 그 자리에서 READ 로 올린다(§6.3) — 같은 책이 두 줄로 남지 않는다. */
+  const openRead = () =>
+    openFinish({ bookId: book.bookId, title: book.title, libraryItemId: wishedItem?.libraryItemId,
+      rating: wishedItem?.rating, reviewText: wishedItem?.reviewText })
+
+  /** 서버로 바로 가는 건 찜뿐이다 — 왕복 동안 버튼을 잠그고, 실패하면 버튼 아래에 알린다.
+   *  담기는 POST(이미 있으면 409 → PATCH)라 두 번 눌러도 줄이 늘지 않고, 해제는 DELETE /library/{id} (§6.4) 로 서재에서 뺀다
+   *  — 찜에는 별점·감상이 없어 함께 지워질 기록이 없다. 읽은 책에서는 이 버튼이 잠겨 있어 여기로 오지 않는다. */
+  const toggleWish = () => {
+    // 이벤트는 담을 때만 보낸다 — 계약의 EventType 에 해제가 없다(lib/events.ts)
+    if (!wishedItem) trackEvent('WISH', { bookId: book.bookId })
     setSaving(true)
     setSaveError(null)
-    addToLibrary(book.bookId, status)
+    const req: Promise<unknown> = wishedItem
+      ? removeLibraryItem(wishedItem.libraryItemId)
+      : addToLibrary(book.bookId, 'WISH')
+    req
       .then(() => { qc.invalidateQueries({ queryKey: ['library'] }); qc.invalidateQueries({ queryKey: ['book', bookId] }) })
       // 401 은 인터셉터가 로그아웃으로 받아 간다 — 여기서는 네트워크 끊김·서버 오류·담기 경합이 남는다
-      .catch(() => setSaveError('서재에 담지 못했습니다. 잠시 후 다시 눌러 주세요.'))
+      .catch(() => setSaveError(wishedItem
+        ? '찜을 해제하지 못했습니다. 잠시 후 다시 눌러 주세요.'
+        : '서재에 담지 못했습니다. 잠시 후 다시 눌러 주세요.'))
       .finally(() => setSaving(false))
   }
 
-  const loans = book.loanByAge ?? []
-  // 막대는 값이 아니라 서로의 비율이 읽혀야 한다 — 최댓값을 100%로 잡는다
-  const peakRatio = Math.max(...loans.map((a) => a.ratio), 1)
   const keywords = book.keywords ?? []
   // 카드의 항목 — 값이 없는 줄은 카드에 인쇄하지 않는다
   const cardRows: [string, string][] = [
@@ -237,17 +259,24 @@ export default function CardSpreadPage() {
             </div>
 
             {/* 행동은 이 둘뿐이다 — 서재 2단(READ/WISH)과 하나씩 짝이 맞는다.
-                라벨은 상태에 따라 바뀌지 않고, 기록된 쪽에 체크가 붙어 지금 무엇이 담겨 있는지 알린다 */}
+                찜은 한 버튼에서 담고 푼다 — 담긴 뒤에는 라벨과 아이콘이 뒤집혀 다음 누름이 무엇을 할지 먼저 말한다.
+                읽은 책에서는 둘 다 잠근다: 이 화면에서 되돌릴 수 있는 건 찜뿐이고,
+                읽음을 무르는 일(READ → WISH·삭제)과 별점·감상 고치기는 내 서재 한 곳에서만 한다. */}
             <div className="bd-cta">
-              <button className="eo-button" onClick={() => save('READ')} disabled={saving} aria-pressed={book.my?.status === 'READ'}>
-                {book.my?.status === 'READ' && <Icon d={PATH.check} />}
-                {CTA_LABEL.READ}
+              <button className="eo-button" onClick={openRead} disabled={saving || readItem !== null} aria-pressed={readItem !== null}>
+                {readItem && <Icon d={PATH.check} />}
+                {readItem ? READ_DONE_LABEL : CTA_LABEL.READ}
               </button>
-              <button className="bd-button-ghost" onClick={() => save('WISH')} disabled={saving} aria-pressed={book.my?.status === 'WISH'}>
-                <Icon d={book.my?.status === 'WISH' ? PATH.check : PATH.bookmark} />
-                {CTA_LABEL.WISH}
+              <button className="bd-button-ghost" onClick={toggleWish} disabled={saving || readItem !== null} aria-pressed={wishedItem !== null}>
+                <Icon d={wishedItem ? PATH.bookmarkOff : PATH.bookmark} />
+                {wishedItem ? WISH_CANCEL_LABEL : CTA_LABEL.WISH}
               </button>
             </div>
+            {readItem && (
+              <p className="bd-cta-note">
+                이미 읽은 책이에요. 별점·감상·완독일을 고치거나 기록을 무르는 건 <Link to="/library" className="eo-link">내 서재</Link>에서 할 수 있어요.
+              </p>
+            )}
             {saveError && <p className="bd-cta-error" role="alert">{saveError}</p>}
           </section>
 
@@ -293,28 +322,8 @@ export default function CardSpreadPage() {
           </section>
         </div>
 
-        {/* ---- 아래쪽 세 단 ---- */}
+        {/* ---- 아래쪽 두 단 ---- */}
         <div className="bd-bottom">
-          <section>
-            <div className="bd-block__head">
-              <h2 className="eo-title">이 책을 빌린 사람들</h2>
-              <span>정보나루</span>
-            </div>
-            {loans.length > 0
-              ? (
-                <div className="bd-ages">
-                  {loans.map((a) => (
-                    <div key={a.ageGroup}>
-                      <b>{Math.round(a.ratio)}%</b>
-                      <i style={{ height: `${(a.ratio / peakRatio) * 100}%` }} />
-                      <small>{a.ageGroup}</small>
-                    </div>
-                  ))}
-                </div>
-              )
-              : <p className="bd-list__empty">이 책의 연령대별 대출 기록이 아직 없습니다.</p>}
-          </section>
-
           <section aria-busy={similar.isPending}>
             <div className="bd-block__head">
               <h2 className="eo-title">비슷한 책</h2>

@@ -301,7 +301,7 @@
 .bd-button-ghost:hover,
 .bd-button-ghost:focus-visible { border-color: var(--eo-ink); transform: translateY(-1px); }
 
-/* 담겨 있는 쪽은 테두리와 농도로 알린다 — 라벨은 바뀌지 않으므로 이 표시가 유일한 단서다 */
+/* 담겨 있는 쪽은 테두리와 농도로 알린다 — 라벨('읽고 싶어요 취소')과 같은 말을 색으로 한 번 더 한다 */
 .bd-button-ghost[aria-pressed='true'] {
   border-color: var(--eo-ink);
   background: rgba(11, 11, 11, 0.07);
@@ -310,6 +310,18 @@
 
 .bd-cta .eo-button:disabled,
 .bd-button-ghost:disabled { opacity: 0.5; cursor: default; transform: none; }
+
+/* '이미 읽었어요'는 못 누르는 버튼이 아니라 기록된 상태의 표시다 — 흐려 두면 고장 난 버튼으로 읽힌다 */
+.bd-cta .eo-button[aria-pressed='true']:disabled { opacity: 1; }
+
+/* 읽은 책의 행동을 어디서 하는지 버튼 바로 아래 한 줄로 일러둔다 */
+.bd-cta-note {
+  margin-top: 11px;
+  color: var(--eo-ink-faint);
+  font-size: 11.5px;
+  line-height: 1.55;
+  word-break: keep-all;
+}
 
 /* 담기 실패는 버튼 바로 아래 한 줄로 — 지면을 흔들지 않되 놓치지는 않게 */
 .bd-cta-error {
@@ -496,21 +508,26 @@
   word-break: keep-all;
 }
 
-/* ---------- 아래쪽 세 단 ---------- */
+/* ---------- 아래쪽 두 단 ---------- */
 
 .bd-bottom {
+  /* 단 사이 홈 — 선은 이 홈의 한가운데 선다 */
+  --bd-col-gap: clamp(28px, 3.4vw, 56px);
+
   display: grid;
-  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.06fr) minmax(0, 1.06fr);
-  gap: clamp(20px, 2.6vw, 38px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--bd-col-gap);
   margin-top: clamp(30px, 3.6vw, 52px);
   padding-top: clamp(22px, 2.6vw, 32px);
   border-top: 1px solid var(--eo-rule);
 }
 
+/* 홈 전체를 당겨 오면 선이 왼쪽 단의 표지에 바싹 붙는다 — 절반만 당겨
+   선 양쪽에 같은 여백을 남긴다. 단의 실제 폭은 그대로다(음의 마진만큼 안쪽 여백을 준다). */
 .bd-bottom > * + * {
-  padding-left: clamp(20px, 2.6vw, 38px);
+  padding-left: calc(var(--bd-col-gap) / 2);
   border-left: 1px solid var(--eo-rule-soft);
-  margin-left: calc(clamp(20px, 2.6vw, 38px) * -1);
+  margin-left: calc(var(--bd-col-gap) / -2);
 }
 
 @media (max-width: 1000px) {
@@ -524,52 +541,22 @@
   }
 }
 
-/* 연령대 막대 — 값이 아니라 서로의 비율을 읽는 자리 */
-.bd-ages {
-  display: flex;
-  height: 150px;
-  align-items: flex-end;
-  gap: clamp(6px, 1vw, 16px);
-  margin-top: 22px;
-}
-
-.bd-ages > div {
-  display: flex;
-  height: 100%;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 7px;
-}
-
-.bd-ages b {
-  color: var(--eo-ink);
-  font-size: 11.5px;
-  font-weight: 650;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-.bd-ages i {
-  display: block;
-  width: clamp(18px, 2vw, 28px);
-  margin: 0 auto;
-  background: var(--eo-ink);
-}
-
-.bd-ages small {
-  color: var(--bd-ink-2);
-  font-size: 11px;
-  text-align: center;
-}
-
-/* 표지 넷 — 목록의 리듬은 홈 타일과 같게 두고 폭만 이 단에 맞춘다 */
+/* 표지 여섯 — 목록의 리듬은 홈 타일과 같게 두고 폭만 이 단에 맞춘다.
+   세 단이 두 단이 되며 단 폭이 넓어진 만큼을 권수로 받는다. 표지 크기는 전과 같다
+   (441px 단에 넷이면 한 장 99px, 643px 단에 여섯이면 95px) — 늘어난 건 줄의 길이지 표지가 아니다. */
 .bd-list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: clamp(8px, 1.1vw, 15px);
   margin-top: 22px;
+}
+
+/* 손바닥 폭에서는 한 줄에 여섯이 서면 표지가 우표만 해진다 — 3열 두 줄로 접어 표지 크기를 지킨다 */
+@media (max-width: 560px) {
+  .bd-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: clamp(16px, 4vw, 22px);
+  }
 }
 
 /* 스켈레톤의 제목·저자 줄 — 실제 타일의 두 줄과 같은 높이를 차지해 결과가 와도 화면이 안 튄다 */
