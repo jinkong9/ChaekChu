@@ -1,11 +1,10 @@
 package com.ssafy.b102.recommendation.service;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -119,8 +118,10 @@ public class SimilarBookService {
 			.collect(Collectors.toMap(b -> b.getIsbn13().strip(), Function.identity(),
 				(first, ignored) -> first, LinkedHashMap::new));
 
-		Set<String> seenWorks = new HashSet<>();
-		seenWorks.add(WorkKey.of(seed));   // 기준 책의 다른 판본이 「비슷한 책」에 끼지 않게
+		// 작품 키 → 그 작품으로 남긴 ISBN. 기준 책을 먼저 넣어 기준 책의 다른 판본이 「비슷한 책」에 끼지 않게 한다.
+		Map<String, String> seenWorks = new HashMap<>();
+		seenWorks.put(WorkKey.of(seed), isbnOf(seed));
+		List<String> folded = new ArrayList<>();
 
 		List<SimilarBookResponse.Item> items = new ArrayList<>(size);
 		for (AiRecommendationResponse.Item item : ai.items()) {
@@ -128,13 +129,28 @@ public class SimilarBookService {
 				break;
 			}
 			Book book = books.get(item.isbn13() == null ? "" : item.isbn13().strip());
-			if (book == null || !seenWorks.add(WorkKey.of(book))) {
+			if (book == null) {
+				continue;
+			}
+			String keptIsbn = seenWorks.putIfAbsent(WorkKey.of(book), isbnOf(book));
+			if (keptIsbn != null) {
+				folded.add(isbnOf(book) + "->" + keptIsbn);
 				continue;
 			}
 			items.add(new SimilarBookResponse.Item(
 				summaryMapper.from(book), reasonOf(item), item.score() == null ? 0.0 : item.score()));
 		}
+		// 접힘 로그. 규칙이 과하게 접는지(다른 책이 사라지는지)를 화면을 열어 보지 않고 로그로 확인하기 위한 것이다.
+		// «접힌 ISBN->남긴 ISBN» 쌍이라 어느 판이 어느 판으로 접혔는지 그대로 보인다.
+		if (!folded.isEmpty()) {
+			log.info("비슷한 책 접기 bookId={} 후보 {} → 표시 {} (같은 작품 {}권 접음: {})",
+				seed.getId(), books.size(), items.size(), folded.size(), folded);
+		}
 		return List.copyOf(items);
+	}
+
+	private static String isbnOf(Book book) {
+		return book.getIsbn13() == null ? "" : book.getIsbn13().strip();
 	}
 
 	/** AI 가 만든 한 문장. 없으면 이 경로의 뜻을 그대로 적는다 — 화면이 빈 칸을 그리지 않게. */
