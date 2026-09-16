@@ -1,16 +1,8 @@
-import { useMemo, useState, type CSSProperties } from 'react'
-import { useLandingBooks, useLandingOAuth } from './landingShared'
+import { useLandingOAuth } from './landingShared'
 import './landingOku.css'
 
 /** 랜딩 시안 D — Oku의 넓은 여백과 세리프 편집감을 빌리되,
- *  책추책책추의 실제 표지·BOOK DNA·추천 이유를 한 편의 지면처럼 보여 준다. */
-
-const FALLBACK_BOOKS = [
-  { title: '데미안', coverUrl: '' },
-  { title: '아몬드', coverUrl: '' },
-  { title: '채식주의자', coverUrl: '' },
-  { title: '파친코', coverUrl: '' },
-]
+ *  흑백 일러스트·BOOK DNA·추천 이유를 한 편의 지면처럼 보여 준다. */
 
 function BrandMark() {
   return (
@@ -24,33 +16,19 @@ function BrandMark() {
   )
 }
 
-function Cover({ src, title, index }: { src: string, title: string, index: number }) {
-  const [failed, setFailed] = useState(false)
-  return src && !failed ? (
-    <img src={src} alt={`${title} 표지`} loading={index < 3 ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)} />
-  ) : (
-    <span className="landing-oku__cover-fallback" aria-label={`${title} 표지 준비 중`}>
-      <b>{title}</b><small>책추책책추</small>
-    </span>
-  )
-}
-
 export default function LandingOku() {
   const { oauth, oauthFailed } = useLandingOAuth()
-  const loadedBooks = useLandingBooks(12, 20)
-  const books = loadedBooks.length >= 4 ? loadedBooks : FALLBACK_BOOKS
-  const heroBooks = useMemo(() => books.slice(0, 4), [books])
 
   return (
     <div className="landing-oku">
       <header className="landing-oku__header">
-        <a href="#top" aria-label="책추책책추 처음으로"><BrandMark /></a>
+        <a className="landing-oku__header-brand" href="#top" aria-label="책추책책추 처음으로">책추책책추</a>
         <nav aria-label="랜딩 페이지 메뉴">
           <a href="#discover">추천 방식</a>
           <a href="#dna">BOOK DNA</a>
           <a href="#promise">우리의 기준</a>
         </nav>
-        <button className="landing-oku__header-cta" onClick={() => oauth('google')}>로그인</button>
+        <button className="landing-oku__header-cta eo-link" onClick={() => oauth('google')}>로그인</button>
       </header>
 
       <main id="top">
@@ -71,16 +49,13 @@ export default function LandingOku() {
             </p>
           </div>
 
-          <div className="landing-oku__hero-art" aria-label="책의 궤도에서 다음 책을 발견하는 독자 일러스트">
-            <span className="landing-oku__orbit landing-oku__orbit--one" />
-            <span className="landing-oku__orbit landing-oku__orbit--two" />
-            <img className="landing-oku__reader" src="/images/landing-reader-orbit.png" alt="떠다니는 책 사이로 손을 뻗는 독자" />
-            {heroBooks.slice(0, 3).map((book, index) => (
-              <span className={`landing-oku__floating-cover landing-oku__floating-cover--${index + 1}`} key={`${book.title}-${index}`}>
-                <Cover src={book.coverUrl} title={book.title} index={index} />
-              </span>
-            ))}
-            <p className="landing-oku__art-caption"><span>오늘의 발견</span><b>{heroBooks[0]?.title ?? '당신의 다음 책'}</b></p>
+          <div className="landing-oku__hero-art">
+            <img
+              className="landing-oku__reader"
+              src="/images/landing-shelf-reader.png"
+              alt="책이 가득한 선반에서 한 권을 꺼내는 독자"
+            />
+            <p className="landing-oku__art-caption"><span>YOUR SHELF KNOWS</span><b>다음 한 권을 꺼내 보세요</b></p>
           </div>
           <a className="landing-oku__scroll" href="#discover">아래로 읽기 <span aria-hidden>↓</span></a>
         </section>
@@ -97,13 +72,14 @@ export default function LandingOku() {
             <p>완독한 책과 남긴 별점을 따라 장르, 분위기, 문체의 선호를 차분히 읽어요. 긴 설문도 정답도 필요 없어요.</p>
             <span className="landing-oku__microcopy">SELECT YOUR BOOKS · BUILD YOUR TASTE</span>
           </div>
-          <div className="landing-oku__book-stage" aria-label="취향을 만드는 책 표지 모음">
-            {books.slice(0, 8).map((book, index) => (
-              <figure key={`${book.title}-${index}`} style={{ '--i': index } as CSSProperties}>
-                <Cover src={book.coverUrl} title={book.title} index={index} />
-                <figcaption>{book.title}</figcaption>
-              </figure>
-            ))}
+          <div className="landing-oku__taste-map" aria-label="독서 취향을 구성하는 요소">
+            <span className="landing-oku__taste-center"><small>MY READING</small><b>취향의 결</b></span>
+            <span>고요한 문장</span>
+            <span>낯선 세계</span>
+            <span>느린 호흡</span>
+            <span>내면의 성장</span>
+            <span>선명한 인물</span>
+            <span>긴 여운</span>
           </div>
         </section>
 
@@ -143,9 +119,6 @@ export default function LandingOku() {
           <p>한 권을 고르는 일이 조금 더 설레도록</p>
           <h2 id="landing-closing-title">당신의 다음 책을<br />함께 찾을까요?</h2>
           <button className="landing-oku__primary" onClick={() => oauth('kakao')}>내 취향으로 시작하기 <span aria-hidden>↗</span></button>
-          <div className="landing-oku__closing-books" aria-hidden="true">
-            {books.slice(8, 12).map((book, index) => <span key={`${book.title}-${index}`}><Cover src={book.coverUrl} title={book.title} index={index + 8} /></span>)}
-          </div>
         </section>
       </main>
 

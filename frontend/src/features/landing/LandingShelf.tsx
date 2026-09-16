@@ -33,8 +33,9 @@ const CSS = `
   /* ---- 배경: 표지 밭. 가운데를 마스크로 뚫어 글 뒤에는 종이만 남긴다 ---- */
   .landing-shelf__field { position: absolute; inset: 0; z-index: 0; display: grid; gap: ${GAP}px;
                           padding: 0 ${GAP}px; overflow: hidden; opacity: 0.24; pointer-events: none;
-                          -webkit-mask-image: radial-gradient(ellipse 68% 58% at 50% 50%, transparent 38%, #000 100%);
-                          mask-image: radial-gradient(ellipse 68% 58% at 50% 50%, transparent 38%, #000 100%); }
+                          /* 글이 커진 만큼 가운데를 더 비운다 — 좁으면 큰 글자 뒤로 표지가 겹쳐 읽힌다 */
+                          -webkit-mask-image: radial-gradient(ellipse 72% 64% at 50% 50%, transparent 46%, #000 100%);
+                          mask-image: radial-gradient(ellipse 72% 64% at 50% 50%, transparent 46%, #000 100%); }
   .landing-shelf__col { overflow: hidden; }
   /* grid — 블록이면 마지막 표지의 아래 여백이 부모 밖으로 새어 나가 트랙 높이가
      한 칸 어긋나고, 그만큼 되감을 때 이음매가 튄다 */
@@ -56,33 +57,38 @@ const CSS = `
   .landing-shelf__page { position: relative; z-index: 5; height: 100%; display: flex; flex-direction: column;
                          align-items: center; justify-content: center; text-align: center;
                          padding: 54px var(--eo-frame) 0; }
-  /* 크기는 DESIGN.md headline 토큰 그대로 — display(48~116px)는 워드마크 전용이라
-     랜딩 카피에 쓰지 않는다. 대신 행간만 롤링 칸 높이에 맞춘다 */
-  .landing-shelf__h1 { margin: 0; font-size: clamp(19px, 2.7vw, 42px); font-weight: 550; line-height: ${LINE};
+  /* 크기는 시안 A와 같은 램프다 — DESIGN.md headline(최대 42px)으로는 랜딩 첫 화면에서
+     표지 밭에 묻힌다. 자간·행간만 이 시안의 편집형 어휘를 지킨다 */
+  .landing-shelf__h1 { margin: 0; font-size: clamp(38px, 5vw, 64px); font-weight: 600; line-height: ${LINE};
                        letter-spacing: -0.055em; text-wrap: balance; word-break: keep-all; }
   .landing-shelf__roll { display: inline-flex; vertical-align: bottom; overflow: hidden; height: ${LINE}em; }
   .landing-shelf__roll ul { list-style: none; padding: 0; margin: 0; will-change: transform;
                             transition: transform 0.6s cubic-bezier(0.72, -0.02, 0.16, 1); }
   .landing-shelf__roll li { height: ${LINE}em; display: flex; align-items: center; justify-content: center;
                             font-weight: 700; white-space: nowrap; }
-  .landing-shelf__sub { margin: 20px 0 0; max-width: 44ch; color: var(--eo-ink-muted);
-                        font-size: 12px; font-weight: 400; line-height: 1.75; letter-spacing: -0.02em;
+  .landing-shelf__sub { margin: 22px 0 0; max-width: 44ch; color: var(--eo-ink-muted);
+                        font-size: 17px; font-weight: 400; line-height: 1.8; letter-spacing: -0.02em;
                         text-wrap: pretty; word-break: keep-all; }
-  .landing-shelf__cta { margin-top: 38px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
-  .landing-shelf__btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-  .landing-shelf__oauth { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-                          min-width: 196px; min-height: 44px; padding: 0 22px; border-radius: 999px; cursor: pointer;
-                          font: inherit; font-size: 13px; font-weight: 700; line-height: 1; letter-spacing: -0.02em;
+  .landing-shelf__cta { margin-top: 44px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .landing-shelf__btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+  .landing-shelf__oauth { display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+                          min-width: 220px; min-height: 53px; padding: 0 30px; border-radius: 999px; cursor: pointer;
+                          font: inherit; font-size: 15px; font-weight: 700; line-height: 1; letter-spacing: -0.02em;
                           transition: opacity var(--eo-motion) ease-out, transform var(--eo-motion) ease-out; }
   .landing-shelf__oauth:hover, .landing-shelf__oauth:focus-visible { opacity: 0.82; transform: translateY(-1px); }
   /* 카카오 버튼의 노랑·글자색은 카카오 로그인 버튼 규정이라 팔레트 밖이어도 그대로 둔다.
      테두리는 투명으로 둬 구글 버튼과 높이·반경만 맞춘다 */
   .landing-shelf__oauth--kakao { border: 1px solid transparent; background: #fee500; color: #191919; }
   .landing-shelf__oauth--google { border: 1px solid var(--eo-rule-soft); background: var(--eo-paper); color: var(--eo-ink); }
-  .landing-shelf__hint { color: var(--eo-ink-faint); font-size: 11px; letter-spacing: -0.01em; }
+  .landing-shelf__oauth svg { display: block; flex: none; width: 18px; height: 18px; }
+  .landing-shelf__hint { color: var(--eo-ink-faint); font-size: 13px; letter-spacing: -0.01em; }
   .landing-shelf :focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
 
   @media (max-width: 640px) {
+    /* 좁은 화면에서는 글이 세로로 길어져 가로로 뚫은 구멍 밖으로 버튼·안내가 밀려난다.
+       여기서는 위아래로 길게 비우고 표지는 천장과 바닥에만 남긴다 */
+    .landing-shelf__field { -webkit-mask-image: radial-gradient(ellipse 88% 62% at 50% 49%, transparent 54%, #000 100%);
+                            mask-image: radial-gradient(ellipse 88% 62% at 50% 49%, transparent 54%, #000 100%); }
     .landing-shelf__btns { width: 100%; max-width: 320px; }
     .landing-shelf__oauth { flex: 1 1 100%; min-width: 0; }
   }
@@ -92,9 +98,30 @@ const CSS = `
   }
 `
 
+/** 카카오톡 말풍선 — 카카오 로그인 버튼 규정의 심벌. 노란 바탕 위 검정이라 버튼 글자색을 따라간다 */
+function KakaoMark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path fill="currentColor" d="M12 3C6.48 3 2 6.54 2 10.91c0 2.79 1.84 5.24 4.61 6.64l-1.17 4.3c-.1.38.32.68.65.46l5.13-3.39c.25.02.51.03.78.03 5.52 0 10-3.54 10-7.91S17.52 3 12 3z" />
+    </svg>
+  )
+}
+
+/** Google G — 구글 브랜드 규정상 네 가지 색과 형태를 바꾸지 않고 그대로 쓴다 */
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+      <path fill="#ea4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285f4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#fbbc05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <path fill="#34a853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+    </svg>
+  )
+}
+
 export default function LandingShelf() {
   const { oauth, oauthFailed } = useLandingOAuth()
-  const ulRef = useRollingTitles(LINE)
+  const ulRef = useRollingTitles(`${LINE}em`)
   const books = useLandingBooks(COVER_POOL)
   const [grid, setGrid] = useState(shelfGrid)
 
@@ -143,10 +170,10 @@ export default function LandingShelf() {
         <div className="landing-shelf__cta">
           <div className="landing-shelf__btns">
             <button className="landing-shelf__oauth landing-shelf__oauth--kakao" onClick={() => oauth('kakao')}>
-              <span aria-hidden>💬</span> 카카오로 시작하기
+              <KakaoMark /> 카카오로 시작하기
             </button>
             <button className="landing-shelf__oauth landing-shelf__oauth--google" onClick={() => oauth('google')}>
-              <span aria-hidden>G</span> Google로 시작하기
+              <GoogleMark /> Google로 시작하기
             </button>
           </div>
           <span className="landing-shelf__hint">

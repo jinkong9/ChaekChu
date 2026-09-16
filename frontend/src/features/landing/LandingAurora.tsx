@@ -51,7 +51,7 @@ const CSS = `
 
 export default function LandingAurora() {
   const { oauth, oauthFailed } = useLandingOAuth()
-  const ulRef = useRollingTitles(LINE)
+  const ulRef = useRollingTitles(`${LINE}em`)
 
   // 먼지 입자 — 위치·크기는 마운트 시 1회만 생성
   const dust = useMemo(() =>

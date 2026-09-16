@@ -1,157 +1,208 @@
-import bookCover from '../../assets/book-cover-archive-repaired.png'
-import { LANDING_TITLES, useLandingOAuth, useTitleCycle } from './landingShared'
+import { useState } from 'react'
+import { LANDING_TITLES, useLandingOAuth, useRollingTitles } from './landingShared'
 
-/** 랜딩 시안 C — 실제 책 표지가 아니라 '책추책책추의 빈 책' 한 권을 놓고,
- *  그 표지의 제목 자리에 문구를 찍는다. 내 서재 '나의 책'의 표지 한 장을 그대로 쓰되
- *  (열리는 책 구조는 빼고) 비례·팔레트·위아래 작은 글줄을 맞춰, 서비스를 펼치기 직전의
- *  첫 장처럼 읽히게 한다. 표지 문양 자리는 비어 있어 문구가 제목으로 앉는다. */
+/** 랜딩 시안 C — 편집 일러스트 어휘의 평면 그래픽 한 장. 한 가지 색 판 위에 흰 면과
+ *  가는 선만으로 책 한 권을 세우고, 글은 그 옆 여백에 앉힌다. 책은 윗부분만 보이고
+ *  아래는 화면 밖으로 잘린다 — 한 권이 지면을 뚫고 서 있는 것처럼. */
+const COVER_TITLES = LANDING_TITLES.map((title) => title.replace(/[《》]/g, ''))
 
-const LINE = 1.5 // 표지에 앉힌 문구 한 줄의 높이(em) — 제목 칸 높이와 같은 수여야 한다
+/** 판 색 비교 — 로그인 뒤 화면은 전부 종이·잉크라, 랜딩만 색 판을 쓰면 온보딩에서 바로 끊긴다.
+ *  확정되면 고른 하나만 남기고 PALETTES 와 전환 UI를 지운다. */
+const PALETTES = [
+  { key: 'navy', label: '1 남색 판' },
+  { key: 'ink', label: '2 종이·잉크 책' },
+  { key: 'book', label: '3 종이·남색 책' },
+] as const
 
-/** 표지 문양이 비워 둔 안쪽 칸의 너비(표지 너비 대비). 글은 이 칸을 넘으면 백합 무늬 위로 올라간다 */
-const FIELD = 0.62
-/** 글자 크기도 표지 너비에서 뽑는다 — 화면 크기에 따라 책만 커지고 제목이 그대로면 표지가 아니라 포스터가 된다 */
-const TYPE_MAX = 0.072
+type Palette = (typeof PALETTES)[number]['key']
 
-/** 긴 제목은 글자 수만큼 작게 앉힌다 — 실제 책 표지가 하는 일과 같다.
- *  한 줄로 두는 편이 문장("…한 권은 / 『제목』 / 일지도 몰라요")의 흐름을 지킨다.
- *  0.82 는 한글 한 글자가 차지하는 폭(자간 -0.055em 포함 약 0.68em)에서 역산한 값으로,
- *  가장 긴 제목이 빈 칸의 90%를 넘지 않게 잡았다. */
-const titleSize = (title: string) =>
-  `calc(var(--landing-book-w) * ${Math.min(TYPE_MAX, 0.82 / title.length).toFixed(4)})`
+/** 책의 꼭짓점. viewBox 좌표를 한 곳에 모아 두고 면·선을 여기서 파생한다 —
+ *  면마다 숫자를 따로 적으면 한 점만 옮겨도 이음매가 벌어진다. */
+/* 두께(책등 폭)를 표지 폭의 1/10 안쪽으로 둔다 — 더 두꺼우면 책이 아니라 상자로 읽힌다 */
+const SPINE_BACK = [122, 118] as const  // 책등 위 뒤쪽
+const SPINE_FRONT = [158, 152] as const // 책등 위 앞쪽(앞표지와 만나는 모서리)
+const FORE_BACK = [532, 60] as const    // 책배 위 뒤쪽
+const FORE_FRONT = [568, 94] as const   // 책배 위 앞쪽
+const FOOT = 660                         // 화면 밖으로 잘리는 아래 끝
 
-/** 표지 바탕·잉크는 내 서재 '나의 책'에서 그대로 가져왔다
- *  (LibraryPage.css .libd-book__front-cover-face--outside).
- *  그 책의 생김새가 바뀌면 여기도 같이 봐야 한다 — 두 곳이 어긋나면 같은 책으로 안 보인다. */
-const BOOK_GROUND = '#3a5871'
-const BOOK_INK = '#e8dcc0'
-const BOOK_INK_FAINT = '#ded2b6'
-const BOOK_SHADE = 'rgba(4, 11, 29, 0.26)'
+const pt = ([x, y]: readonly [number, number]) => `${x},${y}`
+/** 꼭짓점에서 바로 내려 그은 아래 끝. 따로 적어 두면 위 점만 옮겼을 때 이음매가 벌어진다 */
+const foot = ([x]: readonly [number, number]) => `${x},${FOOT}`
+const lerp = (a: readonly [number, number], b: readonly [number, number], t: number) =>
+  [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] as const
+
+/** 위에서 본 책장 낱장. 책등과 나란한 선을 책배 쪽으로 쌓는다 */
+const LEAVES = Array.from({ length: 34 }, (_, i) => {
+  const t = (i + 1) / 35
+  return { id: i, from: lerp(SPINE_BACK, FORE_BACK, t), to: lerp(SPINE_FRONT, FORE_FRONT, t) }
+})
 
 const CSS = `
-  .landing-cover { position: fixed; inset: 0; overflow: hidden;
-                   background: var(--eo-paper); color: var(--eo-ink);
+  /* 판 색은 이 네 변수로만 갈린다 — 구도·비례는 셋이 똑같아야 색만 비교된다.
+     --cover-book 은 책의 면, --cover-field 는 바탕이자 면을 가르는 선의 색이다 */
+  .landing-cover { --cover-title-h: clamp(52px, 7vw, 96px);
+                   position: fixed; inset: 0; overflow: hidden;
+                   background: var(--cover-field); color: var(--cover-ink);
                    font-family: var(--eo-font); -webkit-font-smoothing: antialiased; }
+  /* 1 — 남색 판에 흰 책 (레퍼런스 그대로) */
+  .landing-cover--navy { --cover-field: #244f72; --cover-book: #ffffff; --cover-ink: #ffffff;
+                         --cover-rule: rgba(255, 255, 255, 0.5); }
+  /* 2 — 종이 판에 잉크 책. 로그인 뒤 화면들과 같은 종이·잉크 */
+  .landing-cover--ink { --cover-field: var(--eo-paper); --cover-book: var(--eo-ink);
+                        --cover-ink: var(--eo-ink); --cover-rule: var(--eo-rule); }
+  /* 3 — 종이 판에 남색 책. 색을 바탕이 아니라 표지가 맡는다 (DESIGN.md) */
+  .landing-cover--book { --cover-field: var(--eo-paper); --cover-book: #244f72;
+                         --cover-ink: var(--eo-ink); --cover-rule: var(--eo-rule); }
 
-  /* ---- 제호: 로그인 뒤 GNB와 같은 높이·같은 밑줄 하나 ---- */
-  .landing-cover__top { position: absolute; inset: 0 0 auto; z-index: 10; display: flex; align-items: center;
+  .landing-cover__top { position: absolute; z-index: 3; inset: 0 0 auto; display: flex; align-items: center;
                         min-height: 54px; padding: 0 var(--eo-frame);
-                        border-bottom: 1px solid var(--eo-rule-soft); }
-  .landing-cover__mark { font-size: 15px; font-weight: 700; letter-spacing: -0.03em; color: var(--eo-ink); }
+                        border-bottom: 1px solid var(--cover-rule); }
+  .landing-cover__mark { font-size: 15px; font-weight: 700; letter-spacing: -0.03em; }
 
-  /* 책 너비를 화면의 높이·너비 둘 다에서 뽑는다 — 높이만 보면 좁은 창에서 책이 넘치고,
-     너비만 보면 낮은 창에서 버튼이 아래로 밀린다 */
-  .landing-cover__page { --landing-book-w: max(200px, min(360px, 34vh, 74vw));
-                         position: relative; height: 100%; display: flex; flex-direction: column;
-                         align-items: center; justify-content: center; text-align: center;
-                         padding: 54px var(--eo-frame) 0; }
+  /* ---- 책. 아래를 화면 밖으로 내보내 윗부분만 남긴다 ---- */
+  .landing-cover__art { position: absolute; z-index: 1; right: clamp(-96px, -5vw, -20px); bottom: -14vh;
+                        width: min(62vw, 790px); height: auto; pointer-events: none; }
+  .landing-cover__plane { fill: var(--cover-book); }
+  /* 면을 가르는 선과 책장 낱장은 바탕색으로 긋는다 — 면에 색을 더하지 않고 덜어낸다 */
+  .landing-cover__seam { stroke: var(--cover-field); stroke-width: 2.4; fill: none; }
+  .landing-cover__leaf { stroke: var(--cover-field); stroke-width: 1.6; opacity: 0.62; }
 
-  /* ---- 빈 책 한 권. 여백·모서리는 내 서재 표지 면과 같은 값 ---- */
-  .landing-cover__book { position: relative; display: flex; flex-direction: column; align-items: center;
-                         justify-content: space-between;
-                         width: var(--landing-book-w); height: calc(var(--landing-book-w) * 1.34);
-                         /* 여백 비율은 내 서재 표지 면과 같지만 기준이 다르다 — 거기선 표지가 책 안에
-                            inset:0 으로 들어 있어 %가 책 너비를 봤고, 여기선 책이 지면의 자식이라
-                            %가 지면 너비를 본다. 그래서 책 너비에서 직접 계산한다 */
-                         padding: calc(var(--landing-book-w) * 0.16) calc(var(--landing-book-w) * 0.11)
-                                  calc(var(--landing-book-w) * 0.135);
-                         border-radius: 6px 14px 14px 6px;
-                         color: ${BOOK_INK};
-                         /* 빛이 드는 결 + 아르누보 표지 문양(문구 제거본) + 표지 바탕 */
-                         background: linear-gradient(105deg, rgba(255, 255, 255, 0.10), transparent 24%, transparent 70%, ${BOOK_SHADE}),
-                                     url('${bookCover}') center / 100% 100% no-repeat,
-                                     ${BOOK_GROUND};
-                         /* DESIGN.md가 확대된 표지에만 허용하는 깊이 */
-                         box-shadow: 0 14px 36px rgba(0, 0, 0, 0.15), inset 1px 0 0 rgba(255, 255, 255, 0.16); }
+  /* ---- 글 ---- */
+  .landing-cover__sheet { position: relative; z-index: 2; display: flex; height: 100%; align-items: center;
+                          padding: 54px var(--eo-frame) 0; }
+  .landing-cover__copy { width: min(52%, 640px); }
+  .landing-cover__line { display: block; font-size: clamp(19px, 2.5vw, 34px); font-weight: 400;
+                         line-height: 1.3; letter-spacing: -0.045em; opacity: 0.88; }
+  /* 지면에서 가장 큰 글자는 책 제목이다 */
+  .landing-cover__window { display: block; height: var(--cover-title-h); margin: clamp(4px, 0.8vw, 10px) 0;
+                           overflow: hidden; }
+  .landing-cover__window ul { list-style: none; margin: 0; padding: 0; will-change: transform;
+                              transition: transform 0.65s cubic-bezier(0.72, -0.02, 0.16, 1); }
+  .landing-cover__window li { display: flex; height: var(--cover-title-h); align-items: center;
+                              font-size: clamp(36px, 5.6vw, 82px); font-weight: 700; line-height: 1;
+                              letter-spacing: -0.06em; white-space: nowrap; }
 
-  .landing-cover__imprint { font-size: clamp(6px, calc(var(--landing-book-w) * 0.026), 9px);
-                            font-weight: 800; letter-spacing: 0.2em; color: ${BOOK_INK_FAINT};
-                            text-shadow: 0 1px 1px rgba(14, 26, 38, 0.6); }
-  .landing-cover__imprint--foot { opacity: 0.82; }
+  .landing-cover__cta { margin-top: clamp(22px, 3.4vw, 42px); }
+  .landing-cover__buttons { display: flex; flex-wrap: wrap; gap: 10px; max-width: 460px; }
+  .landing-cover__oauth { display: inline-flex; flex: 1 1 190px; align-items: center; justify-content: center;
+                          gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 0; cursor: pointer;
+                          font: inherit; font-size: 13px; font-weight: 700; letter-spacing: -0.02em;
+                          transition: opacity 0.16s ease, transform 0.16s ease; }
+  .landing-cover__oauth:hover, .landing-cover__oauth:focus-visible { opacity: 0.78; transform: translateY(-1px); }
+  .landing-cover__oauth--kakao { border: 1px solid #fee500; background: #fee500; color: #191919; }
+  .landing-cover__oauth--google { border: 1px solid var(--cover-rule); background: transparent;
+                                  color: var(--cover-ink); }
+  .landing-cover__oauth svg { display: block; flex: none; width: 17px; height: 17px; }
+  .landing-cover__hint { display: block; margin-top: 11px; font-size: 11px; letter-spacing: -0.01em;
+                         opacity: 0.6; }
+  .landing-cover :focus-visible { outline: 2px solid var(--cover-ink); outline-offset: 3px; }
 
-  /* ---- 표지의 제목 자리에 앉힌 문구 ---- */
-  /* 자리를 표지 안에서 직접 잡는다 (내 서재 .libd-book__cover-title 와 같은 방식) —
-     가운데로 흘려 두면 문양 한가운데 백합 한 쌍이 글줄 높이에 걸린다. 폭도 안쪽 여백이
-     아니라 표지 너비에서 뽑는다 — 문양이 비워 둔 칸은 여백보다 좁다 */
-  .landing-cover__h1 { position: absolute; left: 50%; top: 62%; transform: translate(-50%, -50%);
-                       width: calc(var(--landing-book-w) * ${FIELD}); margin: 0;
-                       font-size: calc(var(--landing-book-w) * ${TYPE_MAX}); font-weight: 550;
-                       line-height: ${LINE}; letter-spacing: -0.055em; word-break: keep-all;
-                       text-shadow: 0 1px 2px rgba(14, 26, 38, 0.45); }
-  .landing-cover__line { display: block; }
-  /* 제목 칸 — 열 권을 겹쳐 두고 한 권만 켠다. 한 장씩 갈아 끼우면 바뀌는 사이가 비어 깜빡인다 */
-  .landing-cover__slot { display: block; position: relative; height: ${LINE}em; }
-  .landing-cover__slot span { position: absolute; inset: 0; display: flex; align-items: center;
-                              justify-content: center; white-space: nowrap; font-weight: 700;
-                              opacity: 0; transition: opacity 220ms ease-out; }
-  /* 나가는 쪽을 먼저 비우고 들어오는 쪽을 늦게 올린다 — 같이 반투명으로 겹치면 두 제목이 한꺼번에 보인다 */
-  .landing-cover__slot span.is-on { opacity: 1; transition: opacity 400ms ease-out 180ms; }
-
-  /* ---- 책 아래, 종이 위 ---- */
-  .landing-cover__sub { margin: 30px 0 0; max-width: 44ch; color: var(--eo-ink-muted);
-                        font-size: 12px; font-weight: 400; line-height: 1.75; letter-spacing: -0.02em;
-                        text-wrap: pretty; word-break: keep-all; }
-  .landing-cover__cta { margin-top: 30px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
-  .landing-cover__btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-  .landing-cover__oauth { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-                          min-width: 196px; min-height: 44px; padding: 0 22px; border-radius: 999px; cursor: pointer;
-                          font: inherit; font-size: 13px; font-weight: 700; line-height: 1; letter-spacing: -0.02em;
-                          transition: opacity var(--eo-motion) ease-out, transform var(--eo-motion) ease-out; }
-  .landing-cover__oauth:hover, .landing-cover__oauth:focus-visible { opacity: 0.82; transform: translateY(-1px); }
-  /* 카카오 버튼의 노랑·글자색은 카카오 로그인 버튼 규정이라 팔레트 밖이어도 그대로 둔다 */
-  .landing-cover__oauth--kakao { border: 1px solid transparent; background: #fee500; color: #191919; }
-  .landing-cover__oauth--google { border: 1px solid var(--eo-rule-soft); background: var(--eo-paper); color: var(--eo-ink); }
-  .landing-cover__hint { color: var(--eo-ink-faint); font-size: 11px; letter-spacing: -0.01em; }
-  .landing-cover :focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
-
-  @media (max-width: 640px) {
-    .landing-cover__btns { width: 100%; max-width: 320px; }
-    .landing-cover__oauth { flex: 1 1 100%; min-width: 0; }
+  /* 좁은 화면에서는 글을 위로, 책을 아래로 — 나란히 두면 둘 다 좁아진다 */
+  @media (max-width: 880px) {
+    .landing-cover__sheet { align-items: flex-start; padding-top: clamp(76px, 13vh, 132px); }
+    .landing-cover__copy { width: 100%; }
+    .landing-cover__art { right: 50%; bottom: -8vh; width: min(104vw, 520px); transform: translateX(50%); }
+    .landing-cover__buttons { max-width: 340px; }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .landing-cover__slot span { transition: none; }
+  @media (max-width: 880px) and (max-height: 720px) {
+    .landing-cover__art { opacity: 0.32; }
   }
+  @media (prefers-reduced-motion: reduce) { .landing-cover__window ul { transition: none; } }
 `
+
+/** 카카오톡 말풍선 — 카카오 로그인 버튼 규정의 심벌. 버튼 글자색을 따라간다 */
+function KakaoMark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path fill="currentColor" d="M12 3C6.48 3 2 6.54 2 10.91c0 2.79 1.84 5.24 4.61 6.64l-1.17 4.3c-.1.38.32.68.65.46l5.13-3.39c.25.02.51.03.78.03 5.52 0 10-3.54 10-7.91S17.52 3 12 3z" />
+    </svg>
+  )
+}
+
+/** Google G — 구글 브랜드 규정상 네 가지 색과 형태를 바꾸지 않고 그대로 쓴다 */
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+      <path fill="#ea4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285f4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#fbbc05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <path fill="#34a853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+    </svg>
+  )
+}
 
 export default function LandingCover() {
   const { oauth, oauthFailed } = useLandingOAuth()
-  const index = useTitleCycle(LANDING_TITLES.length)
+  const ulRef = useRollingTitles('var(--cover-title-h)')
+  const [palette, setPalette] = useState<Palette>('navy')
 
   return (
-    <div className="landing-cover">
+    <div className={`landing-cover landing-cover--${palette}`}>
       <style>{CSS}</style>
       <header className="landing-cover__top">
         <span className="landing-cover__mark">책추책책추</span>
       </header>
-      <div className="landing-cover__page">
-        <div className="landing-cover__book">
-          <small className="landing-cover__imprint">BOOK EXPERIENCE</small>
-          <h1 className="landing-cover__h1">
+
+      <svg className="landing-cover__art" viewBox={`0 0 620 ${FOOT}`} aria-hidden="true" focusable="false">
+        {/* 그림자는 두지 않는다 — 바닥이 화면 밖이라 그림자가 놓일 자리가 없고,
+            책등 옆에 붙이면 책의 또 다른 면처럼 읽힌다 */}
+        {/* 책등 */}
+        <polygon className="landing-cover__plane"
+          points={`${pt(SPINE_BACK)} ${pt(SPINE_FRONT)} ${foot(SPINE_FRONT)} ${foot(SPINE_BACK)}`} />
+        {/* 앞표지 */}
+        <polygon className="landing-cover__plane"
+          points={`${pt(SPINE_FRONT)} ${pt(FORE_FRONT)} ${foot(FORE_FRONT)} ${foot(SPINE_FRONT)}`} />
+        {/* 위에서 본 책장 단면 */}
+        <polygon className="landing-cover__plane"
+          points={`${pt(SPINE_BACK)} ${pt(FORE_BACK)} ${pt(FORE_FRONT)} ${pt(SPINE_FRONT)}`} />
+        {LEAVES.map((leaf) => (
+          <line key={leaf.id} className="landing-cover__leaf"
+            x1={leaf.from[0]} y1={leaf.from[1]} x2={leaf.to[0]} y2={leaf.to[1]} />
+        ))}
+        {/* 책등과 앞표지가 만나는 모서리 */}
+        <polyline className="landing-cover__seam"
+          points={`${pt(SPINE_BACK)} ${pt(SPINE_FRONT)} ${foot(SPINE_FRONT)}`} />
+      </svg>
+
+      <div className="landing-cover__sheet">
+        <div className="landing-cover__copy">
+          <h1>
             <span className="landing-cover__line">당신의 다음 한 권은</span>
-            <span className="landing-cover__slot">
-              {LANDING_TITLES.map((title, i) => (
-                <span key={title} className={i === index ? 'is-on' : ''} aria-hidden={i !== index}
-                  style={{ fontSize: titleSize(title) }}>{title}</span>
-              ))}
+            <span className="landing-cover__window">
+              <ul ref={ulRef}>
+                {[...COVER_TITLES, COVER_TITLES[0]].map((title, index) => <li key={index}>{title}</li>)}
+              </ul>
             </span>
             <span className="landing-cover__line">일지도 몰라요.</span>
           </h1>
-          <span className="landing-cover__imprint landing-cover__imprint--foot">PAGE · 1st</span>
-        </div>
-        <p className="landing-cover__sub">읽은 책 몇 권이면 충분해요.<br />205만 권 속에서 당신 기준으로, 이유와 함께 골라드릴게요.</p>
-        <div className="landing-cover__cta">
-          <div className="landing-cover__btns">
-            <button className="landing-cover__oauth landing-cover__oauth--kakao" onClick={() => oauth('kakao')}>
-              <span aria-hidden>💬</span> 카카오로 시작하기
-            </button>
-            <button className="landing-cover__oauth landing-cover__oauth--google" onClick={() => oauth('google')}>
-              <span aria-hidden>G</span> Google로 시작하기
-            </button>
+          <div className="landing-cover__cta">
+            <div className="landing-cover__buttons">
+              <button className="landing-cover__oauth landing-cover__oauth--kakao" onClick={() => oauth('kakao')}>
+                <KakaoMark /> 카카오로 시작하기
+              </button>
+              <button className="landing-cover__oauth landing-cover__oauth--google" onClick={() => oauth('google')}>
+                <GoogleMark /> Google로 시작하기
+              </button>
+            </div>
+            <span className="landing-cover__hint">
+              {oauthFailed ? '로그인이 중간에 끊겼어요 — 다시 시도해 주세요' : '읽은 책 몇 권이면 충분해요 · 가입과 로그인이 한 번에'}
+            </span>
           </div>
-          <span className="landing-cover__hint">
-            {oauthFailed ? '로그인이 중간에 끊겼어요 — 다시 시도해 주세요' : '가입과 로그인이 하나예요 — 3초면 충분해요'}
-          </span>
         </div>
+      </div>
+
+      {/* 판 색 비교는 시안 전환과 같은 팀용 도구다. 시안 줄은 오른쪽에 있으니 왼쪽에 둔다 —
+          같은 쪽에 쌓으면 로그인 버튼을 가려 눌러 볼 수가 없다 */}
+      <div className="eo-panel fixed bottom-5 left-4 z-40 flex items-center gap-4 px-3.5 py-2 sm:left-7">
+        <span className="text-[10px] uppercase tracking-[0.08em] text-ink-faint">판</span>
+        {PALETTES.map((p) => (
+          <button key={p.key} onClick={() => setPalette(p.key)} aria-pressed={palette === p.key}
+            className={`border-b-2 pb-0.5 text-[11px] transition-colors duration-150 ${
+              palette === p.key ? 'border-ink font-bold text-ink' : 'border-transparent text-ink-faint hover:text-ink'
+            }`}>
+            {p.label}
+          </button>
+        ))}
       </div>
     </div>
   )
