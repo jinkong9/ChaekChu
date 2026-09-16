@@ -14,8 +14,9 @@ export interface DnaBookResponse {
   status: 'READ' | 'WISH'
   rating: number | null
   finishedDate: string | null
-  /** AI 인덱스에서 찾아 프로필 계산에 반영된 책인지(§3.4, 09-16). false 면 readCount 에는 들지만 basedOnCount 에는 안 든 책 */
-  analyzed: boolean
+  /** AI 인덱스에서 찾아 프로필 계산에 반영된 책인지(§3.4, 09-16). false 면 readCount 에는 들지만 basedOnCount 에는 안 든 책.
+   *  백엔드 MR(feat/BE-dna-profile-store) 머지 전 응답에는 없다 — 화면은 `=== false` 로만 판단한다 */
+  analyzed?: boolean
 }
 
 export interface DnaScore {

@@ -208,7 +208,43 @@ const READY_COUNT = TESTS.filter((t) => t.ready).length
 
 /* ── 화면 ────────────────────────────────────────────── */
 
-function Report({ books, profile, tones, readCount }: { books: DnaBook[]; profile: DnaProfile; tones: string[] | null; readCount: number }) {
+/** 프로필이 무엇에서 계산됐나 — 히어로 지표 아래 한두 줄로 보인다. */
+interface Basis {
+  /** 서재의 READ 수(온보딩 seed 포함) — 서버 readCount */
+  readCount: number
+  /** 그중 AI 인덱스에 있어 실제 계산에 쓰인 수 — 서버 profile.basedOnCount */
+  basedOnCount: number
+  /** 인덱스에 없어 빠진 책 수. books[].analyzed === false 를 세고, 그 필드가 없는 옛 응답이면 readCount - basedOnCount 로 대신한다 */
+  unanalyzedCount: number
+  /** 프로필 계산 시각(UTC ISO). 저장된 프로필로 답할 때는 옛 시각이라 "언제 계산된 결과인지"를 함께 보인다 */
+  generatedAt: string
+}
+
+/** 계산 시각을 사람 말로 — 방금·N분 전·N시간 전·N일 전. 서버가 저장된 프로필(§3.4)을 줄 때 generatedAt 이 옛 시각이다. */
+function computedAgo(iso: string, now = Date.now()): string {
+  const ms = now - new Date(iso).getTime()
+  if (!Number.isFinite(ms) || ms < 60_000) return '방금 계산'
+  const min = Math.floor(ms / 60_000)
+  if (min < 60) return `${min}분 전 계산`
+  const hour = Math.floor(min / 60)
+  if (hour < 24) return `${hour}시간 전 계산`
+  return `${Math.floor(hour / 24)}일 전 계산`
+}
+
+/** 서버 응답에서 근거 숫자를 뽑는다. analyzed 가 없는 옛 응답에도 동작한다. */
+function basisOf(data: { readCount: number; generatedAt: string; books: DnaBookResponse[]; profile: { basedOnCount: number } }): Basis {
+  // READ 만 센다 — 문장이 "완독 N권 중 M권" 이라 찜(WISH)이 섞이면 수가 안 맞는다
+  const flagged = data.books.filter((b) => b.status === 'READ' && b.analyzed === false).length
+  const gap = Math.max(0, data.readCount - data.profile.basedOnCount)
+  return {
+    readCount: data.readCount,
+    basedOnCount: data.profile.basedOnCount,
+    unanalyzedCount: flagged > 0 ? flagged : gap,
+    generatedAt: data.generatedAt,
+  }
+}
+
+function Report({ books, profile, tones, basis }: { books: DnaBook[]; profile: DnaProfile; tones: string[] | null; basis: Basis }) {
   // 아직 화면이 없는 카드는 죽은 버튼 대신 준비 중임을 그 자리에서 알린다
   const [pending, setPending] = useState<string | null>(null)
   /** 열려 있는 콘텐츠 대화상자 */
@@ -265,7 +301,17 @@ function Report({ books, profile, tones, readCount }: { books: DnaBook[]; profil
               </div>
             ))}
           </dl>
-          <span className="dnar-utility">완독 {readCount}권의 장르·별점 분포에서 계산</span>
+          {/* 근거 — 몇 권으로 계산했고 언제 계산했나. 인덱스에 없어 빠진 책이 있으면 그 수를 말한다(§3.4 analyzed) */}
+          <div className="dnar-basis">
+            <span className="dnar-utility">
+              완독 {basis.readCount}권{basis.basedOnCount < basis.readCount ? ` 중 ${basis.basedOnCount}권` : ''}의 장르·별점 분포에서 계산 · {computedAgo(basis.generatedAt)}
+            </span>
+            {basis.unanalyzedCount > 0 && (
+              <span className="dnar-utility" role="note">
+                {basis.unanalyzedCount}권은 아직 분석 데이터가 없어 반영되지 않았어요
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
@@ -388,6 +434,7 @@ export default function DnaReportPage() {
   const books = useMemo(() => (data?.books ?? []).map(toDnaBook), [data?.books])
   const tones = useCoverTones(books)
   const profile = data ? profileFromApi(data.profile, data.readCount) : null
+  const basis = data ? basisOf(data) : null
 
   return (
     <main className="dnar">
@@ -396,11 +443,16 @@ export default function DnaReportPage() {
         {(isError || (!isLoading && !data)) && (
           <p className="dnar-error">BOOK DNA를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>
         )}
+        {/* 읽은 책은 있는데 전부 인덱스에 없어 계산이 안 된 경우와, 정말 읽은 책이 없는 경우는 다른 말을 해야 한다 */}
         {data?.profile.status === 'INSUFFICIENT_DATA' && (
-          <p className="dnar-error">읽은 책이 아직 충분하지 않아요. 책을 읽고 기록하면 BOOK DNA가 생성됩니다.</p>
+          <p className="dnar-error">
+            {data.readCount > 0
+              ? `완독 ${data.readCount}권이 아직 분석 데이터에 없어 BOOK DNA를 만들 수 없어요. 분석 데이터가 늘어나면 자동으로 반영돼요.`
+              : '읽은 책이 아직 충분하지 않아요. 책을 읽고 기록하면 BOOK DNA가 생성됩니다.'}
+          </p>
         )}
-        {data?.profile.status === 'READY' && profile && (
-          <Report books={books} profile={profile} tones={tones} readCount={data.readCount} />
+        {data?.profile.status === 'READY' && profile && basis && (
+          <Report books={books} profile={profile} tones={tones} basis={basis} />
         )}
       </div>
     </main>
