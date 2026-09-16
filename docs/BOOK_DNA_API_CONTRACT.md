@@ -221,7 +221,8 @@ DNA 실패가 검색·서재·추천 API까지 실패시키면 안 된다. 백�
 ## 6. 버전·캐시·보안
 
 - profile cache key: `userId + libraryUpdatedAt + dnaVersion + indexVersion + tagVersion`
-  - 백엔드 구현(09-16): `user_dna_profiles`(V8) 사용자당 1행. 키의 서재 부분은 지문(`user_library` 행수 · `max(updated_at)` · 관심 태그 코드 정렬 → sha256 앞 32자)으로,
+  - 백엔드 구현(09-16): `user_dna_profiles`(V8) 사용자당 1행. 키의 서재 부분은 지문(AI 에 보낸 스냅샷의 ISBN·상태·평점·완독일을 ISBN 순으로 + 관심 태그 코드 정렬 → sha256 앞 32자)으로 —
+    DB 를 다시 읽지 않고 보낸 것에서 만들어 스냅샷 조회와 지문 사이에 서재가 바뀌어도 어긋난 저장이 없다.
     버전 부분은 AI 가 응답에만 실어 주어 미리 물을 수 없으므로 TTL(`AI_DNA_CACHE_TTL`, 기본 24h)로 대신한다 — TTL 이 지나면 AI 를 다시 불러 새 버전을 따라간다.
     `GET /health` 가 `tagVersion`·`dnaVersion` 도 내면 TTL 없이 버전 비교로 바꿀 수 있다.
 - 책 index가 바뀌면 profile을 재계산하지만, 변경되지 않은 책 DNA는 재생성하지 않는다.

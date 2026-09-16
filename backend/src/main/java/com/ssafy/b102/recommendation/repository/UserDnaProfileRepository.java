@@ -16,10 +16,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class UserDnaProfileRepository {
 
-	/** 서재 지문의 재료 — 행수와 마지막 변경 시각. 서재가 비어 있으면 lastUpdatedAt 은 null. */
-	public record LibraryStamp(long count, Instant lastUpdatedAt) {
-	}
-
 	/** 저장 행. profileJson·unresolvedJson 은 JSON 문자열 그대로. */
 	public record Row(String fingerprint, String requestId, String dnaVersion, String modelVersion,
 		String indexVersion, String tagVersion, String profileJson, String unresolvedJson, Instant generatedAt) {
@@ -29,14 +25,6 @@ public class UserDnaProfileRepository {
 
 	public UserDnaProfileRepository(JdbcClient jdbc) {
 		this.jdbc = jdbc;
-	}
-
-	/** 서재 행수와 max(updated_at). 서재 항목의 상태·평점·감상이 바뀌면 updated_at 이 바뀌어 지문도 바뀐다. */
-	public LibraryStamp libraryStamp(long userId) {
-		return jdbc.sql("select count(*) as cnt, max(updated_at) as last_updated from user_library where user_id = :userId")
-			.param("userId", userId)
-			.query((rs, rowNum) -> new LibraryStamp(rs.getLong("cnt"), toInstant(rs.getTimestamp("last_updated"))))
-			.single();
 	}
 
 	public Optional<Row> find(long userId) {

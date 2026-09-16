@@ -5,9 +5,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,16 +20,16 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafy.b102.recommendation.dto.AiBookDnaRequest;
 import com.ssafy.b102.recommendation.dto.AiBookDnaResponse;
 import com.ssafy.b102.recommendation.repository.UserDnaProfileRepository;
-import com.ssafy.b102.recommendation.repository.UserDnaProfileRepository.LibraryStamp;
 import com.ssafy.b102.recommendation.repository.UserDnaProfileRepository.Row;
 
 /**
  * Book DNA 프로필의 저장·조회와 서재 지문 — 계약 §6 캐시 키의 백엔드 구현.
  *
  * 계약의 캐시 키는 「서재 상태 + dnaVersion·indexVersion·tagVersion」인데, AI 의 버전은 응답에만 실려 와서 부르지 않고는 알 수 없다.
- * 그래서 서재 지문(행수 · 마지막 변경 시각 · 관심 태그)이 같고 저장 시각이 TTL 안이면 저장된 프로필을 쓰고,
+ * 그래서 서재 지문(AI 에 보낸 스냅샷 + 관심 태그)이 같고 저장 시각이 TTL 안이면 저장된 프로필을 쓰고,
  * TTL 이 지나면 AI 를 다시 불러 배치 promote 로 바뀐 인덱스·태그 버전을 따라간다.
  * 저장은 REQUIRES_NEW — 부르는 쪽이 읽기 전용 트랜잭션이어도 되고, 저장이 실패해도 응답은 나가야 한다(추천 스냅샷과 같은 이유).
  */
@@ -66,11 +68,19 @@ public class BookDnaProfileStore {
 		this.objectMapper = objectMapper;
 	}
 
-	/** 서재 지문 — 행수 · 마지막 변경 시각 · 관심 태그(정렬) 의 sha256 앞 32자. 서재나 관심사가 바뀌면 달라진다. */
-	public String fingerprint(long userId, List<String> declaredTags) {
-		LibraryStamp stamp = repository.libraryStamp(userId);
-		String material = stamp.count() + "|" + (stamp.lastUpdatedAt() == null ? "-" : stamp.lastUpdatedAt().toString())
-			+ "|" + String.join(",", declaredTags.stream().sorted().toList());
+	/**
+	 * 서재 지문 — AI 에 실제로 보낸 스냅샷(ISBN·상태·평점·완독일, ISBN 순) + 관심 태그(정렬) 의 sha256 앞 32자.
+	 * DB 의 count/max(updated_at) 를 따로 읽지 않는다 — 스냅샷을 읽은 뒤 서재가 바뀌면 옛 책 목록으로 계산한 프로필이 새 지문으로 저장되는 틈이 있었다(리뷰 P1).
+	 * 보낸 것에서 만들면 그 틈이 없고, 감상 텍스트처럼 DNA 에 안 들어가는 변경은 재계산을 일으키지 않으며, 200권 상한 밖의 변화도 AI 결과를 바꾸지 않으니 지문도 안 바뀐다.
+	 * 순서에 기대지 않는다(ISBN·태그 정렬) — 동점 정렬이 흔들려도 같은 서재는 같은 지문이다.
+	 */
+	public String fingerprint(List<AiBookDnaRequest.Book> seeds, List<String> declaredTags) {
+		String books = seeds.stream()
+			.sorted(Comparator.comparing(AiBookDnaRequest.Book::isbn13))
+			.map(seed -> seed.isbn13() + ":" + seed.status() + ":" + (seed.rating() == null ? "-" : seed.rating())
+				+ ":" + (seed.finishedDate() == null ? "-" : seed.finishedDate()))
+			.collect(Collectors.joining(","));
+		String material = books + "|" + String.join(",", declaredTags.stream().sorted().toList());
 		return sha256Hex(material).substring(0, 32);
 	}
 

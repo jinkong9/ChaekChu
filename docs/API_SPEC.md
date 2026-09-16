@@ -228,7 +228,8 @@ BOOK DNA 화면(`features/dna`)의 공개 API. 서재의 **READ 항목**은 표�
 `profile.basedOnCount` 에는 안 든다 — 두 수가 다를 때 화면이 "N권은 아직 반영되지 않았어요" 를 이걸로 설명한다.
 
 **저장·캐시·폴백(09-16, 계약 §5·§6).** 백엔드는 AI 프로필을 `user_dna_profiles`(V8) 에 사용자당 한 행으로 저장한다.
-서재 지문(행수·마지막 변경·관심 태그)이 같고 24시간(`AI_DNA_CACHE_TTL`) 안이면 AI 를 부르지 않고 저장된 프로필로 답한다 — 그때 `generatedAt` 은 저장 시각.
+서재 지문(AI 에 보낸 스냅샷의 ISBN·상태·평점·완독일 + 관심 태그)이 같고 24시간(`AI_DNA_CACHE_TTL`) 안이면 AI 를 부르지 않고 저장된 프로필로 답한다 — 그때 `generatedAt` 은 저장 시각.
+감상 텍스트처럼 DNA 에 안 들어가는 변경은 재계산을 일으키지 않는다.
 AI 가 503·타임아웃이면 저장된 마지막 프로필을 그대로 내고(지문·TTL 무관), 저장된 것이 없을 때만 `503 DNA_UNAVAILABLE`.
 스냅샷은 READ 를 `finishedDate` 내림차순(null 마지막)으로 먼저 채우고 WISH 로 200권까지 보충한다 — WISH 가 많아도 READ 가 잘리지 않는다.
 

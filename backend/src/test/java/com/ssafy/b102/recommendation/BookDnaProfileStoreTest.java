@@ -22,6 +22,7 @@ import com.ssafy.b102.book.repository.BookRepository;
 import com.ssafy.b102.library.entity.LibraryItem;
 import com.ssafy.b102.library.entity.ShelfStatus;
 import com.ssafy.b102.library.repository.LibraryItemRepository;
+import com.ssafy.b102.recommendation.dto.AiBookDnaRequest;
 import com.ssafy.b102.recommendation.dto.AiBookDnaResponse;
 import com.ssafy.b102.recommendation.service.BookDnaProfileStore;
 import com.ssafy.b102.recommendation.service.BookDnaProfileStore.StoredProfile;
@@ -106,15 +107,21 @@ class BookDnaProfileStoreTest {
 	}
 
 	@Test
-	@DisplayName("서재 지문: 책을 담으면 바뀌고, 관심 태그가 바뀌어도 바뀌고, 태그 순서는 영향이 없다")
-	void fingerprintTracksLibraryAndTags() {
-		String empty = store.fingerprint(user.getId(), List.of("FICTION", "ESSAY"));
-		assertThat(empty).hasSize(32);
-		assertThat(store.fingerprint(user.getId(), List.of("ESSAY", "FICTION"))).isEqualTo(empty);
-		assertThat(store.fingerprint(user.getId(), List.of("FICTION"))).isNotEqualTo(empty);
+	@DisplayName("서재 지문: AI 에 보낸 스냅샷에서만 만든다 — 책·상태·평점·완독일·태그가 바뀌면 다르고, 책·태그 순서는 영향이 없다")
+	void fingerprintIsPureFunctionOfSnapshot() {
+		AiBookDnaRequest.Book a = new AiBookDnaRequest.Book("9791100000011", "READ", 5, LocalDate.of(2026, 9, 1));
+		AiBookDnaRequest.Book b = new AiBookDnaRequest.Book("9791100000028", "WISH", null, null);
+		String base = store.fingerprint(List.of(a, b), List.of("FICTION", "ESSAY"));
 
-		libraryRepository.save(LibraryItem.serviceEntry(user, book("새 책"), ShelfStatus.WISH, LocalDate.of(2026, 9, 16)));
-		assertThat(store.fingerprint(user.getId(), List.of("FICTION", "ESSAY"))).isNotEqualTo(empty);
+		assertThat(base).hasSize(32);
+		assertThat(store.fingerprint(List.of(b, a), List.of("ESSAY", "FICTION"))).isEqualTo(base);      // 순서 무관
+		assertThat(store.fingerprint(List.of(a), List.of("FICTION", "ESSAY"))).isNotEqualTo(base);      // 책 추가·삭제
+		assertThat(store.fingerprint(List.of(a, new AiBookDnaRequest.Book(b.isbn13(), "READ", null, LocalDate.of(2026, 9, 16))),
+			List.of("FICTION", "ESSAY"))).isNotEqualTo(base);                                              // 상태·완독일
+		assertThat(store.fingerprint(List.of(new AiBookDnaRequest.Book(a.isbn13(), "READ", 4, a.finishedDate()), b),
+			List.of("FICTION", "ESSAY"))).isNotEqualTo(base);                                              // 평점
+		assertThat(store.fingerprint(List.of(a, b), List.of("FICTION"))).isNotEqualTo(base);             // 관심 태그
+		assertThat(store.fingerprint(List.of(), List.of())).hasSize(32);                                    // 빈 서재도 지문이 있다
 	}
 
 	@Test

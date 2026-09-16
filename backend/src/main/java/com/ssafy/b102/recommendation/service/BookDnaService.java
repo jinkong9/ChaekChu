@@ -34,7 +34,7 @@ import com.ssafy.b102.user.service.UserService;
  *
  * 스냅샷(API_SPEC §3.4): READ 를 완독일 내림차순(null 마지막)으로 먼저, WISH 는 뒤 — 최대 {@value #MAX_BOOKS}권. WISH 가 많아도 READ 가 잘리지 않는다.
  * 캐시·폴백(계약 §5·§6): 프로필은 user_dna_profiles(V8) 에 사용자당 한 행으로 저장한다(BookDnaProfileStore).
- *   서재 지문(행수·마지막 변경·관심 태그)이 같고 TTL 안이면 AI 를 부르지 않는다.
+ *   서재 지문(AI 에 보낸 스냅샷 + 관심 태그)이 같고 TTL 안이면 AI 를 부르지 않는다. 지문을 보낸 것에서 만들므로 읽는 사이 서재가 바뀌어도 어긋난 저장이 없다.
  *   AI 가 503·타임아웃이면 저장된 마지막 프로필을 generatedAt 그대로 낸다 — 프론트는 그 시각으로 오래됨을 안다. 저장된 것이 없을 때만 DNA_UNAVAILABLE.
  *   저장 실패는 응답을 막지 않는다.
  * 트랜잭션을 걸지 않는다 — AI 호출(최대 15초)이 DB 커넥션을 물고 있지 않게. 서재 조회는 book 을 fetch join 해 와서 밖에서도 읽힌다.
@@ -72,7 +72,8 @@ public class BookDnaService {
 		userService.getUser(userId);
 		List<LibraryItem> items = libraryRepository.findDnaSnapshot(userId, ShelfStatus.READ, PageRequest.of(0, MAX_BOOKS));
 		List<String> declaredTags = AiTagCodeMapper.toPublicCodes(interestRepository.findTagCodesByUserId(userId));
-		String fingerprint = profileStore.fingerprint(userId, declaredTags);
+		List<AiBookDnaRequest.Book> seeds = seeds(items);
+		String fingerprint = profileStore.fingerprint(seeds, declaredTags);   // 보낼 것 그대로에서 — DB 를 다시 읽지 않는다
 		Instant now = Instant.now(clock);
 
 		Optional<StoredProfile> stored = profileStore.find(userId);
@@ -82,7 +83,7 @@ public class BookDnaService {
 		}
 
 		AiBookDnaRequest request = new AiBookDnaRequest(
-			"dna-" + userId + "-" + UUID.randomUUID(), String.valueOf(userId), declaredTags, seeds(items));
+			"dna-" + userId + "-" + UUID.randomUUID(), String.valueOf(userId), declaredTags, seeds);
 		long started = System.nanoTime();
 		AiBookDnaResponse ai;
 		try {

@@ -70,7 +70,7 @@ class BookDnaServiceTest {
 	@BeforeEach
 	void setUp() {
 		when(interests.findTagCodesByUserId(USER)).thenReturn(List.of("FICTION"));
-		when(store.fingerprint(eq(USER), anyList())).thenReturn(FP);
+		when(store.fingerprint(anyList(), anyList())).thenReturn(FP);
 		when(store.find(USER)).thenReturn(Optional.empty());
 		// item() 안에서도 when() 을 쓰므로 스텁 바깥에서 먼저 만든다 — 스텁 안에서 만들면 Mockito 가 UnfinishedStubbing 으로 본다
 		LibraryItem read = item(READ_ISBN, ShelfStatus.READ, 5, LocalDate.of(2026, 9, 1));
@@ -92,6 +92,9 @@ class BookDnaServiceTest {
 		assertThat(request.getValue().userId()).isEqualTo("8");
 		assertThat(request.getValue().books()).extracting(AiBookDnaRequest.Book::isbn13, AiBookDnaRequest.Book::status)
 			.containsExactly(tuple(READ_ISBN, "READ"), tuple(WISH_ISBN, "WISH"));
+
+		// 지문은 AI 에 보낸 것 그대로에서 만든다(리뷰 P1) — DB 를 다시 읽는 두 번째 조회가 없다
+		verify(store).fingerprint(eq(request.getValue().books()), anyList());
 
 		ArgumentCaptor<StoredProfile> saved = ArgumentCaptor.forClass(StoredProfile.class);
 		verify(store).save(eq(USER), saved.capture());

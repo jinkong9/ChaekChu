@@ -6,7 +6,8 @@
 --   [2] 계약 §5 「AI 가 503/타임아웃이면 백엔드가 마지막 profile 을 쓴다」— 저장된 것이 없어 지금은 DNA_UNAVAILABLE 만 낸다.
 --   [3] 사용자당 1행, 이력 없음. 추천 스냅샷(recommendations)과 달리 「무엇을 보여줬나」를 감사할 대상이 아니라 바뀌면 덮어쓴다.
 --
--- library_fingerprint : 서재 행수 · max(user_library.updated_at) · 관심 태그 코드(정렬) 를 합친 sha256 앞 32자. 서재나 관심사가 바뀌면 달라져 재계산된다.
+-- library_fingerprint : AI 에 실제로 보낸 스냅샷(ISBN·상태·평점·완독일, ISBN 순) + 관심 태그 코드(정렬) 의 sha256 앞 32자. 서재나 관심사가 바뀌면 달라져 재계산된다.
+--                       DB 의 count/max(updated_at) 가 아니라 보낸 것에서 만든다 — 스냅샷을 읽은 뒤 서재가 바뀌어도 옛 목록의 프로필이 새 지문으로 저장되지 않는다.
 --                       AI 의 dnaVersion·tagVersion 은 응답에만 실려 와 미리 알 수 없으므로 버전 변경은 TTL(app.recommendation.dna.cache-ttl)로 따라간다.
 -- profile             : AI 내부 응답의 profile 객체 그대로(jsonb). 공개 DTO 변환은 백엔드(BookDnaService)가 한다. 컬럼으로 풀지 않는다 — 읽는 곳이 백엔드 하나다.
 -- unresolved_isbns    : AI 인덱스(추천 후보 약 45만 권)에 없어 계산에서 빠진 ISBN13 배열. 공개 응답 books[].analyzed 에 쓴다.
