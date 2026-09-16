@@ -36,7 +36,10 @@ import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
  * 가중치는 실제 카탈로그를 색인한 뒤 대표 검색어로 조정한다. 여기 숫자는 시작값이다.
  *
  * KDC 필터(매핑 v4)는 점수에 끼지 않는 bool.filter 의 prefix 절이다 — categoryCode 가 keyword 라 "813.62" 가 "8"·"81"·"813" 에 걸린다.
- * 검색어 없이 분류만 조회할 때는 점수가 없으므로 loanCum(누적 대출) 내림차순으로 정렬한다. 값이 없는 책(수요 스냅샷에 없는 약 57만 권)은 뒤로 보낸다.
+ * 정렬은 검색어가 있으면 _score → loanCum(누적 대출) 내림차순 → id, 없으면 loanCum 내림차순 → id 다(동점 규칙 09-16).
+ *   같은 작품의 판본은 제목이 같아 점수가 정확히 같다 — 운영에서 「데미안」은 표지 있는 완전일치 판본 151종이 동점이었다. 동점을 id 로만 가르면
+ *   가장 먼저 적재된 판본(출판사 미상 전집 권, 대출 72)이 1위가 되므로 대출 많은 판본(민음사, 12.8만)을 앞세운다. 관련도 서열은 그대로고 동점 안에서만 바뀐다.
+ *   값이 없는 책(수요 스냅샷에 없는 약 57만 권)은 뒤로 보낸다. 검색어 없이 분류만 조회할 때는 점수가 없으므로 loanCum 이 1차 키다.
  * loanCum 정렬에는 unmappedType 을 준다 — v4 재색인 동안 alias 가 아직 v3(그 필드가 없는 인덱스)를 가리켜도 500 이 아니라 "전부 없음" 으로 동작한다.
  */
 @Repository
@@ -75,10 +78,10 @@ public class ElasticsearchBookSearchRepository implements BookSearchRepository {
 			.withTrackTotalHits(true);
 		if (byQuery) {
 			builder.withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)));
-		} else {
-			builder.withSort(s -> s.field(f -> f.field("loanCum").order(SortOrder.Desc)
-				.missing(FieldValue.of("_last")).unmappedType(FieldType.Long)));
 		}
+		// 검색어가 있으면 동점(같은 작품의 판본) 안에서, 없으면 1차 키로 — 누적 대출 많은 판본이 앞. 값이 없으면 뒤.
+		builder.withSort(s -> s.field(f -> f.field("loanCum").order(SortOrder.Desc)
+			.missing(FieldValue.of("_last")).unmappedType(FieldType.Long)));
 		builder.withSort(s -> s.field(f -> f.field("id").order(SortOrder.Asc)));
 
 		SearchHits<BookDocument> hits = operations.search(builder.build(), BookDocument.class, alias());

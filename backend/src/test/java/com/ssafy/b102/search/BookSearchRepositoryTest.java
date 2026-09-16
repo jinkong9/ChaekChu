@@ -23,7 +23,7 @@ import com.ssafy.b102.search.repository.BookSearchResult;
 import com.ssafy.b102.search.service.BookIndexService;
 
 /**
- * 3단계 — 검색 쿼리. 문서를 ES 에 직접 넣고(PG 불필요) 순위·부분일치·페이지 경계·ISBN 조회·표지 가중(v3)·KDC 필터와 대출순(v4)을 본다.
+ * 3단계 — 검색 쿼리. 문서를 ES 에 직접 넣고(PG 불필요) 순위·부분일치·페이지 경계·ISBN 조회·표지 가중(v3)·KDC 필터와 대출순(v4)·동점의 대출순(09-16)을 본다.
  * 출판사 "지브라북스테스트" 는 이 테스트 문서에만 있어, 그것으로 검색하면 우리 문서 9건만 나온다(다른 테스트 잔여물과 무관하게 total 을 단언).
  * 분류만으로 조회하는 테스트는 검색어가 없어 다른 클래스의 문서도 후보에 들어오므로, 결과에서 BASE_ID 이상만 골라 상대 순서를 본다.
  *
@@ -51,7 +51,7 @@ class BookSearchRepositoryTest {
 		doc(4, "9791100000042", "채식주의자", List.of("한강"), 2007, null, "813.7", null),       // 수요 지표 없음 → 대출순에서 뒤
 		doc(5, "9791100000059", "데미안", List.of("헤르만 헤세"), 2000, null, "853.6", 100L),
 		doc(6, "9791100000066", "데미안 읽기", List.of("이독서"), 2021, COVER, "853.6", 5L),      // 표지 있음 — 그래도 완전일치 「데미안」 아래여야 한다
-		doc(7, "9791100000073", "지구별 여행자", List.of("류시화"), 2002, null, "818", 50L),
+		doc(7, "9791100000073", "지구별 여행자", List.of("류시화"), 2002, null, "818", 100L),   // 5 와 대출이 같다 — 대출까지 같으면 id 순인지 본다
 		doc(8, "9791100000080", "어린왕자", List.of("생텍쥐페리"), 1996, null, "863.6", 200L),    // 붙여 쓴 판본 — 완전일치 그룹이 띄어쓰기에 갈리지 않아야 한다
 		doc(9, "9791100000097", "어린 왕자", List.of("생텍쥐페리"), 2020, COVER, "863.6", 1000L)  // 표지 있는 판본 — 같은 완전일치 그룹에서 맨 앞
 	);
@@ -74,7 +74,7 @@ class BookSearchRepositoryTest {
 	// ── 관련도 ──
 
 	@Test
-	@DisplayName("완전일치 그룹('어린 왕자'·'어린왕자' 판본)이 맨 위 — 표지 있는 9 가 먼저, 나머지는 id 순, 해설서는 그 다음. 검색어 띄어쓰기와 무관 (v3)")
+	@DisplayName("완전일치 그룹('어린 왕자'·'어린왕자' 판본)이 맨 위 — 표지 있는 9 가 먼저, 나머지는 대출순(1: 500 → 8: 200), 해설서는 그 다음. 검색어 띄어쓰기와 무관 (v3)")
 	void exact_group_first_cover_first_regardless_of_whitespace() {
 		List<Long> spaced = ids(repository.search("어린 왕자", null, 0, 10));
 		List<Long> compact = ids(repository.search("어린왕자", null, 0, 10));
@@ -179,11 +179,11 @@ class BookSearchRepositoryTest {
 	}
 
 	@Test
-	@DisplayName("동점(같은 출판사만 매치): 표지 있는 6·9 가 먼저(그 안은 id 순), 표지 없는 나머지는 id 오름차순")
-	void tie_break_cover_then_id() {
+	@DisplayName("동점(같은 출판사만 매치): 표지 있는 9·6 이 먼저(대출 1000 → 5), 표지 없는 나머지는 대출 내림차순 500·300·200·100·100·10, 대출까지 같은 5·7 은 id 순, 대출 없는 4 는 마지막 (09-16)")
+	void tie_break_cover_then_loan_then_id() {
 		assertThat(ids(repository.search(PUBLISHER, null, 0, 10))).containsExactly(
-			BASE_ID + 6, BASE_ID + 9,
-			BASE_ID + 1, BASE_ID + 2, BASE_ID + 3, BASE_ID + 4, BASE_ID + 5, BASE_ID + 7, BASE_ID + 8);
+			BASE_ID + 9, BASE_ID + 6,
+			BASE_ID + 1, BASE_ID + 3, BASE_ID + 8, BASE_ID + 5, BASE_ID + 7, BASE_ID + 2, BASE_ID + 4);
 	}
 
 	@Test
