@@ -1,20 +1,9 @@
-import { useState } from 'react'
 import { LANDING_TITLES, useLandingOAuth, useRollingTitles } from './landingShared'
 
 /** 랜딩 시안 C — 편집 일러스트 어휘의 평면 그래픽 한 장. 한 가지 색 판 위에 흰 면과
  *  가는 선만으로 책 한 권을 세우고, 글은 그 옆 여백에 앉힌다. 책은 윗부분만 보이고
  *  아래는 화면 밖으로 잘린다 — 한 권이 지면을 뚫고 서 있는 것처럼. */
 const COVER_TITLES = LANDING_TITLES.map((title) => title.replace(/[《》]/g, ''))
-
-/** 판 색 비교 — 로그인 뒤 화면은 전부 종이·잉크라, 랜딩만 색 판을 쓰면 온보딩에서 바로 끊긴다.
- *  확정되면 고른 하나만 남기고 PALETTES 와 전환 UI를 지운다. */
-const PALETTES = [
-  { key: 'navy', label: '1 남색 판' },
-  { key: 'ink', label: '2 종이·잉크 책' },
-  { key: 'book', label: '3 종이·남색 책' },
-] as const
-
-type Palette = (typeof PALETTES)[number]['key']
 
 /** 책의 꼭짓점. viewBox 좌표를 한 곳에 모아 두고 면·선을 여기서 파생한다 —
  *  면마다 숫자를 따로 적으면 한 점만 옮겨도 이음매가 벌어진다. */
@@ -38,21 +27,15 @@ const LEAVES = Array.from({ length: 34 }, (_, i) => {
 })
 
 const CSS = `
-  /* 판 색은 이 네 변수로만 갈린다 — 구도·비례는 셋이 똑같아야 색만 비교된다.
-     --cover-book 은 책의 면, --cover-field 는 바탕이자 면을 가르는 선의 색이다 */
-  .landing-cover { --cover-title-h: clamp(52px, 7vw, 96px);
+  /* 종이 판에 잉크 책 — 로그인 뒤 화면들과 같은 종이·잉크다. 랜딩만 색 판을 쓰면
+     바로 다음 화면인 온보딩에서 끊긴다. --cover-book 은 책의 면, --cover-field 는
+     바탕이자 면을 가르는 선의 색이다 */
+  .landing-cover { --cover-field: var(--eo-paper); --cover-book: var(--eo-ink);
+                   --cover-ink: var(--eo-ink); --cover-rule: var(--eo-rule);
+                   --cover-title-h: clamp(52px, 7vw, 96px);
                    position: fixed; inset: 0; overflow: hidden;
                    background: var(--cover-field); color: var(--cover-ink);
                    font-family: var(--eo-font); -webkit-font-smoothing: antialiased; }
-  /* 1 — 남색 판에 흰 책 (레퍼런스 그대로) */
-  .landing-cover--navy { --cover-field: #244f72; --cover-book: #ffffff; --cover-ink: #ffffff;
-                         --cover-rule: rgba(255, 255, 255, 0.5); }
-  /* 2 — 종이 판에 잉크 책. 로그인 뒤 화면들과 같은 종이·잉크 */
-  .landing-cover--ink { --cover-field: var(--eo-paper); --cover-book: var(--eo-ink);
-                        --cover-ink: var(--eo-ink); --cover-rule: var(--eo-rule); }
-  /* 3 — 종이 판에 남색 책. 색을 바탕이 아니라 표지가 맡는다 (DESIGN.md) */
-  .landing-cover--book { --cover-field: var(--eo-paper); --cover-book: #244f72;
-                         --cover-ink: var(--eo-ink); --cover-rule: var(--eo-rule); }
 
   .landing-cover__top { position: absolute; z-index: 3; inset: 0 0 auto; display: flex; align-items: center;
                         min-height: 54px; padding: 0 var(--eo-frame);
@@ -134,10 +117,9 @@ function GoogleMark() {
 export default function LandingCover() {
   const { oauth, oauthFailed } = useLandingOAuth()
   const ulRef = useRollingTitles('var(--cover-title-h)')
-  const [palette, setPalette] = useState<Palette>('navy')
 
   return (
-    <div className={`landing-cover landing-cover--${palette}`}>
+    <div className="landing-cover">
       <style>{CSS}</style>
       <header className="landing-cover__top">
         <span className="landing-cover__mark">책추책책추</span>
@@ -191,19 +173,6 @@ export default function LandingCover() {
         </div>
       </div>
 
-      {/* 판 색 비교는 시안 전환과 같은 팀용 도구다. 시안 줄은 오른쪽에 있으니 왼쪽에 둔다 —
-          같은 쪽에 쌓으면 로그인 버튼을 가려 눌러 볼 수가 없다 */}
-      <div className="eo-panel fixed bottom-5 left-4 z-40 flex items-center gap-4 px-3.5 py-2 sm:left-7">
-        <span className="text-[10px] uppercase tracking-[0.08em] text-ink-faint">판</span>
-        {PALETTES.map((p) => (
-          <button key={p.key} onClick={() => setPalette(p.key)} aria-pressed={palette === p.key}
-            className={`border-b-2 pb-0.5 text-[11px] transition-colors duration-150 ${
-              palette === p.key ? 'border-ink font-bold text-ink' : 'border-transparent text-ink-faint hover:text-ink'
-            }`}>
-            {p.label}
-          </button>
-        ))}
-      </div>
     </div>
   )
 }
