@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import LandingAurora from '../features/landing/LandingAurora'
 import LandingCover from '../features/landing/LandingCover'
+import LandingCoverClassic from '../features/landing/LandingCoverClassic'
 import LandingOku from '../features/landing/LandingOku'
 import LandingShelf from '../features/landing/LandingShelf'
 import LandingTorn from '../features/landing/LandingTorn'
@@ -14,7 +15,8 @@ import LandingTorn from '../features/landing/LandingTorn'
 const VARIANTS = [
   { key: 'aurora', label: 'A 오로라 (기존)' },
   { key: 'shelf', label: 'B 표지 지면' },
-  { key: 'cover', label: 'C 한 권의 표지' },
+  { key: 'cover', label: 'C-1 한 권의 표지' },
+  { key: 'cover-classic', label: 'C-2 입체 표지' },
   { key: 'oku', label: 'D 에디토리얼' },
   { key: 'torn', label: 'E 찢긴 지면' },
 ] as const
@@ -28,6 +30,7 @@ export default function LandingPage() {
       {variant === 'aurora' && <LandingAurora />}
       {variant === 'shelf' && <LandingShelf />}
       {variant === 'cover' && <LandingCover />}
+      {variant === 'cover-classic' && <LandingCoverClassic />}
       {variant === 'oku' && <LandingOku />}
       {variant === 'torn' && <LandingTorn />}
       {/* 시안 전환은 제품 UI가 아니라 팀용 도구다 — 화면 오른쪽 아래에 조용히 띄워
