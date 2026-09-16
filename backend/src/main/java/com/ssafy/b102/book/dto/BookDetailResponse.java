@@ -21,6 +21,7 @@ public record BookDetailResponse(
 	@Schema(description = "쪽수. books 에 없어 항상 null", nullable = true) Integer pageCount,
 	@Schema(description = "분류 경로", example = "문학 > 한국문학", nullable = true) String category,
 	@Schema(description = "KDC 코드", example = "813.62", nullable = true) String classNo,
+	@Schema(description = "시리즈 권차(books.vol). 시리즈는 권마다 제목이 같아 이게 없으면 화면에서 구별되지 않는다 — 비룡소 셜록 홈즈 7권이 모두 「셜록 홈즈」다. 값은 원장 표기 그대로(숫자·상·하 등, 「권」 접미 없음). null 은 「단권」이 아니라 「미상」이다", example = "3", nullable = true) String volume,
 
 	@Schema(description = "부제. 원천에 없어 항상 null", nullable = true) String subtitle,
 	@Schema(description = "대표 소개문. 정보나루 → 형제 권 → 카카오 순으로 고른다", nullable = true) String description,

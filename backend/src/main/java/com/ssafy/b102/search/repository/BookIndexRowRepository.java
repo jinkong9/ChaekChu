@@ -42,7 +42,7 @@ public class BookIndexRowRepository {
 
 	private static final String BATCH_HEAD = """
 		with batch as materialized (
-		  select id, isbn13, title, author, publisher, pub_year, category_code, cover_url, updated_at
+		  select id, isbn13, title, author, publisher, pub_year, category_code, cover_url, vol, updated_at
 		    from books
 		""" + SEARCH_LAYER_ONLY;
 
@@ -50,7 +50,7 @@ public class BookIndexRowRepository {
 		   order by id
 		   limit ?
 		)
-		select b.id, b.isbn13, b.title, b.author, b.publisher, b.pub_year, b.category_code, b.cover_url,
+		select b.id, b.isbn13, b.title, b.author, b.publisher, b.pub_year, b.category_code, b.cover_url, b.vol,
 		       b.updated_at, d.loan_cum
 		  from batch b
 		  left join book_demand_features d on d.book_id = b.id and d.as_of_month = ?
@@ -103,6 +103,7 @@ public class BookIndexRowRepository {
 			rs.getObject("pub_year", Integer.class),
 			rs.getString("category_code"),
 			rs.getString("cover_url"),
+			rs.getString("vol"),
 			rs.getObject("loan_cum", Long.class),
 			updatedAt == null ? null : updatedAt.toInstant());
 	}

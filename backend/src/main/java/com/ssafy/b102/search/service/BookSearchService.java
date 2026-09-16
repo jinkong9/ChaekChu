@@ -130,6 +130,6 @@ public class BookSearchService {
 			null,                                        // pageCount — books 에 없음
 			kdc.pathOf(d.getCategoryCode()),             // "문학 > 한국문학" (kdc_codes 2단계, 없으면 대분류 폴백)
 			d.getCategoryCode(),
-			null);                                       // volume — ES 문서에 없다. 매핑에 넣으려면 전체 재색인이라 다음 재색인 때 함께 올린다
+			d.getVol());                                 // volume — 매핑 v6. v5 문서(재색인 전)는 필드가 없어 null 로 나간다
 	}
 }

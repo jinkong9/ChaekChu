@@ -20,7 +20,7 @@ public class BookDetailRepository {
 
 	/** 관계 한 줄 — 대상 책의 서지까지 함께 읽는다. */
 	public record RelatedRow(Long bookId, String isbn13, String title, String author, String publisher,
-		Integer pubYear, String categoryCode, String coverUrl, Integer rank, LocalDate collectedAt) {
+		Integer pubYear, String categoryCode, String coverUrl, String vol, Integer rank, LocalDate collectedAt) {
 	}
 
 	private final JdbcClient jdbc;
@@ -52,7 +52,7 @@ public class BookDetailRepository {
 	 */
 	public List<RelatedRow> findRelated(long sourceBookId, String relationType, int limit) {
 		return jdbc.sql("""
-				select b.id, b.isbn13, b.title, b.author, b.publisher, b.pub_year, b.category_code, b.cover_url,
+				select b.id, b.isbn13, b.title, b.author, b.publisher, b.pub_year, b.category_code, b.cover_url, b.vol,
 				       r.rank, r.collected_at
 				from book_relations r join books b on b.id = r.target_book_id
 				where r.source_book_id = :bookId and r.relation_type = :type
@@ -68,6 +68,7 @@ public class BookDetailRepository {
 				rs.getObject("pub_year") == null ? null : rs.getInt("pub_year"),
 				rs.getString("category_code"),
 				rs.getString("cover_url"),
+				rs.getString("vol"),
 				rs.getInt("rank"),
 				rs.getObject("collected_at", LocalDate.class)))
 			.list();

@@ -66,7 +66,7 @@ class BookDetailApiTest {
 	@Test
 	@DisplayName("상세: 내부 id 조회 — BookSummary 평면 + 소개문·출처, 없는 값은 null 키로 유지")
 	void detail_byInternalId() throws Exception {
-		jdbc.update("update books set description = ?, description_source = 'DATA4LIBRARY' where id = ?",
+		jdbc.update("update books set description = ?, description_source = 'DATA4LIBRARY', vol = '2' where id = ?",
 			"소년의 이야기.", bookId);
 
 		mvc.perform(get("/api/v1/books/" + bookId).header(HttpHeaders.AUTHORIZATION, bearer))
@@ -76,6 +76,7 @@ class BookDetailApiTest {
 			.andExpect(jsonPath("$.title").value("소년이 온다"))
 			.andExpect(jsonPath("$.authors").value(contains("한강")))
 			.andExpect(jsonPath("$.classNo").value("813.62"))
+			.andExpect(jsonPath("$.volume").value("2"))                      // V6 books.vol — BookSummary 평면과 같은 이름
 			.andExpect(jsonPath("$.category").value(startsWith("문학")))   // kdc_codes 있으면 "문학 > 한국문학", 없으면 대분류 폴백
 			.andExpect(jsonPath("$.description").value("소년의 이야기."))
 			.andExpect(jsonPath("$.descriptionSource").value("DATA4LIBRARY"))
@@ -93,7 +94,8 @@ class BookDetailApiTest {
 		mvc.perform(get("/api/v1/books/" + isbn).header(HttpHeaders.AUTHORIZATION, bearer))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.bookId").value(String.valueOf(bookId)))
-			.andExpect(jsonPath("$.isbn13").value(isbn));
+			.andExpect(jsonPath("$.isbn13").value(isbn))
+			.andExpect(jsonPath("$.volume").value((Object) null));           // 권차 미상은 null 키 유지 — 「단권」이 아니다
 	}
 
 	@Test
@@ -177,6 +179,7 @@ class BookDetailApiTest {
 	void coLoans_ordered() throws Exception {
 		long t1 = book(uniqueIsbn(), "채식주의자", "한강", "813.62");
 		long t2 = book(uniqueIsbn(), "흰", "한강", "813.62");
+		jdbc.update("update books set vol = '1' where id = ?", t1);   // 함께대출 상대도 권차가 나가야 시리즈가 구별된다
 		coLoan(bookId, t1, 1);
 		coLoan(bookId, null, 2);          // 카탈로그에 없는 대상 — 응답에서 빠진다
 		coLoan(bookId, t2, 3);
@@ -189,7 +192,9 @@ class BookDetailApiTest {
 			.andExpect(jsonPath("$.items[*].rank").value(contains(1, 3)))
 			.andExpect(jsonPath("$.items[0].book.bookId").value(String.valueOf(t1)))
 			.andExpect(jsonPath("$.items[0].book.title").value("채식주의자"))
-			.andExpect(jsonPath("$.items[0].book.authors").value(contains("한강")));
+			.andExpect(jsonPath("$.items[0].book.authors").value(contains("한강")))
+			.andExpect(jsonPath("$.items[0].book.volume").value("1"))
+			.andExpect(jsonPath("$.items[1].book.volume").value((Object) null));
 	}
 
 	@Test
