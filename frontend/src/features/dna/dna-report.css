@@ -153,6 +153,7 @@
 
 /* 성향 5지표 */
 .dnar-hero__aside { display: grid; gap: 18px; justify-items: end; }
+.dnar-basis { display: grid; gap: 4px; justify-items: end; text-align: right; }
 .dnar-hero__whisper {
   margin: 0;
   font-family: var(--font-wordmark);
@@ -379,6 +380,7 @@
 @media (max-width: 1080px) {
   .dnar-hero { grid-template-columns: 1fr 1fr; row-gap: 36px; }
   .dnar-hero__aside { grid-column: 1 / -1; justify-items: stretch; }
+  .dnar-basis { justify-items: start; text-align: left; }
   .dnar-hero__whisper { text-align: left; }
   .dnar-metrics { max-width: 420px; }
   .dnar-tests { grid-template-columns: repeat(2, 1fr); }

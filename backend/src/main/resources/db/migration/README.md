@@ -33,3 +33,5 @@
   권차(`vol`)가 진짜 권차인지 문고 일련번호인지 가리기 위해 «같은 제목·같은 출판사가 한 해에 두 권차 이상을 냈는가» 를 요청마다 묻는다(WorkSeriesRepository).
   로컬 실측 36MB · 49초(vol 있는 693,792행만). **운영에서는 배포 전에 `CREATE INDEX CONCURRENTLY` 로 먼저 만들어 두면** 이 파일은 `IF NOT EXISTS` 로
   즉시 끝난다 — 기동 healthcheck `start_period` 가 60초라 Flyway 가 그 안에 끝나야 한다.
+- `V8__user_dna_profiles.sql` 은 Book DNA 프로필 저장 표 하나다(사용자당 1행, JSONB profile). `GET /users/me/dna` 가 서재가 바뀌지 않았으면 AI 를 부르지 않고
+  이 행으로 답하고, AI 장애 때는 마지막 프로필을 대신 낸다(BOOK_DNA_API_CONTRACT §5·§6). 빈 표를 만들 뿐이라 즉시 끝난다. `docs/sql/` 에 같은 파일을 둔다.

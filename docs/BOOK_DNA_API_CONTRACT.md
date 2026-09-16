@@ -70,7 +70,8 @@ Frontend
       "category": "문학 > 한국문학",
       "coverUrl": "https://example.com/cover.jpg",
       "rating": 5,
-      "finishedDate": "2026-08-30"
+      "finishedDate": "2026-08-30",
+      "analyzed": true
     }
   ],
   "profile": {
@@ -112,7 +113,8 @@ Frontend
 | `tagVersion` | string | 사용한 태그 taxonomy/index 버전 |
 | `declaredTags` | string[] | 사용자가 선택한 공개 taxonomy code |
 | `readCount` | integer | DNA 계산에 사용한 READ·seed 도서 수 |
-| `books` | BookSummary[] | 최대 200권, `finishedDate` 내림차순, null은 마지막 |
+| `books` | BookSummary[] | 최대 200권, READ 먼저 `finishedDate` 내림차순(null은 마지막), 그 뒤 WISH |
+| `books[].analyzed` | boolean | AI 인덱스에서 찾아 계산에 반영된 책인지. `false` = 내부 응답 `unresolvedIsbns` 에 있던 책 (09-16) |
 | `profile.status` | enum | `READY` 또는 `INSUFFICIENT_DATA` |
 | `profile.basedOnCount` | integer | 실제 계산에 사용된 유효 도서 수 |
 | `score` | number | 0 이상 100 이하 |
@@ -213,9 +215,16 @@ ISBN으로 찾지 못한 도서는 `unresolvedIsbns`에 기록하고 나머지 �
 DNA 실패가 검색·서재·추천 API까지 실패시키면 안 된다. 백엔드는 DNA 화면에 오류
 안내를 표시하고 기존 캐시가 있으면 마지막 성공 profile을 사용할 수 있다.
 
+백엔드 구현(09-16): AI 가 503·타임아웃이면 `user_dna_profiles` 에 저장된 마지막 프로필을 `generatedAt` 그대로 반환한다(서재가 바뀌었어도).
+저장된 것이 없을 때만 `503 DNA_UNAVAILABLE`. 프로필 저장 실패는 응답을 막지 않는다.
+
 ## 6. 버전·캐시·보안
 
 - profile cache key: `userId + libraryUpdatedAt + dnaVersion + indexVersion + tagVersion`
+  - 백엔드 구현(09-16): `user_dna_profiles`(V8) 사용자당 1행. 키의 서재 부분은 지문(AI 에 보낸 스냅샷의 ISBN·상태·평점·완독일을 ISBN 순으로 + 관심 태그 코드 정렬 → sha256 앞 32자)으로 —
+    DB 를 다시 읽지 않고 보낸 것에서 만들어 스냅샷 조회와 지문 사이에 서재가 바뀌어도 어긋난 저장이 없다.
+    버전 부분은 AI 가 응답에만 실어 주어 미리 물을 수 없으므로 TTL(`AI_DNA_CACHE_TTL`, 기본 24h)로 대신한다 — TTL 이 지나면 AI 를 다시 불러 새 버전을 따라간다.
+    `GET /health` 가 `tagVersion`·`dnaVersion` 도 내면 TTL 없이 버전 비교로 바꿀 수 있다.
 - 책 index가 바뀌면 profile을 재계산하지만, 변경되지 않은 책 DNA는 재생성하지 않는다.
 - 공개 응답에는 `userId`를 반환하지 않는다.
 - AI 내부 API는 Docker 내부 네트워크에서만 호출하고 외부에 공개하지 않는다.
