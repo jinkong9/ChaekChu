@@ -8,7 +8,7 @@ const TITLE_MAX_LENGTH = 10
 
 /** 오른쪽 일러스트. 선반 가운데 추천된 한 권이 살짝 앞으로 나와 있다 */
 const ART = {
-  src: '/images/landing-reader-bookshelf-only.png',
+  src: '/images/landing-reader-bookshelf-only.webp',
   alt: '책이 빼곡한 선반 가운데 추천된 한 권이 살짝 앞으로 나온 모습',
   eyebrow: 'PICKED FROM THE SHELF',
   caption: '선반 가운데 눈에 들어온 한 권',
