@@ -1,43 +1,18 @@
-import { useState } from 'react'
 import { useLandingOAuth, usePopularTitles, useRollingTitles } from './landingShared'
 
-/** 랜딩 시안 B — 왼쪽은 글과 로그인(C의 지면), 오른쪽은 선반에서 한 권을 꺼내는
- *  독자 일러스트(D의 히어로 그림). 둘 다 종이·잉크라 한 지면으로 붙는다.
- *  지면에서 가장 큰 글자는 책 제목이다. */
+/** 비로그인 랜딩 — 왼쪽은 글과 로그인, 오른쪽은 선반에서 추천된 한 권이 앞으로 나온
+ *  일러스트. 둘 다 종이·잉크라 한 지면으로 붙는다. 지면에서 가장 큰 글자는 책 제목이다. */
 /** 지금 많이 읽는 책 20권. 한 줄에 크게 앉히는 자리라 공백 포함 10자까지만 집는다 */
 const TITLE_COUNT = 20
 const TITLE_MAX_LENGTH = 10
 
-const ILLUSTRATIONS = [
-  {
-    src: '/images/landing-shelf-reader.png',
-    label: '1 선반',
-    alt: '책이 가득한 선반에서 한 권을 꺼내는 독자',
-    eyebrow: 'YOUR SHELF KNOWS',
-    caption: '다음 한 권을 꺼내 보세요',
-  },
-  {
-    src: '/images/landing-reader-floating-books.png',
-    label: '2 책 사이로',
-    alt: '여러 권의 책 사이를 유영하며 한 권을 향해 손을 뻗는 독자',
-    eyebrow: 'BETWEEN THE BOOKS',
-    caption: '수많은 책 사이, 당신의 한 권',
-  },
-  {
-    src: '/images/landing-reader-bookshelf-only.png',
-    label: '3 추천 선반',
-    alt: '책이 빼곡한 선반 가운데 추천된 한 권이 살짝 앞으로 나온 모습',
-    eyebrow: 'PICKED FROM THE SHELF',
-    caption: '선반 가운데 눈에 들어온 한 권',
-  },
-  {
-    src: '/images/landing-reader-taste-thread.png',
-    label: '4 취향의 실',
-    alt: '독자의 취향을 나타내는 실이 여러 책을 지나 한 권의 펼친 책으로 이어지는 모습',
-    eyebrow: 'FOLLOW YOUR TASTE',
-    caption: '취향을 따라 발견한 다음 한 권',
-  },
-] as const
+/** 오른쪽 일러스트. 선반 가운데 추천된 한 권이 살짝 앞으로 나와 있다 */
+const ART = {
+  src: '/images/landing-reader-bookshelf-only.png',
+  alt: '책이 빼곡한 선반 가운데 추천된 한 권이 살짝 앞으로 나온 모습',
+  eyebrow: 'PICKED FROM THE SHELF',
+  caption: '선반 가운데 눈에 들어온 한 권',
+}
 
 const CSS = `
   .landing-reader { --reader-ink: var(--eo-ink); --reader-muted: var(--eo-ink-muted);
@@ -136,8 +111,6 @@ export default function LandingReader() {
   const { oauth, oauthFailed } = useLandingOAuth()
   const titles = usePopularTitles(TITLE_COUNT, TITLE_MAX_LENGTH)
   const ulRef = useRollingTitles('var(--reader-title-h)', titles.length)
-  const [illustrationIndex, setIllustrationIndex] = useState(0)
-  const illustration = ILLUSTRATIONS[illustrationIndex]
 
   return (
     <div className="landing-reader">
@@ -173,28 +146,14 @@ export default function LandingReader() {
         </div>
 
         <div className="landing-reader__art">
-          <img key={illustration.src} src={illustration.src} alt={illustration.alt} />
+          <img src={ART.src} alt={ART.alt} />
           <p className="landing-reader__caption">
-            <span>{illustration.eyebrow}</span>
-            <b>{illustration.caption}</b>
+            <span>{ART.eyebrow}</span>
+            <b>{ART.caption}</b>
           </p>
         </div>
       </div>
 
-      <div className="eo-panel fixed bottom-5 left-4 z-40 flex items-center gap-4 px-3.5 py-2 sm:left-7">
-        <span className="text-[10px] uppercase tracking-[0.08em] text-ink-faint">그림</span>
-        {ILLUSTRATIONS.map((item, index) => (
-          <button key={item.src} onClick={() => setIllustrationIndex(index)}
-            aria-pressed={illustrationIndex === index}
-            className={`border-b-2 pb-0.5 text-[11px] transition-colors duration-150 ${
-              illustrationIndex === index
-                ? 'border-ink font-bold text-ink'
-                : 'border-transparent text-ink-faint hover:text-ink'
-            }`}>
-            {item.label}
-          </button>
-        ))}
-      </div>
     </div>
   )
 }
