@@ -25,7 +25,7 @@ import jakarta.validation.constraints.Size;
 @Tag(name = "도서 검색", description = """
 	제목·저자·출판사 검색 + KDC 분류 필터. Elasticsearch(nori 형태소 + bigram 부분일치) 위에서 동작한다.
 	`q` 가 ISBN 형태(하이픈·공백 무시, 978/979 로 시작하는 13자리)면 ISBN 정확 조회로 처리해 0 또는 1건을 돌려준다.
-	정렬은 `q` 가 있으면 검색 점수(제목 완전일치 > 형태소 일치 > 부분일치, 표지 없으면 ×0.7) → 동점은 id 순,
+	정렬은 `q` 가 있으면 검색 점수(제목 완전일치 > 형태소 일치 > 부분일치, 표지 없으면 ×0.7) → 동점은 누적 대출 많은 순(같은 작품의 판본 사이) → id 순,
 	`q` 없이 `kdc` 만이면 누적 대출 많은 순 → id 순이다.""")
 @RestController
 @RequestMapping(ApiPaths.V1 + "/books")

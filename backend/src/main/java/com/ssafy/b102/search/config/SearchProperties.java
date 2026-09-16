@@ -17,6 +17,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *        coverUrl 은 index=false 라 exists 로 못 묻는다. 운영 books 의 표지 채움률은 26.7%(09-09).
  *   v4 = loanCum(long) 추가 — 검색어 없이 분류(kdc)만으로 조회할 때의 정렬 키(09-11). book_demand_features 최신 스냅샷의 누적 대출을
  *        색인 시 LEFT JOIN 해 넣는다(BookIndexRowRepository). 수요 지표가 없는 책은 null 이고 정렬에서 뒤로 간다.
+ *        09-16 부터 검색어가 있을 때의 동점(같은 작품의 판본) 정렬 키로도 쓴다 — 쿼리만 바뀌고 매핑은 그대로라 버전을 올리지 않았다.
  *   v5 = 매핑은 v4 와 같고 **문서 집합**이 바뀜(09-15) — books 전 행(331만)이 아니라 books.catalog_layer 가 있는 L1 약 105만 권만 색인한다
  *        (V5 마이그레이션 · 누적 대출 72+ ∪ 신간. 추천 후보 is_candidate 는 더 좁지만 검색은 L1 전체). 옛 인덱스의 226만 빈 문서를 지우려면
  *        덮어쓰기(indexAll)가 아니라 새 인덱스로 rebuild 해야 하므로 버전을 올린다.

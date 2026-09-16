@@ -40,7 +40,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class BookDocument {
 
-	/** books.id. 문서 _id 이자 정렬 tie-break 키(_score 같으면 id 오름차순). */
+	/** books.id. 문서 _id 이자 마지막 정렬 키(_score·loanCum 까지 같으면 id 오름차순). */
 	@Id
 	private Long id;
 
@@ -71,7 +71,8 @@ public class BookDocument {
 
 	/**
 	 * book_demand_features.loan_cum — 원장 누적 대출 합(최신 스냅샷). 매핑 v4.
-	 * 분류만으로 조회할 때(q 없이 kdc 만) 정렬 키다. 수요 지표가 없는 책(약 57만 권)은 null 이고 정렬에서 뒤로 간다.
+	 * 분류만으로 조회할 때(q 없이 kdc 만)는 1차 정렬 키, 검색어가 있을 때는 동점(같은 작품의 판본) 정렬 키다(09-16).
+	 * 수요 지표가 없는 책(약 57만 권)은 null 이고 정렬에서 뒤로 간다.
 	 */
 	private Long loanCum;
 

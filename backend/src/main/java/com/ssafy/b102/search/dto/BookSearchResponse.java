@@ -12,6 +12,6 @@ public record BookSearchResponse(
 	@Schema(description = "조건에 맞는 전체 건수(정확값)", example = "37") long total,
 	@Schema(description = "요청한 페이지(0부터)", example = "0") int page,
 	@Schema(description = "요청한 페이지 크기", example = "20") int size,
-	@Schema(description = "이 페이지의 도서. 점수 순 → 동점은 id 순") List<BookSummaryResponse> items
+	@Schema(description = "이 페이지의 도서. 점수 순 → 동점은 누적 대출 많은 순 → id 순") List<BookSummaryResponse> items
 ) {
 }
