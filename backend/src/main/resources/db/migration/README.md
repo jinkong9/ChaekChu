@@ -29,3 +29,7 @@
   `could not resize shared memory segment` 로 실패한다(compose 에 `shm_size` 를 두지 않았다).
 
   로컬 실측(09-15): 갱신 693,792행 · 2분 5초 · 표 크기 3,278MB → 3,284MB(**+6MB**).
+- `V7__books_series_lookup_index.sql` 은 `(lower(title), publisher) WHERE vol IS NOT NULL` 인덱스 하나다. 「비슷한 책」의 작품 접기가
+  권차(`vol`)가 진짜 권차인지 문고 일련번호인지 가리기 위해 «같은 제목·같은 출판사가 한 해에 두 권차 이상을 냈는가» 를 요청마다 묻는다(WorkSeriesRepository).
+  로컬 실측 36MB · 49초(vol 있는 693,792행만). **운영에서는 배포 전에 `CREATE INDEX CONCURRENTLY` 로 먼저 만들어 두면** 이 파일은 `IF NOT EXISTS` 로
+  즉시 끝난다 — 기동 healthcheck `start_period` 가 60초라 Flyway 가 그 안에 끝나야 한다.

@@ -133,6 +133,7 @@ src/main/resources/
   application.yml                     # 환경변수 ${VAR:기본값} 방식. 프로필 파일 없음
   db/migration/V1__init.sql           # Flyway. docs/sql/V1__init.sql 복사본 (1차 10테이블 + 보정 7건). V2 = 추천 데이터 층
   db/migration/V3__events_and_recommendation_snapshot.sql  # recommendations.public_id·index_version · reason_type CHECK 확대 · user_actions 의 display_position·session_id·payload · DISMISS/SEARCH
+  db/migration/V7__books_series_lookup_index.sql  # (lower(title), publisher) WHERE vol IS NOT NULL — 「이 제목을 이 출판사가 여러 권으로 냈나」(WorkSeriesRepository)
   elasticsearch/books-settings.json     # analyzer: korean(nori mixed + 품사 필터) · bigram(공백 제거 후 2-gram) · normalizer exact(공백 제거). shards 1 / replicas 0
   elasticsearch/books-mappings.json     # dynamic=strict. title·authors = korean + .ngram(bigram) + .keyword(normalizer exact) · vol(keyword, v6). 바꾸면 app.search.index-name 을 올린다(=매핑 버전)
 docker/elasticsearch/Dockerfile       # elasticsearch:8.19.21 + analysis-nori

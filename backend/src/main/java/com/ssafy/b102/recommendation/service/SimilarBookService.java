@@ -1,10 +1,10 @@
 package com.ssafy.b102.recommendation.service;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -18,6 +18,7 @@ import com.ssafy.b102.book.dto.BookSummaryMapper;
 import com.ssafy.b102.book.dto.SimilarBookResponse;
 import com.ssafy.b102.book.entity.Book;
 import com.ssafy.b102.book.repository.BookRepository;
+import com.ssafy.b102.book.repository.WorkSeriesRepository;
 import com.ssafy.b102.book.service.BookIdentifiers;
 import com.ssafy.b102.book.service.WorkKey;
 import com.ssafy.b102.global.error.BusinessException;
@@ -57,12 +58,14 @@ public class SimilarBookService {
 
 	private final AiRecommendationClient aiClient;
 	private final BookRepository bookRepository;
+	private final WorkSeriesRepository seriesRepository;
 	private final BookSummaryMapper summaryMapper;
 
 	public SimilarBookService(AiRecommendationClient aiClient, BookRepository bookRepository,
-		BookSummaryMapper summaryMapper) {
+		WorkSeriesRepository seriesRepository, BookSummaryMapper summaryMapper) {
 		this.aiClient = aiClient;
 		this.bookRepository = bookRepository;
+		this.seriesRepository = seriesRepository;
 		this.summaryMapper = summaryMapper;
 	}
 
@@ -103,6 +106,9 @@ public class SimilarBookService {
 	 * 전부 별개 행이고, 판본끼리는 임베딩이 거의 같아 이웃 상위에 나란히 올라온다. 두 가지를 버린다:
 	 * 기준 책과 같은 작품(다른 판본), 그리고 이미 담은 작품의 또 다른 판본.
 	 * AI 의 work_penalty(15점 감점)는 점수 차가 크면 뚫리므로 여기서 확실히 끊는다.
+	 *
+	 * 판정은 {@link WorkKey#sameWorkAs} 의 쌍 비교다 — 후보마다 «기준 책 + 이미 남긴 책» 과 견주어 하나라도 같은 작품이면 접는다.
+	 * 권차가 문고 일련번호인지 진짜 권차인지는 카탈로그에 한 번 묻는다(WorkSeriesRepository, 책 10권 안팎을 VALUES 조인).
 	 */
 	private List<SimilarBookResponse.Item> itemsOf(AiRecommendationResponse ai, Book seed, int size) {
 		List<String> isbns = ai.items().stream()
@@ -118,9 +124,13 @@ public class SimilarBookService {
 			.collect(Collectors.toMap(b -> b.getIsbn13().strip(), Function.identity(),
 				(first, ignored) -> first, LinkedHashMap::new));
 
-		// 작품 키 → 그 작품으로 남긴 ISBN. 기준 책을 먼저 넣어 기준 책의 다른 판본이 「비슷한 책」에 끼지 않게 한다.
-		Map<String, String> seenWorks = new HashMap<>();
-		seenWorks.put(WorkKey.of(seed), isbnOf(seed));
+		List<Book> all = new ArrayList<>(books.values());
+		all.add(seed);
+		Set<String> seriesKeys = seriesRepository.findSeriesKeys(all);
+
+		// 남긴 작품들. 기준 책을 먼저 넣어 기준 책의 다른 판본이 「비슷한 책」에 끼지 않게 한다.
+		List<WorkKey> kept = new ArrayList<>();
+		kept.add(WorkKey.of(seed, isKnownSeries(seriesKeys, seed)));
 		List<String> folded = new ArrayList<>();
 
 		List<SimilarBookResponse.Item> items = new ArrayList<>(size);
@@ -132,11 +142,13 @@ public class SimilarBookService {
 			if (book == null) {
 				continue;
 			}
-			String keptIsbn = seenWorks.putIfAbsent(WorkKey.of(book), isbnOf(book));
-			if (keptIsbn != null) {
-				folded.add(isbnOf(book) + "->" + keptIsbn);
+			WorkKey key = WorkKey.of(book, isKnownSeries(seriesKeys, book));
+			WorkKey sameWork = kept.stream().filter(k -> k.sameWorkAs(key)).findFirst().orElse(null);
+			if (sameWork != null) {
+				folded.add(key.isbn13() + "->" + sameWork.isbn13());
 				continue;
 			}
+			kept.add(key);
 			items.add(new SimilarBookResponse.Item(
 				summaryMapper.from(book), reasonOf(item), item.score() == null ? 0.0 : item.score()));
 		}
@@ -149,8 +161,10 @@ public class SimilarBookService {
 		return List.copyOf(items);
 	}
 
-	private static String isbnOf(Book book) {
-		return book.getIsbn13() == null ? "" : book.getIsbn13().strip();
+	/** 제목·출판사가 없는 책은 시리즈 조회 대상이 아니다(keyOf 가 null) — 권차가 달라도 출판사가 다르면 문고 번호로 본다. */
+	private static boolean isKnownSeries(Set<String> seriesKeys, Book book) {
+		String key = WorkSeriesRepository.keyOf(book);
+		return key != null && seriesKeys.contains(key);
 	}
 
 	/** AI 가 만든 한 문장. 없으면 이 경로의 뜻을 그대로 적는다 — 화면이 빈 칸을 그리지 않게. */

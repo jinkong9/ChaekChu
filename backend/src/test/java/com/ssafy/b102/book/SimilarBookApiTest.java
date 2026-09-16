@@ -216,6 +216,47 @@ class SimilarBookApiTest {
 	}
 
 	@Test
+	@DisplayName("고전의 판본들은 옮긴이가 앞에 오든 문고 번호가 붙든 한 작품이다 — 데미안 상세에 「데미안」이 네 번 뜨던 문제")
+	void similar_foldsClassicEditionsAcrossTranslatorsAndCollectionNumbers() throws Exception {
+		jdbc.update("update books set title='데미안', author='헤르만 헤세 · 홍경호', publisher='범우사', pub_year=2006, vol='638' where id=?", seedId);
+		String minumsa = uniqueIsbn();
+		String sodam = uniqueIsbn();
+		String pureunsup = uniqueIsbn();
+		String hyundae = uniqueIsbn();
+		String other = uniqueIsbn();
+		insertEdition(minumsa, "데미안", "헤르만 헤세 · 전영애", "민음사", 2000, "44");          // 세계문학전집 44번
+		insertEdition(sodam, "데미안", "헤르만 헤세 · 정홍택", "소담출판사", 2003, "18");
+		insertEdition(pureunsup, "데미안", "전은경 · 헤르만 헤세", "푸른숲", 2013, "35");        // 옮긴이가 앞
+		insertEdition(hyundae, "데미안", "헤르만 헤세 · 홍성광", "현대문학", 2013, "1");
+		insertEdition(other, "수레바퀴 아래서", "헤르만 헤세 · 김이섭", "민음사", 2001, "50");
+		when(aiClient.recommend(any())).thenReturn(response(false,
+			item(minumsa, 95.0), item(sodam, 94.0), item(pureunsup, 93.0), item(hyundae, 92.0), item(other, 60.0)));
+
+		mvc.perform(get("/api/v1/books/" + seedId + "/similar").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items.length()").value(1))
+			.andExpect(jsonPath("$.items[0].book.isbn13").value(other));
+	}
+
+	@Test
+	@DisplayName("카탈로그가 시리즈로 아는 제목은 출판사가 달라도 권차를 믿는다 — 학사검전 북박스 1권과 랜덤하우스 9권은 다른 책")
+	void similar_trustsVolumeWhenCatalogKnowsSeries() throws Exception {
+		String bookbox1 = uniqueIsbn();
+		String bookbox2 = uniqueIsbn();
+		String random9 = uniqueIsbn();
+		insertEdition(bookbox1, "학사검전", "최현우", "북박스", 2003, "1");
+		insertEdition(bookbox2, "학사검전", "최현우", "북박스", 2003, "2");   // 같은 출판사·같은 해에 두 권차 → 시리즈
+		insertEdition(random9, "학사검전", "최현우", "랜덤하우스코리아", 2007, "9");
+		when(aiClient.recommend(any())).thenReturn(response(false, item(bookbox1, 90.0), item(random9, 85.0)));
+
+		mvc.perform(get("/api/v1/books/" + seedId + "/similar").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items.length()").value(2))
+			.andExpect(jsonPath("$.items[0].book.isbn13").value(bookbox1))
+			.andExpect(jsonPath("$.items[1].book.isbn13").value(random9));
+	}
+
+	@Test
 	@DisplayName("이웃끼리 같은 작품이면 첫 권만 남긴다 — 출판사·부제·병기 제목이 달라도 같은 작품이다")
 	void similar_keepsOneEditionPerWork() throws Exception {
 		String munhak = uniqueIsbn();
@@ -305,6 +346,11 @@ class SimilarBookApiTest {
 	private void insertVolume(String isbn13, String title, String author, String vol, String setIsbn) {
 		jdbc.update("insert into books(isbn13, title, author, vol, set_isbn) values (?, ?, ?, ?, ?)",
 			isbn13, title, author, vol, setIsbn);
+	}
+
+	private void insertEdition(String isbn13, String title, String author, String publisher, int pubYear, String vol) {
+		jdbc.update("insert into books(isbn13, title, author, publisher, pub_year, vol) values (?, ?, ?, ?, ?, ?)",
+			isbn13, title, author, publisher, pubYear, vol);
 	}
 
 	private Long insertBook(String isbn13, String title, String author) {
