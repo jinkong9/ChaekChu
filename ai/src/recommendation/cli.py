@@ -117,7 +117,20 @@ def create_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--sidecar", type=Path, required=True)
             command_parser.add_argument("--index-version", default=None)
             command_parser.add_argument("--tag-version", default=None)
-            command_parser.add_argument("--batch-size", type=int, default=256)
+            command_parser.add_argument(
+                "--baseline-sidecar",
+                type=Path,
+                default=None,
+                help="previous sidecar of the same snapshot; only points whose tags differ are sent (권장 — 440k 전부 쓰면 Qdrant 가 멈춘다)",
+            )
+            command_parser.add_argument(
+                "--baseline-tag-version",
+                default=None,
+                help="tagVersion recorded in --baseline-sidecar (default: AI_TAG_VERSION, i.e. the version currently live)",
+            )
+            command_parser.add_argument("--batch-size", type=int, default=100)
+            command_parser.add_argument("--pause-seconds", type=float, default=0.5, help="sleep between batches so the optimizer keeps up")
+            command_parser.add_argument("--max-retries", type=int, default=3, help="per-batch retries with backoff on Qdrant timeouts")
         if command == "tune":
             command_parser.add_argument("--tag-sidecar", type=Path)
             command_parser.add_argument("--k", type=int, default=5)
@@ -366,19 +379,30 @@ def _run_tag_payload_sync(arguments: argparse.Namespace, input_path: Path) -> di
         index_version = ""
     if not qdrant_url or not index_version or not tag_version:
         raise ConfigError("tag-payload-sync requires QDRANT_URL, an index version, and the sidecar tag version")
-    if arguments.batch_size < 1:
-        raise ConfigError("batch size must be positive")
+    if arguments.batch_size < 1 or arguments.pause_seconds < 0 or arguments.max_retries < 0:
+        raise ConfigError("batch size, pause and retry configuration is invalid")
     try:
         dimension = int(os.getenv("EMBEDDING_DIMENSION", "512"))
         qdrant_timeout = float(os.getenv("QDRANT_TIMEOUT_SECONDS", "10"))
     except ValueError as error:
         raise ConfigError("Qdrant timeout/dimension configuration is invalid") from error
+    input_hash = normalized_input_hash(input_path)
     try:
         sidecar = load_validated_tag_sidecar(
             arguments.sidecar.expanduser().resolve(),
-            expected_input_hash=normalized_input_hash(input_path),
+            expected_input_hash=input_hash,
             expected_tag_version=tag_version,
         )
+        baseline = None
+        if arguments.baseline_sidecar is not None:
+            baseline_version = (arguments.baseline_tag_version or os.getenv("AI_TAG_VERSION", "")).strip()
+            if not baseline_version:
+                raise ConfigError("--baseline-sidecar needs --baseline-tag-version (or AI_TAG_VERSION)")
+            baseline = load_validated_tag_sidecar(
+                arguments.baseline_sidecar.expanduser().resolve(),
+                expected_input_hash=input_hash,
+                expected_tag_version=baseline_version,
+            ).records
     except ValueError as error:
         raise ConfigError(f"tag sidecar validation failed: {error}") from error
     store = QdrantVersionedIndexStore(
@@ -389,7 +413,14 @@ def _run_tag_payload_sync(arguments: argparse.Namespace, input_path: Path) -> di
         timeout_seconds=qdrant_timeout,
         api_key=os.getenv("QDRANT_API_KEY") or None,
     )
-    return TagPayloadSyncRunner(store=store, index_version=index_version, batch_size=arguments.batch_size).run(sidecar)
+    return TagPayloadSyncRunner(
+        store=store,
+        index_version=index_version,
+        batch_size=arguments.batch_size,
+        pause_seconds=arguments.pause_seconds,
+        max_retries=arguments.max_retries,
+        baseline=baseline,
+    ).run(sidecar)
 
 
 def _run_tag_prototype_index(arguments: argparse.Namespace) -> dict:

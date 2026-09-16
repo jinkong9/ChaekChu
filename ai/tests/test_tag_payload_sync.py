@@ -81,3 +81,63 @@ def test_payload_sync_rejects_invalid_configuration() -> None:
         TagPayloadSyncRunner(store=InMemoryVersionedIndexStore(), index_version=" ")
     with pytest.raises(ValueError):
         TagPayloadSyncRunner(store=InMemoryVersionedIndexStore(), index_version="v", batch_size=0)
+    with pytest.raises(ValueError):
+        TagPayloadSyncRunner(store=InMemoryVersionedIndexStore(), index_version="v", pause_seconds=-1)
+
+
+def test_payload_sync_with_baseline_sends_only_changed_points(tmp_path: Path) -> None:
+    """440k 전부를 다시 쓰면 Qdrant optimizer 가 모든 segment 를 재작성한다(09-16 운영 장애). 바뀐 점만 보낸다."""
+    store = InMemoryVersionedIndexStore()
+    store.begin("index-v1", {})
+    for isbn in ("9780000000001", "9780000000002", "9780000000003", "9780000000004"):
+        store.upsert("index-v1", VectorRecord(isbn, (1.0, 0.0), {"isbn13": isbn, "tagCodes": ["FIC"], "tagVersion": "tags-v1"}))
+    baseline = _sidecar(tmp_path / "old", "tags-v1")
+    current = _sidecar(tmp_path / "new", "tags-v2")
+    # 한 권만 태그가 달라졌다고 가정
+    changed_isbn = "9780000000002"
+    changed = dict(current.records)
+    changed[changed_isbn] = type(changed[changed_isbn])(("FIC", "HUMANITIES"), {"FIC": 0.92, "HUMANITIES": 0.88}, {"FIC": 0.92, "HUMANITIES": 0.88})
+    current = type(current)(changed, current.input_hash, current.tag_version, current.taxonomy_version, current.file_hash)
+    slept: list[float] = []
+
+    report = TagPayloadSyncRunner(
+        store=store, index_version="index-v1", batch_size=1, pause_seconds=0.25, baseline=baseline.records, sleep=slept.append,
+    ).run(current)
+
+    assert report["changedRows"] == 1 and report["unchangedRows"] == 3
+    assert report["updatedRows"] == 1 and report["baselineUsed"] is True
+    assert store.get("index-v1", changed_isbn).payload["tagCodes"] == ["FIC", "HUMANITIES"]
+    assert store.get("index-v1", changed_isbn).payload["tagVersion"] == "tags-v2"
+    assert store.get("index-v1", "9780000000001").payload["tagVersion"] == "tags-v1"   # 안 바뀐 점은 그대로
+    assert slept == []                                                                # 배치가 하나면 쉬지 않는다
+
+
+def test_payload_sync_retries_a_failing_batch_with_backoff_and_pauses_between_batches(tmp_path: Path) -> None:
+    class FlakyStore:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def update_payloads(self, version, updates):
+            self.calls += 1
+            if self.calls == 1:
+                raise TimeoutError("qdrant busy")
+            return len(updates)
+
+    flaky = FlakyStore()
+    slept: list[float] = []
+    sidecar = _sidecar(tmp_path, "tags-v2")
+
+    report = TagPayloadSyncRunner(store=flaky, index_version="index-v1", batch_size=2, pause_seconds=0.5, max_retries=2, sleep=slept.append).run(sidecar)
+
+    assert report["updatedRows"] == 4 and report["batches"] == 2 and report["retries"] == 1
+    assert slept == [1.5, 0.5]        # 실패 뒤 backoff(0.5*1+1), 배치 사이 쉬기 0.5
+
+
+def test_payload_sync_gives_up_after_max_retries(tmp_path: Path) -> None:
+    class DeadStore:
+        def update_payloads(self, version, updates):
+            raise TimeoutError("qdrant down")
+
+    sidecar = _sidecar(tmp_path, "tags-v2")
+    with pytest.raises(TimeoutError):
+        TagPayloadSyncRunner(store=DeadStore(), index_version="index-v1", max_retries=1, sleep=lambda _s: None).run(sidecar)
