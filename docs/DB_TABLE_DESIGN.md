@@ -16,6 +16,9 @@
 | **V3** | **`docs/sql/V3__events_and_recommendation_snapshot.sql`** (09-11) | 추천 스냅샷을 쓸 수 있게 — `recommendations.public_id`·`index_version`, `recommendation_items.ck_ri_reason` 확대(AI 계약값), `user_actions` 의 `display_position`·`session_id`·`payload` + `DISMISS`·`SEARCH` |
 | **V4** | **`docs/sql/V4__drop_book_embeddings.sql`** (09-11) | `book_embeddings` 제거. 벡터는 Qdrant 가 보관한다 — 08-31 운영안 §7.3 이 애초에 만들지 말라고 정해 둔 표를 V2 가 만들었고, 쓰는 코드는 없었다 |
 | **V5** | **`docs/sql/V5__candidate_layer.sql`** (09-15 적용 — 로컬·EC2, Flyway CLI) | `books.catalog_layer`(CORE/NEW/TAIL/NULL) · `is_candidate` · `candidate_exclusion` + 부분 인덱스 2개. **검색 색인 = catalog_layer 있음 = 기존 L1 1,047,435권** · **추천 후보 = is_candidate 440,757권**(누적 대출 90% 커버리지 843+ ∪ 신간 − 전자책·교과서·학습참고서·신호 없음). books 331만 행은 메타데이터로 그대로. 값은 `build_candidates.py` → `load_service_tables.sh --only candidates` |
+| **V6** | `V6__books_volume.sql` (09-15) | `books.vol`(원장 권차) · `set_isbn`(세트 대표 ISBN). 시리즈 판본 접기용. 적용 뒤 원장 파케이에서 백필 |
+| **V7** | `V7__books_series_lookup_index.sql` (09-16) | `(lower(title), publisher) WHERE vol IS NOT NULL` 인덱스 — 권차가 진짜 권차인지 가리는 조회용 |
+| **V8** | **`docs/sql/V8__user_dna_profiles.sql`** (09-16) | `user_dna_profiles` — Book DNA 프로필 저장(사용자당 1행, JSONB). 서재 지문이 같으면 AI 호출 생략, AI 장애 시 마지막 프로필 반환(계약 §5·§6) |
 
 **`book_texts` 는 만들지 않는다 (09-09 결정).** 소개문 소스가 정보나루·카카오 둘뿐이고 필요한 건 「임베딩 입력이 둘을 다 쓴다」는 것뿐이라, 표 대신
 `books.description_kakao`(두 번째 소개문) + `description_source` + `text_hash` 로 흡수했다. 소스가 셋이 되면(YES24 목차 등) 그때 표로 분리한다 — §4.1 의 DDL 은 그 시점의 참고안.

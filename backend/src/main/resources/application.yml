@@ -104,3 +104,6 @@ app:
     read-timeout: ${AI_READ_TIMEOUT:10s}
     default-size: ${AI_RECOMMENDATION_DEFAULT_SIZE:5}
     max-size: ${AI_RECOMMENDATION_MAX_SIZE:10}
+    dna:                                                        # Book DNA (GET /users/me/dna) — BookDnaProperties
+      read-timeout: ${AI_DNA_READ_TIMEOUT:15s}                  # 최대 200권을 ISBN 별로 Qdrant 에서 찍으므로 추천(10s)보다 길게
+      cache-ttl: ${AI_DNA_CACHE_TTL:24h}                        # 서재 지문이 같아도 이 시간이 지나면 AI 를 다시 불러 인덱스·태그 버전 변경을 따라간다
