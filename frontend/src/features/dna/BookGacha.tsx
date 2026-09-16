@@ -9,7 +9,7 @@
  *
  *  돌아가는 표지는 연출일 뿐이고, 당첨은 뽑기를 누른 순간 이미 정해져 있다. */
 import { useEffect, useRef, useState } from 'react'
-import type { DnaBook } from './useDnaMockData'
+import type { DnaBook } from './dnaTypes'
 import { axisOf, type DnaProfile } from './dnaProfile'
 import { coverAtWidth } from '../../lib/coverUrl'
 import DnaDialog from './DnaDialog'

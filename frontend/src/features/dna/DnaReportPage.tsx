@@ -1,16 +1,17 @@
-/** BOOK DNA B안 (mock) — "분석 리포트" 시안.
+/** BOOK DNA 분석 리포트.
  *
- *  A안(DnaMockPage)이 표지 색 띠 하나로 취향을 보여 준다면, B안은 한 지면에
+ *  히어로(독서타입 선언 + 성향 5지표)와 분석 패널을 한 지면에
  *  ① 히어로(독서타입 선언 + 성향 5지표) ② 더 깊이 보는 테스트 4장
  *  ③ 요약 패널(장르 레이더 · 키워드 · 한 줄 요약 · 독서타입)을 얹는다.
  *
- *  지표·레이더·키워드·타입은 전부 dnaProfile.ts의 규칙 계산이고, 화면의 색은
- *  완독 책 표지에서 뽑는다(DESIGN.md). 상단 페르소나 전환은 A안과 같은 시안 검증용 장치 —
- *  서재가 다르면 리포트가 실제로 갈라지는지 본다. */
+ *  지표·레이더·키워드·타입은 FastAPI profile 응답을 사용하고, 화면의 색은
+ *  실제 서재 책 표지에서 뽑는다(DESIGN.md). */
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useDnaMockData, useDnaBookPool, type DnaBook, type DnaPersona } from './useDnaMockData'
+import { useDna } from '../../lib/useDna'
+import type { DnaBookResponse } from '../../api/dna'
+import type { DnaBook } from './dnaTypes'
 import { extractCoverColor } from './spectrum'
-import { buildProfile, type DnaProfile } from './dnaProfile'
+import { profileFromApi, type DnaProfile } from './dnaProfile'
 import DnaConstellation from './DnaConstellation'
 import BookWorldCup from './BookWorldCup'
 import BookGacha from './BookGacha'
@@ -20,9 +21,6 @@ import './dna-report.css'
 
 /** 이 화면이 쓰는 색의 개수 — 지표 5줄에 하나씩 배정하고, 앞의 4개를 히어로 원에 쓴다 */
 const TONE_COUNT = 5
-
-/** 로딩 중 훅에 넘길 빈 서재. 매번 새 []를 넘기면 effect가 스스로를 다시 깨워 멈추지 않는다 */
-const NO_BOOKS: DnaBook[] = []
 
 /** 서재 전체의 표지에서 색을 뽑아 화면의 팔레트 다섯 개를 만든다.
  *
@@ -210,21 +208,17 @@ const READY_COUNT = TESTS.filter((t) => t.ready).length
 
 /* ── 화면 ────────────────────────────────────────────── */
 
-function Report({ persona, tones }: { persona: DnaPersona; tones: string[] | null }) {
-  const profile = useMemo(() => buildProfile(persona), [persona])
+function Report({ books, profile, tones, readCount }: { books: DnaBook[]; profile: DnaProfile; tones: string[] | null; readCount: number }) {
   // 아직 화면이 없는 카드는 죽은 버튼 대신 준비 중임을 그 자리에서 알린다
   const [pending, setPending] = useState<string | null>(null)
   /** 열려 있는 콘텐츠 대화상자 */
   const [open, setOpen] = useState<'gacha' | 'worldcup' | 'saju' | null>(null)
-  useEffect(() => setPending(null), [persona])
-
-  // 월드컵 후보는 페르소나 서재(14권)가 아니라 표지가 있는 책 전체에서 뽑는다 —
-  // 16강을 채워야 하고, '아직 안 읽은 책'을 물어보는 콘텐츠라 서재 밖이 맞다
-  const { data: pool } = useDnaBookPool()
-  const canPlay = (pool?.length ?? 0) >= 4
+  // 콘텐츠 후보도 mock 인기도서가 아니라 실제 응답의 사용자 서재를 사용한다.
+  const pool = books
+  const canPlay = pool.length >= 4
 
   // 표지 더미는 별점이 높은 세 권 — 타입 패널의 오른쪽 아래를 채운다
-  const top3 = [...persona.books].sort((a, b) => b.rating - a.rating).slice(0, 3)
+  const top3 = [...books].sort((a, b) => b.rating - a.rating).slice(0, 3)
   const strongCount = Math.min(4, profile.keywords.length)
 
   return (
@@ -271,7 +265,7 @@ function Report({ persona, tones }: { persona: DnaPersona; tones: string[] | nul
               </div>
             ))}
           </dl>
-          <span className="dnar-utility">완독 {profile.finished}권의 장르·별점 분포에서 계산</span>
+          <span className="dnar-utility">완독 {readCount}권의 장르·별점 분포에서 계산</span>
         </div>
       </section>
 
@@ -380,50 +374,47 @@ function Report({ persona, tones }: { persona: DnaPersona; tones: string[] | nul
         </section>
       </div>
 
-      {pool && open === 'gacha' && <BookGacha pool={pool} axes={profile.axes} onClose={() => setOpen(null)} />}
-      {pool && open === 'worldcup' && (
+      {open === 'gacha' && <BookGacha pool={pool} axes={profile.axes} onClose={() => setOpen(null)} />}
+      {open === 'worldcup' && (
         <BookWorldCup pool={pool} topAxis={profile.topAxis} onClose={() => setOpen(null)} />
       )}
-      {pool && open === 'saju' && <SajuBooks pool={pool} onClose={() => setOpen(null)} />}
+      {open === 'saju' && <SajuBooks pool={pool} onClose={() => setOpen(null)} />}
     </>
   )
 }
 
 export default function DnaReportPage() {
-  const { data: personas, isLoading, isError } = useDnaMockData()
-  // A안은 '소설파'로 열지만 B안은 '잡식파'로 연다 — 소설파 서재는 축이 하나뿐이라
-  // 레이더가 바늘이 되고 지표 절반이 0이다. 리포트 구성은 고르게 읽은 서재에서 더 잘 보인다.
-  const [personaId, setPersonaId] = useState('omni')
-  const persona = personas?.find((p) => p.id === personaId) ?? personas?.[0]
-  const tones = useCoverTones(persona?.books ?? NO_BOOKS)
+  const { data, isLoading, isError } = useDna()
+  const books = useMemo(() => (data?.books ?? []).map(toDnaBook), [data?.books])
+  const tones = useCoverTones(books)
+  const profile = data ? profileFromApi(data.profile, data.readCount) : null
 
   return (
     <main className="dnar">
       <div className="dnar__shell">
-        {/* A안과 같은 시안 검증 장치 — 서재가 다르면 리포트가 갈라지는지 본다 */}
-        <div className="dnar-toolbar">
-          <span className="dnar-utility">MOCK · 시안 검증용 — 페르소나를 바꿔 리포트가 갈라지는지 확인</span>
-          <div className="dnar-personas" role="tablist" aria-label="가상 유저 전환">
-            {(personas ?? []).map((p) => (
-              <button
-                key={p.id}
-                role="tab"
-                aria-selected={p.id === persona?.id}
-                className={`dnar-persona ${p.id === persona?.id ? 'is-active' : ''}`}
-                onClick={() => setPersonaId(p.id)}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {isLoading && <div className="dnar-skeleton" aria-label="불러오는 중" />}
-        {(isError || (!isLoading && !persona)) && (
-          <p className="dnar-error">mock 재료를 불러오지 못했어요. 새로고침으로 다시 시도해 주세요.</p>
+        {(isError || (!isLoading && !data)) && (
+          <p className="dnar-error">BOOK DNA를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>
         )}
-        {persona && <Report key={persona.id} persona={persona} tones={tones} />}
+        {data?.profile.status === 'INSUFFICIENT_DATA' && (
+          <p className="dnar-error">읽은 책이 아직 충분하지 않아요. 책을 읽고 기록하면 BOOK DNA가 생성됩니다.</p>
+        )}
+        {data?.profile.status === 'READY' && profile && (
+          <Report books={books} profile={profile} tones={tones} readCount={data.readCount} />
+        )}
       </div>
     </main>
   )
+}
+
+function toDnaBook(book: DnaBookResponse): DnaBook {
+  return {
+    isbn13: book.isbn13,
+    title: book.title,
+    author: book.authors.join(', '),
+    classNo: book.classNo ?? '000',
+    coverUrl: book.coverUrl ?? '',
+    rating: book.rating ?? 0,
+    finishedAt: book.finishedDate ?? '',
+  }
 }

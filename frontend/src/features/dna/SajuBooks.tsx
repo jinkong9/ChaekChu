@@ -9,7 +9,7 @@
  *  이 콘텐츠만 근거의 종류가 다르다 — 옆 칸은 완독 기록 집계다. 그래서 카드와 화면 양쪽에
  *  재미 콘텐츠임을 적어 리포트 전체의 신뢰와 섞이지 않게 한다. */
 import { useMemo, useState } from 'react'
-import type { DnaBook } from './useDnaMockData'
+import type { DnaBook } from './dnaTypes'
 import { axisOf } from './dnaProfile'
 import { sajuDay, ELEMENT_READING } from './saju'
 import { coverAtWidth } from '../../lib/coverUrl'
@@ -41,7 +41,7 @@ export default function SajuBooks({ pool, onClose }: { pool: DnaBook[]; onClose:
     const [y, m, d] = submitted.split('-').map(Number)
     const day = sajuDay(y, m, d)
     const reading = ELEMENT_READING[day.element]
-    // 첫 장르에 책이 없으면 두 번째로 — mock 풀은 장르가 고르지 않다
+    // 첫 장르에 책이 없으면 두 번째 장르를 사용한다.
     const [primary, secondary] = reading.axes
     const of = (axis: string) => pool.filter((b) => axisOf(b.classNo) === axis)
     const candidates = of(primary).length >= PICKS ? of(primary) : [...of(primary), ...of(secondary)]

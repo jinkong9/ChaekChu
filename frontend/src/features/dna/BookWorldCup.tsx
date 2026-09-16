@@ -4,13 +4,12 @@
  *  16강 → 8강 → 준결승 → 결승 → 우승. 리포트의 다른 칸이 '읽은 기록'에서 취향을 뒤로
  *  계산하는 반면, 이 콘텐츠는 아직 안 읽은 책들 사이의 선택에서 취향을 앞으로 물어본다.
  *
- *  후보는 표지가 있는 mock 풀에서 매 판마다 새로 뽑는다(Fisher–Yates). 정식 구현에서는
- *  추천 후보군이 이 자리에 들어간다.
+ *  후보는 현재 사용자의 실제 서재에서 매 판마다 새로 뽑는다(Fisher–Yates).
  *
  *  선택 기록은 마지막에 장르로 집계해서 리포트의 1위 장르와 맞대 본다 — 고른 것과 읽은 것이
  *  갈리는지 보는 게 이 콘텐츠의 결론이다. */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { DnaBook } from './useDnaMockData'
+import type { DnaBook } from './dnaTypes'
 import { axisOf, type Axis } from './dnaProfile'
 import { coverAtWidth } from '../../lib/coverUrl'
 import DnaDialog from './DnaDialog'
