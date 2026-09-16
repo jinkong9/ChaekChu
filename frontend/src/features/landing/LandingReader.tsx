@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { LANDING_TITLES, useLandingOAuth, useRollingTitles } from './landingShared'
+import { useLandingOAuth, usePopularTitles, useRollingTitles } from './landingShared'
 
 /** 랜딩 시안 B — 왼쪽은 글과 로그인(C의 지면), 오른쪽은 선반에서 한 권을 꺼내는
  *  독자 일러스트(D의 히어로 그림). 둘 다 종이·잉크라 한 지면으로 붙는다.
  *  지면에서 가장 큰 글자는 책 제목이다. */
-const READER_TITLES = LANDING_TITLES.map((title) => title.replace(/[《》]/g, ''))
+/** 지금 많이 읽는 책 20권. 한 줄에 크게 앉히는 자리라 공백 포함 10자까지만 집는다 */
+const TITLE_COUNT = 20
+const TITLE_MAX_LENGTH = 10
 
 const ILLUSTRATIONS = [
   {
@@ -125,7 +127,8 @@ function GoogleMark() {
 
 export default function LandingReader() {
   const { oauth, oauthFailed } = useLandingOAuth()
-  const ulRef = useRollingTitles('var(--reader-title-h)')
+  const titles = usePopularTitles(TITLE_COUNT, TITLE_MAX_LENGTH)
+  const ulRef = useRollingTitles('var(--reader-title-h)', titles.length)
   const [illustrationIndex, setIllustrationIndex] = useState(0)
   const illustration = ILLUSTRATIONS[illustrationIndex]
 
@@ -142,7 +145,7 @@ export default function LandingReader() {
             <span className="landing-reader__line">당신의 다음 한 권은</span>
             <span className="landing-reader__window">
               <ul ref={ulRef}>
-                {[...READER_TITLES, READER_TITLES[0]].map((title, index) => <li key={index}>{title}</li>)}
+                {[...titles, titles[0]].map((title, index) => <li key={index}>{title}</li>)}
               </ul>
             </span>
             <span className="landing-reader__line">일지도 몰라요.</span>
