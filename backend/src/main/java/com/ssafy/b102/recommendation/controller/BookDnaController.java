@@ -24,7 +24,7 @@ public class BookDnaController {
 		this.service = service;
 	}
 
-	@Operation(summary = "내 Book DNA 조회", description = "서재의 READ/WISH·평점·완독일을 AI 프로필로 계산해 반환한다. AI 장애 시 DNA_UNAVAILABLE을 반환한다.")
+	@Operation(summary = "내 Book DNA 조회", description = "서재의 READ/WISH·평점·완독일을 AI 프로필로 계산해 반환한다. 프로필은 저장해 두고 서재·관심 태그가 바뀌지 않았으면(24h 안) AI 를 부르지 않는다. AI 장애 시 저장된 마지막 프로필을 generatedAt 그대로 반환하고, 저장된 것이 없을 때만 503 DNA_UNAVAILABLE. books[].analyzed=false 는 AI 인덱스에 없어 계산에서 빠진 책.")
 	@GetMapping
 	public BookDnaResponse mine(@CurrentUserId Long userId) {
 		return service.getMine(userId);
