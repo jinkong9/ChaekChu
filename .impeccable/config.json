@@ -152,6 +152,12 @@
         "value": "82px",
         "createdAt": "2026-09-16T03:18:48.640Z",
         "reason": "랜딩 히어로의 타입 램프 — DESIGN.md 램프는 headline 42px에서 끊기고 그 위는 워드마크 전용 display라 랜딩 첫 화면의 제목이 들어갈 단이 없다. 시안 B에 이미 같은 사유로 38/64/17px을 열어 뒀고, C도 같은 자리다"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "16px",
+        "createdAt": "2026-09-16T06:21:55.410Z",
+        "reason": "로그인 뒤 GNB의 브랜드 크기 (Layout.tsx sm:text-base) — 랜딩 제호를 그것에 맞춘 값이다. 15px 은 이미 같은 사유로 열려 있다"
       }
     ]
   }

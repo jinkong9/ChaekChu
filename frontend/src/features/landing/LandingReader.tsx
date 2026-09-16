@@ -24,7 +24,10 @@ const CSS = `
   .landing-reader__top { position: absolute; z-index: 3; inset: 0 0 auto; display: flex; align-items: center;
                          min-height: 54px; padding: 0 var(--eo-frame);
                          border-bottom: 1px solid var(--eo-rule-soft); }
+  /* 로그인 뒤 GNB의 브랜드와 같은 값 (Layout.tsx: text-[15px] sm:text-base) —
+     랜딩에서 홈으로 넘어갈 때 제호 크기가 튀지 않아야 한다 */
   .landing-reader__mark { font-size: 15px; font-weight: 700; letter-spacing: -0.03em; }
+  @media (min-width: 640px) { .landing-reader__mark { font-size: 16px; } }
 
   /* 글과 그림을 한 줄에 놓는다. 그림 쪽을 넓게 잡아 선반이 잘리지 않게 한다 */
   .landing-reader__sheet { display: grid; height: 100%; align-items: center;
