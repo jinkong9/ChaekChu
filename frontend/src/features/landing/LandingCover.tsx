@@ -20,10 +20,11 @@ const foot = ([x]: readonly [number, number]) => `${x},${FOOT}`
 const lerp = (a: readonly [number, number], b: readonly [number, number], t: number) =>
   [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t] as const
 
-/** 위에서 본 책장 낱장. 책등과 나란한 선을 책배 쪽으로 쌓는다 */
-const LEAVES = Array.from({ length: 34 }, (_, i) => {
-  const t = (i + 1) / 35
-  return { id: i, from: lerp(SPINE_BACK, FORE_BACK, t), to: lerp(SPINE_FRONT, FORE_FRONT, t) }
+/** 위에서 본 책장 낱장. 한 장의 윗변은 책등에서 책배로 이어지고, 그 선들이 두께
+ *  방향(뒤 → 앞)으로 쌓인다. 반대로 그으면 책장이 아니라 결이 가로지르는 판이 된다. */
+const LEAVES = Array.from({ length: 18 }, (_, i) => {
+  const t = (i + 1) / 19
+  return { id: i, from: lerp(SPINE_BACK, SPINE_FRONT, t), to: lerp(FORE_BACK, FORE_FRONT, t) }
 })
 
 const CSS = `
@@ -48,7 +49,7 @@ const CSS = `
   .landing-cover__plane { fill: var(--cover-book); }
   /* 면을 가르는 선과 책장 낱장은 바탕색으로 긋는다 — 면에 색을 더하지 않고 덜어낸다 */
   .landing-cover__seam { stroke: var(--cover-field); stroke-width: 2.4; fill: none; }
-  .landing-cover__leaf { stroke: var(--cover-field); stroke-width: 1.6; opacity: 0.62; }
+  .landing-cover__leaf { stroke: var(--cover-field); stroke-width: 1.2; opacity: 0.55; }
 
   /* ---- 글 ---- */
   .landing-cover__sheet { position: relative; z-index: 2; display: flex; height: 100%; align-items: center;
