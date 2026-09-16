@@ -65,6 +65,7 @@ public class BookDetailService {
 		return new BookDetailResponse(
 			summary.bookId(), summary.isbn13(), summary.title(), summary.authors(), summary.publisher(),
 			summary.publicationYear(), summary.coverUrl(), summary.pageCount(), summary.category(), summary.classNo(),
+			summary.volume(),
 			null,                                   // subtitle — 원천 없음
 			book.getDescription(),
 			book.getDescriptionSource(),
@@ -81,7 +82,7 @@ public class BookDetailService {
 		List<CoLoanResponse.Item> items = rows.stream()
 			.map(r -> new CoLoanResponse.Item(
 				summaryMapper.of(r.bookId(), r.isbn13(), r.title(), r.author(), r.publisher(), r.pubYear(),
-					r.categoryCode(), r.coverUrl()),
+					r.categoryCode(), r.coverUrl(), r.vol()),
 				r.rank()))
 			.toList();
 		String asOf = rows.stream()

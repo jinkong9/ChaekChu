@@ -69,6 +69,10 @@
     "loanCum": {
       "type": "long"
     },
+    "vol": {
+      "type": "keyword",
+      "ignore_above": 20
+    },
     "updatedAt": {
       "type": "date",
       "format": "date_time||epoch_millis"

@@ -1,6 +1,7 @@
 package com.ssafy.b102.search;
 
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -52,7 +53,7 @@ class BookSearchApiTest {
 	private final List<BookDocument> docs = List.of(
 		BookDocument.builder().id(BASE_ID + 1).isbn13("9791200000018").title("바람의 노래를 들어라").authors(List.of("무라카미 하루키"))
 			.authorRaw("무라카미 하루키 지음 ; 윤성원 옮김").publisher(PUBLISHER).pubYear(2006).categoryCode("833.6").coverUrl("https://img/x.jpg")
-			.updatedAt(Instant.parse("2026-01-01T00:00:00Z")).build(),
+			.vol("3").updatedAt(Instant.parse("2026-01-01T00:00:00Z")).build(),
 		BookDocument.builder().id(BASE_ID + 2).isbn13("9791200000025").title("감마 수학 입문").authors(List.of()).authorRaw(null)
 			.publisher(PUBLISHER).pubYear(null).categoryCode(null).coverUrl(null)
 			.updatedAt(Instant.parse("2026-01-01T00:00:00Z")).build()
@@ -90,8 +91,9 @@ class BookSearchApiTest {
 			.andExpect(jsonPath("$.items[0].publicationYear").value(2006))
 			.andExpect(jsonPath("$.items[0].coverUrl").value("https://img/x.jpg"))
 			.andExpect(jsonPath("$.items[0].pageCount").value((Object) null))
-			.andExpect(jsonPath("$.items[0].category").value("문학"))
-			.andExpect(jsonPath("$.items[0].classNo").value("833.6"));
+			.andExpect(jsonPath("$.items[0].category").value(startsWith("문학")))   // kdc_codes 있으면 "문학 > 일본문학", 없으면(CI) 대분류 — BookDetailApiTest 와 같은 기준
+			.andExpect(jsonPath("$.items[0].classNo").value("833.6"))
+			.andExpect(jsonPath("$.items[0].volume").value("3"));          // 매핑 v6 — ES 문서의 vol 이 그대로 나간다
 	}
 
 	@Test
@@ -105,7 +107,8 @@ class BookSearchApiTest {
 			.andExpect(jsonPath("$.items[0].publicationYear").value((Object) null))
 			.andExpect(jsonPath("$.items[0].coverUrl").value((Object) null))
 			.andExpect(jsonPath("$.items[0].category").value((Object) null))
-			.andExpect(jsonPath("$.items[0].classNo").value((Object) null));
+			.andExpect(jsonPath("$.items[0].classNo").value((Object) null))
+			.andExpect(jsonPath("$.items[0].volume").value((Object) null));
 	}
 
 	@Test

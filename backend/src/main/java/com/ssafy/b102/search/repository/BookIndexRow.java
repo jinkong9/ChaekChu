@@ -17,6 +17,7 @@ public record BookIndexRow(
 	Integer pubYear,
 	String categoryCode,
 	String coverUrl,
+	String vol,
 	Long loanCum,
 	Instant updatedAt
 ) {

@@ -7,7 +7,7 @@ import com.ssafy.b102.search.repository.BookIndexRow;
 
 /**
  * 색인 행(books + loan_cum) → ES 문서. 컬럼 대응은 BookDocument 주석, 저자 분해 규칙은 AuthorNameParser.
- * hasCover 는 cover_url 이 비어 있지 않은가(매핑 v3), loanCum 은 최신 수요 스냅샷의 누적 대출(v4).
+ * hasCover 는 cover_url 이 비어 있지 않은가(매핑 v3), loanCum 은 최신 수요 스냅샷의 누적 대출(v4), vol 은 원장 권차(v6).
  */
 @Component
 public class BookDocumentMapper {
@@ -26,6 +26,7 @@ public class BookDocumentMapper {
 			.coverUrl(coverUrl)
 			.hasCover(coverUrl != null && !coverUrl.isBlank())
 			.loanCum(row.loanCum())
+			.vol(row.vol())
 			.updatedAt(row.updatedAt())
 			.build();
 	}

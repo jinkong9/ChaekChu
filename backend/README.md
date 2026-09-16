@@ -134,7 +134,7 @@ src/main/resources/
   db/migration/V1__init.sql           # Flyway. docs/sql/V1__init.sql 복사본 (1차 10테이블 + 보정 7건). V2 = 추천 데이터 층
   db/migration/V3__events_and_recommendation_snapshot.sql  # recommendations.public_id·index_version · reason_type CHECK 확대 · user_actions 의 display_position·session_id·payload · DISMISS/SEARCH
   elasticsearch/books-settings.json     # analyzer: korean(nori mixed + 품사 필터) · bigram(공백 제거 후 2-gram) · normalizer exact(공백 제거). shards 1 / replicas 0
-  elasticsearch/books-mappings.json     # dynamic=strict. title·authors = korean + .ngram(bigram) + .keyword(normalizer exact). 바꾸면 app.search.index-name 을 올린다(=매핑 버전)
+  elasticsearch/books-mappings.json     # dynamic=strict. title·authors = korean + .ngram(bigram) + .keyword(normalizer exact) · vol(keyword, v6). 바꾸면 app.search.index-name 을 올린다(=매핑 버전)
 docker/elasticsearch/Dockerfile       # elasticsearch:8.19.21 + analysis-nori
 docker-compose.yml                    # 로컬 인프라만. 앱은 포함하지 않음
 Dockerfile                            # 앱 배포 이미지 (multi-stage, temurin 21)

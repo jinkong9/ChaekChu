@@ -12,7 +12,7 @@ app:
   frontend-origin: http://localhost:5173
   search:
     alias: books_test            # 로컬 스택의 books 인덱스와 섞이지 않게 분리. CI 는 매번 새 ES 라 무관
-    index-name: books_test_v5         # 매핑 버전. 로컬 ES 에 옛 books_test_v4 가 남아 있으면 SearchTestSupport 가 재색인해 맞춘다
+    index-name: books_test_v6         # 매핑 버전. 로컬 ES 에 옛 books_test_v5 가 남아 있으면 SearchTestSupport 가 재색인해 맞춘다
     index-on-start: NEVER        # 색인은 테스트가 직접 부른다. 백그라운드 색인이 다른 테스트의 정리와 겹치지 않게
   jwt:
     secret: test-only-secret-not-for-production-0123456789abcdef

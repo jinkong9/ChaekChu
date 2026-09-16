@@ -75,6 +75,13 @@ public class BookDocument {
 	 */
 	private Long loanCum;
 
+	/**
+	 * books.vol — 원장 권차(V6). 매핑 v6. API BookSummary.volume 으로 그대로 나간다.
+	 * 시리즈는 권마다 제목이 같아 이게 없으면 검색 결과에 「셜록 홈즈」 일곱 줄이 구별 없이 선다. null = 미상(단권이라는 뜻이 아니다).
+	 * keyword 로 두는 이유: 표시용이지만 같은 제목 묶기·권차 정렬에 쓸 여지를 남긴다. 값이 20자 이하라(V6 CHECK) 비용은 없다.
+	 */
+	private String vol;
+
 	/** books.updated_at. 증분 색인이 "이 시각 이후 바뀐 행" 을 고르는 기준. */
 	@Field(type = FieldType.Date, format = DateFormat.date_time)
 	private Instant updatedAt;
