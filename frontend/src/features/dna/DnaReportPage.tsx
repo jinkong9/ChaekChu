@@ -14,6 +14,7 @@ import { tagLabel, useTags } from '../../lib/useTags'
 import type { DnaBook } from './dnaTypes'
 import { displayTone, extractCoverColor } from './spectrum'
 import { axisLabel, profileFromApi, type DnaProfile } from './dnaProfile'
+import { useGachaPool } from './useGachaPool'
 import DnaConstellation from './DnaConstellation'
 import BookWorldCup from './BookWorldCup'
 import BookGacha from './BookGacha'
@@ -187,7 +188,7 @@ const TESTS = [
     ready: true,
     kicker: 'Random Draw',
     name: '완전 랜덤 책 가챠',
-    desc: '내 서재에서 한 권을 무작위로 뽑아, 그 책이 내 취향의 어디쯤인지 알려드려요.',
+    desc: '취향을 접어 두고 아무 책이나 한 권 뽑아, 그게 취향에서 얼마나 먼지 알려드려요.',
   },
   {
     id: 'worldcup',
@@ -270,10 +271,20 @@ function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
   // 표지가 없는 책은 후보에서 뺀다 — 빈 자리가 대진표에 섞이면 고를 수가 없다
   const pool = useMemo(() => books.filter((b) => b.coverUrl !== ''), [books])
   const canPlay = pool.length >= 4
+  // 가챠만 후보가 다르다 — '완전 랜덤'이니 내 서재가 아니라 책 전체에서 뽑는다
+  const gachaPool = useGachaPool()
 
   // 표지 더미는 별점이 높은 세 권 — 타입 패널의 오른쪽 아래를 채운다
   const top3 = books.filter((b) => b.coverUrl !== '').sort((a, b) => b.rating - a.rating).slice(0, 3)
   const strongCount = Math.min(4, profile.keywords.length)
+
+  /** 카드를 열 수 없으면 그 이유를 그 자리에서 말한다 — 눌러도 아무 일 없는 버튼을 두지 않는다 */
+  const blockedReason = (t: (typeof TESTS)[number]): string | null => {
+    if (!t.ready) return `「${t.name}」는 아직 준비 중이에요.`
+    if (t.id === 'gacha')
+      return gachaPool.length > 0 ? null : '뽑을 책 목록을 아직 불러오지 못했어요. 잠시 후 다시 열어 주세요.'
+    return canPlay ? null : `「${t.name}」는 표지가 있는 책이 4권 이상일 때 열려요 — 지금 서재에는 ${pool.length}권이에요.`
+  }
 
   // 관심 태그 라벨은 사전(GET /tags)에서 가져온다 — 서버는 공개 코드(FICTION)로 준다
   const { data: tags } = useTags('GENRE')
@@ -354,7 +365,8 @@ function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
                 className="dnar-test"
                 style={{ ['--tone' as string]: tones?.[i] ?? 'var(--eo-ink-faint)' }}
                 onClick={() => {
-                  if (!t.ready || !canPlay) return setPending(t.name)
+                  const why = blockedReason(t)
+                  if (why) return setPending(why)
                   setPending(null)
                   setOpen(t.id as 'gacha' | 'worldcup' | 'saju')
                 }}
@@ -372,11 +384,7 @@ function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
           ))}
         </ul>
         <p className="dnar-note" role="status">
-          {pending
-            ? canPlay
-              ? `「${pending}」는 아직 준비 중이에요.`
-              : `「${pending}」는 표지가 있는 책이 4권 이상일 때 열려요 — 지금 서재에는 ${pool.length}권이에요.`
-            : ' '}
+          {pending ?? ' '}
         </p>
       </section>
 
@@ -465,7 +473,7 @@ function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
         </section>
       </div>
 
-      {open === 'gacha' && <BookGacha pool={pool} axes={profile.axes} onClose={() => setOpen(null)} />}
+      {open === 'gacha' && <BookGacha pool={gachaPool} axes={profile.axes} onClose={() => setOpen(null)} />}
       {open === 'worldcup' && (
         <BookWorldCup pool={pool} topAxis={profile.topAxis} onClose={() => setOpen(null)} />
       )}
