@@ -53,31 +53,6 @@
 }
 
 /* 히어로 시안을 같은 페이지에서 비교하는 작은 도구막대 */
-.dnar-variantbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 18px;
-  min-height: 54px;
-  border-bottom: 1px solid var(--eo-rule-soft);
-}
-.dnar-variantbar__choices { display: flex; align-items: center; gap: 4px; }
-.dnar-variantbar__button {
-  min-width: 64px;
-  min-height: 36px;
-  padding: 0 12px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--eo-ink-muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.dnar-variantbar__button[aria-pressed='true'] { border-bottom-color: var(--eo-ink); color: var(--eo-ink); }
-.dnar-variantbar__button:hover { color: var(--eo-ink); }
-.dnar-variantbar__button:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 2px; }
 
 /* ---------- 히어로 ---------- */
 
@@ -166,8 +141,6 @@
 
 @media (max-width: 800px) {
   .dnar-hero-c__main { grid-template-columns: 1fr; }
-  .dnar-hero-c__title { font-size: clamp(70px, 15vw, 112px); }
-  .dnar-hero-c__intro .dnar-hero-alt__basis { padding-top: 20px; }
   .dnar-hero-c__visual { max-width: 650px; width: 100%; margin: 0 auto; }
 }
 @media (max-width: 640px) {
@@ -285,14 +258,7 @@
    규칙선만으로 나눈다 — 지면이 이미 패널로 가득해서 상자를 더하면 무거워진다.
    1180px 한 줄에 네 개를 늘어놓으면 값과 이름이 너무 멀어지므로 두 칸으로 접는다. */
 
-.dnar-habits { margin-top: 56px; }
 .dnar-habits__title { margin-top: 6px; }
-.dnar-habits__list {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 48px;
-  margin: 0;
-}
 .dnar-habit {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
@@ -421,21 +387,6 @@
 
 /* ---------- 하단 3열 ---------- */
 
-.dnar-bottom {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(240px, 0.95fr) minmax(280px, 1.05fr);
-  gap: 18px;
-  margin-top: 38px;
-  align-items: stretch;
-}
-.dnar-panel {
-  border: 1px solid var(--eo-rule-soft);
-  padding: 22px 20px;
-  display: grid;
-  gap: 18px;
-  align-content: start;
-}
-
 /* 레이더 — 축 이름이 도형 밖으로 나가므로 overflow를 열어 둔다 */
 .dnar-radar { width: 100%; height: auto; overflow: visible; }
 .dnar-radar__grid { fill: none; stroke: var(--eo-rule-soft); }
@@ -467,33 +418,7 @@
 /* 가장 많이 읽은 축에서 온 키워드만 잉크로 눌러 위계를 만든다 */
 .dnar-keyword.is-strong { border-color: var(--eo-ink); color: var(--eo-ink); }
 
-.dnar-quote { margin: 0; display: grid; gap: 8px; }
-.dnar-quote__body {
-  margin: 0;
-  font-family: var(--font-serif-ko);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.95;
-  letter-spacing: -0.02em;
-  text-wrap: pretty;
-  word-break: keep-all;
-}
-.dnar-quote__mark {
-  font-family: var(--font-wordmark);
-  font-size: 24px;
-  line-height: 1;
-  color: var(--eo-ink-faint);
-}
-.dnar-quote__mark--close { text-align: right; }
-
 /* 독서타입 패널 — 새 색을 만들지 않고 잉크를 아주 옅게 깔아 구분한다 */
-.dnar-panel--type {
-  position: relative;
-  overflow: hidden;
-  background: rgba(11, 11, 11, 0.035);
-  border-color: transparent;
-}
-.dnar-type__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .dnar-type__name {
   margin: 0;
   font-family: var(--font-serif-ko);
@@ -521,48 +446,9 @@
 }
 .dnar-type__likes svg { margin-top: 3px; color: var(--tone, var(--eo-ink-muted)); }
 /* 손글씨 워터마크 — 추천 편지와 같은 서체. 아래 표지 더미와 함께 모서리를 채운다 */
-.dnar-type__mark {
-  position: absolute;
-  right: 18px;
-  bottom: 86px;
-  font-family: var(--font-hand);
-  font-size: 24px;
-  line-height: 1.35;
-  color: var(--eo-ink-faint);
-  text-align: right;
-  pointer-events: none;
-  transform: rotate(-6deg);
-}
-.dnar-type__stack { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
-.dnar-type__stack img {
-  width: 44px;
-  aspect-ratio: 0.7;
-  object-fit: cover;
-  background: var(--eo-placeholder);
-  outline: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-}
-.dnar-type__stack img:first-child { transform: rotate(-7deg); }
-.dnar-type__stack img:last-child { transform: rotate(7deg); }
 
 /* ---------- 고른 것 vs 읽은 것 ----------
    레이더 아래 두 줄. 온보딩에서 고른 관심사와 실제 완독 분포를 나란히 놓는다. */
-.dnar-compare {
-  display: grid;
-  gap: 10px;
-  margin: 18px 0 0;
-  padding-top: 14px;
-  border-top: 1px solid var(--eo-rule-soft);
-}
-.dnar-compare div { display: grid; gap: 3px; }
-.dnar-compare dd {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 550;
-  line-height: 1.5;
-  letter-spacing: -0.02em;
-  word-break: keep-all;
-}
 
 /* ---------- 로딩·오류·빈 지면 ---------- */
 .dnar-skeleton { height: 280px; margin: 44px 0; background: var(--eo-placeholder); }
@@ -614,17 +500,11 @@
 
 /* ---------- 반응형 ---------- */
 @media (max-width: 1080px) {
-  .dnar-bottom { grid-template-columns: 1fr 1fr; }
-  .dnar-panel--type { grid-column: 1 / -1; }
 }
 @media (max-width: 640px) {
-  .dnar-habits { margin-top: 40px; }
-  .dnar-habits__list { grid-template-columns: 1fr; }
   .dnar-tests { grid-template-columns: 1fr; }
   .dnar-test { grid-template-columns: 1fr; gap: 14px; }
   .dnar-plays { margin-top: 40px; }
-  .dnar-bottom { grid-template-columns: 1fr; }
-  .dnar-type__mark { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
 .dnar-radar__shape { animation: none; }

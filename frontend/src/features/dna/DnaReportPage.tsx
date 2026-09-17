@@ -18,13 +18,11 @@ import { useDna } from '../../lib/useDna'
 import { isDnaUnavailable, type DnaBookResponse, type DnaScore } from '../../api/dna'
 import { api } from '../../api/client'
 import type { LibraryItem } from '../../api/types'
-import { tagLabel, useTags } from '../../lib/useTags'
 import type { DnaBook } from './dnaTypes'
 import { accentOf, displayTone, extractCoverColor } from './spectrum'
-import { axisLabel, profileFromApi, type DnaProfile } from './dnaProfile'
+import { profileFromApi, type DnaProfile } from './dnaProfile'
 import { useGachaWindow } from './useGachaPool'
-import { buildHabits, type Habit } from './habits'
-import Radar from './DnaRadar'
+import { buildHabits } from './habits'
 import DnaEvidenceB from './DnaEvidenceB'
 import ReadingTypeField from './ReadingTypeField'
 import BookWorldCup from './BookWorldCup'
@@ -69,7 +67,7 @@ function useCoverTones(books: DnaBook[]): string[] | null {
  *  둘 다 본문 글꼴이라 같은 집안이고, 크기로만 위계가 갈린다 — 주인공은 타입 이름이다.
  *
  *  `serif` 는 그 타입 이름을 한글 세리프로 쓴다(리포트 본문의 독서타입 이름과 같은 얼굴). */
-function Hero({ profile, tones, serif }: { profile: DnaProfile; tones: string[] | null; serif: boolean }) {
+function Hero({ profile, tones }: { profile: DnaProfile; tones: string[] | null }) {
   // 다섯 줄을 다섯 색으로 칠하면 무지개가 된다. 값의 차이는 길이가 말하므로 색은 하나면 된다
   const accent = accentOf(tones) ?? 'var(--eo-ink)'
   return (
@@ -78,14 +76,14 @@ function Hero({ profile, tones, serif }: { profile: DnaProfile; tones: string[] 
         <div className="dnar-hero-c__intro">
           {/* 제호가 눈썹 자리를 대신한다 — 둘을 같이 세우면 머리가 두 개다 */}
           <span className="dnar-hero-c__mark">BOOK DNA</span>
-          <h1 className={`dnar-hero-c__title is-bcopy ${serif ? 'is-serif' : ''}`}>
+          <h1 className="dnar-hero-c__title is-bcopy">
             읽은 책이 모여
             <br />
             <em>당신의 취향</em>이 됩니다.
           </h1>
         </div>
         <div className="dnar-hero-c__visual">
-          <ReadingTypeField typeName={profile.type.name} tones={tones} serif={serif} />
+          <ReadingTypeField typeName={profile.type.name} tones={tones} />
           <div className="dnar-hero-c__caption">
             <span>YOUR READING TYPE · {profile.type.code}</span>
             <p>{profile.type.phrase}</p>
@@ -172,45 +170,9 @@ const HABIT_ART: Record<string, ReactNode> = {
   ),
 }
 
-/** 완독 기록에서 센 네 줄. 표본이 얇은 줄은 habits.ts 가 아예 만들지 않으므로 여기서는 받은 것만 그린다. */
-function Habits({ habits }: { habits: Habit[] }) {
-  return (
-    <section className="dnar-habits">
-      <div className="dnar-sechead">
-        <div>
-          <span className="dnar-eyebrow">Reading Habits</span>
-          <h2 className="dnar-title dnar-habits__title">독서 습관</h2>
-        </div>
-      </div>
-      <dl className="dnar-habits__list">
-        {habits.map((h) => (
-          <div key={h.id} className="dnar-habit">
-            <svg className="dnar-habit__art" viewBox="0 0 18 18" aria-hidden="true">
-              {HABIT_ART[h.id]}
-            </svg>
-            <div className="dnar-habit__text">
-              <dt className="dnar-habit__label">{h.label}</dt>
-              <dd className="dnar-habit__detail">{h.detail}</dd>
-            </div>
-            <span className="dnar-habit__value">
-              {h.to ? (
-                <Link className="dnar-habit__go" to={h.to}>
-                  {h.value} <span aria-hidden="true">→</span>
-                </Link>
-              ) : (
-                h.value
-              )}
-            </span>
-          </div>
-        ))}
-      </dl>
-    </section>
-  )
-}
-
 /* ── 화면 ────────────────────────────────────────────── */
 
-function Report({ books, records, profile, keywords, tones, declaredTags, topGenres }: {
+function Report({ books, records, profile, keywords, tones, declaredTags }: {
   books: DnaBook[]
   /** 서버 응답 그대로 — 쪽수·출간 연도·분류처럼 화면 타입(DnaBook)이 버린 값을 독서 습관이 쓴다 */
   records: DnaBookResponse[]
@@ -220,8 +182,6 @@ function Report({ books, records, profile, keywords, tones, declaredTags, topGen
   tones: string[] | null
   /** 온보딩에서 내가 고른 관심 태그 (공개 taxonomy code) */
   declaredTags: string[]
-  /** 실제로 많이 읽은 축 (같은 taxonomy) — 고른 것과 읽은 것을 맞대 본다 */
-  topGenres: string[]
 }) {
   // 아직 화면이 없는 카드는 죽은 버튼 대신 준비 중임을 그 자리에서 알린다
   const [pending, setPending] = useState<string | null>(null)
@@ -231,25 +191,6 @@ function Report({ books, records, profile, keywords, tones, declaredTags, topGen
      이 페이지를 떠나 버린다. 주소에 두면 뒤로가기는 대화상자만 닫고 리포트에 남는다.
      새로고침·링크 공유로 바로 열리는 것은 덤이다. */
   const [params, setParams] = useSearchParams()
-  /** 근거 구역(레이더~독서 습관) 안 — 상단 시안과 같이 주소에 둔다 */
-  const bodyVariant = params.get('body') === 'b' ? 'b' : 'a'
-  const selectBody = (variant: 'a' | 'b') => {
-    if (bodyVariant === variant) return
-    const next = new URLSearchParams(params)
-    if (variant === 'a') next.delete('body')
-    else next.set('body', variant)
-    setParams(next, { replace: true })
-  }
-
-  /** 히어로의 독서타입 이름을 어떤 글꼴로 쓸지(?htype=serif) */
-  const serifName = params.get('htype') === 'serif'
-  const selectSerif = (on: boolean) => {
-    if (serifName === on) return
-    const next = new URLSearchParams(params)
-    if (on) next.set('htype', 'serif')
-    else next.delete('htype')
-    setParams(next, { replace: true })
-  }
   const navigate = useNavigate()
   const raw = params.get('play')
   const open = (TESTS.some((t) => t.id === raw) ? raw : null) as 'gacha' | 'worldcup' | null
@@ -285,10 +226,6 @@ function Report({ books, records, profile, keywords, tones, declaredTags, topGen
     [records],
   )
 
-  // 표지 더미는 별점이 높은 세 권 — 타입 패널의 오른쪽 아래를 채운다
-  const top3 = books.filter((b) => b.coverUrl !== '').sort((a, b) => b.rating - a.rating).slice(0, 3)
-  const strongCount = Math.min(4, profile.keywords.length)
-
   /** 카드를 열 수 없으면 그 이유를 그 자리에서 말한다 — 눌러도 아무 일 없는 버튼을 두지 않는다.
    *  가챠는 서재와 무관하게 늘 열린다(후보를 서버에서 받아 온다) */
   const blockedReason = (t: (typeof TESTS)[number]): string | null => {
@@ -296,156 +233,21 @@ function Report({ books, records, profile, keywords, tones, declaredTags, topGen
     return canPlay ? null : `「${t.name}」는 표지가 있는 책이 4권 이상일 때 열려요 — 지금 서재에는 ${pool.length}권이에요.`
   }
 
-  // 관심 태그 라벨은 사전(GET /tags)에서 가져온다 — 서버는 공개 코드(FICTION)로 준다
-  const { data: tags } = useTags('GENRE')
-  const declared = declaredTags.map((code) => tagLabel(code, tags).replace(/^#/, ''))
-  const actual = topGenres.map(axisLabel)
-
   return (
     <>
-      <div className="dnar-variantbar">
-        <span className="dnar-utility">독서타입 글꼴</span>
-        <div className="dnar-variantbar__choices" role="group" aria-label="독서타입 이름 글꼴 선택">
-          {([
-            [false, '지금'],
-            [true, '세리프'],
-          ] as const).map(([on, label]) => (
-            <button
-              key={label}
-              type="button"
-              className="dnar-variantbar__button"
-              aria-pressed={serifName === on}
-              onClick={() => selectSerif(on)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="dnar-utility">본문 비교</span>
-        <div className="dnar-variantbar__choices" role="group" aria-label="BOOK DNA 본문 디자인 선택">
-          {([
-            ['a', '기존안'],
-            ['b', '새 안'],
-          ] as const).map(([variant, label]) => (
-            <button
-              key={variant}
-              type="button"
-              className="dnar-variantbar__button"
-              aria-pressed={bodyVariant === variant}
-              onClick={() => selectBody(variant)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
       {/* ── 히어로 ────────────────────────────────── */}
-      <Hero profile={profile} tones={tones} serif={serifName} />
+      <Hero profile={profile} tones={tones} />
 
-      {/* ── 근거 구역 — 안 두 가지를 주소로 갈아 끼운다(?body=b) ── */}
-      {bodyVariant === 'b' ? (
-        <DnaEvidenceB
-          profile={profile}
-          records={records}
-          habits={habits}
-          keywords={keywords}
-          declaredTags={declaredTags}
-          tones={tones}
-          habitArt={HABIT_ART}
-        />
-      ) : (
-        <>
-        {/* ── 요약 패널 3열 ─────────────────────────── */}
-        <div className="dnar-bottom">
-          <section className="dnar-panel">
-            <h2 className="dnar-title">당신의 취향 한눈에 보기</h2>
-            <Radar axes={profile.axes} tone={accentOf(tones) ?? undefined} />
-            {/* 고른 것과 읽은 것 — 온보딩에서 고른 관심사와 실제 완독 분포는 자주 갈린다. 그 간극을 보여 주는 게 리포트의 몫이다 */}
-            {(declared.length > 0 || actual.length > 0) && (
-              <dl className="dnar-compare">
-                <div>
-                  <dt className="dnar-utility">고른 관심사</dt>
-                  <dd>{declared.length > 0 ? declared.join(' · ') : '고른 관심사가 없어요'}</dd>
-                </div>
-                <div>
-                  <dt className="dnar-utility">실제로 읽은 장르</dt>
-                  <dd>{actual.length > 0 ? actual.join(' · ') : '아직 집계할 책이 없어요'}</dd>
-                </div>
-              </dl>
-            )}
-          </section>
-
-          <section className="dnar-panel">
-            {/* 태그가 아직 붙지 않은 책만 읽었으면 키워드가 0개로 온다 — 그때는 제목만 남기지 않고 통째로 숨긴다 */}
-            {profile.keywords.length > 0 && (
-              <>
-                <h2 className="dnar-title">자주 읽는 키워드</h2>
-                <ul className="dnar-keywords">
-                  {profile.keywords.map((k, i) => (
-                    <li key={k} className={`dnar-keyword ${i < strongCount ? 'is-strong' : ''}`}>
-                      #{k}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            <h2 className="dnar-title">당신의 한 줄 요약</h2>
-            <figure className="dnar-quote">
-              <span className="dnar-quote__mark">“</span>
-              <blockquote className="dnar-quote__body">{profile.oneLine}</blockquote>
-              <span className="dnar-quote__mark dnar-quote__mark--close">”</span>
-            </figure>
-          </section>
-
-          <section className="dnar-panel dnar-panel--type" style={{ ['--tone' as string]: accentOf(tones) ?? undefined }}>
-            <div className="dnar-type__head">
-              <span className="dnar-utility">당신의 독서타입</span>
-              <span className="dnar-eyebrow">{profile.type.code}</span>
-            </div>
-            <h2 className="dnar-type__name">{profile.type.name}</h2>
-            <p className="dnar-type__blurb">{profile.type.blurb}</p>
-            <div hidden={profile.type.likes.length === 0}>
-              <p className="dnar-utility" style={{ marginBottom: 10 }}>
-                이런 책을 좋아해요
-              </p>
-              <ul className="dnar-type__likes">
-                {profile.type.likes.map((l) => (
-                  <li key={l}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-                      <circle cx="7" cy="7" r="6.2" fill="none" stroke="currentColor" strokeWidth="1" />
-                      <path d="M4.2 7.2 6.2 9.2 9.9 5.1" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                    </svg>
-                    <span>{l}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <p className="dnar-type__mark" aria-hidden="true">
-              읽는 만큼
-              <br />
-              넓어지는 사람
-            </p>
-            <div className="dnar-type__stack">
-              {top3.map((b) => (
-                <img
-                  key={b.isbn13}
-                  src={coverAtWidth(b.coverUrl, 44) ?? b.coverUrl}
-                  alt=""
-                  title={b.title}
-                  loading="lazy"
-                  decoding="async"
-                />
-              ))}
-            </div>
-          </section>
-        </div>
-
-        {/* ── 독서 습관 — 취향(무엇을) 다음에 오는 버릇(어떻게) ── */}
-        {habits.length > 0 && (
-          <Habits habits={habits} />
-        )}
-        </>
-      )}
+      {/* ── 근거 구역 ─────────────────────────────── */}
+      <DnaEvidenceB
+        profile={profile}
+        records={records}
+        habits={habits}
+        keywords={keywords}
+        declaredTags={declaredTags}
+        tones={tones}
+        habitArt={HABIT_ART}
+      />
 
       {/* ── 콘텐츠 2장 — 리포트를 다 읽은 뒤의 다음 걸음 ── */}
       <section className="dnar-plays">
@@ -616,7 +418,6 @@ export default function DnaReportPage() {
             profile={profile}
             tones={tones}
             declaredTags={data.declaredTags}
-            topGenres={data.profile.evidence.topGenres}
           />
         )}
       </div>

@@ -3,9 +3,6 @@ import { useEffect, useRef } from 'react'
 
 const GLYPHS = '가나다라마바사아자차카타파하읽는책의문장aeinorst'
 const FONT = "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', sans-serif"
-/** 세리프 안 — 리포트 본문의 독서타입 이름(.dnar-type__name)과 같은 글꼴.
- *  Noto Serif KR 은 500·600 만 받아 두었으므로 700 을 쓰면 가짜 굵게가 된다 */
-const FONT_SERIF = "'Noto Serif KR', 'Apple SD Gothic Neo', serif"
 const INK = '#0b0b0b'
 // 마지막 글자가 도착한 뒤 타입 이름을 잠시 보여 주고 굵은 글씨로 넘긴다.
 const LETTER_FADE_START = 3.2
@@ -70,11 +67,10 @@ function makeLetters(w: number, h: number, typeName: string, tones: string[] | n
   return { letters, fontSize }
 }
 
-export default function ReadingTypeField({ typeName, tones, serif }: { typeName: string; tones: string[] | null; serif?: boolean }) {
-  // 세리프 안은 획이 가늘어 같은 굵기로 두면 너무 흐리다 — 한 단계씩 올려 잡는다
-  const font = serif ? FONT_SERIF : FONT
-  const boldWeight = serif ? 600 : 700
-  const thinWeight = serif ? 500 : 600
+export default function ReadingTypeField({ typeName, tones }: { typeName: string; tones: string[] | null }) {
+  const font = FONT
+  const boldWeight = 700
+  const thinWeight = 600
   const hostRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
