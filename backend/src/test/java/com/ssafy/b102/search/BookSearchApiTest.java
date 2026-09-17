@@ -192,4 +192,48 @@ class BookSearchApiTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
 	}
+	// ── 검색 범위 scope (09-17) ──
+
+	@Test
+	@DisplayName("scope=author 는 저자만, scope=title 은 제목만 — '하루키' 는 author 로 1건, title 로 0건, 생략(all)이면 1건")
+	void scope_narrows_fields() throws Exception {
+		mvc.perform(get(SEARCH).param("q", "하루키").param("scope", "author").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.total").value(1))
+			.andExpect(jsonPath("$.items[0].bookId").value(String.valueOf(BASE_ID + 1)));
+
+		mvc.perform(get(SEARCH).param("q", "하루키").param("scope", "title").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.total").value(0))
+			.andExpect(jsonPath("$.items").isEmpty());
+
+		mvc.perform(get(SEARCH).param("q", "하루키").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.total").value(1));
+	}
+
+	@Test
+	@DisplayName("scope=publisher 는 출판사만 — 우리 출판사로 2건, 제목 '바람의 노래' 를 publisher 로 보내면 0건. 값은 대소문자 무시(PUBLISHER)")
+	void publisher_scope() throws Exception {
+		mvc.perform(get(SEARCH).param("q", PUBLISHER).param("scope", "PUBLISHER").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.total").value(2));
+
+		mvc.perform(get(SEARCH).param("q", "바람의 노래").param("scope", "publisher").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.total").value(0));
+	}
+
+	@Test
+	@DisplayName("모르는 scope → 400 VALIDATION_FAILED, details.fields[].field = scope. ISBN 조회는 scope 를 무시해 200")
+	void unknown_scope_400_but_isbn_ignores_it() throws Exception {
+		mvc.perform(get(SEARCH).param("q", "하루키").param("scope", "isbn").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+			.andExpect(jsonPath("$.details.fields[*].field").value(hasItem("scope")));
+
+		mvc.perform(get(SEARCH).param("q", "9791200000018").param("scope", "isbn").header(HttpHeaders.AUTHORIZATION, bearer))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.total").value(1));
+	}
 }

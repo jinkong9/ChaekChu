@@ -19,13 +19,16 @@ public interface BookSearchRepository {
 	 *   q 있음 — 관련도(_score) 내림차순 → loanCum(누적 대출) 내림차순 → id 오름차순. kdc 는 점수에 영향 없는 filter 로만 걸린다.
 	 *            같은 작품의 판본들은 점수가 같으므로 그 안에서는 대출 많은 판본이 먼저다.
 	 *   q 없음 — loanCum 내림차순, 값이 없는 책은 뒤 → id 오름차순.
+	 * scope(09-17)는 검색어를 어느 필드에 대고 점수를 내는가만 정한다 — ALL 은 제목·저자·출판사 전부(기존 동작), 나머지는 그 필드 하나.
+	 *   정렬·필터·표지 가중은 범위와 무관하게 같다. 검색어가 없으면 쓰이지 않는다.
 	 *
 	 * @param q         앞뒤 공백을 뗀 검색어. 비어 있으면 분류만으로 조회한다
 	 * @param kdcPrefix KDC 코드 prefix("8" · "81" · "813"). 비어 있으면 필터 없음
+	 * @param scope     검색 범위. null 이면 ALL
 	 * @param page      0부터
 	 * @param size      1~50
 	 */
-	BookSearchResult search(String q, String kdcPrefix, int page, int size);
+	BookSearchResult search(String q, String kdcPrefix, SearchScope scope, int page, int size);
 
 	/** 하이픈 없는 13자리. 없으면 empty. */
 	Optional<BookDocument> findByIsbn13(String isbn13);
