@@ -11,8 +11,8 @@
  *
  *  지표·레이더·키워드·타입은 FastAPI profile 응답을 사용하고, 화면의 색은
  *  실제 서재 책 표지에서 뽑는다(DESIGN.md). */
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useDna } from '../../lib/useDna'
 import { isDnaUnavailable, type DnaBookResponse } from '../../api/dna'
 import { tagLabel, useTags } from '../../lib/useTags'
@@ -315,8 +315,35 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
 }) {
   // 아직 화면이 없는 카드는 죽은 버튼 대신 준비 중임을 그 자리에서 알린다
   const [pending, setPending] = useState<string | null>(null)
-  /** 열려 있는 콘텐츠 대화상자 */
-  const [open, setOpen] = useState<'gacha' | 'worldcup' | null>(null)
+
+  /* 열려 있는 콘텐츠는 주소에 둔다(?play=gacha).
+     useState 로 들고 있으면 대화상자가 히스토리에 없어서, 뒤로가기가 대화상자가 아니라
+     이 페이지를 떠나 버린다. 주소에 두면 뒤로가기는 대화상자만 닫고 리포트에 남는다.
+     새로고침·링크 공유로 바로 열리는 것은 덤이다. */
+  const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
+  const raw = params.get('play')
+  const open = (TESTS.some((t) => t.id === raw) ? raw : null) as 'gacha' | 'worldcup' | null
+  /** 이 대화상자를 우리가 열었는지 — 링크로 바로 들어온 것을 뒤로가기로 닫으면 사이트 밖으로 나간다 */
+  const pushed = useRef(false)
+
+  const openPlay = (id: 'gacha' | 'worldcup') => {
+    const next = new URLSearchParams(params)
+    next.set('play', id)
+    pushed.current = true
+    setParams(next)
+  }
+  const closePlay = useCallback(() => {
+    if (pushed.current) {
+      // 우리가 쌓은 칸을 걷어낸다 — replace 로 지우면 뒤로가기 한 번이 헛돈다
+      pushed.current = false
+      navigate(-1)
+      return
+    }
+    const next = new URLSearchParams(params)
+    next.delete('play')
+    setParams(next, { replace: true })
+  }, [navigate, params, setParams])
   // 콘텐츠 후보는 실제 응답의 사용자 서재다. 세 콘텐츠 모두 표지를 보여 주고 고르게 하므로
   // 표지가 없는 책은 후보에서 뺀다 — 빈 자리가 대진표에 섞이면 고를 수가 없다
   const pool = useMemo(() => books.filter((b) => b.coverUrl !== ''), [books])
@@ -506,7 +533,7 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
                   const why = blockedReason(t)
                   if (why) return setPending(why)
                   setPending(null)
-                  setOpen(t.id as 'gacha' | 'worldcup')
+                  openPlay(t.id)
                 }}
               >
                 <div className="dnar-test__body">
@@ -528,8 +555,13 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
           {pending ?? ' '}
         </p>
       </section>
-      {open === 'gacha' && <BookGacha pool={gachaPool} axes={profile.axes} onClose={() => setOpen(null)} />}
-      {open === 'worldcup' && <BookWorldCup pool={pool} topAxis={profile.topAxis} onClose={() => setOpen(null)} />}
+      {/* 주소로 바로 들어왔는데 후보가 모자라면 열지 않는다 — 카드가 막던 조건을 여기서도 지킨다 */}
+      {open === 'gacha' && gachaPool.length > 0 && (
+        <BookGacha pool={gachaPool} axes={profile.axes} onClose={closePlay} />
+      )}
+      {open === 'worldcup' && canPlay && (
+        <BookWorldCup pool={pool} topAxis={profile.topAxis} onClose={closePlay} />
+      )}
     </>
   )
 }
