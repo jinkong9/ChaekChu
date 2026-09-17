@@ -19,6 +19,7 @@
 | **V6** | `V6__books_volume.sql` (09-15) | `books.vol`(원장 권차) · `set_isbn`(세트 대표 ISBN). 시리즈 판본 접기용. 적용 뒤 원장 파케이에서 백필 |
 | **V7** | `V7__books_series_lookup_index.sql` (09-16) | `(lower(title), publisher) WHERE vol IS NOT NULL` 인덱스 — 권차가 진짜 권차인지 가리는 조회용 |
 | **V8** | **`docs/sql/V8__user_dna_profiles.sql`** (09-16) | `user_dna_profiles` — Book DNA 프로필 저장(사용자당 1행, JSONB). 서재 지문이 같으면 AI 호출 생략, AI 장애 시 마지막 프로필 반환(계약 §5·§6) |
+| **V9** | **`docs/sql/V9__expand_recommendation_version_columns.sql`** (09-17) | 추천 스냅샷의 `feature_version`·`index_version` 을 `VARCHAR(128)` 로 확장. 긴 GMS 모델·색인 버전 때문에 스냅샷 저장이 실패하던 문제 수정 |
 
 **`book_texts` 는 만들지 않는다 (09-09 결정).** 소개문 소스가 정보나루·카카오 둘뿐이고 필요한 건 「임베딩 입력이 둘을 다 쓴다」는 것뿐이라, 표 대신
 `books.description_kakao`(두 번째 소개문) + `description_source` + `text_hash` 로 흡수했다. 소스가 셋이 되면(YES24 목차 등) 그때 표로 분리한다 — §4.1 의 DDL 은 그 시점의 참고안.

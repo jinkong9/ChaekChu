@@ -84,6 +84,24 @@ class RecommendationSnapshotTest {
 	}
 
 	@Test
+	@DisplayName("긴 AI 모델·색인 버전도 추천 스냅샷에 저장된다")
+	void savesLongModelAndIndexVersions() {
+		String modelVersion = "gms-text-embedding-3-small-20260909-1000";
+		String indexVersion = "d4l-small-candidates-450k-20260915-034700";
+		RecommendationResponse response = new RecommendationResponse(
+			"rec_snapshot_long_versions", Instant.parse("2026-09-17T00:00:00Z"), "PERSONALIZED", false, 0,
+			Map.of("semantic", 0.45), List.of(), modelVersion, indexVersion, List.of());
+
+		snapshots.save(userId, response);
+
+		Map<String, Object> deck = jdbc.queryForMap(
+			"select feature_version, index_version from recommendations where public_id = ?",
+			"rec_snapshot_long_versions");
+		assertThat(deck.get("feature_version")).isEqualTo(modelVersion);
+		assertThat(deck.get("index_version")).isEqualTo(indexVersion);
+	}
+
+	@Test
 	@DisplayName("AI 계약이 주는 이유 유형이 전부 들어간다 — V1 CHECK 목록에는 하나도 없던 값들이다")
 	void acceptsEveryAiReasonType() {
 		List<String> aiReasons = List.of("TAG_MATCH", "SEMANTIC", "CO_LOAN", "TRENDING", "STEADY",
