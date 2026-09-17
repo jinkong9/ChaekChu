@@ -38,7 +38,7 @@ import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
  * 가중치는 실제 카탈로그를 색인한 뒤 대표 검색어로 조정한다. 여기 숫자는 시작값이다.
  *
  * 검색 범위(scope, 09-17): ①~③ 에 들어가는 필드 목록만 범위에 따라 바뀐다(FIELDS). ALL 이 위의 식 그대로고,
- *   TITLE·AUTHOR·PUBLISHER 는 그 필드 하나의 형태소·bigram·완전일치만 본다 — 섞인 검색어를 못 받는 것은 의도된 동작이다.
+ *   TITLE·AUTHOR 는 그 필드 하나의 형태소·bigram·완전일치, PUBLISHER 는 형태소만 본다 — 섞인 검색어를 못 받는 것은 의도된 동작이다.
  *   매핑은 그대로라 재색인이 없다: title·authors·publisher 가 이미 각각 필드고 .ngram·.keyword 서브필드가 있다. ④·kdc 필터·정렬은 범위와 무관.
  *
  * KDC 필터(매핑 v4)는 점수에 끼지 않는 bool.filter 의 prefix 절이다 — categoryCode 가 keyword 라 "813.62" 가 "8"·"81"·"813" 에 걸린다.
@@ -57,18 +57,19 @@ public class ElasticsearchBookSearchRepository implements BookSearchRepository {
 	/**
 	 * 범위별로 점수식 ①~③ 에 들어가는 필드. ④(표지 가중)·정렬은 범위와 무관.
 	 * ALL 은 09-17 이전의 필드 목록 그대로다. 단일 필드 범위에서는 cross_fields 가 그 필드 하나의 match(AND)와 같다.
-	 * PUBLISHER 는 매핑에 bigram 서브필드가 없어 ② 가 비고, publisher.keyword 에 normalizer 가 없어 ③ 만 공백·대소문자를 가린다(맞추려면 매핑 v7).
+	 * PUBLISHER 는 매핑에 bigram 서브필드가 없어 ② 가 비고, ③ 도 두지 않는다 — publisher.keyword 에 normalizer 가 없어 "문학동네"/"문학 동네" 중 원문과 글자까지 같은 쪽만
+ *   ×10 으로 튀어, 같은 출판사 안에서 대출순으로 서야 할 책들이 표기 변형으로 두 층으로 갈린다. normalizer 를 붙인 매핑 v7 에서 되살릴 수 있다.
 	 */
 	private static final Map<SearchScope, ScopeFields> FIELDS = Map.of(
 		SearchScope.ALL, new ScopeFields(List.of("title^3", "authors^2", "publisher"), List.of("title.ngram^1.5", "authors.ngram"), "title.keyword"),
 		SearchScope.TITLE, new ScopeFields(List.of("title"), List.of("title.ngram"), "title.keyword"),
 		SearchScope.AUTHOR, new ScopeFields(List.of("authors"), List.of("authors.ngram"), "authors.keyword"),
-		SearchScope.PUBLISHER, new ScopeFields(List.of("publisher"), List.of(), "publisher.keyword"));
+		SearchScope.PUBLISHER, new ScopeFields(List.of("publisher"), List.of(), null));
 
 	/**
 	 * @param morpheme ① cross_fields AND 대상(가중치 포함 표기)
 	 * @param ngram    ② phrase 대상. 비면 ② 를 만들지 않는다
-	 * @param exact    ③ term 대상 keyword 필드
+	 * @param exact    ③ term 대상 keyword 필드. null 이면 ③ 을 만들지 않는다(PUBLISHER)
 	 */
 	private record ScopeFields(List<String> morpheme, List<String> ngram, String exact) {
 	}
@@ -123,7 +124,9 @@ public class ElasticsearchBookSearchRepository implements BookSearchRepository {
 				bool.should(s -> s.multiMatch(m -> m.query(q).fields(fields.ngram())
 					.type(TextQueryType.Phrase)));
 			}
-			bool.should(s -> s.term(t -> t.field(fields.exact()).value(q).boost(EXACT_BOOST)));
+			if (fields.exact() != null) {
+				bool.should(s -> s.term(t -> t.field(fields.exact()).value(q).boost(EXACT_BOOST)));
+			}
 			return bool.minimumShouldMatch("1");
 		}));
 
