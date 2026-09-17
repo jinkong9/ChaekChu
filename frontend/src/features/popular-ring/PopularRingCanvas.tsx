@@ -297,6 +297,23 @@ export default function PopularRingCanvas({
         () => canvas.removeEventListener('wheel', onWheel),
       )
 
+      // 라벨 크기는 뷰포트 폭(font-size 의 vw clamp)과 is-active 의 font-weight,
+      // 글꼴 로딩에만 반응한다. 매 프레임 offsetWidth 를 읽으면 바로 아래에서 하는
+      // style 쓰기와 번갈아 일어나 라벨 수만큼 강제 동기 레이아웃이 발생하므로,
+      // 실제로 바뀔 때만 ResizeObserver 로 받아 둔다.
+      const labelSizes = new Map<Element, { width: number; height: number }>()
+      const labelObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const box = entry.borderBoxSize?.[0]
+          const element = entry.target as HTMLElement
+          labelSizes.set(entry.target, box
+            ? { width: box.inlineSize, height: box.blockSize }
+            : { width: element.offsetWidth, height: element.offsetHeight })
+        }
+      })
+      labelRefs.current.forEach((label) => { if (label) labelObserver.observe(label) })
+      listeners.push(() => labelObserver.disconnect())
+
       nextApp.ticker.add((ticker) => {
         const dt = Math.min(ticker.deltaMS / 1000, 0.05)
         const snapTarget = snapTargetRef.current
@@ -397,8 +414,11 @@ export default function PopularRingCanvas({
           const normalLength = Math.hypot(cosine / radiusX, sine / radiusY) || 1
           const normalX = (cosine / radiusX) / normalLength
           const normalY = (sine / radiusY) / normalLength
-          const labelWidth = label.offsetWidth
-          const labelHeight = label.offsetHeight
+          const measured = labelSizes.get(label)
+          // 아직 관측 전인 라벨은 이번 프레임을 건너뛴다 — is-ready 도 그만큼 미뤄진다.
+          if (!measured) return
+          const labelWidth = measured.width
+          const labelHeight = measured.height
           const labelHalfExtent = Math.abs(normalX) * labelWidth * 0.5
             + Math.abs(normalY) * labelHeight * 0.5
 
