@@ -95,7 +95,6 @@ export default function DnaEvidenceB({
       <section className="dnar-ev">
         <div className="dnar-sechead">
           <h2 className="dnar-title">당신의 독서타입</h2>
-          <span className="dnar-eyebrow">{profile.type.code}</span>
         </div>
         <div className="dnar-ev__type" style={{ ['--tone' as string]: tones?.[0] ?? undefined }}>
           <div className="dnar-ev__type-main">
