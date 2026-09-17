@@ -355,17 +355,31 @@ export const handlers = [
     const url = new URL(request.url)
     const q = url.searchParams.get('q')?.trim() ?? ''
     const kdc = url.searchParams.get('kdc') ?? ''
+    // §4.1 scope — 생략하면 all. 서버는 publisher 도 받지만 mock 카탈로그에 출판사가 없어 여기선 세 값만 흉내 낸다
+    const scope = url.searchParams.get('scope') ?? 'all'
     const page = Number(url.searchParams.get('page') ?? 0)
     const size = Math.min(50, Number(url.searchParams.get('size') ?? 20))
     if (!q && !kdc) return HttpResponse.json({ code: 'VALIDATION_FAILED', message: 'q 또는 kdc 가 필요합니다.' }, { status: 400 })
+    if (!['all', 'title', 'author', 'publisher'].includes(scope)) {
+      return HttpResponse.json({ code: 'VALIDATION_FAILED', message: '검색 범위가 올바르지 않습니다.',
+        details: { fields: [{ field: 'scope', reason: 'all · title · author · publisher 중 하나여야 합니다.' }] } }, { status: 400 })
+    }
     // mock 카탈로그엔 KDC 코드가 없어 대분류 라벨로 대신 거른다(§4.1 kdc prefix 의 1자리만 흉내). 서버는 books.category_code prefix
     const KDC_LABEL: Record<string, string> = { '1': '인문', '3': '사회', '4': '과학', '8': '문학', '9': '역사' }
     // 중분류(2자리)는 category 의 두 번째 마디로 흉내낸다 — "문학 > 독일문학" 에 '독일' 이 있으면 85. 3자리는 2자리처럼 본다
     const MID_LABEL: Record<string, string> = { '81': '한국', '82': '중국', '83': '일본', '84': '영미', '85': '독일', '86': '프랑스' }
     const kdcLabel = KDC_LABEL[kdc[0]]
     const midLabel = kdc.length >= 2 ? MID_LABEL[kdc.slice(0, 2)] : undefined
+    // 범위에 따라 검색어를 댈 자리가 달라진다 — 좁힌 범위는 그 필드 하나만 본다(서버와 같은 의도)
+    const matches = (bk: BookSummary) => {
+      if (!q) return true
+      if (scope === 'title') return bk.title.includes(q)
+      if (scope === 'author') return (bk.author ?? '').includes(q)
+      if (scope === 'publisher') return false // mock 카탈로그에 출판사가 없다
+      return bk.title.includes(q) || (bk.author ?? '').includes(q)
+    }
     const hits = CATALOG.map(withCategory)
-      .filter((bk) => !q || bk.title.includes(q) || (bk.author ?? '').includes(q))
+      .filter(matches)
       .filter((bk) => !kdc || (kdcLabel ? (bk.category ?? '').startsWith(kdcLabel) : false))
       .filter((bk) => !midLabel || (bk.category ?? '').includes(midLabel))
     const items: ServerBookSummary[] = hits.slice(page * size, page * size + size).map(toServerBook)
