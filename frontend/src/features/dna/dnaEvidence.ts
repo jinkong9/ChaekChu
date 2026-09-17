@@ -25,12 +25,6 @@ export interface AuthorCount {
   count: number
 }
 
-export interface ReadCover {
-  bookId: string
-  title: string
-  coverUrl: string
-}
-
 const readOnly = (records: DnaBookResponse[]) => records.filter((b) => b.status === 'READ')
 
 /** 서버 축 순서를 그대로 두고 권수만 얹는다. 도형과 목록의 순서가 어긋나면 눈이 둘을 잇지 못한다. */
@@ -84,13 +78,4 @@ export function topAuthors(records: DnaBookResponse[], limit = 4): AuthorCount[]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([name, count]) => ({ name, count }))
-}
-
-/** 표지 벽에 깔 완독 책 — 최근에 끝낸 것부터, 완독일이 없는 책은 뒤로 */
-export function readCovers(records: DnaBookResponse[], limit = 42): ReadCover[] {
-  return readOnly(records)
-    .filter((b): b is DnaBookResponse & { coverUrl: string } => !!b.coverUrl)
-    .sort((a, b) => (b.finishedDate ?? '').localeCompare(a.finishedDate ?? ''))
-    .slice(0, limit)
-    .map((b) => ({ bookId: b.bookId, title: b.title, coverUrl: b.coverUrl }))
 }

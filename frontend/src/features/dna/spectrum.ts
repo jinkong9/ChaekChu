@@ -62,6 +62,32 @@ export function displayTone(color: CoverColor): string {
   return hslToHex(color.h, color.s, l)
 }
 
+/** 막대·레이더 채움에 쓸 색 하나를 고른다.
+ *
+ *  줄마다 다른 색을 칠하면 무지개가 되는데, 표지 대표색은 채도가 고르지 않아 그 무지개가
+ *  대개 진흙색으로 끝난다. 값의 차이는 길이가 이미 말하므로 색까지 나눌 이유가 없다 —
+ *  한 화면에 강조색 하나만 두고, 그 하나는 표지에서 가장 선명한 색으로 고른다.
+ *
+ *  채도가 바닥이면(표지가 전부 무채색) 색을 억지로 만들지 않고 잉크로 돌아간다. */
+const ACCENT_MIN_SATURATION = 0.22
+/** 종이 위에서 가장 또렷하게 읽히는 밝기 — 이보다 밝으면 묻히고, 어두우면 잉크와 구별되지 않는다 */
+const ACCENT_IDEAL_LIGHTNESS = 0.42
+
+export function accentOf(hexes: readonly string[] | null | undefined): string | null {
+  if (!hexes || hexes.length === 0) return null
+  let best: { hex: string; score: number } | null = null
+  for (const hex of hexes) {
+    const m = /^#([0-9a-f]{6})$/i.exec(hex)
+    if (!m) continue
+    const n = parseInt(m[1], 16)
+    const [, s, l] = rgbToHsl((n >> 16) & 255, (n >> 8) & 255, n & 255)
+    if (s < ACCENT_MIN_SATURATION) continue
+    const score = s * (1 - Math.abs(l - ACCENT_IDEAL_LIGHTNESS))
+    if (!best || score > best.score) best = { hex, score }
+  }
+  return best?.hex ?? null
+}
+
 const imageCache = new Map<string, Promise<CoverColor>>()
 
 /** 표지가 전부 무채색일 때의 폴백 (종이 계열, placeholder보다 살짝 짙게) */

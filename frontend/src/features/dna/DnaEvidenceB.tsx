@@ -3,22 +3,16 @@
  *  ① 취향의 지도 — 도형 옆에 권수를 붙인다. 지분 100%가 다섯 권인지 백 권인지는 점수만으로 알 수 없다.
  *  ② 독서타입 — 키워드를 타입 칸으로 들인다. 키워드는 타입을 설명하는 재료지 따로 설 칸이 아니다.
  *  ③ 독서 습관 — 줄로 읽는 값 옆에 작은 그림 둘(월별 완독·별점 분포)을 둔다.
- *  ④ 읽은 책 — 표지를 깐다. "완독 N권"이라는 말의 근거가 눈에 보이는 자리다.
  *
  *  지금 안에서 비어 보이던 자리는 여백이 아니라 쓰지 않은 데이터였다. 서버는 이미 다 보내 주고 있다. */
 import { useMemo, type ReactNode } from 'react'
-import { Link } from 'react-router'
 import type { DnaBookResponse, DnaScore } from '../../api/dna'
 import { tagLabel, useTags } from '../../lib/useTags'
-import { coverAtWidth } from '../../lib/coverUrl'
 import type { DnaProfile } from './dnaProfile'
-import { axisCounts, monthlyFinished, ratingSpread, readCovers, topAuthors } from './dnaEvidence'
+import { accentOf } from './spectrum'
+import { axisCounts, monthlyFinished, ratingSpread, topAuthors } from './dnaEvidence'
 import type { Habit } from './habits'
 import Radar from './DnaRadar'
-
-/** 표지 벽에 까는 최대 장수 — 이보다 많으면 지면이 표지에 먹힌다 */
-const WALL_LIMIT = 42
-const WALL_COVER_W = 68
 
 export default function DnaEvidenceB({
   profile,
@@ -47,7 +41,6 @@ export default function DnaEvidenceB({
   const months = useMemo(() => monthlyFinished(records), [records])
   const stars = useMemo(() => ratingSpread(records), [records])
   const authors = useMemo(() => topAuthors(records), [records])
-  const covers = useMemo(() => readCovers(records, WALL_LIMIT), [records])
 
   const live = axes.filter((a) => a.share > 0)
   const empty = axes.filter((a) => a.share === 0)
@@ -55,6 +48,8 @@ export default function DnaEvidenceB({
   const monthPeak = Math.max(...months.map((m) => m.count), 1)
   const starPeak = Math.max(...stars, 1)
   const topKeyword = keywords[0]?.score ?? 0
+  // 한 화면에 강조색 하나 — 표지에서 가장 선명한 색을 골라 막대와 레이더가 같은 색을 쓴다
+  const accent = accentOf(tones) ?? 'var(--eo-ink)'
 
   return (
     <>
@@ -64,13 +59,13 @@ export default function DnaEvidenceB({
           <h2 className="dnar-title">취향의 지도</h2>
         </div>
         <div className="dnar-ev__map">
-          <Radar axes={profile.axes} tone={tones?.[0]} />
+          <Radar axes={profile.axes} tone={accent} />
           <div className="dnar-ev__axes">
-            {live.map((a, i) => (
+            {live.map((a) => (
               <div key={a.label} className="dnar-ev__axis">
                 <span className="dnar-ev__axis-label">{a.label}</span>
                 <span className="dnar-ev__axis-bar">
-                  <span style={{ width: `${(a.share / peakShare) * 100}%`, background: tones?.[i] ?? 'var(--eo-ink)' }} />
+                  <span style={{ width: `${(a.share / peakShare) * 100}%`, background: accent }} />
                 </span>
                 <span className="dnar-ev__axis-value">
                   {a.count > 0 && <b>{a.count}권</b>} {a.share}%
@@ -96,7 +91,7 @@ export default function DnaEvidenceB({
         <div className="dnar-sechead">
           <h2 className="dnar-title">당신의 독서타입</h2>
         </div>
-        <div className="dnar-ev__type" style={{ ['--tone' as string]: tones?.[0] ?? undefined }}>
+        <div className="dnar-ev__type" style={{ ['--tone' as string]: accent }}>
           <div className="dnar-ev__type-main">
             <h3 className="dnar-type__name">{profile.type.name}</h3>
             <p className="dnar-ev__quote">{profile.oneLine}</p>
@@ -166,7 +161,7 @@ export default function DnaEvidenceB({
                     <span className="dnar-ev__bar-track">
                       <span
                         className="dnar-ev__bar-fill"
-                        style={{ height: `${(m.count / monthPeak) * 100}%`, background: tones?.[1] ?? 'var(--eo-ink)' }}
+                        style={{ height: `${(m.count / monthPeak) * 100}%`, background: accent }}
                       />
                     </span>
                     <span className="dnar-ev__bar-label">{m.label}</span>
@@ -185,7 +180,7 @@ export default function DnaEvidenceB({
                     <span className="dnar-ev__bar-track">
                       <span
                         className="dnar-ev__bar-fill"
-                        style={{ height: `${(count / starPeak) * 100}%`, background: tones?.[3] ?? 'var(--eo-ink)' }}
+                        style={{ height: `${(count / starPeak) * 100}%`, background: accent }}
                       />
                     </span>
                     <span className="dnar-ev__bar-label">{i + 1}점</span>
@@ -210,23 +205,6 @@ export default function DnaEvidenceB({
         )}
       </section>
 
-      {/* 4. 이 리포트를 만든 책들 */}
-      {covers.length > 0 && (
-        <section className="dnar-ev">
-          <div className="dnar-sechead">
-            <h2 className="dnar-title">이 리포트를 만든 책들</h2>
-          </div>
-          <ul className="dnar-ev__wall">
-            {covers.map((c) => (
-              <li key={c.bookId}>
-                <Link to={`/books/${c.bookId}`} title={c.title}>
-                  <img src={coverAtWidth(c.coverUrl, WALL_COVER_W) ?? c.coverUrl} alt={c.title} loading="lazy" decoding="async" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </>
   )
 }

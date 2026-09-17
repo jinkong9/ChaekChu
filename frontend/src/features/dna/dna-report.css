@@ -119,17 +119,29 @@
   letter-spacing: 0.04em;
   color: var(--eo-ink);
 }
+/* 문장은 평서체로 눕히고 강조 구절 하나만 굵게 — 한 문장에 강조가 둘이면 어느 쪽도 강조가 아니다 */
 .dnar-hero-c__title.is-bcopy {
   margin: 22px 0 26px;
   font-family: var(--eo-font);
   font-size: clamp(36px, 4.9vw, 70px);
-  font-weight: 550;
+  font-weight: 400;
   line-height: 1.16;
   letter-spacing: -0.065em;
   word-break: keep-all;
 }
-/* 강조 구절만 한글 세리프 */
-.dnar-hero-c__title.is-bcopy em { font-family: var(--font-serif-ko); font-style: normal; font-weight: 500; }
+.dnar-hero-c__title.is-bcopy em { font-family: var(--font-serif-ko); font-style: normal; font-weight: 600; }
+
+/* 세리프 안 — 오른쪽 타입 이름이 세리프면 왼쪽 문장도 같은 얼굴이어야 한 지면이 된다.
+   Noto Serif KR 은 500·600 만 받아 두었으므로 그 두 단으로 평서·강조를 나눈다. */
+.dnar-hero-c__title.is-bcopy.is-serif {
+  font-family: var(--font-serif-ko);
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  /* 한글 세리프는 같은 크기에서 산세리프보다 폭이 넓다 — 왼쪽 칸(약 500px)에 두 줄로 앉도록 한 단 내린다 */
+  font-size: clamp(30px, 3.2vw, 48px);
+  line-height: 1.32;
+}
+.dnar-hero-c__title.is-bcopy.is-serif em { font-weight: 600; }
 
 /* 한글 제목 안 — 라틴 세리프 대신 한글 세리프로. 오른쪽 한글과 획의 결이 맞는다 */
 .dnar-hero-c__visual { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
@@ -262,26 +274,6 @@
 .dnar-ev__authors li { font-size: 13px; letter-spacing: -0.02em; }
 .dnar-ev__authors b { font-weight: 650; }
 
-/* ④ 읽은 책 벽 — 표지가 근거다 */
-.dnar-ev__wall {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
-  gap: 12px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.dnar-ev__wall img {
-  width: 100%;
-  aspect-ratio: 0.7;
-  object-fit: cover;
-  background: var(--eo-placeholder);
-  outline: 1px solid rgba(0, 0, 0, 0.08);
-  transition: transform var(--eo-motion) ease-out;
-}
-.dnar-ev__wall a:hover img { transform: translateY(-3px); }
-.dnar-ev__wall a:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
-
 @media (max-width: 1080px) {
   .dnar-ev__map,
   .dnar-ev__type,
@@ -290,12 +282,7 @@
 @media (max-width: 640px) {
   .dnar-ev { margin-top: 40px; }
   .dnar-ev__type { padding: 22px 18px; }
-  .dnar-ev__wall { grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 8px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .dnar-ev__wall a:hover img { transform: none; }
-}
-
 /* ---------- 독서 습관 ----------
    취향(무엇을 읽나) 다음에 오는 버릇(어떻게 읽나). 네 줄뿐이라 카드로 감싸지 않고
    규칙선만으로 나눈다 — 지면이 이미 패널로 가득해서 상자를 더하면 무거워진다.

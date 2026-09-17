@@ -17,7 +17,7 @@ import { useDna } from '../../lib/useDna'
 import { isDnaUnavailable, type DnaBookResponse, type DnaScore } from '../../api/dna'
 import { tagLabel, useTags } from '../../lib/useTags'
 import type { DnaBook } from './dnaTypes'
-import { displayTone, extractCoverColor } from './spectrum'
+import { accentOf, displayTone, extractCoverColor } from './spectrum'
 import { axisLabel, profileFromApi, type DnaProfile } from './dnaProfile'
 import { useGachaWindow } from './useGachaPool'
 import { buildHabits, type Habit } from './habits'
@@ -77,13 +77,15 @@ function HeroBasis({ basis }: { basis: Basis }) {
  *
  *  `serif` 는 그 타입 이름을 한글 세리프로 쓴다(리포트 본문의 독서타입 이름과 같은 얼굴). */
 function Hero({ profile, tones, basis, serif }: { profile: DnaProfile; tones: string[] | null; basis: Basis; serif: boolean }) {
+  // 다섯 줄을 다섯 색으로 칠하면 무지개가 된다. 값의 차이는 길이가 말하므로 색은 하나면 된다
+  const accent = accentOf(tones) ?? 'var(--eo-ink)'
   return (
     <section className="dnar-hero-c" aria-label="BOOK DNA">
       <div className="dnar-hero-c__main">
         <div className="dnar-hero-c__intro">
           {/* 제호가 눈썹 자리를 대신한다 — 둘을 같이 세우면 머리가 두 개다 */}
           <span className="dnar-hero-c__mark">BOOK DNA</span>
-          <h1 className="dnar-hero-c__title is-bcopy">
+          <h1 className={`dnar-hero-c__title is-bcopy ${serif ? 'is-serif' : ''}`}>
             읽은 책이 모여
             <br />
             <em>당신의 취향</em>이 됩니다.
@@ -99,10 +101,10 @@ function Hero({ profile, tones, basis, serif }: { profile: DnaProfile; tones: st
         </div>
       </div>
       <div className="dnar-hero-c__metrics">
-        {profile.metrics.map((metric, i) => (
+        {profile.metrics.map((metric) => (
           <div className="dnar-hero-c__metric" key={metric.key}>
             <div><span>{metric.key}</span><strong>{metric.value}%</strong></div>
-            <span className="dnar-hero-c__track"><span style={{ width: `${metric.value}%`, background: tones?.[i] ?? 'var(--eo-ink)' }} /></span>
+            <span className="dnar-hero-c__track"><span style={{ width: `${metric.value}%`, background: accent }} /></span>
           </div>
         ))}
       </div>
@@ -414,7 +416,7 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
         <div className="dnar-bottom">
           <section className="dnar-panel">
             <h2 className="dnar-title">당신의 취향 한눈에 보기</h2>
-            <Radar axes={profile.axes} tone={tones?.[0]} />
+            <Radar axes={profile.axes} tone={accentOf(tones) ?? undefined} />
             {/* 고른 것과 읽은 것 — 온보딩에서 고른 관심사와 실제 완독 분포는 자주 갈린다. 그 간극을 보여 주는 게 리포트의 몫이다 */}
             {(declared.length > 0 || actual.length > 0) && (
               <dl className="dnar-compare">
@@ -452,7 +454,7 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
             </figure>
           </section>
 
-          <section className="dnar-panel dnar-panel--type" style={{ ['--tone' as string]: tones?.[0] ?? undefined }}>
+          <section className="dnar-panel dnar-panel--type" style={{ ['--tone' as string]: accentOf(tones) ?? undefined }}>
             <div className="dnar-type__head">
               <span className="dnar-utility">당신의 독서타입</span>
               <span className="dnar-eyebrow">{profile.type.code}</span>
