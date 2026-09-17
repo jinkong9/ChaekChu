@@ -126,8 +126,9 @@ function HeroB({ profile, tones, basis }: { profile: DnaProfile; tones: string[]
  *  serif  오른쪽을 한글 세리프로 (본문 독서타입 이름과 같은 얼굴)
  *  small  왼쪽 제호를 워드마크 크기로 낮춰 주인공을 오른쪽에 넘긴다
  *  ko     왼쪽을 한글 헤드라인으로 갈아 끼운다 (제호는 사라진다)
- *  both   세리프 + 제호 축소 */
-export type HeroCType = 'serif' | 'small' | 'ko' | 'both' | null
+ *  both   세리프 + 제호 축소
+ *  bcopy  왼쪽을 B안 문구로 — 제호는 그 위에 작은 세리프 낙관으로 물러난다 */
+export type HeroCType = 'serif' | 'small' | 'ko' | 'both' | 'bcopy' | null
 
 function HeroC({ profile, tones, basis, typeVariant }: { profile: DnaProfile; tones: string[] | null; basis: Basis; typeVariant: HeroCType }) {
   const serif = typeVariant === 'serif' || typeVariant === 'both'
@@ -136,8 +137,19 @@ function HeroC({ profile, tones, basis, typeVariant }: { profile: DnaProfile; to
     <section className="dnar-hero-c" aria-label="BOOK DNA C안">
       <div className="dnar-hero-c__main">
         <div className="dnar-hero-c__intro">
-          <span className="dnar-eyebrow">MY READING ANALYSIS</span>
-          {typeVariant === 'ko' ? (
+          {/* B안 문구 안에서는 제호가 눈썹 자리를 대신한다 — 둘을 같이 세우면 머리가 두 개다 */}
+          {typeVariant === 'bcopy' ? (
+            <span className="dnar-hero-c__mark">BOOK DNA</span>
+          ) : (
+            <span className="dnar-eyebrow">MY READING ANALYSIS</span>
+          )}
+          {typeVariant === 'bcopy' ? (
+            <h1 className="dnar-hero-c__title is-bcopy">
+              읽은 책이 모여
+              <br />
+              <em>당신의 취향</em>이 됩니다.
+            </h1>
+          ) : typeVariant === 'ko' ? (
             <h1 className="dnar-hero-c__title is-ko">
               당신이 읽은 것들이
               <br />
@@ -150,7 +162,10 @@ function HeroC({ profile, tones, basis, typeVariant }: { profile: DnaProfile; to
               DNA
             </h1>
           )}
-          <p className="dnar-hero-c__sub">흩어져 있던 글자들이 모여<br />당신의 독서타입을 씁니다.</p>
+          {/* 머리말이 이미 "모여 … 됩니다"를 말하므로 같은 말을 한 번 더 하지 않는다 */}
+          {typeVariant !== 'bcopy' && (
+            <p className="dnar-hero-c__sub">흩어져 있던 글자들이 모여<br />당신의 독서타입을 씁니다.</p>
+          )}
           <HeroBasis basis={basis} />
         </div>
         <div className="dnar-hero-c__visual">
@@ -361,7 +376,7 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
 
   /** C안 안에서 글자 짜임을 다시 고른다(?htype=) */
   const rawType = params.get('htype')
-  const heroCType = (['serif', 'small', 'ko', 'both'] as const).find((v) => v === rawType) ?? null
+  const heroCType = (['serif', 'small', 'ko', 'both', 'bcopy'] as const).find((v) => v === rawType) ?? null
   const selectHeroType = (variant: HeroCType) => {
     const next = new URLSearchParams(params)
     if (variant === null) next.delete('htype')
@@ -460,6 +475,7 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
                 ['small', '제호 축소'],
                 ['ko', '한글 제목'],
                 ['both', '세리프+축소'],
+                ['bcopy', 'B안 문구'],
               ] as const).map(([variant, label]) => (
                 <button
                   key={label}
