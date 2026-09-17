@@ -262,7 +262,7 @@ const HABIT_ART: Record<string, ReactNode> = {
 }
 
 /** 완독 기록에서 센 네 줄. 표본이 얇은 줄은 habits.ts 가 아예 만들지 않으므로 여기서는 받은 것만 그린다. */
-function Habits({ habits, readCount, capped }: { habits: Habit[]; readCount: number; capped: boolean }) {
+function Habits({ habits }: { habits: Habit[] }) {
   return (
     <section className="dnar-habits">
       <div className="dnar-sechead">
@@ -270,9 +270,6 @@ function Habits({ habits, readCount, capped }: { habits: Habit[]; readCount: num
           <span className="dnar-eyebrow">Reading Habits</span>
           <h2 className="dnar-title dnar-habits__title">독서 습관</h2>
         </div>
-        <span className="dnar-utility">
-          완독 {readCount}권의 기록에서{capped ? ' (최근 200권 기준)' : ''}
-        </span>
       </div>
       <dl className="dnar-habits__list">
         {habits.map((h) => (
@@ -565,7 +562,6 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
           habits={habits}
           keywords={keywords}
           declaredTags={declaredTags}
-          readCount={basis.readCount}
           tones={tones}
           habitArt={HABIT_ART}
         />
@@ -658,7 +654,7 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
 
         {/* ── 독서 습관 — 취향(무엇을) 다음에 오는 버릇(어떻게) ── */}
         {habits.length > 0 && (
-          <Habits habits={habits} readCount={basis.readCount} capped={records.length >= 200} />
+          <Habits habits={habits} />
         )}
         </>
       )}
@@ -667,7 +663,6 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
       <section className="dnar-plays">
         <div className="dnar-sechead">
           <h2 className="dnar-title">리포트를 덮고, 한 번 해 볼까요?</h2>
-          <span className="dnar-utility">둘 다 지금 바로 할 수 있어요</span>
         </div>
         <ul className="dnar-tests">
           {TESTS.map((t, i) => (

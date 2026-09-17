@@ -26,7 +26,6 @@ export default function DnaEvidenceB({
   habits,
   keywords,
   declaredTags,
-  readCount,
   tones,
   habitArt,
 }: {
@@ -37,7 +36,6 @@ export default function DnaEvidenceB({
   /** 점수를 가진 원본 키워드 — 칩의 농도를 순서가 아니라 점수로 정한다 */
   keywords: DnaScore[]
   declaredTags: string[]
-  readCount: number
   tones: string[] | null
   /** 습관 줄의 선 그림 — 지금 안과 같은 표를 쓴다 */
   habitArt: Record<string, ReactNode>
@@ -64,7 +62,6 @@ export default function DnaEvidenceB({
       <section className="dnar-ev">
         <div className="dnar-sechead">
           <h2 className="dnar-title">취향의 지도</h2>
-          <span className="dnar-utility">완독 {readCount}권이 그린 모양</span>
         </div>
         <div className="dnar-ev__map">
           <Radar axes={profile.axes} tone={tones?.[0]} />
@@ -142,7 +139,6 @@ export default function DnaEvidenceB({
             <span className="dnar-eyebrow">Reading Habits</span>
             <h2 className="dnar-title dnar-habits__title">독서 습관</h2>
           </div>
-          <span className="dnar-utility">완독 {readCount}권의 기록에서</span>
         </div>
         <div className="dnar-ev__habits">
           <dl className="dnar-ev__habit-list">
@@ -220,9 +216,6 @@ export default function DnaEvidenceB({
         <section className="dnar-ev">
           <div className="dnar-sechead">
             <h2 className="dnar-title">이 리포트를 만든 책들</h2>
-            <span className="dnar-utility">
-              완독 {readCount}권{covers.length < readCount ? ` 중 최근 ${covers.length}권` : ''} · 최근에 끝낸 순서
-            </span>
           </div>
           <ul className="dnar-ev__wall">
             {covers.map((c) => (
