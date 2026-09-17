@@ -1,19 +1,24 @@
-import { useEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Routes, Route, Navigate } from 'react-router'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import RouteFallback from './components/RouteFallback'
 import { useAuthStore } from './stores/authStore'
 import LandingPage from './pages/LandingPage'
-import OnboardingPage from './pages/OnboardingPage'
-import HomePage from './pages/HomePage'
-import RecommendPage from './pages/RecommendPage'
-import TunePage from './pages/TunePage'
-import SearchPage from './pages/SearchPage'
-import BookDetailPage from './pages/BookDetailPage'
-import LibraryPage from './pages/LibraryPage'
-import DnaPage from './pages/DnaPage'
 import OAuthCallbackPage from './pages/OAuthCallbackPage'
 import { api } from './api/client'
+
+/* 라우트별 청크. 처음 열리는 두 곳(랜딩·OAuth 착지)만 즉시 필요하고, 나머지는
+ * 그 화면으로 갈 때 받는다. 한 덩어리로 묶어 두면 랜딩만 보러 온 사람도
+ * 서재·BOOK DNA·검색 코드를 전부 내려받는다. */
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'))
+const HomePage = lazy(() => import('./pages/HomePage'))
+const RecommendPage = lazy(() => import('./pages/RecommendPage'))
+const TunePage = lazy(() => import('./pages/TunePage'))
+const SearchPage = lazy(() => import('./pages/SearchPage'))
+const BookDetailPage = lazy(() => import('./pages/BookDetailPage'))
+const LibraryPage = lazy(() => import('./pages/LibraryPage'))
+const DnaPage = lazy(() => import('./pages/DnaPage'))
 
 /** 앱 시작 시 세션 복원 — 저장된 토큰이 있으면 GET /users/me로 닉네임·온보딩 상태를
  *  서버 기준으로 다시 맞춘다 (명세 §9 #3: 새로고침·다기기 일관성, onboardingStatus가 진실).
@@ -50,7 +55,7 @@ export default function App() {
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       {/* 온보딩은 토큰만 요구한다 — 온보딩 완료 여부까지 보면 자기 자신으로 되돌아오는 고리가 생긴다 */}
       <Route element={<ProtectedRoute requireOnboarded={false} />}>
-        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/onboarding" element={<Suspense fallback={<RouteFallback />}><OnboardingPage /></Suspense>} />
       </Route>
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>

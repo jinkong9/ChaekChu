@@ -1,6 +1,8 @@
+import { Suspense } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuthStore } from '../stores/authStore'
 import FinishReadModal from './FinishReadModal'
+import RouteFallback from './RouteFallback'
 
 /** 공통 GNB 레이아웃 — 메뉴: 홈 / 내 서재 / BOOK DNA / 검색
  *  DESIGN.md Global navigation — 종이 위 한 줄, 화면 전체에서 규칙선은 이 헤더 밑 하나뿐이다.
@@ -40,7 +42,10 @@ export default function Layout() {
           <button className="eo-link" onClick={() => { logout(); navigate('/') }}>로그아웃</button>
         </div>
       </header>
-      <Outlet />
+      {/* 라우트 청크를 받는 동안에도 헤더는 남는다 — Routes 바깥에 두면 GNB 까지 사라진다 */}
+      <Suspense fallback={<RouteFallback />}>
+        <Outlet />
+      </Suspense>
       {/* 완독 기록 모달 — 상세·서재 어디서 READ 로 바꿔도 여기 한 곳에서 뜬다 */}
       <FinishReadModal />
     </div>
