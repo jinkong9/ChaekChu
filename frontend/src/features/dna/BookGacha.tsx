@@ -8,11 +8,25 @@
  *  "이게 내 취향에서 얼마나 먼 자리인지"를 알려 준다. 그래야 랜덤이 그냥 랜덤으로 끝나지 않는다.
  *
  *  돌아가는 표지는 연출일 뿐이고, 당첨은 뽑기를 누른 순간 이미 정해져 있다. */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DnaBook } from './dnaTypes'
 import { axisOf, type DnaProfile } from './dnaProfile'
 import { coverAtWidth } from '../../lib/coverUrl'
 import DnaDialog from './DnaDialog'
+import GachaMachine from './GachaMachine'
+
+/** 유리구에 보이는 캡슐 수 — GachaMachine 의 자리 수와 같다 */
+const CAPSULE_COUNT = 14
+
+/** 캡슐에 넣을 표지를 고르기 위한 섞기 (Fisher–Yates) */
+function shuffled<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
 
 /** 표지가 돌아가는 시간(ms)과 한 장이 머무는 시간(ms) */
 const SPIN_MS = 900
@@ -40,6 +54,8 @@ export default function BookGacha({
   axes: DnaProfile['axes']
   onClose: () => void
 }) {
+  // 유리구를 채울 표지 — 열 때 한 번만 고른다. 매 렌더마다 다시 뽑으면 캡슐이 깜빡인다
+  const capsuleCovers = useMemo(() => shuffled(pool).slice(0, CAPSULE_COUNT).map((b) => b.coverUrl), [pool])
   const [phase, setPhase] = useState<Phase>('idle')
   const [book, setBook] = useState<DnaBook | null>(null)
   /** 돌아가는 동안 스쳐 보여 줄 표지 */
@@ -89,13 +105,15 @@ export default function BookGacha({
         {phase === 'idle' ? (
           <>
             <p className="dnar-dlg__ask">취향은 잠시 접어 두고, 한 권을 뽑아 볼까요?</p>
+            {/* 기계가 곧 버튼이다 — 손잡이를 누르면 뽑힌다 */}
+            <GachaMachine covers={capsuleCovers} onPull={pull} />
             <p className="dnar-gacha__lead">
               책 {pool.length}권에서 <b>가중치 없이</b> 한 권을 뽑습니다.
               <br />
               추천이 아니라 우연입니다 — 그래서 취향 밖의 책이 나올 수 있어요.
             </p>
             <button type="button" className="dnar-gacha__pull" onClick={pull}>
-              뽑기
+              손잡이 돌리기
             </button>
           </>
         ) : (

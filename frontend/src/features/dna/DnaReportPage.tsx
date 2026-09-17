@@ -138,12 +138,17 @@ function Radar({ axes, tone }: { axes: DnaProfile['axes']; tone?: string }) {
 const TEST_ART: Record<string, ReactNode> = {
   gacha: (
     <>
-      {/* 뽑기통에서 캡슐 하나가 굴러 나온다 */}
-      <path d="M34 40 a18 18 0 1 1 36 0" fill="none" stroke="currentColor" strokeWidth="1" opacity=".55" />
-      <line x1="30" y1="40" x2="74" y2="40" stroke="currentColor" strokeWidth="1" opacity=".55" />
-      <circle cx="52" cy="27" r="5" fill="currentColor" opacity=".3" />
-      <circle cx="94" cy="34" r="7" fill="currentColor" opacity=".85" />
-      <path d="M80 40 q7 2 14 0" fill="none" stroke="currentColor" strokeWidth="1" opacity=".35" />
+      {/* 대화상자에 세워 둘 그 기계의 축소판 — 유리구·손잡이·배출구, 그리고 굴러 나온 캡슐 하나 */}
+      <rect x="86" y="1.5" width="17" height="4" rx="2" fill="none" stroke="currentColor" strokeWidth="1" opacity=".55" />
+      <circle cx="94.5" cy="17" r="11.5" fill="none" stroke="currentColor" strokeWidth="1" opacity=".55" />
+      <circle cx="91" cy="14" r="3" fill="currentColor" opacity=".28" />
+      <circle cx="98.5" cy="20" r="3.5" fill="currentColor" opacity=".2" />
+      <line x1="84" y1="7.5" x2="105" y2="7.5" stroke="currentColor" strokeWidth="1" opacity=".55" />
+      <path d="M83 30h23l3 12H80z" fill="none" stroke="currentColor" strokeWidth="1" opacity=".55" />
+      <circle cx="94.5" cy="34.5" r="3.4" fill="none" stroke="currentColor" strokeWidth="1" opacity=".7" />
+      <line x1="92" y1="34.5" x2="97" y2="34.5" stroke="currentColor" strokeWidth="1.2" opacity=".8" />
+      <path d="M78 41q-13 3 -22-2" fill="none" stroke="currentColor" strokeWidth="1" opacity=".3" strokeDasharray="2 3" />
+      <circle cx="50" cy="35" r="6.5" fill="currentColor" opacity=".85" />
     </>
   ),
   worldcup: (
