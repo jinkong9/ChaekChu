@@ -474,6 +474,148 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 })
   }),
 
+  // BOOK DNA (BOOK_DNA_API_CONTRACT §2) — 실서버는 FastAPI 가 계산한다.
+  // mock 은 그 계산을 흉내 내 같은 형태로 돌려준다: 백엔드·AI 를 띄우지 않고도 이 화면을 만질 수 있어야 한다.
+  // 재료는 위의 library — 서재에 책을 담거나 별점을 고치면 DNA 도 따라 바뀐다.
+  http.get('*/users/me/dna', ({ request }) => requireAuth(request) ?? HttpResponse.json(buildDna())),
+
   // 이벤트 수집 — 로그인 상세 조회는 BOOK_VIEW, 찜은 WISH로 기록한다.
   http.post('*/events', () => new HttpResponse(null, { status: 202 })),
 ]
+
+/* ============ BOOK DNA mock 계산 ============
+   AI(ai/src/recommendation/book_dna.py)의 규칙을 같은 순서로 따라간다 —
+   상태·별점·최근성 가중 → 축 지분 → 지표 → 독서타입. 숫자를 똑같이 맞추는 게 목적이 아니라,
+   화면이 받는 값의 모양(합이 100인 지분, 내림차순 지표, code+label+score)을 같게 하는 게 목적이다. */
+
+/** 분류 문자열 → 공개 축 코드 · KDC 번호. 실서버는 책마다 classNo 를 들고 있다 */
+const DNA_AXIS: [RegExp, string, string][] = [
+  [/에세이/, 'ESSAY', '814'],
+  [/일본문학/, 'FICTION', '833'],
+  [/^문학/, 'FICTION', '813'],
+  [/^인문/, 'HUMANITIES', '100'],
+  [/^사회/, 'HUMANITIES', '300'],
+  [/^과학/, 'SCIENCE', '400'],
+  [/^기술/, 'SCIENCE', '500'],
+  [/^경제/, 'BUSINESS', '320'],
+  [/^역사/, 'ART_HISTORY', '900'],
+  [/^예술/, 'ART_HISTORY', '600'],
+]
+const dnaAxisOf = (category: string | null | undefined): [string, string] => {
+  const hit = DNA_AXIS.find(([re]) => re.test(category ?? ''))
+  return hit ? [hit[1], hit[2]] : ['ART_HISTORY', '000']
+}
+
+const DNA_AXIS_LABEL: Record<string, string> = {
+  FICTION: '소설', ESSAY: '에세이', HUMANITIES: '인문·사회',
+  BUSINESS: '경제·경영', SCIENCE: '과학·기술', ART_HISTORY: '예술·역사',
+}
+/** 1위 지표 → 독서타입. AI 의 _metric_type 표와 같은 문구 */
+const DNA_TYPE: Record<string, [string, string, string, string]> = {
+  REFLECTION: ['THINKER', '사색가', '문장 사이에 오래 머무르며 생각을 넓히는', '좋은 질문 앞에서 오래 생각하는 독자예요.'],
+  IMMERSION: ['DIVER', '탐독가', '한번 잡은 이야기를 끝까지 따라가는', '한 권의 이야기에 깊이 빠져드는 독자예요.'],
+  EXPLORATION: ['EXPLORER', '탐험가', '다양한 책으로 세상을 넓혀 가는', '새로운 주제와 관점을 찾아가는 독자예요.'],
+  EMPATHY: ['EMPATH', '공감가', '사람의 마음이 움직이는 순간을 따라 읽는', '사람과 관계를 다룬 이야기를 오래 기억하는 독자예요.'],
+  REALISM: ['OBSERVER', '관찰자', '읽은 것을 자기 삶에 대어 보는', '읽은 것을 현실의 판단과 행동으로 옮기는 독자예요.'],
+}
+/** 축마다 붙는 키워드 태그 — 실서버는 책별 태그를 집계한다 */
+const DNA_KEYWORDS: Record<string, [string, string][]> = {
+  FICTION: [['FAMILY', '가족'], ['ROMANCE', '로맨스']],
+  ESSAY: [['HEALING', '위로'], ['DAILY', '일상']],
+  HUMANITIES: [['GROWTH_STORY', '성장'], ['SOCIETY', '사회']],
+  BUSINESS: [['WORK', '일'], ['CHOICE', '선택']],
+  SCIENCE: [['CURIOSITY', '호기심'], ['NATURE', '자연']],
+  ART_HISTORY: [['TIME', '시간'], ['CITY', '도시']],
+}
+
+function buildDna() {
+  const seeds = library.slice(0, 200)
+  const now = Date.now()
+  const weightOf = (li: LibraryItem) => {
+    const status = li.status === 'READ' ? 1 : 0.25
+    const rating = li.rating == null ? 0.8 : [0, 0.7, 0.85, 1, 1.2, 1.5][li.rating]
+    const days = li.finishedDate ? Math.max(0, (now - new Date(li.finishedDate).getTime()) / 86_400_000) : 0
+    return status * rating * Math.pow(0.5, days / 180) // 반감기 180일
+  }
+
+  const weights = new Map<string, number>()
+  for (const li of seeds) {
+    const [axis] = dnaAxisOf(CATEGORY[li.book.bookId] ?? li.book.category)
+    weights.set(axis, (weights.get(axis) ?? 0) + weightOf(li))
+  }
+  const total = [...weights.values()].reduce((a, w) => a + w, 0)
+  const share = (code: string) => (total > 0 ? (weights.get(code) ?? 0) / total : 0)
+  const axes = Object.keys(DNA_AXIS_LABEL)
+    .map((code) => ({ code, label: DNA_AXIS_LABEL[code], score: Number((share(code) * 100).toFixed(2)) }))
+
+  const readItems = seeds.filter((li) => li.status === 'READ')
+  const loved = total > 0 ? seeds.filter((li) => (li.rating ?? 0) >= 4).reduce((a, li) => a + weightOf(li), 0) / total : 0
+  const live = Object.keys(DNA_AXIS_LABEL).map(share).filter((v) => v > 0)
+  const entropy = live.length <= 1 ? 0 : -live.reduce((a, v) => a + v * Math.log(v), 0) / Math.log(6)
+  const raw: Record<string, number> = {
+    REFLECTION: share('HUMANITIES') * 0.75 + share('ESSAY') * 0.55,
+    IMMERSION: share('FICTION') * 0.7 + loved * 0.3,
+    EXPLORATION: entropy,
+    EMPATHY: share('FICTION') * 0.45 + share('ESSAY') * 0.25,
+    REALISM: share('BUSINESS') + share('SCIENCE') + share('ART_HISTORY'),
+  }
+  const METRIC_LABEL: Record<string, string> = { REFLECTION: '사색', IMMERSION: '몰입', EXPLORATION: '새로움', EMPATHY: '감성', REALISM: '현실감' }
+  const metrics = Object.entries(raw)
+    .map(([code, value]) => ({ code, label: METRIC_LABEL[code], score: Number(Math.min(96, value * 100).toFixed(2)) }))
+    .sort((a, b) => b.score - a.score || a.code.localeCompare(b.code))
+
+  const ranked = Object.keys(DNA_AXIS_LABEL).filter((c) => share(c) > 0).sort((a, b) => share(b) - share(a))
+  const keywords = ranked.flatMap((code) => DNA_KEYWORDS[code]).slice(0, 8)
+    .map(([code, label], i) => ({ code, label, score: Number((90 - i * 7).toFixed(2)) }))
+
+  const [typeCode, noun, phrase, summary] = DNA_TYPE[metrics[0].code]
+  const declaredTags = me.interestTags
+    .map((label) => TAGS.find((t) => t.label === `#${label}` || t.label === label || t.code === label)?.code)
+    .filter((code): code is string => Boolean(code))
+
+  const ready = readItems.length > 0
+  return {
+    generatedAt: new Date().toISOString(),
+    dnaVersion: 'book-dna-v1',
+    modelVersion: 'mock-embedding',
+    indexVersion: 'mock-index',
+    tagVersion: 'mock-tags',
+    declaredTags,
+    readCount: readItems.length,
+    books: seeds.map((li) => {
+      const category = CATEGORY[li.book.bookId] ?? li.book.category ?? null
+      const [, classNo] = dnaAxisOf(category)
+      return {
+        bookId: String(li.book.bookId),
+        // 실서버는 books.isbn13 을 그대로 준다. mock 카탈로그에는 없어 bookId 로 13자리를 만든다
+        isbn13: `978${String(li.book.bookId).padStart(10, '0')}`,
+        title: li.book.title,
+        authors: li.book.author ? [li.book.author] : [],
+        publisher: li.book.publisher,
+        publicationYear: li.book.publicationYear,
+        coverUrl: COVER[li.book.bookId] ?? li.book.coverUrl ?? null,
+        pageCount: li.book.pageCount,
+        category,
+        classNo,
+        status: li.status,
+        rating: li.rating,
+        finishedDate: li.finishedDate,
+        analyzed: true,
+      }
+    }),
+    profile: {
+      status: ready ? 'READY' : 'INSUFFICIENT_DATA',
+      basedOnCount: readItems.length,
+      axes: ready ? axes : axes.map((a) => ({ ...a, score: 0 })),
+      metrics: ready ? metrics : [],
+      keywords: ready ? keywords : [],
+      type: ready ? { code: typeCode, name: `${metrics[1].label} ${noun}`, phrase, summary } : null,
+      evidence: {
+        readBookCount: readItems.length,
+        ratedBookCount: seeds.filter((li) => li.rating != null).length,
+        topGenres: ranked.slice(0, 3),
+        topTags: keywords.slice(0, 5).map((k) => k.code),
+      },
+    },
+  }
+}
