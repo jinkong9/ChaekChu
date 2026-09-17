@@ -21,7 +21,6 @@ import type { LibraryItem } from '../../api/types'
 import type { DnaBook } from './dnaTypes'
 import { accentOf, displayTone, extractCoverColor } from './spectrum'
 import { profileFromApi, type DnaProfile } from './dnaProfile'
-import { useGachaWindow } from './useGachaPool'
 import { buildHabits } from './habits'
 import DnaEvidenceB from './DnaEvidenceB'
 import ReadingTypeField from './ReadingTypeField'
@@ -117,22 +116,6 @@ const TESTS = [
     name: '책 이상형 월드컵',
   },
 ] as const
-
-/** 가챠 대화상자 — 후보(소설 전체)는 열 때 서버에서 받는다. 받아 오는 동안에도 상자는 떠 있어야 해서
- *  BookGacha 를 감싸 그 기다림만 맡는다. */
-function GachaDialog({ read, onClose }: { read: ReadonlySet<string>; onClose: () => void }) {
-  const { data, isError } = useGachaWindow(true, read)
-  return (
-    <BookGacha
-      pool={data?.books ?? []}
-      total={data?.total ?? 0}
-      read={read}
-      // 받아 왔는데 빈손인 경우도 실패로 본다 — 기다리는 문구를 띄운 채 손잡이를 잠가 두면 고장으로 보인다
-      failed={isError || (data != null && data.books.length === 0)}
-      onClose={onClose}
-    />
-  )
-}
 
 /* ── 독서 습관 ───────────────────────────────────────── */
 
@@ -297,7 +280,7 @@ function Report({ books, records, profile, keywords, tones, declaredTags }: {
         </p>
       </section>
       {/* 주소로 바로 들어왔는데 후보가 모자라면 열지 않는다 — 카드가 막던 조건을 여기서도 지킨다 */}
-      {open === 'gacha' && <GachaDialog read={readIsbns} onClose={closePlay} />}
+      {open === 'gacha' && <BookGacha read={readIsbns} onClose={closePlay} />}
       {open === 'worldcup' && canPlay && (
         <BookWorldCup pool={pool} topAxis={profile.topAxis} onClose={closePlay} />
       )}

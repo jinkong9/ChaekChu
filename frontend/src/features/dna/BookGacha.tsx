@@ -2,10 +2,8 @@
  *
  *  이름 그대로 난수로 한 권을 뽑는다. 취향을 반영하지 않는 게 이 콘텐츠의 요지다 —
  *  리포트의 나머지 칸이 "당신의 기록이 말하는 취향"이라면, 여기는 그 바깥으로 한 걸음이다.
- *  그래서 후보도 내 서재가 아니라 소설 전체다(useGachaPool).
- *
- *  뽑을 때마다 서버에서 새 묶음을 집어 온다 — 열 때 받아 둔 한 묶음 안에서만 굴리면
- *  손잡이를 돌릴 때마다 새 묶음을 받아 같은 오십 권만 맴돌지 않게 한다.
+ *  후보는 서버가 가챠 전용으로 내준다 — GET /books/random(§4.8), 표지와 KDC 가 있는
+ *  추천 후보 약 44만 권 중 무작위 한 권. 손잡이를 돌릴 때마다 한 번 부른다.
  *
  *  결과가 나오기 전에는 표지를 보여 주지 않는다. */
 import { useEffect, useRef, useState } from 'react'
@@ -14,7 +12,8 @@ import { addToLibrary } from '../../api/library'
 import { trackEvent } from '../../lib/events'
 import type { DnaBook } from './dnaTypes'
 import { axisOf } from './dnaProfile'
-import { fetchGachaWindow } from './useGachaPool'
+import { isBookNotFound } from '../../api/books'
+import { drawRandomBook } from './gachaDraw'
 import { coverAtWidth } from '../../lib/coverUrl'
 import DnaDialog from './DnaDialog'
 import GachaMachine from './GachaMachine'
@@ -26,19 +25,10 @@ const COVER_W = 300
 type Phase = 'idle' | 'spinning' | 'done'
 
 export default function BookGacha({
-  pool,
-  total,
-  failed,
   read,
   onClose,
 }: {
-  /** 열 때 받아 둔 묶음 — 새 묶음을 못 받았을 때의 폴백 */
-  pool: DnaBook[]
-  /** 그 나라 소설의 전체 권수 — "소설 N권 가운데"로 적는다 */
-  total: number
-  /** 후보를 못 받아 왔다 — 기다림과 실패를 다르게 말한다 */
-  failed?: boolean
-  /** 이미 읽은 책의 ISBN — 새 묶음을 부를 때도 같은 잣대로 걷어낸다 */
+  /** 이미 읽은 책의 ISBN — 걸리면 다시 뽑는다 */
   read: ReadonlySet<string>
   onClose: () => void
 }) {
@@ -47,6 +37,10 @@ export default function BookGacha({
   const [saved, setSaved] = useState<'idle' | 'saving' | 'done' | 'error'>('idle')
   const [phase, setPhase] = useState<Phase>('idle')
   const [book, setBook] = useState<DnaBook | null>(null)
+  /** 뽑지 못했을 때의 안내 — 서버가 비었는지, 그냥 실패인지 말이 다르다 */
+  const [drawError, setDrawError] = useState<string | null>(null)
+  /** 직전에 뽑힌 책 — 서버에 exclude 로 넘겨 같은 책이 연달아 나오지 않게 한다 */
+  const lastId = useRef<string | undefined>(undefined)
 
   // 뽑는 도중에 닫히면 늦게 도착한 응답이 사라진 화면을 건드리지 않게 한다
   const alive = useRef(true)
@@ -59,24 +53,37 @@ export default function BookGacha({
   }, [])
 
   const pull = async () => {
-    if (phase === 'spinning' || pool.length === 0) return
+    if (phase === 'spinning') return
     setPhase('spinning')
     setBook(null)
     setSaved('idle')
+    setDrawError(null)
 
-    // 기계가 움직이는 동안 새 묶음을 받아 온다 — 실패하면 열 때 받아 둔 묶음으로 뽑는다
+    // 기계가 다 돌기 전에 답이 와도 기다린다 — 뽑는 맛은 그 시간에서 나온다
     const spun = new Promise<void>((resolve) => window.setTimeout(resolve, SPIN_MS))
-    const fresh = await fetchGachaWindow(read).then((w) => (w.books.length > 0 ? w.books : pool)).catch(() => pool)
-    const won = fresh[Math.floor(Math.random() * fresh.length)]
-    await spun
-    if (!alive.current) return
-    setBook(won)
-    setPhase('done')
+    try {
+      const won = await drawRandomBook(lastId.current, read)
+      await spun
+      if (!alive.current) return
+      lastId.current = won.bookId
+      setBook(won)
+      setPhase('done')
+    } catch (err) {
+      await spun
+      if (!alive.current) return
+      setDrawError(
+        isBookNotFound(err)
+          ? '뽑을 책이 아직 준비되지 않았어요. 잠시 후 다시 시도해 주세요.'
+          : '한 권을 뽑지 못했어요. 손잡이를 다시 돌려 주세요.',
+      )
+      setPhase('idle')
+    }
   }
 
   const reset = () => {
     setBook(null)
     setSaved('idle')
+    setDrawError(null)
     setPhase('idle')
   }
 
@@ -101,9 +108,7 @@ export default function BookGacha({
     <DnaDialog
       label="완전 랜덤 책 가챠"
       kicker="Random Draw"
-      status={
-        phase === 'done' ? '뽑기 완료' : phase === 'spinning' ? '뽑는 중' : total > 0 ? `소설 ${total.toLocaleString()}권` : ''
-      }
+      status={phase === 'done' ? '뽑기 완료' : phase === 'spinning' ? '뽑는 중' : ''}
       onClose={onClose}
     >
       <div className="dnar-gacha">
@@ -111,13 +116,13 @@ export default function BookGacha({
           <>
             {phase === 'idle' && <p className="dnar-dlg__ask">취향은 잠시 접어 두고, 한 권을 뽑아 볼까요?</p>}
             {/* 기계가 곧 버튼이다 — 손잡이를 누르면 뽑힌다 */}
-            <GachaMachine onPull={pull} disabled={pool.length === 0 || phase === 'spinning'} spinning={phase === 'spinning'} />
+            <GachaMachine onPull={pull} disabled={phase === 'spinning'} spinning={phase === 'spinning'} />
             {phase === 'spinning' ? (
               <p className="dnar-gacha__lead" role="status">한 권을 뽑는 중이에요…</p>
             ) : (
               <>
-                {pool.length === 0 && <p className="dnar-gacha__lead">{failed ? '소설 목록을 불러오지 못했어요. 닫았다 다시 열어 주세요.' : '소설을 한 묶음 꺼내는 중이에요…'}</p>}
-                <button type="button" className="dnar-gacha__pull" onClick={pull} disabled={pool.length === 0}>손잡이 돌리기</button>
+                {drawError && <p className="dnar-gacha__lead" role="status">{drawError}</p>}
+                <button type="button" className="dnar-gacha__pull" onClick={pull}>손잡이 돌리기</button>
               </>
             )}
           </>

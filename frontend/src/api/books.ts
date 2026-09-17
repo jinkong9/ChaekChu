@@ -39,15 +39,19 @@ export async function searchBooks(q: string, page = 0, size = 20, kdc?: string, 
   return { total, page: res.data.page, size: res.data.size, items: items.map(toBookSummary) }
 }
 
-/** 서버 응답 그대로가 필요할 때 — 화면 타입(BookSummary)은 isbn13·classNo 를 버린다.
- *  분류를 보고 무언가를 판단하는 쪽(BOOK DNA 가챠의 취향 거리)은 이쪽을 쓴다. */
-export async function searchBooksRaw(q: string, page = 0, size = 20, kdc?: string): Promise<ServerSearchResponse> {
-  const params: Record<string, string | number> = { page, size }
-  if (q) params.q = q
-  if (kdc) params.kdc = kdc
-  const res = await api.get<ServerSearchResponse>('/books/search', { params })
+/** GET /books/random (§4.8) — 가챠. 표지와 KDC 가 있는 추천 후보(약 44만) 중 무작위 한 권.
+ *  봉투 없이 BookSummary 한 개가 온다. 화면 타입으로 줄이지 않고 서버 응답 그대로 받는다 —
+ *  가챠는 classNo 로 취향 축을 대조하고 isbn13 으로 이미 읽은 책인지 본다.
+ *
+ *  @param exclude 직전에 뽑힌 bookId. 서버는 이력을 갖지 않으므로, 연속으로 같은 책이 나오는
+ *                 아주 낮은 확률까지 0 으로 막고 싶은 화면이 직접 붙인다. */
+export async function fetchRandomBook(exclude?: string): Promise<ServerBookSummary> {
+  const res = await api.get<ServerBookSummary>('/books/random', { params: exclude ? { exclude } : undefined })
   return res.data
 }
+
+/** 404 BOOK_NOT_FOUND — 뽑을 후보가 없다. 운영에서는 나지 않고, 후보 배치를 안 돌린 로컬 DB 에서 난다 */
+export const isBookNotFound = (err: unknown) => apiErrorCode(err) === 'BOOK_NOT_FOUND'
 
 /** 서버 오류 응답의 code (§1.3). 네트워크 오류·형식 밖이면 null. */
 export function apiErrorCode(err: unknown): string | null {

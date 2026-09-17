@@ -497,6 +497,22 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 })
   }),
 
+  // §4.8 가챠 — 표지와 분류가 있는 후보 중 무작위 한 권. 봉투 없이 BookSummary 한 개.
+  // exclude 는 직전 책 하나를 뺀다. 모집단이 비면 404(로컬 DB 용 경로라 목에서도 같게 둔다)
+  http.get('*/books/random', ({ request }) => {
+    const auth = requireAuth(request)
+    if (auth) return auth
+    const exclude = new URL(request.url).searchParams.get('exclude')
+    const pool = CATALOG.map(withCategory)
+      .filter((bk) => (COVER[bk.bookId] ?? bk.coverUrl) && (CATEGORY[bk.bookId] ?? bk.category))
+      .filter((bk) => String(bk.bookId) !== exclude)
+    if (pool.length === 0) {
+      return HttpResponse.json({ code: 'BOOK_NOT_FOUND', message: '뽑을 책이 없습니다.' }, { status: 404 })
+    }
+    const picked = pool[Math.floor(Math.random() * pool.length)]
+    return HttpResponse.json(toServerBook(picked), { headers: { 'Cache-Control': 'no-store' } })
+  }),
+
   // BOOK DNA (BOOK_DNA_API_CONTRACT §2) — 실서버는 FastAPI 가 계산한다.
   // mock 은 그 계산을 흉내 내 같은 형태로 돌려준다: 백엔드·AI 를 띄우지 않고도 이 화면을 만질 수 있어야 한다.
   // 재료는 위의 library — 서재에 책을 담거나 별점을 고치면 DNA 도 따라 바뀐다.
