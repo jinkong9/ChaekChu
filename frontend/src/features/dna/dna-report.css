@@ -97,7 +97,9 @@
 .dnar-hero-c__track > span { display: block; height: 100%; }
 
 /* 히어로 — 왼쪽은 문장, 오른쪽은 흩어진 활자가 모여 쓰는 독서타입 이름. */
-.dnar-hero-c { padding: 42px 0 32px; border-bottom: 1px solid var(--eo-rule); }
+/* 히어로는 스스로 밑줄을 긋지 않는다 — 바로 아래 첫 섹션 머리말(.dnar-sechead)이
+   이미 위쪽에 규칙선을 갖고 있어, 둘을 다 두면 선이 두 줄로 겹쳐 보인다. */
+.dnar-hero-c { padding: 42px 0 10px; }
 .dnar-hero-c__main { display: grid; grid-template-columns: minmax(260px, .72fr) minmax(0, 1.28fr); gap: 28px; min-height: 440px; }
 .dnar-hero-c__intro { display: flex; flex-direction: column; align-items: flex-start; }
 .dnar-hero-c__title {
