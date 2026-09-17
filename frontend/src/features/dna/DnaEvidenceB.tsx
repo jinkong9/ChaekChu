@@ -20,6 +20,21 @@ import Radar from './DnaRadar'
 const WALL_LIMIT = 42
 const WALL_COVER_W = 68
 
+/** 가로로 눕힌 막대 한 줄 — 취향의 지도(축 목록)와 같은 짜임이라 두 그림이 한 어법으로 읽힌다.
+ *  0 인 줄도 지운다 없이 남긴다: 빈 달·안 준 별점도 분포의 일부다. */
+function Bar({ label, value, peak, tone }: { label: string; value: number; peak: number; tone?: string }) {
+  return (
+    <div className="dnar-ev__row">
+      <span className="dnar-ev__row-label">{label}</span>
+      <span className="dnar-ev__row-track">
+        {/* 한 권짜리 막대가 실선처럼 보이지 않게 최소 폭을 준다 */}
+        <span style={{ width: value > 0 ? `${Math.max(6, (value / peak) * 100)}%` : 0, background: tone ?? 'var(--eo-ink)' }} />
+      </span>
+      <span className="dnar-ev__row-value">{value}</span>
+    </div>
+  )
+}
+
 export default function DnaEvidenceB({
   profile,
   records,
@@ -164,18 +179,9 @@ export default function DnaEvidenceB({
             {/* 월별 완독 — '읽는 속도'가 숫자로만 있던 것을 그림으로 */}
             <figure className="dnar-ev__chart">
               <figcaption className="dnar-utility">최근 6개월 완독</figcaption>
-              <div className="dnar-ev__bars">
+              <div className="dnar-ev__rows">
                 {months.map((m) => (
-                  <div key={m.label} className="dnar-ev__bar">
-                    <span className="dnar-ev__bar-value">{m.count}</span>
-                    <span className="dnar-ev__bar-track">
-                      <span
-                        className="dnar-ev__bar-fill"
-                        style={{ height: `${(m.count / monthPeak) * 100}%`, background: tones?.[1] ?? 'var(--eo-ink)' }}
-                      />
-                    </span>
-                    <span className="dnar-ev__bar-label">{m.label}</span>
-                  </div>
+                  <Bar key={m.label} label={m.label} value={m.count} peak={monthPeak} tone={tones?.[1]} />
                 ))}
               </div>
             </figure>
@@ -183,18 +189,9 @@ export default function DnaEvidenceB({
             {/* 별점 분포 — '무던한 편'이라는 말의 근거 */}
             <figure className="dnar-ev__chart">
               <figcaption className="dnar-utility">별점 분포</figcaption>
-              <div className="dnar-ev__bars">
+              <div className="dnar-ev__rows">
                 {stars.map((count, i) => (
-                  <div key={i} className="dnar-ev__bar">
-                    <span className="dnar-ev__bar-value">{count}</span>
-                    <span className="dnar-ev__bar-track">
-                      <span
-                        className="dnar-ev__bar-fill"
-                        style={{ height: `${(count / starPeak) * 100}%`, background: tones?.[3] ?? 'var(--eo-ink)' }}
-                      />
-                    </span>
-                    <span className="dnar-ev__bar-label">{i + 1}점</span>
-                  </div>
+                  <Bar key={i} label={`${i + 1}점`} value={count} peak={starPeak} tone={tones?.[3]} />
                 ))}
               </div>
             </figure>
