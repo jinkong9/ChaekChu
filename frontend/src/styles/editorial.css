@@ -547,9 +547,12 @@ button.eo-tag.is-on:focus-visible {
 
 .eo-meter span {
   display: block;
+  width: 100%;
   height: 100%;
   background: var(--eo-ink);
-  transition: width 180ms ease-out;
+  /* 차오르는 길이는 scaleX 로 준다 — width 를 애니메이션하면 프레임마다 Layout 부터 다시 돈다 */
+  transform-origin: left;
+  transition: transform 180ms ease-out;
 }
 
 /* ---------- 스켈레톤 ---------- */

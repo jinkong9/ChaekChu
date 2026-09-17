@@ -478,21 +478,33 @@
    책배에 낸 색인처럼 몇 장짜리 책인지와 어디쯤인지를 한 줄이 같이 말한다. */
 .libd__ticks { display: flex; align-items: flex-end; gap: 7px; height: 16px; }
 
+/* 상자는 줄 높이(16px)로 고정하고, 눈금 길이는 ::before 의 scaleY 로만 바꾼다.
+   height 를 애니메이션하면 hover 때마다 Layout 부터 다시 돈다. 버튼 자체를
+   scaleY 하면 ::after 로 잡아 둔 터치 영역까지 같이 줄어드는 점에 주의. */
 .libd__tick {
   position: relative;
   width: 3px;
-  height: 9px;
+  height: 16px;
   padding: 0;
   border: 0;
-  background: rgba(23, 32, 57, 0.22);
+  background: none;
   cursor: pointer;
-  transition: height 160ms ease, background-color 160ms ease;
+}
+
+.libd__tick::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(23, 32, 57, 0.22);
+  transform-origin: bottom;
+  transform: scaleY(0.5625); /* 9/16 */
+  transition: transform 160ms ease, background-color 160ms ease;
 }
 
 /* 손이 닿는 자리는 눈에 보이는 눈금보다 넓다 */
 .libd__tick::after { content: ''; position: absolute; inset: -7px -4px; }
-.libd__tick:hover { height: 13px; background: rgba(23, 32, 57, 0.42); }
-.libd__tick.is-on { height: 16px; background: var(--ink); }
+.libd__tick:hover::before { transform: scaleY(0.8125); background: rgba(23, 32, 57, 0.42); } /* 13/16 */
+.libd__tick.is-on::before { transform: scaleY(1); background: var(--ink); }
 .libd__tick:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 4px; }
 
 .libd__folio {
