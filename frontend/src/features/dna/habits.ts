@@ -55,14 +55,6 @@ function ratingLabel(avg: number): string {
 /** 소수 한 자리 — 정수면 정수로 (2.0권보다 2권이 읽기 좋다) */
 const trim = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
 
-/** 평균 쪽수 → 사람이 쓰는 말. 절대 기준이다 — 다른 독자의 분포를 모르니 상대 비교를 하지 않는다 */
-function thicknessLabel(avg: number): string {
-  if (avg >= 450) return '아주 높음'
-  if (avg >= 350) return '높은 편'
-  if (avg >= 250) return '보통'
-  return '짧은 호흡'
-}
-
 export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[] {
   // 습관은 완독 기록에서 나온다 — 찜(WISH)은 아직 읽지 않은 책이라 버릇을 말해 주지 않는다
   const read = books.filter((b) => b.status === 'READ')
@@ -94,18 +86,6 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
     }
   }
 
-  // ── 긴 글 선호도 ─────────────────────────────
-  const pages = read.map((b) => b.pageCount).filter((p): p is number => typeof p === 'number' && p > 0)
-  if (enough(pages.length, read.length)) {
-    const avg = Math.round(pages.reduce((a, p) => a + p, 0) / pages.length)
-    habits.push({
-      id: 'thickness',
-      label: '긴 글 선호도',
-      value: thicknessLabel(avg),
-      detail: `완독한 책의 평균 ${avg}쪽`,
-    })
-  }
-
   // ── 신간 vs 구간 ─────────────────────────────
   // '스테디셀러'라고 부르지 않는다 — 그건 대출이 꾸준하다는 뜻이고, 출간 연도로는 말할 수 없다
   const years = read.map((b) => b.publicationYear).filter((y): y is number => typeof y === 'number' && y > 0)
@@ -117,20 +97,6 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
       label: '신간 vs 구간',
       value: ratio(fresh, years.length - fresh),
       detail: `${cutoff}년 이후 출간 ${fresh}권 · 그 이전 ${years.length - fresh}권`,
-    })
-  }
-
-  // ── 한국문학 vs 번역문학 ──────────────────────
-  // KDC 는 문학(8)에만 언어권 자리가 있다(81 한국 · 82~89 그 밖). 비문학은 국내·해외를 알 수 없어 문학만 센다
-  const lit = read.filter((b) => (b.classNo ?? '').startsWith('8'))
-  const korean = lit.filter((b) => (b.classNo ?? '').startsWith('81')).length
-  const translated = lit.filter((b) => /^8[2-9]/.test(b.classNo ?? '')).length
-  if (korean + translated >= MIN_SAMPLE) {
-    habits.push({
-      id: 'origin',
-      label: '한국문학 vs 번역문학',
-      value: ratio(korean, translated),
-      detail: `문학 ${korean + translated}권 기준 · 비문학은 분류에 언어권이 없어 뺐어요`,
     })
   }
 
