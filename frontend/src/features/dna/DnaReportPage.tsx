@@ -176,7 +176,8 @@ function GachaDialog({ axes, onClose }: { axes: DnaProfile['axes']; onClose: () 
     <BookGacha
       pool={data?.books ?? []}
       total={data?.total ?? 0}
-      failed={isError}
+      // 받아 왔는데 빈손인 경우도 실패로 본다 — 기다리는 문구를 띄운 채 손잡이를 잠가 두면 고장으로 보인다
+      failed={isError || (data != null && data.books.length === 0)}
       axes={axes}
       onClose={onClose}
     />

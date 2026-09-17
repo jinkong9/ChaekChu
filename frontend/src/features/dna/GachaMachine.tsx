@@ -2,6 +2,12 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
 type KnobPointerEvent = ReactPointerEvent<SVGCircleElement>
+
+/** 손잡이를 이만큼 돌리면 뽑힌다. 한 바퀴를 요구하면 화면 위 26px짜리 원을 끊기지 않게
+ *  끝까지 끌어야 해서 사실상 안 돌아간다 — 3분의 1바퀴면 '돌렸다'는 느낌은 그대로다. */
+const TURN_TO_PULL = 110
+/** 거의 안 돌리고 뗐다 = 누른 것이다. 손잡이는 눌러도 뽑히는 게 맞다 */
+const TAP_SLOP = 8
 const BALLS = [
   { x: 102, y: 195, r: 25, color: '#a7b7ad' },
   { x: 143, y: 205, r: 27, color: '#d7b692' },
@@ -124,6 +130,17 @@ export default function GachaMachine({ onPull, disabled }: { onPull: () => void;
     if (finishTimer.current !== null) window.clearTimeout(finishTimer.current)
   }, [])
 
+  /** 뽑기는 한 번만 — 다 돌린 뒤의 여운(delay)을 두고 부른다 */
+  const fire = (delay: number) => {
+    if (disabled || finishing.current) return
+    finishing.current = true
+    finishTimer.current = window.setTimeout(() => {
+      finishTimer.current = null
+      finishing.current = false
+      onPull()
+    }, delay)
+  }
+
   const pointerAngle = (event: KnobPointerEvent) => {
     const svg = event.currentTarget.ownerSVGElement
     if (!svg) return 0
@@ -148,26 +165,37 @@ export default function GachaMachine({ onPull, disabled }: { onPull: () => void;
     current.last = next
     current.rotation += delta
     setAngle(current.rotation)
-    if (Math.abs(current.rotation) >= 300) {
+    if (Math.abs(current.rotation) >= TURN_TO_PULL) {
       drag.current = null
-      finishing.current = true
       event.currentTarget.releasePointerCapture(event.pointerId)
+      // 문턱을 넘은 순간 한 바퀴까지 마저 돌려 준다 — 손이 멈춘 자리에서 끊기면 덜 돌린 것처럼 보인다
       setAngle(current.rotation > 0 ? 360 : -360)
-      finishTimer.current = window.setTimeout(() => {
-        finishTimer.current = null
-        onPull()
-      }, 220)
+      fire(220)
     }
   }
 
   const handleEnd = (event: KnobPointerEvent) => {
-    if (drag.current?.pointerId !== event.pointerId) return
+    const current = drag.current
+    if (current?.pointerId !== event.pointerId) return
     drag.current = null
     setAngle(0)
+    if (Math.abs(current.rotation) < TAP_SLOP) fire(0)
   }
 
   return (
-    <div className={`dnar-machine ${drag.current ? 'is-dragging' : ''}`} aria-label="손잡이를 잡고 돌리면 책을 뽑습니다">
+    <div
+      className={`dnar-machine ${drag.current ? 'is-dragging' : ''}`}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      aria-label="손잡이를 돌리거나 눌러 책을 뽑습니다"
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        setAngle(360)
+        fire(220)
+      }}
+    >
       <GachaMachineArt angle={angle} onKnobDown={handleDown} onKnobMove={handleMove} onKnobEnd={handleEnd} />
     </div>
   )
