@@ -150,9 +150,14 @@
 .dnar-hero-c__caption { display: flex; align-items: baseline; gap: 12px; padding: 4px 4% 0; }
 .dnar-hero-c__caption span { font-family: var(--font-wordmark); letter-spacing: .2em; font-size: 10px; color: var(--eo-ink-faint); }
 .dnar-hero-c__caption p { margin: 0; font-size: 11px; color: var(--eo-ink-muted); word-break: keep-all; }
-/* 독서타입 이름 아래 — 이름을 만든 지표 다섯. 캡션과는 규칙선 하나로 가른다 */
-.dnar-hero-c__metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--eo-rule-soft); }
-.dnar-hero-c__metric > div { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 10px; font-size: 11px; }
+/* 독서타입 이름 아래 — 이름을 만든 지표 다섯. 캡션과는 규칙선 하나로 가른다.
+   가로로 다섯 칸을 나누면 칸마다 막대가 토막 나 순위가 안 보인다. 세로로 쌓으면
+   같은 길이의 자 위에서 재는 셈이라 88% 와 45% 의 차이가 눈에 그대로 들어온다. */
+.dnar-hero-c__metrics { display: grid; gap: 13px; margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--eo-rule-soft); }
+.dnar-hero-c__metric { display: grid; grid-template-columns: 3.4em minmax(0, 1fr) 2.6em; align-items: center; gap: 12px; }
+.dnar-hero-c__metric > div { display: contents; }
+.dnar-hero-c__metric > div > span { font-size: 12px; letter-spacing: -0.02em; }
+.dnar-hero-c__metric > div > strong { order: 1; font-size: 12px; text-align: right; }
 .dnar-hero-c__metric strong { font-weight: 600; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 800px) {
@@ -163,7 +168,6 @@
 }
 @media (max-width: 640px) {
 .dnar-hero-c { padding-top: 30px; }
-  .dnar-hero-c__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
   .dnar-hero-c__caption { flex-wrap: wrap; gap: 6px 12px; }
   .dnar-hero-c__caption span { width: 100%; }
   .dnar-typefield { min-height: 220px; }
