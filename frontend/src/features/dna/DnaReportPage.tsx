@@ -23,7 +23,6 @@ import { useGachaWindow } from './useGachaPool'
 import { buildHabits, type Habit } from './habits'
 import Radar from './DnaRadar'
 import DnaEvidenceB from './DnaEvidenceB'
-import DnaConstellation from './DnaConstellation'
 import ReadingTypeField from './ReadingTypeField'
 import BookWorldCup from './BookWorldCup'
 import BookGacha from './BookGacha'
@@ -61,26 +60,6 @@ function useCoverTones(books: DnaBook[]): string[] | null {
 
 /* ── 히어로 한가운데 ─────────────────────────────────── */
 
-/** 히어로 한가운데 — 이 화면의 시그니처.
- *  활자 이중나선(DnaConstellation) 위에 독서타입 선언 한 문장이 놓인다. */
-function Centerpiece({ tones, profile }: { tones: string[] | null; profile: DnaProfile }) {
-  return (
-    <div className="dnar-figure">
-      <DnaConstellation tones={tones} />
-      <div className="dnar-figure__caption">
-        <p className="dnar-figure__line">
-          당신은
-          <br />
-          {profile.type.phrase}
-          <br />
-          <b>{profile.type.name}</b>입니다.
-        </p>
-        <span className="dnar-figure__code">{profile.type.code}</span>
-      </div>
-    </div>
-  )
-}
-
 /** 두 새 시안은 같은 분석값을 다른 편집 방식으로 보여 준다. */
 function HeroBasis({ basis }: { basis: Basis }) {
   return (
@@ -91,81 +70,24 @@ function HeroBasis({ basis }: { basis: Basis }) {
   )
 }
 
-function HeroB({ profile, tones, basis }: { profile: DnaProfile; tones: string[] | null; basis: Basis }) {
+/** 히어로 — 왼쪽은 문장, 오른쪽은 활자가 모여 쓰는 독서타입 이름.
+ *
+ *  제호(BOOK DNA)는 문장 위 작은 세리프 낙관으로 물러난다. 헤드라인과 타입 이름이
+ *  둘 다 본문 글꼴이라 같은 집안이고, 크기로만 위계가 갈린다 — 주인공은 타입 이름이다.
+ *
+ *  `serif` 는 그 타입 이름을 한글 세리프로 쓴다(리포트 본문의 독서타입 이름과 같은 얼굴). */
+function Hero({ profile, tones, basis, serif }: { profile: DnaProfile; tones: string[] | null; basis: Basis; serif: boolean }) {
   return (
-    <section className="dnar-hero-b" aria-label="BOOK DNA B안">
-      <div className="dnar-hero-b__intro">
-        <span className="dnar-eyebrow">BOOK DNA · READING PORTRAIT</span>
-        <h1 className="dnar-hero-b__title">
-          읽은 책이 모여<br />
-          <em>당신의 문장</em>이 됩니다.
-        </h1>
-        <p className="dnar-hero-b__sub">당신의 읽는 세계를 더 깊이, 더 넓게.<br />한 권씩 쌓인 기록에서 지금의 취향을 발견합니다.</p>
-        <HeroBasis basis={basis} />
-      </div>
-      <div className="dnar-hero-b__portrait">
-        <div className="dnar-hero-b__topline"><span>YOUR READING TYPE</span><span>{profile.type.code}</span></div>
-        <p className="dnar-hero-b__phrase">{profile.type.phrase}</p>
-        <h2 className="dnar-hero-b__type">{profile.type.name}<span>입니다.</span></h2>
-        <p className="dnar-hero-b__summary">{profile.oneLine}</p>
-        <div className="dnar-hero-b__metrics">
-          {profile.metrics.map((metric, i) => (
-            <div className="dnar-hero-b__metric" key={metric.key}>
-              <span>{metric.key}</span>
-              <span className="dnar-hero-b__track"><span style={{ width: `${metric.value}%`, background: tones?.[i] ?? 'var(--eo-ink)' }} /></span>
-              <strong>{metric.value}</strong>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/** C안 히어로의 글자 짜임 — 왼쪽 제호와 오른쪽 타입 이름이 부딪히는 문제를 네 가지로 풀어 본다.
- *  serif  오른쪽을 한글 세리프로 (본문 독서타입 이름과 같은 얼굴)
- *  small  왼쪽 제호를 워드마크 크기로 낮춰 주인공을 오른쪽에 넘긴다
- *  ko     왼쪽을 한글 헤드라인으로 갈아 끼운다 (제호는 사라진다)
- *  both   세리프 + 제호 축소
- *  bcopy  왼쪽을 B안 문구로 — 제호는 그 위에 작은 세리프 낙관으로 물러난다 */
-export type HeroCType = 'serif' | 'small' | 'ko' | 'both' | 'bcopy' | null
-
-function HeroC({ profile, tones, basis, typeVariant }: { profile: DnaProfile; tones: string[] | null; basis: Basis; typeVariant: HeroCType }) {
-  const serif = typeVariant === 'serif' || typeVariant === 'both'
-  const small = typeVariant === 'small' || typeVariant === 'both'
-  return (
-    <section className="dnar-hero-c" aria-label="BOOK DNA C안">
+    <section className="dnar-hero-c" aria-label="BOOK DNA">
       <div className="dnar-hero-c__main">
         <div className="dnar-hero-c__intro">
-          {/* B안 문구 안에서는 제호가 눈썹 자리를 대신한다 — 둘을 같이 세우면 머리가 두 개다 */}
-          {typeVariant === 'bcopy' ? (
-            <span className="dnar-hero-c__mark">BOOK DNA</span>
-          ) : (
-            <span className="dnar-eyebrow">MY READING ANALYSIS</span>
-          )}
-          {typeVariant === 'bcopy' ? (
-            <h1 className="dnar-hero-c__title is-bcopy">
-              읽은 책이 모여
-              <br />
-              <em>당신의 취향</em>이 됩니다.
-            </h1>
-          ) : typeVariant === 'ko' ? (
-            <h1 className="dnar-hero-c__title is-ko">
-              당신이 읽은 것들이
-              <br />
-              쓴 이름
-            </h1>
-          ) : (
-            <h1 className={`dnar-hero-c__title ${small ? 'is-small' : ''}`}>
-              BOOK
-              <br />
-              DNA
-            </h1>
-          )}
-          {/* 머리말이 이미 "모여 … 됩니다"를 말하므로 같은 말을 한 번 더 하지 않는다 */}
-          {typeVariant !== 'bcopy' && (
-            <p className="dnar-hero-c__sub">흩어져 있던 글자들이 모여<br />당신의 독서타입을 씁니다.</p>
-          )}
+          {/* 제호가 눈썹 자리를 대신한다 — 둘을 같이 세우면 머리가 두 개다 */}
+          <span className="dnar-hero-c__mark">BOOK DNA</span>
+          <h1 className="dnar-hero-c__title is-bcopy">
+            읽은 책이 모여
+            <br />
+            <em>당신의 취향</em>이 됩니다.
+          </h1>
           <HeroBasis basis={basis} />
         </div>
         <div className="dnar-hero-c__visual">
@@ -374,24 +296,14 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
     setParams(next, { replace: true })
   }
 
-  /** C안 안에서 글자 짜임을 다시 고른다(?htype=) */
-  const rawType = params.get('htype')
-  const heroCType = (['serif', 'small', 'ko', 'both', 'bcopy'] as const).find((v) => v === rawType) ?? null
-  const selectHeroType = (variant: HeroCType) => {
+  /** 히어로의 독서타입 이름을 어떤 글꼴로 쓸지(?htype=serif) */
+  const serifName = params.get('htype') === 'serif'
+  const selectSerif = (on: boolean) => {
+    if (serifName === on) return
     const next = new URLSearchParams(params)
-    if (variant === null) next.delete('htype')
-    else next.set('htype', variant)
+    if (on) next.set('htype', 'serif')
+    else next.delete('htype')
     setParams(next, { replace: true })
-  }
-
-  const heroVariant = params.get('hero')
-  const selectedHero = heroVariant === 'b' || heroVariant === 'c' ? heroVariant : 'a'
-  const selectHero = (variant: 'a' | 'b' | 'c') => {
-    if (selectedHero === variant) return
-    const next = new URLSearchParams(params)
-    if (variant === 'a') next.delete('hero')
-    else next.set('hero', variant)
-    setParams(next)
   }
   const navigate = useNavigate()
   const raw = params.get('play')
@@ -447,49 +359,23 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
   return (
     <>
       <div className="dnar-variantbar">
-        <span className="dnar-utility">상단 디자인 비교</span>
-        <div className="dnar-variantbar__choices" role="group" aria-label="BOOK DNA 상단 디자인 선택">
+        <span className="dnar-utility">독서타입 글꼴</span>
+        <div className="dnar-variantbar__choices" role="group" aria-label="독서타입 이름 글꼴 선택">
           {([
-            ['a', '기존안'],
-            ['b', 'B안'],
-            ['c', 'C안'],
-          ] as const).map(([variant, label]) => (
+            [false, '지금'],
+            [true, '세리프'],
+          ] as const).map(([on, label]) => (
             <button
-              key={variant}
+              key={label}
               type="button"
               className="dnar-variantbar__button"
-              aria-pressed={selectedHero === variant}
-              onClick={() => selectHero(variant)}
+              aria-pressed={serifName === on}
+              onClick={() => selectSerif(on)}
             >
               {label}
             </button>
           ))}
         </div>
-        {selectedHero === 'c' && (
-          <>
-            <span className="dnar-utility">C안 글자</span>
-            <div className="dnar-variantbar__choices" role="group" aria-label="C안 글자 짜임 선택">
-              {([
-                [null, '지금'],
-                ['serif', '오른쪽 세리프'],
-                ['small', '제호 축소'],
-                ['ko', '한글 제목'],
-                ['both', '세리프+축소'],
-                ['bcopy', 'B안 문구'],
-              ] as const).map(([variant, label]) => (
-                <button
-                  key={label}
-                  type="button"
-                  className="dnar-variantbar__button"
-                  aria-pressed={heroCType === variant}
-                  onClick={() => selectHeroType(variant)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
         <span className="dnar-utility">본문 비교</span>
         <div className="dnar-variantbar__choices" role="group" aria-label="BOOK DNA 본문 디자인 선택">
           {([
@@ -509,66 +395,7 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
         </div>
       </div>
       {/* ── 히어로 ────────────────────────────────── */}
-      {heroVariant === 'b' ? (
-        <HeroB profile={profile} tones={tones} basis={basis} />
-      ) : heroVariant === 'c' ? (
-        <HeroC profile={profile} tones={tones} basis={basis} typeVariant={heroCType} />
-      ) : (
-      <section className="dnar-hero">
-        <div>
-          <span className="dnar-eyebrow">My Reading Analysis</span>
-          <h1 className="dnar-hero__display">
-            BOOK
-            <br />
-            DNA
-          </h1>
-          <p className="dnar-hero__sub">
-            당신의 읽는 세계를 더 깊이, 더 넓게.
-            <br />
-            지금, 당신의 독서 DNA를 만나보세요.
-          </p>
-        </div>
-
-        <Centerpiece tones={tones} profile={profile} />
-
-        <div className="dnar-hero__aside">
-          <p className="dnar-hero__whisper">
-            Books reveal
-            <br />
-            a different you.
-          </p>
-          <dl className="dnar-metrics">
-            {profile.metrics.map((m, i) => (
-              <div key={m.key} className="dnar-metric">
-                <dt className="dnar-metric__label">{m.key}</dt>
-                <dd className="dnar-metric__track">
-                  <div
-                    className="dnar-metric__fill"
-                    style={{
-                      ['--v' as string]: `${m.value}%`,
-                      ['--tone' as string]: tones?.[i] ?? 'var(--eo-ink-faint)',
-                      animationDelay: `${i * 60}ms`,
-                    }}
-                  />
-                </dd>
-                <span className="dnar-metric__value">{m.value}%</span>
-              </div>
-            ))}
-          </dl>
-          {/* 근거 — 몇 권으로 계산했고 언제 계산했나. 인덱스에 없어 빠진 책이 있으면 그 수를 말한다(§3.4 analyzed) */}
-          <div className="dnar-basis">
-            <span className="dnar-utility">
-              완독 {basis.readCount}권{basis.basedOnCount < basis.readCount ? ` 중 ${basis.basedOnCount}권` : ''}의 장르·별점 분포에서 계산 · {computedAgo(basis.generatedAt)}
-            </span>
-            {basis.unanalyzedCount > 0 && (
-              <span className="dnar-utility" role="note">
-                {basis.unanalyzedCount}권은 아직 분석 데이터가 없어 반영되지 않았어요
-              </span>
-            )}
-          </div>
-        </div>
-      </section>
-      )}
+      <Hero profile={profile} tones={tones} basis={basis} serif={serifName} />
 
       {/* ── 근거 구역 — 안 두 가지를 주소로 갈아 끼운다(?body=b) ── */}
       {bodyVariant === 'b' ? (
