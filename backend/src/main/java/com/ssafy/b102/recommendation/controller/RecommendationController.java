@@ -3,6 +3,8 @@ package com.ssafy.b102.recommendation.controller;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,10 +13,12 @@ import com.ssafy.b102.global.security.CurrentUserId;
 import com.ssafy.b102.global.web.ApiPaths;
 import com.ssafy.b102.recommendation.config.RecommendationProperties;
 import com.ssafy.b102.recommendation.dto.RecommendationResponse;
+import com.ssafy.b102.recommendation.dto.NextRecommendationRequest;
 import com.ssafy.b102.recommendation.service.RecommendationService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
@@ -41,5 +45,13 @@ public class RecommendationController {
 		@RequestParam(required = false) @Size(max = 5) List<String> tags) {
 		int effectiveSize = size == null ? properties.defaultSize() : size;
 		return recommendationService.recommend(userId, effectiveSize, tags);
+	}
+
+	@Operation(summary = "다음 추천 덱 생성", description = "기준 recommendationId의 태그·가중치는 유지하고, 최근 같은 조건으로 추천된 도서를 제외해 새 덱을 만든다.")
+	@PostMapping("/next")
+	public RecommendationResponse recommendNext(
+		@CurrentUserId Long userId,
+		@Valid @RequestBody NextRecommendationRequest request) {
+		return recommendationService.recommendNext(userId, request, properties.defaultSize());
 	}
 }

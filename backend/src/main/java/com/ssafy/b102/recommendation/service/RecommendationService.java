@@ -34,7 +34,9 @@ import com.ssafy.b102.recommendation.config.RecommendationProperties;
 import com.ssafy.b102.recommendation.dto.AiRecommendationRequest;
 import com.ssafy.b102.recommendation.dto.AiRecommendationRequest.RecommendationWeights;
 import com.ssafy.b102.recommendation.dto.AiRecommendationResponse;
+import com.ssafy.b102.recommendation.dto.NextRecommendationRequest;
 import com.ssafy.b102.recommendation.dto.RecommendationResponse;
+import com.ssafy.b102.recommendation.service.RecommendationSnapshotService.NextContext;
 import com.ssafy.b102.search.service.AuthorNameParser;
 import com.ssafy.b102.user.repository.UserInterestRepository;
 import com.ssafy.b102.user.service.UserService;
@@ -112,6 +114,109 @@ public class RecommendationService {
 			seedIsbns, excludeIsbns, tags, DEFAULT_WEIGHTS);
 		AiRecommendationResponse aiResponse = aiClient.recommend(request);
 		return persisted(userId, toResponse(aiResponse, request, seedIsbns.size(), generatedAt));
+	}
+
+	/** 기준 추천 덱의 태그·가중치는 유지하고, 사용자 서재와 같은 취향의 최근 덱만 제외해 새 덱을 만든다. */
+	@Transactional(readOnly = true)
+	public RecommendationResponse recommendNext(Long userId, NextRecommendationRequest input, int defaultSize) {
+		if (!userService.getUser(userId).isOnboarded()) {
+			throw new BusinessException(ErrorCode.ONBOARDING_REQUIRED);
+		}
+		NextContext context = snapshots.findNextContext(userId, input.recommendationId())
+			.orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+		int requestedSize = input.size() == null ? defaultSize : input.size();
+		int size = Math.min(requestedSize, properties.maxSize());
+		Instant generatedAt = Instant.now(clock);
+
+		List<LibraryItem> library = libraryItemRepository.findByUser_IdOrderByUpdatedAtDesc(userId);
+		List<String> libraryIsbns = distinct(library.stream().map(item -> item.getBook().getIsbn13()).toList());
+		List<String> seedIsbns = distinct(library.stream()
+			.filter(item -> item.getStatus() == ShelfStatus.READ && item.getRating() != null)
+			.sorted(Comparator.comparing(LibraryItem::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+			.map(item -> item.getBook().getIsbn13())
+			.limit(20)
+			.toList());
+
+		List<List<String>> relaxableDecks = new ArrayList<>(context.otherRecentDeckIsbns());
+		if ("COLD_START".equals(context.mode())) {
+			return recommendNextFromPopularity(userId, size, context, libraryIsbns, relaxableDecks, 0, generatedAt);
+		}
+
+		List<String> aiTagCodes = new ArrayList<>(AiTagCodeMapper.map(context.inputTags()).keySet());
+		List<AiRecommendationRequest.TagPreference> tags = aiTagCodes.stream()
+			.map(code -> new AiRecommendationRequest.TagPreference(code, 1.0))
+			.toList();
+		RecommendationWeights weights = weightsFromMap(context.weights());
+		RecommendationResponse best = null;
+		while (true) {
+			List<String> excludeIsbns = nextExcludeIsbns(libraryIsbns, context.previousDeckIsbns(), relaxableDecks);
+			AiRecommendationRequest request = new AiRecommendationRequest(
+				"req-" + UUID.randomUUID(), String.valueOf(userId), context.mode(), size,
+				seedIsbns, excludeIsbns, tags, weights);
+			try {
+				AiRecommendationResponse aiResponse = aiClient.recommend(request);
+				RecommendationResponse response = toResponse(aiResponse, request, seedIsbns.size(), generatedAt);
+				if (best == null || response.items().size() > best.items().size()) {
+					best = response;
+				}
+				if (response.items().size() >= size) {
+					return persisted(userId, response);
+				}
+				if (relaxableDecks.isEmpty()) {
+					if (aiResponse.fallback() || response.items().isEmpty()) {
+						return recommendNextFromPopularity(userId, size, context, libraryIsbns, relaxableDecks,
+							seedIsbns.size(), generatedAt);
+					}
+					return persisted(userId, best == null ? response : best);
+				}
+			}
+			catch (BusinessException e) {
+				log.warn("다음 추천 AI 호출 실패 userId={} recommendationId={}: {}",
+					userId, input.recommendationId(), e.toString());
+				return recommendNextFromPopularity(userId, size, context, libraryIsbns, relaxableDecks,
+					seedIsbns.size(), generatedAt);
+			}
+			// 직전 덱은 유지하고, 더 오래된 동일 조건 덱부터 하나씩 제외 목록에서 푼다.
+			relaxableDecks.remove(relaxableDecks.size() - 1);
+		}
+	}
+
+	private RecommendationResponse recommendNextFromPopularity(Long userId, int size, NextContext context,
+		List<String> libraryIsbns, List<List<String>> relaxableDecks, int basedOnCount, Instant generatedAt) {
+		while (true) {
+			List<String> excludeIsbns = nextExcludeIsbns(libraryIsbns, context.previousDeckIsbns(), relaxableDecks);
+			RecommendationResponse popular = fromSegmentPopularity(userId, size, excludeIsbns, generatedAt);
+			RecommendationResponse response = nextPopularityFallback(context, popular, basedOnCount, generatedAt);
+			if (response.items().size() >= size || relaxableDecks.isEmpty()) {
+				return persisted(userId, response);
+			}
+			relaxableDecks.remove(relaxableDecks.size() - 1);
+		}
+	}
+
+	private RecommendationResponse nextPopularityFallback(NextContext context, RecommendationResponse popular,
+		int basedOnCount, Instant generatedAt) {
+		List<RecommendationResponse.Item> items = popular == null ? List.of() : popular.items();
+		String recommendationId = popular == null ? "rec-" + UUID.randomUUID() : popular.recommendationId();
+		return new RecommendationResponse(recommendationId, generatedAt, context.mode(), true,
+			basedOnCount, context.weights(), context.inputTags(), POPULAR_MODEL_VERSION, POPULAR_INDEX_VERSION, items);
+	}
+
+	private static List<String> nextExcludeIsbns(List<String> libraryIsbns, List<String> previousDeckIsbns,
+		List<List<String>> relaxableDecks) {
+		List<String> exclusions = new ArrayList<>(libraryIsbns);
+		exclusions.addAll(previousDeckIsbns);
+		relaxableDecks.forEach(exclusions::addAll);
+		return distinct(exclusions);
+	}
+
+	private static RecommendationWeights weightsFromMap(Map<String, Double> weights) {
+		return new RecommendationWeights(
+			weights.getOrDefault("semantic", DEFAULT_WEIGHTS.semantic()),
+			weights.getOrDefault("tagMatch", DEFAULT_WEIGHTS.tagMatch()),
+			weights.getOrDefault("coLoan", DEFAULT_WEIGHTS.coLoan()),
+			weights.getOrDefault("trending", DEFAULT_WEIGHTS.trending()),
+			weights.getOrDefault("steady", DEFAULT_WEIGHTS.steady()));
 	}
 
 	/**

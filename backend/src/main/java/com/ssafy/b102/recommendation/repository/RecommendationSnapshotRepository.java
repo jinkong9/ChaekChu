@@ -18,6 +18,12 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class RecommendationSnapshotRepository {
 
+	public record DeckSnapshot(long id, String mode, String inputTagsJson, String weightsJson) {
+	}
+
+	public record DeckReference(long id) {
+	}
+
 	/** 한 권의 추천 근거. score 는 0~100(ck_ri_score), reason_type 은 V3 로 넓힌 목록. */
 	public record ItemRow(long bookId, int rank, double score, String tagsJson, String featureScoresJson,
 		String reasonType, String reasonText) {
@@ -88,5 +94,51 @@ public class RecommendationSnapshotRepository {
 			.param("publicId", publicId).param("userId", userId)
 			.query(Long.class)
 			.optional();
+	}
+
+	/** 소유권을 확인하면서 다음 추천의 기준이 된 공개 덱 정보를 읽는다. */
+	public Optional<DeckSnapshot> findOwnedDeckByPublicId(String publicId, long userId) {
+		return jdbc.sql("""
+				select id, mode, input_tags::text as input_tags, weights::text as weights
+				from recommendations
+				where public_id = :publicId and user_id = :userId""")
+			.param("publicId", publicId)
+			.param("userId", userId)
+			.query((rs, rowNum) -> new DeckSnapshot(rs.getLong("id"), rs.getString("mode"),
+				rs.getString("input_tags"), rs.getString("weights")))
+			.optional();
+	}
+
+	/** 같은 사용자·추천 조건의 최근 덱. JSONB 비교는 객체 키 순서와 무관하다. */
+	public List<DeckReference> findRecentDecks(long userId, String mode, String inputTagsJson,
+		String weightsJson, int limit) {
+		return jdbc.sql("""
+				select id
+				from recommendations
+				where user_id = :userId and mode = :mode
+				  and input_tags = cast(:inputTags as jsonb)
+				  and weights = cast(:weights as jsonb)
+				order by created_at desc, id desc
+				limit :limit""")
+			.param("userId", userId)
+			.param("mode", mode)
+			.param("inputTags", inputTagsJson)
+			.param("weights", weightsJson)
+			.param("limit", limit)
+			.query((rs, rowNum) -> new DeckReference(rs.getLong("id")))
+			.list();
+	}
+
+	/** 해당 추천 덱에 실제 노출했던 ISBN 목록. */
+	public List<String> findItemIsbns(long recommendationId) {
+		return jdbc.sql("""
+				select b.isbn13
+				from recommendation_items ri
+				join books b on b.id = ri.book_id
+				where ri.recommendation_id = :recommendationId
+				order by ri.rank""")
+			.param("recommendationId", recommendationId)
+			.query(String.class)
+			.list();
 	}
 }
