@@ -9,7 +9,9 @@ const TURN_TO_PULL = 110
 /** 거의 안 돌리고 뗐다 = 누른 것이다. 손잡이는 눌러도 뽑히는 게 맞다 */
 const TAP_SLOP = 8
 
-const ART = { src: '/images/gacha-concepts/gacha-soft-round.png', knobX: 161, knobY: 316 }
+/** 기계 그림 — 표시 폭이 최대 275px(대화상자)·190px(카드)이라 2배 해상도(600px)로 줄여
+ *  WebP 로 저장했다. 원본 PNG 1024px 은 1.8MB 로, 이 화면에서 필요 없는 크기다(랜딩 일러스트와 같은 처리). */
+const ART = { src: '/images/gacha-concepts/gacha-soft-round.webp', knobX: 161, knobY: 316 }
 /** 소개 카드와 가챠 화면이 같은 기계 그림을 쓴다. 실제 손잡이 동작은 가챠 화면에서만 붙인다. */
 export function GachaMachineArt({ angle = 0, onKnobDown, onKnobMove, onKnobEnd }: {
   angle?: number
