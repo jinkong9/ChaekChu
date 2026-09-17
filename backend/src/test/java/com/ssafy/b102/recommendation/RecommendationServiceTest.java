@@ -5,12 +5,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,9 +31,11 @@ import com.ssafy.b102.recommendation.client.AiRecommendationClient;
 import com.ssafy.b102.recommendation.config.RecommendationProperties;
 import com.ssafy.b102.recommendation.dto.AiRecommendationRequest;
 import com.ssafy.b102.recommendation.dto.AiRecommendationResponse;
+import com.ssafy.b102.recommendation.dto.NextRecommendationRequest;
 import com.ssafy.b102.recommendation.dto.RecommendationResponse;
 import com.ssafy.b102.recommendation.service.RecommendationService;
 import com.ssafy.b102.recommendation.service.RecommendationSnapshotService;
+import com.ssafy.b102.recommendation.service.RecommendationSnapshotService.NextContext;
 import com.ssafy.b102.user.entity.User;
 import com.ssafy.b102.user.repository.UserInterestRepository;
 import com.ssafy.b102.user.service.UserService;
@@ -174,6 +179,130 @@ class RecommendationServiceTest {
 
 		assertThat(response.items()).hasSize(1);
 		verify(snapshots).save(any(), any());
+	}
+
+	@Test
+	@DisplayName("다음 추천은 직전 덱의 태그·가중치를 유지하고 직전 및 최근 덱을 제외한다")
+	void nextRecommendationPreservesCriteriaAndRelaxesOldestDeckWhenShort() {
+		AiRecommendationClient aiClient = mock(AiRecommendationClient.class);
+		UserService userService = mock(UserService.class);
+		UserInterestRepository interests = mock(UserInterestRepository.class);
+		LibraryItemRepository library = mock(LibraryItemRepository.class);
+		BookRepository books = mock(BookRepository.class);
+		PopularBookService popularBooks = mock(PopularBookService.class);
+		RecommendationSnapshotService snapshots = mock(RecommendationSnapshotService.class);
+		User user = mock(User.class);
+		when(user.isOnboarded()).thenReturn(true);
+		when(userService.getUser(USER_ID)).thenReturn(user);
+		LibraryItem wish = mock(LibraryItem.class);
+		Book wishedBook = book("9780000000001", 10L, "찜한 책");
+		when(wish.getBook()).thenReturn(wishedBook);
+		when(wish.getStatus()).thenReturn(ShelfStatus.WISH);
+		when(library.findByUser_IdOrderByUpdatedAtDesc(USER_ID)).thenReturn(List.of(wish));
+		when(snapshots.findNextContext(USER_ID, "rec-previous")).thenReturn(Optional.of(new NextContext(
+			"PERSONALIZED", List.of("FICTION"),
+			Map.of("semantic", 0.2, "tagMatch", 0.4, "coLoan", 0.1, "trending", 0.2, "steady", 0.1),
+			List.of("9780000000002"),
+			List.of(List.of("9780000000003"), List.of("9780000000004")))));
+
+		List<AiRecommendationResponse.Item> shortItems = aiItems("9780000000011", "9780000000012", "9780000000013", "9780000000014");
+		List<AiRecommendationResponse.Item> fullItems = aiItems("9780000000021", "9780000000022", "9780000000023", "9780000000024", "9780000000025");
+		when(aiClient.recommend(any())).thenReturn(aiResponse("rec-next-short", shortItems), aiResponse("rec-next-full", fullItems));
+		AtomicLong bookIds = new AtomicLong(100);
+		when(books.findByIsbn13In(any())).thenAnswer(call -> call.<List<String>>getArgument(0).stream()
+			.map(isbn -> book(isbn, bookIds.incrementAndGet(), "추천 책"))
+			.toList());
+
+		RecommendationService service = new RecommendationService(aiClient, userService, interests, library, books, popularBooks,
+			new RecommendationProperties("http://ai:8000", null, null, 5, 10), snapshots, CLOCK);
+		RecommendationResponse response = service.recommendNext(USER_ID,
+			new NextRecommendationRequest("rec-previous", 5), 5);
+
+		ArgumentCaptor<AiRecommendationRequest> captor = ArgumentCaptor.forClass(AiRecommendationRequest.class);
+		verify(aiClient, org.mockito.Mockito.times(2)).recommend(captor.capture());
+		List<AiRecommendationRequest> requests = captor.getAllValues();
+		assertThat(requests.get(0).excludeIsbns()).containsExactlyInAnyOrder(
+			"9780000000001", "9780000000002", "9780000000003", "9780000000004");
+		assertThat(requests.get(1).excludeIsbns()).containsExactlyInAnyOrder(
+			"9780000000001", "9780000000002", "9780000000003");
+		assertThat(requests.get(1).tags()).extracting(AiRecommendationRequest.TagPreference::code).containsExactly("FIC");
+		assertThat(requests.get(1).weights()).isEqualTo(new AiRecommendationRequest.RecommendationWeights(0.2, 0.4, 0.1, 0.2, 0.1));
+		assertThat(response.recommendationId()).isEqualTo("rec-next-full");
+		assertThat(response.items()).hasSize(5);
+		verify(snapshots).save(USER_ID, response);
+	}
+
+	@Test
+	@DisplayName("다른 사용자 덱 또는 존재하지 않는 덱으로 다음 추천을 만들 수 없다")
+	void nextRecommendationRequiresOwnedSnapshot() {
+		AiRecommendationClient aiClient = mock(AiRecommendationClient.class);
+		UserService userService = mock(UserService.class);
+		UserInterestRepository interests = mock(UserInterestRepository.class);
+		LibraryItemRepository library = mock(LibraryItemRepository.class);
+		BookRepository books = mock(BookRepository.class);
+		PopularBookService popularBooks = mock(PopularBookService.class);
+		RecommendationSnapshotService snapshots = mock(RecommendationSnapshotService.class);
+		User user = mock(User.class);
+		when(user.isOnboarded()).thenReturn(true);
+		when(userService.getUser(USER_ID)).thenReturn(user);
+		when(snapshots.findNextContext(USER_ID, "rec-not-owned")).thenReturn(Optional.empty());
+		RecommendationService service = new RecommendationService(aiClient, userService, interests, library, books, popularBooks,
+			new RecommendationProperties("http://ai:8000", null, null, 5, 10), snapshots, CLOCK);
+
+		org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.recommendNext(USER_ID,
+			new NextRecommendationRequest("rec-not-owned", null), 5))
+			.isInstanceOf(com.ssafy.b102.global.error.BusinessException.class)
+			.extracting("code").isEqualTo(com.ssafy.b102.global.error.ErrorCode.NOT_FOUND);
+		verify(aiClient, never()).recommend(any());
+	}
+
+	@Test
+	@DisplayName("다음 추천의 AI 실패는 기존 태그 조건을 보존한 인기순 폴백 덱으로 이어진다")
+	void nextRecommendationFallsBackWithoutLosingCriteriaOrRepeatingPreviousBooks() {
+		AiRecommendationClient aiClient = mock(AiRecommendationClient.class);
+		UserService userService = mock(UserService.class);
+		UserInterestRepository interests = mock(UserInterestRepository.class);
+		LibraryItemRepository library = mock(LibraryItemRepository.class);
+		BookRepository books = mock(BookRepository.class);
+		PopularBookService popularBooks = mock(PopularBookService.class);
+		RecommendationSnapshotService snapshots = mock(RecommendationSnapshotService.class);
+		User user = mock(User.class);
+		when(user.isOnboarded()).thenReturn(true);
+		when(userService.getUser(USER_ID)).thenReturn(user);
+		when(library.findByUser_IdOrderByUpdatedAtDesc(USER_ID)).thenReturn(List.of());
+		when(snapshots.findNextContext(USER_ID, "rec-ai-failed")).thenReturn(Optional.of(new NextContext(
+			"PERSONALIZED", List.of("FICTION"),
+			Map.of("semantic", 0.2, "tagMatch", 0.4, "coLoan", 0.1, "trending", 0.2, "steady", 0.1),
+			List.of("9780000000031"), List.of(List.of("9780000000032")))));
+		when(aiClient.recommend(any())).thenThrow(new com.ssafy.b102.global.error.BusinessException(
+			com.ssafy.b102.global.error.ErrorCode.RECOMMENDATION_UNAVAILABLE));
+		when(popularBooks.popularFor(USER_ID, PopularBookService.MAX_SIZE)).thenReturn(new PopularBooksResponse(
+			null, List.of(summary("9780000000031", "직전 추천 책"), summary("9780000000033", "인기 대체 책"))));
+
+		RecommendationService service = new RecommendationService(aiClient, userService, interests, library, books, popularBooks,
+			new RecommendationProperties("http://ai:8000", null, null, 5, 10), snapshots, CLOCK);
+		RecommendationResponse response = service.recommendNext(USER_ID,
+			new NextRecommendationRequest("rec-ai-failed", 5), 5);
+
+		assertThat(response.mode()).isEqualTo("PERSONALIZED");
+		assertThat(response.fallback()).isTrue();
+		assertThat(response.appliedTags()).containsExactly("FICTION");
+		assertThat(response.weights()).containsEntry("semantic", 0.2).containsEntry("tagMatch", 0.4);
+		assertThat(response.items()).extracting(item -> item.book().isbn13()).containsExactly("9780000000033");
+		verify(snapshots).save(USER_ID, response);
+	}
+
+	private static AiRecommendationResponse aiResponse(String recommendationId, List<AiRecommendationResponse.Item> items) {
+		return new AiRecommendationResponse(recommendationId, "req", "42", "model-v1", "index-v1", false, items);
+	}
+
+	private static List<AiRecommendationResponse.Item> aiItems(String... isbns) {
+		List<AiRecommendationResponse.Item> items = new java.util.ArrayList<>();
+		for (int i = 0; i < isbns.length; i++) {
+			items.add(new AiRecommendationResponse.Item(isbns[i], i + 1, 90.0 - i, Map.of("semantic", 80.0),
+				List.of("FIC"), new AiRecommendationResponse.Reason("TAG_MATCH", "태그 일치"), List.of()));
+		}
+		return items;
 	}
 
 	private static BookSummaryResponse summary(String isbn, String title) {

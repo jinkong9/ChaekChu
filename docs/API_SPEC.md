@@ -24,7 +24,7 @@
 | | `GET /books/{bookId}` | ● | BookDetailPage · 홈 링 | **구현(09-10)** · ISBN13 도 받는다 |
 | | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 | **구현(09-15)** · 적재 23% 라 빈 배열이 잦다 |
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | **구현(09-10)** · FE 연결 |
-| 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 · 09-11 부터 덱을 DB 에 저장 |
+| 추천 | `GET /recommendations`, `POST /recommendations/next` | ● | RecommendPage · TunePage | GET 덱 저장 · 명시적 다음 덱 생성 |
 | 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
 | | `POST /library` | ● | RecommendPage · BookDetailPage | **구현(09-10)** · FE 연결(응답 본문의 `libraryItemId` 사용) |
 | | `PATCH /library/{libraryItemId}` | ● | LibraryList · LibraryPageB | **구현(09-10)** · FE 연결 |
@@ -543,6 +543,20 @@ AI taxonomy 에 같은 철자로 6개를 넣고(KDC 규칙, 재임베딩 없이 
 - 프론트가 그리는 것은 `recommendationId` `generatedAt` `fallback` `basedOnCount` `appliedTags` `items[].rank/tags/reasonText/book` 뿐이다. `score` `featureScores` `weights` `mode` `reasonType` 은 이벤트 분석·디버그용으로 남긴다(계약 §4.4).
 - 같은 스냅샷을 다시 조회하면 새로 저장하지 않는다. `tags` 를 바꿔 요청하면 새 스냅샷(새 `recommendationId`).
 - `reasonText` 는 서버가 완성한 한 문장(카드에 그대로). `reasonType` 별 템플릿은 추천 구현 문서에서.
+
+### 5.2 `POST /recommendations/next` — 같은 취향으로 다음 덱
+
+프론트가 사용자의 명시적인 「다시 추천」 동작에서 호출한다. 단순히 `GET /recommendations`를 다시 호출하는 대신, 직전에 화면에 표시한 `recommendationId`를 기준 덱으로 전달한다.
+
+```json
+{ "recommendationId": "rec_01J7…", "size": 5 }
+```
+
+- 기준 덱의 `appliedTags`와 `weights`를 스냅샷에서 복원하고, 현재 서재를 seed·제외 목록에 반영한다.
+- 기준 덱과 같은 사용자·모드·태그·가중치 조건의 최근 추천 덱을 최대 3개까지 찾는다. 기준 덱은 항상 제외하며, 이 덱들의 ISBN과 서재 ISBN을 AI의 `excludeIsbns`로 전달한다.
+- 후보가 부족하면 기준 덱 및 서재 제외는 유지한 채, 기준 덱을 제외한 나머지 덱 중 오래된 순으로 제외 목록에서 하나씩 완화해 재요청한다. 그래도 부족하면 가능한 수만 반환한다.
+- AI 호출에 실패하거나 결과가 비면 연령·성별 인기순위로 폴백한다. 폴백도 같은 제외 규칙을 적용하며, `fallback: true`로 표시한다. 폴백 덱에도 다음 요청에서 취향을 복원할 수 있도록 기준 덱의 `appliedTags`·`weights`를 유지한다. 기준 덱이 없거나 다른 사용자의 덱이면 `404 NOT_FOUND`를 반환한다.
+- 성공·폴백 결과 모두 새 `recommendationId`로 스냅샷에 저장한다. 프론트 변경은 이 API를 명시적 재추천 액션에 연결하는 범위이며 자동 새로고침 동작은 바꾸지 않는다.
 
 <br/>
 
