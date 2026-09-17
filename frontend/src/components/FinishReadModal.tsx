@@ -34,7 +34,8 @@ export default function FinishReadModal() {
   }, [target])
 
   /** 내용에 맞춰 감상평 칸의 높이를 맞춘다.
-   *  .eo-field 는 한 줄짜리 입력용이라 rows=2 를 물리면 한 줄만 썼을 때 밑줄이 글자에서 한 줄만큼 떨어져 뜬다. */
+   *  .eo-field 는 한 줄짜리 입력용이라 min-height:40px 를 갖는다 — 그대로 두면 여기서 잰 높이(한 줄 ≈ 29px)를
+   *  덮어써서 밑줄이 글자에서 떨어진 채로 남는다. 그래서 min-h-0 로 눌러 두고 높이를 여기서만 정한다. */
   useEffect(() => {
     const el = reviewRef.current
     if (!el) return
@@ -96,18 +97,21 @@ export default function FinishReadModal() {
         <div className="mt-5">
           <p className="eo-utility">한 줄 감상평 — 선택, 나만 볼 수 있어요</p>
           <textarea ref={reviewRef} rows={1}
-            className="eo-field eo-field--sm mt-1.5 w-full resize-none overflow-y-auto leading-relaxed"
+            className="eo-field eo-field--sm mt-1.5 w-full min-h-0 resize-none overflow-y-auto leading-relaxed"
             maxLength={REVIEW_MAX} value={review} onChange={(e) => setReview(e.target.value)} />
           <p className="eo-utility mt-1 text-right">{review.length} / {REVIEW_MAX}</p>
         </div>
 
         {/* 완독일을 비우면 「서비스를 만나기 전에 읽은 책」이 되는데, 날짜 칸을 직접 지워야 하는 걸 아는 사람이 없었다.
-            그래서 비우는 일을 칩 하나로 만든다 — 켜면 날짜를 비우고 칸을 잠그고, 끄면 원래 날짜(없으면 오늘)로 되돌린다. */}
+            그래서 비우는 일을 칩 하나로 만든다 — 켜면 날짜 칸을 걷어내고(빈 「연도-월-일」만 남아 있을 이유가 없다),
+            끄면 원래 날짜(없으면 오늘)로 되돌린다. 칩이 눌린 것 자체가 완독일 없음의 표시라 따로 설명을 두지 않는다. */}
         <div className="mt-4">
           <p className="eo-utility">완독일</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <input type="date" className="eo-field eo-field--sm w-[180px]" max={today()} disabled={!date}
-              value={date} onChange={(e) => setDate(e.target.value)} aria-label="완독일" />
+            {date && (
+              <input type="date" className="eo-field eo-field--sm w-[180px]" max={today()}
+                value={date} onChange={(e) => setDate(e.target.value)} aria-label="완독일" />
+            )}
             <button type="button" aria-pressed={!date}
               className={`eo-tag ${!date ? 'is-on' : ''}`}
               onClick={() => {
@@ -117,7 +121,6 @@ export default function FinishReadModal() {
               서비스를 만나기 전에 읽었어요
             </button>
           </div>
-          {!date && <p className="eo-utility mt-1.5">완독일 없이 기록돼요 — 연표와 월별 통계에서는 빠집니다</p>}
         </div>
 
         {save.isError && <p className="eo-utility mt-3 text-ink">저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>}
