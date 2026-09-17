@@ -224,8 +224,20 @@ export default function RecommendPage() {
               ? <span className="text-[11px] text-ink-faint">아직 없어요 — 태그를 고르면 그 결이 먼저 올라와요</span>
               : appliedTags.map((t) => <span key={t} className={`eo-tag ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
           </div>
-          <Link to="/tune" className="eo-link shrink-0">기준 조절하기</Link>
+          {/* 덱 전체에 작용하는 행동 둘이 나란히 선다 — 「다시 추천받기」는 기준을 그대로 두고 이 자리에서 책만 새로 받고,
+              「기준 조절하기」는 기준을 바꾸러 떠난다. 재추천은 히어로까지 바꾸므로 히어로 위쪽인 이 줄이 맞는 자리다.
+              캡슐형 CTA 는 히어로의 「찜하기」가 쓰고 있어 둘 다 밑줄 링크로 위계를 낮춘다(DESIGN.md) */}
+          <div className="flex shrink-0 items-center gap-x-4">
+            {exhausted
+              ? <span className="eo-utility">더 보여드릴 책이 없어요</span>
+              : <button type="button" className="eo-link" onClick={reroll} disabled={rerolling}>
+                  {rerolling ? '고르는 중' : '다시 추천받기'}
+                </button>}
+            <span aria-hidden style={{ width: 1, height: 12, background: 'var(--eo-rule-soft)' }} />
+            <Link to="/tune" className="eo-link">기준 조절하기</Link>
+          </div>
         </div>
+        {rerollError && <p className="eo-utility mt-2 text-ink" role="alert">{rerollError}</p>}
 
         {/* ===== 꺼내 놓은 한 권 — 우표첩에서 표지 우표와 사연 우표가 차례로 나온다 ===== */}
         <section ref={heroRef} className="mt-10 flex justify-center overflow-x-auto" style={{ scrollMarginTop: 80 }}>
@@ -282,18 +294,10 @@ export default function RecommendPage() {
 
         {/* ===== 나머지 후보 — 같은 우표첩을 작게. 손을 올린 한 통만 열린다 ===== */}
         <section className="eo-section mt-12">
-          {/* 「다시 추천받기」는 기준을 그대로 두고 책만 새로 받는다 — 기준을 바꾸는 「기준 조절하기」(관심 태그 줄)와 짝이자 대비다.
-              캡슐형 CTA 자리는 히어로의 「찜하기」가 이미 쓰고 있어 여기는 밑줄 링크로 위계를 낮춘다(DESIGN.md) */}
           <div className="eo-section__header">
             <h2 className="eo-title">우표첩의 다음 장</h2>
-            {exhausted
-              ? <span>지금 기준으로는 더 보여드릴 책이 없어요 — 기준을 조절해 보세요</span>
-              : <button type="button" className="eo-link shrink-0" onClick={reroll} disabled={rerolling}>
-                  {rerolling ? '고르는 중' : '다시 추천받기'}
-                </button>}
+            <span>손을 올리면 표지가 보이고, 누르면 위로 꺼내 놓아요</span>
           </div>
-          <p className="eo-utility -mt-1 mb-3">손을 올리면 표지가 보이고, 누르면 위로 꺼내 놓아요</p>
-          {rerollError && <p className="eo-utility mb-3 text-ink" role="alert">{rerollError}</p>}
           <div className="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-4">
             {rest.map((item) => <MiniFolder key={item.book.bookId} item={item} label={label} onSelect={() => feature(item)} />)}
           </div>
