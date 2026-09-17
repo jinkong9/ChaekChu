@@ -28,8 +28,8 @@ type BookDetailDraft = BookDetail & { keywords?: string[] | null }
 const CTA_LABEL: Record<ShelfStatus, string> = { READ: '읽었어요', WISH: '읽고 싶어요' }
 /** 이미 읽은 책의 라벨 — 누를 수 있는 행동이 아니라 서재에 기록된 상태의 표시다 */
 const READ_DONE_LABEL = '이미 읽었어요'
-/** 찜이 담긴 뒤의 라벨 — 같은 버튼이 해제를 맡으므로 눌러서 무슨 일이 나는지 라벨에 적는다 */
-const WISH_CANCEL_LABEL = '읽고 싶어요 취소'
+/** 찜이 담긴 뒤 hover·스크린리더에 붙는 설명 — 라벨은 그대로 두고 여기서만 '해제'를 말한다 */
+const WISH_CANCEL_HINT = '읽고 싶어요 해제'
 
 /** 카드에 인쇄된 문장 — 책이 아니라 서비스의 말이다 */
 const CARD_LINE = '“당신의 오늘도,\n좋은 책과 함께하길.”'
@@ -50,8 +50,6 @@ const PATH = {
   chart: 'M2.5 13.5v-4M6.5 13.5v-8M10.5 13.5v-5M14 13.5v-10',
   star: 'M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6L8 1.8z',
   book: 'M2 3.2h4.2c1 0 1.8.8 1.8 1.8v8c0-1-.8-1.8-1.8-1.8H2v-8zM14 3.2H9.8c-1 0-1.8.8-1.8 1.8v8c0-1 .8-1.8 1.8-1.8H14v-8z',
-  // 담긴 찜을 끄는 자리 — 같은 책갈피에 사선 하나(끄기의 관용 표현)
-  bookmarkOff: 'M4 2h8v12l-4-3-4 3V2z M2.6 13.4L13.4 2.6',
 }
 
 /** 지표 아이콘은 값의 성격을 따른다 — 별점은 별, 대출 횟수는 책, 순위처럼 분포를 읽는 값은 막대.
@@ -259,7 +257,8 @@ export default function CardSpreadPage() {
             </div>
 
             {/* 행동은 이 둘뿐이다 — 서재 2단(READ/WISH)과 하나씩 짝이 맞는다.
-                찜은 한 버튼에서 담고 푼다 — 담긴 뒤에는 라벨과 아이콘이 뒤집혀 다음 누름이 무엇을 할지 먼저 말한다.
+                찜은 한 버튼에서 담고 푼다 — 라벨은 '읽고 싶어요' 하나로 두고, 담겼는지는 북마크가 채워졌는가로 말한다.
+                라벨에 '취소'를 적으면 버튼이 둘인 것처럼 읽혀서, 해제한다는 말은 title·aria-label 로 옮겼다.
                 읽은 책에서는 둘 다 잠근다: 이 화면에서 되돌릴 수 있는 건 찜뿐이고,
                 읽음을 무르는 일(READ → WISH·삭제)과 별점·감상 고치기는 내 서재 한 곳에서만 한다. */}
             <div className="bd-cta">
@@ -267,9 +266,13 @@ export default function CardSpreadPage() {
                 {readItem && <Icon d={PATH.check} />}
                 {readItem ? READ_DONE_LABEL : CTA_LABEL.READ}
               </button>
-              <button className="bd-button-ghost" onClick={toggleWish} disabled={saving || readItem !== null} aria-pressed={wishedItem !== null}>
-                <Icon d={wishedItem ? PATH.bookmarkOff : PATH.bookmark} />
-                {wishedItem ? WISH_CANCEL_LABEL : CTA_LABEL.WISH}
+              <button className="bd-button-ghost" onClick={toggleWish} disabled={saving || readItem !== null}
+                aria-pressed={wishedItem !== null}
+                title={wishedItem ? WISH_CANCEL_HINT : undefined}
+                aria-label={wishedItem ? WISH_CANCEL_HINT : undefined}>
+                {/* 담긴 북마크는 속을 채운다 — 빈 북마크/채운 북마크는 따로 배우지 않아도 되는 짝이다 */}
+                <Icon d={PATH.bookmark} fill={wishedItem ? 'currentColor' : 'none'} />
+                {CTA_LABEL.WISH}
               </button>
             </div>
             {readItem && (
