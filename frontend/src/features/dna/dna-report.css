@@ -388,16 +388,16 @@
   align-items: start;
 }
 .dnar-ev__habit-list { display: grid; margin: 0; }
-.dnar-ev__charts { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+/* 두 그림은 위아래로 — 나란히 두면 각자 폭이 좁아 막대가 실오라기가 된다 */
+.dnar-ev__charts { display: grid; gap: 24px; }
 .dnar-ev__chart { margin: 0; display: grid; gap: 10px; }
-/* 막대는 눕혀서 한 줄에 하나씩 — 위의 축 목록과 같은 짜임이라 두 그림이 한 어법으로 읽힌다.
-   값이 0 인 줄도 남긴다: 빈 달을 지우면 흐름이 끊긴다. */
-.dnar-ev__rows { display: grid; gap: 9px; }
-.dnar-ev__row { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) 1.6em; align-items: center; gap: 10px; }
-.dnar-ev__row-label { font-size: 11px; color: var(--eo-ink-faint); white-space: nowrap; }
-.dnar-ev__row-track { height: 6px; background: var(--eo-placeholder); }
-.dnar-ev__row-track span { display: block; height: 100%; }
-.dnar-ev__row-value { font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
+.dnar-ev__bars { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; align-items: end; height: 96px; }
+.dnar-ev__bar { display: grid; grid-template-rows: auto 1fr auto; gap: 4px; justify-items: center; height: 100%; }
+/* 값이 0 이어도 자리는 남는다 — 빈 달을 지우면 흐름이 끊긴다 */
+.dnar-ev__bar-track { display: flex; align-items: flex-end; width: 100%; height: 100%; background: var(--eo-placeholder); }
+.dnar-ev__bar-fill { display: block; width: 100%; min-height: 1px; }
+.dnar-ev__bar-label { font-size: 10px; color: var(--eo-ink-faint); }
+.dnar-ev__bar-value { font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; }
 
 .dnar-ev__authors {
   display: flex;
@@ -440,7 +440,6 @@
 @media (max-width: 640px) {
   .dnar-ev { margin-top: 40px; }
   .dnar-ev__type { padding: 22px 18px; }
-  .dnar-ev__charts { grid-template-columns: 1fr; }
   .dnar-ev__wall { grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
