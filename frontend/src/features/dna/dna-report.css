@@ -145,7 +145,10 @@
 
 /* 한글 제목 안 — 라틴 세리프 대신 한글 세리프로. 오른쪽 한글과 획의 결이 맞는다 */
 .dnar-hero-c__visual { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-.dnar-typefield { width: 100%; aspect-ratio: 1.65; min-height: 280px; }
+/* 이름은 캔버스 한가운데에 그려지므로, 상자가 높으면 이름 아래가 통째로 빈다.
+   그 빈 자리만큼 캡션과 지표가 밀려 내려간다 — 상자를 눕혀(1.65→2.3) 120px 쯤 끌어올린다.
+   글자 크기는 상자 높이의 0.39 배(최대 132px)라 이름도 조금 작아진다. */
+.dnar-typefield { width: 100%; aspect-ratio: 2.3; min-height: 240px; }
 .dnar-typefield canvas { display: block; width: 100%; height: 100%; }
 .dnar-hero-c__caption { display: flex; align-items: baseline; gap: 12px; padding: 4px 4% 0; }
 .dnar-hero-c__caption span { font-family: var(--font-wordmark); letter-spacing: .2em; font-size: 10px; color: var(--eo-ink-faint); }
