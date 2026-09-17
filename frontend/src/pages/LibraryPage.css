@@ -308,7 +308,7 @@
   /* 아르누보 표지 텍스처 — 레퍼런스 이미지 원근 보정 후 기존 문구 제거본 */
   background:
     linear-gradient(105deg, rgba(255, 255, 255, 0.1), transparent 24%, transparent 70%, rgba(4, 11, 29, 0.26)),
-    url('../assets/book-cover-archive-repaired.png') center / 100% 100% no-repeat,
+    url('../assets/book-cover-archive-repaired.webp') center / 100% 100% no-repeat,
     #3a5871;
   box-shadow: 1px 0 0 rgba(255, 255, 255, 0.16) inset;
 }

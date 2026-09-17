@@ -15,7 +15,7 @@ import { useAuthStore } from '../stores/authStore'
 import { coverPalette } from '../lib/coverPalette'
 import { coverAtWidth } from '../lib/coverUrl'
 import LibraryList from '../components/LibraryList'
-import bookArchiveTitle from '../assets/book-archive-title.png'
+import bookArchiveTitle from '../assets/book-archive-title.webp'
 import './LibraryPage.css'
 
 /** LIB-001 내 서재 — 완독 기록을 한 권의 책으로 엮어 보이는 메인 화면.
