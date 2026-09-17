@@ -263,6 +263,8 @@
 .dnar-hero-b__metric { display: grid; grid-template-columns: 52px 1fr 26px; align-items: center; gap: 10px; font-size: 11px; }
 .dnar-hero-b__metric strong { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
 .dnar-hero-b__track, .dnar-hero-c__track { display: block; height: 3px; background: var(--eo-placeholder); }
+/* C안의 막대는 한 칸을 넓게 쓰므로 3px 로는 실선처럼 보인다 — 리포트 본문 막대(6px)보다 조금 굵게 */
+.dnar-hero-c__track { height: 9px; }
 .dnar-hero-b__track > span, .dnar-hero-c__track > span { display: block; height: 100%; }
 
 /* C안 — 흩어진 활자가 사용자 독서타입 이름을 쓴다. */
