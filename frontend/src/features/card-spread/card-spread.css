@@ -301,7 +301,7 @@
 .bd-button-ghost:hover,
 .bd-button-ghost:focus-visible { border-color: var(--eo-ink); transform: translateY(-1px); }
 
-/* 담겨 있는 쪽은 테두리와 농도로 알린다 — 라벨('읽고 싶어요 취소')과 같은 말을 색으로 한 번 더 한다 */
+/* 담겨 있는 쪽은 테두리와 농도로 알린다 — 라벨은 그대로이고, 채워진 북마크와 함께 이 농도가 '담김'을 말한다 */
 .bd-button-ghost[aria-pressed='true'] {
   border-color: var(--eo-ink);
   background: rgba(11, 11, 11, 0.07);
