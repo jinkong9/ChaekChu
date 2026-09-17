@@ -5,7 +5,7 @@ import { useReducedMotion } from 'motion/react'
 import { api } from '../api/client'
 import { addToLibrary } from '../api/library'
 import type { LibraryItem, RecommendationItem, ShelfStatus } from '../api/types'
-import { useRecommendations, RECOMMEND_DECK_SIZE } from '../lib/useRecommendations'
+import { useRecommendations, fetchNextRecommendations, RECOMMEND_DECK_SIZE } from '../lib/useRecommendations'
 import { tagLabel, useTags } from '../lib/useTags'
 import { useTuneStore } from '../stores/tuneStore'
 import { useFinishModalStore } from '../stores/finishModalStore'
@@ -56,6 +56,12 @@ export default function RecommendPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // 「다시 추천받기」 — 받는 동안 링크를 잠그고, 실패·소진은 그 자리에서 말한다
+  const [rerolling, setRerolling] = useState(false)
+  const [rerollError, setRerollError] = useState<string | null>(null)
+  /** 서버가 빈 덱을 준 적이 있다 = 이 조건으로 더 꺼낼 책이 없다(§5.2: 가능한 수만 반환, 없으면 빈 items) */
+  const [exhausted, setExhausted] = useState(false)
+
   // 히어로 자리에 꺼내 둔 책. null이면 1순위
   const [featuredId, setFeaturedId] = useState<number | null>(null)
   // 히어로는 도착 연출 — 들어오고 잠시 뒤 저절로 열린다 (모션을 줄인 환경에선 즉시 열린 상태)
@@ -69,6 +75,12 @@ export default function RecommendPage() {
     return () => clearTimeout(t)
   }, [reduced])
   useEffect(() => () => clearTimeout(reopen.current), [])
+
+  // 덱이 갈리면(기준 조절 등) 소진·오류 표시를 턴다 — 새 조건에서는 다시 꺼낼 수 있다
+  useEffect(() => {
+    setExhausted(false)
+    setRerollError(null)
+  }, [data?.recommendationId])
 
   // 노출 이벤트 — 덱(recommendationId)당 1회 + 실제로 편 카드마다 1회(§7.1: 둘 다 받는다).
   // 서버가 10권을 보내도 화면은 RECOMMEND_DECK_SIZE 장만 펴므로, 카드 노출이 없으면 안 보인 책이 「보여줬는데 안 눌렀다」로 집계된다.
@@ -156,6 +168,41 @@ export default function RecommendPage() {
     heroRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
   }
 
+  /** 우표첩을 닫았다 다시 연다 — 「바꿔 꺼냈다」를 몸짓으로 보여 주는 이 화면의 공통 연출 */
+  const reopenHero = () => {
+    clearTimeout(reopen.current)
+    if (reduced) {
+      setHeroOpen(true)
+    } else {
+      setHeroOpen(false)
+      reopen.current = setTimeout(() => setHeroOpen(true), 280)
+    }
+    heroRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
+  }
+
+  /** 같은 기준으로 덱을 통째로 새로 받는다(§5.2). 기준(태그·가중치)은 서버가 복원하므로 여기서 보내지 않는다 —
+   *  기준을 바꾸고 싶은 사람은 옆의 「기준 조절하기」로 간다. 둘은 다른 행동이다.
+   *  받은 덱은 react-query 캐시에 얹어 이 화면의 단일 출처를 유지한다. 히어로 선택은 풀어 새 덱의 1순위가 올라오게 한다.
+   *  노출 이벤트는 data 가 바뀌면 위의 useEffect 가 새 recommendationId 로 다시 보낸다 — 여기서 따로 부르지 않는다. */
+  const reroll = () => {
+    if (rerolling || exhausted) return
+    setRerolling(true)
+    setRerollError(null)
+    fetchNextRecommendations(data.recommendationId, RECOMMEND_DECK_SIZE)
+      .then((next) => {
+        // 빈 덱 = 이 조건에서 더 꺼낼 책이 없다. 적게 온 것(부분 반환)과는 다른 상태다
+        if (next.items.length === 0) {
+          setExhausted(true)
+          return
+        }
+        qc.setQueryData(['recommendations', myTags], next)
+        setFeaturedId(null)
+        reopenHero()
+      })
+      .catch(() => setRerollError('다시 추천받지 못했어요. 잠시 후 다시 눌러 주세요.'))
+      .finally(() => setRerolling(false))
+  }
+
   return (
     <main className="eo-page">
       <div className="eo-shell">
@@ -235,10 +282,18 @@ export default function RecommendPage() {
 
         {/* ===== 나머지 후보 — 같은 우표첩을 작게. 손을 올린 한 통만 열린다 ===== */}
         <section className="eo-section mt-12">
+          {/* 「다시 추천받기」는 기준을 그대로 두고 책만 새로 받는다 — 기준을 바꾸는 「기준 조절하기」(관심 태그 줄)와 짝이자 대비다.
+              캡슐형 CTA 자리는 히어로의 「찜하기」가 이미 쓰고 있어 여기는 밑줄 링크로 위계를 낮춘다(DESIGN.md) */}
           <div className="eo-section__header">
             <h2 className="eo-title">우표첩의 다음 장</h2>
-            <span>손을 올리면 표지가 보이고, 누르면 위로 꺼내 놓아요</span>
+            {exhausted
+              ? <span>지금 기준으로는 더 보여드릴 책이 없어요 — 기준을 조절해 보세요</span>
+              : <button type="button" className="eo-link shrink-0" onClick={reroll} disabled={rerolling}>
+                  {rerolling ? '고르는 중' : '다시 추천받기'}
+                </button>}
           </div>
+          <p className="eo-utility -mt-1 mb-3">손을 올리면 표지가 보이고, 누르면 위로 꺼내 놓아요</p>
+          {rerollError && <p className="eo-utility mb-3 text-ink" role="alert">{rerollError}</p>}
           <div className="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-4">
             {rest.map((item) => <MiniFolder key={item.book.bookId} item={item} label={label} onSelect={() => feature(item)} />)}
           </div>
