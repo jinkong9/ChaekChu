@@ -274,10 +274,23 @@ AI 가 503·타임아웃이면 저장된 마지막 프로필을 그대로 내고
 
 ## 4. 도서
 
-### 4.1 `GET /books/search?q=&kdc=&page=&size=` ●
+### 4.1 `GET /books/search?q=&kdc=&scope=&page=&size=` ●
 
 `q` 와 `kdc` 중 **하나는 필수**(둘 다 없으면 `400`). `q` 는 1~100자로 제목·저자·출판사를 찾고, `kdc` 는 KDC 코드 prefix 1~3자리(`8` 문학 · `81` 한국문학 · `813` 소설)로 `books.category_code`(`"813.62"`)의 앞자리를 맞춘다.
-`q` 가 하이픈 포함 ISBN 형태면 ISBN 조회로 처리하고(그때 `kdc` 는 무시), L0 에 없으면 카카오 1회 조회로 온디맨드 등록을 시도한다(서비스 방향 §7).
+`q` 가 하이픈 포함 ISBN 형태면 ISBN 조회로 처리하고(그때 `kdc`·`scope` 는 무시), L0 에 없으면 카카오 1회 조회로 온디맨드 등록을 시도한다(서비스 방향 §7).
+
+`scope` 는 **검색 범위**(2026-09-17)다 — `q` 를 어느 필드에 대고 점수를 내는가. `all`(기본, 생략 가능) · `title` · `author` · `publisher` 중 하나, 대소문자 무시.
+`all` 은 지금까지의 동작 그대로(제목·저자·출판사를 함께 보며 `한강 소년` 처럼 저자+제목이 섞인 검색어도 받아 준다)라 **기존 호출은 바꿀 것이 없다**.
+`title`·`author`·`publisher` 는 사용자가 명시적으로 좁힐 때만 쓴다 — 그 필드 하나만 보므로 섞인 검색어는 찾지 못한다(의도된 동작).
+정렬·`kdc` 필터·페이징·탐색 한도는 범위와 무관하게 같다. 넷 중 하나가 아니면 `400 VALIDATION_FAILED` · `details.fields[{ field: "scope" }]`.
+
+| `scope` | ① 완전일치 ×10 | ② 형태소(nori, 모든 단어 필요) | ③ 부분일치(bigram) |
+| --- | --- | --- | --- |
+| `all` (기본) | `title.keyword` | `title^3 · authors^2 · publisher` (cross_fields) | `title.ngram^1.5 · authors.ngram` |
+| `title` | `title.keyword` | `title` | `title.ngram` |
+| `author` | `authors.keyword` | `authors` | `authors.ngram` |
+| `publisher` | `publisher.keyword` | `publisher` | 없음 |
+
 
 **탐색 한도 10,000건.** `page × size + size` 가 이를 넘으면 `400` 이다 — `size=20` 이면 `page` 0~499, 화면 1~500쪽. ES `from+size` 상한이자 제품 결정(09-11):
 깊은 페이지를 억지로 주지 않고 분류·검색어로 좁히게 유도한다. 그래서 커서(`search_after`)는 두지 않는다. `total` 은 필터 적용 후 전체 건수라 한도보다 클 수 있으니,
@@ -295,7 +308,7 @@ AI 가 503·타임아웃이면 저장된 마지막 프로필을 그대로 내고
 | `q` + `kdc` | 같음 — `kdc` 는 점수에 끼지 않는 filter 라 순서가 그대로다. 분류 안에서도 검색 관련도가 먼저 |
 | `kdc` 만 | 누적 대출(`loanCum`) 내림차순 → `bookId` 오름차순. 대출값이 없는 책은 **마지막** |
 
-정렬·필터 파라미터는 이 둘뿐이다. 최신순·인기순 선택은 프론트에 없어 두지 않는다.
+정렬을 고르는 파라미터는 없다 — `q`·`kdc`·`scope` 셋이 전부다. 최신순·인기순 선택은 프론트에 없어 두지 않는다.
 
 구현 메모 (2026-09-09, V1 위에서):
 - ISBN 판정 = 하이픈·공백을 뗀 뒤 978/979 로 시작하는 13자리 숫자. 정확 조회라 결과는 0 또는 1건. **카카오 온디맨드 등록은 아직 없다** — 없으면 `total: 0`.
@@ -309,7 +322,9 @@ AI 가 503·타임아웃이면 저장된 마지막 프로필을 그대로 내고
 - **권차(v6, 09-16)**: ES 문서에 `vol`(keyword) 을 색인해 `items[].volume` 으로 내보낸다. 값이 없는 책은 `null`. 재색인은 배포 시 초기화기가 새 인덱스 `books_v6` 를 채우고 alias 를 원자적으로 옮긴다(105만 건, EC2 약 5분) — 그동안 검색은 v5 로 계속 되고 `volume` 만 `null` 이다.
 - **`kdc` 만 보낼 때의 대출순**은 매핑 v4 의 `loanCum` — 색인할 때 `book_demand_features` 최신 스냅샷(`2026-08`)의 `loan_cum` 을 LEFT JOIN 해 넣는다. 수요 지표가 없는 책(약 57만 권)은 `null` 이고 정렬에서 뒤로 간다. 스냅샷이 더 늘지 않는 전제라 월 배치·증분 갱신 경로는 두지 않았다(추가되면 전체 재색인).
 - 정렬에 `unmapped_type` 을 주므로 v4 재색인 중 alias 가 아직 v3 를 가리켜도 `500` 이 아니라 「전부 값 없음」으로 동작한다 — 그 15분 동안 대출순만 정확하지 않고 검색은 살아 있다.
+- **검색 범위 `scope`(2026-09-17)**: 매핑은 그대로다 — `title`·`authors`·`publisher` 가 이미 각각 필드고 `.ngram`·`.keyword` 서브필드가 있어, 범위에 따라 쿼리에 넣는 필드 목록만 바뀐다(재색인 없음, `books_v6` 유지). `author` 완전일치는 `authors.keyword`(공백 제거·소문자 normalizer)라 제목과 같은 규칙이고, `publisher.keyword` 는 normalizer 가 없어 출판사 완전일치만 공백·대소문자를 가린다(맞추려면 매핑 v7 재색인 — 필요해지면). `q` 없이 `kdc` 만이면 점수를 내지 않아 `scope` 는 쓰이지 않지만 값은 검증한다. **프론트 붙이기**: `searchBooks(q, page, size, kdc, scope)` 처럼 인자를 더해 `all` 이 아닐 때만 쿼리에 싣고, URL 파라미터(`useSearchParams`)에 실어 새로고침·공유에도 유지, react-query 키에 포함.
 - 검색 엔진 장애는 `503 SEARCH_UNAVAILABLE`(§1.3).
+
 
 ### 4.7 `GET /kdc?depth=&parent=` ● (2026-09-11)
 

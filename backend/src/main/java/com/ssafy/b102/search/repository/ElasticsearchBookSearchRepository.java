@@ -1,6 +1,8 @@
 package com.ssafy.b102.search.repository;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.data.domain.PageRequest;
@@ -27,13 +29,17 @@ import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
 /**
  * Spring Data ES 의 NativeQuery(= 공식 Java 클라이언트 DSL)로 검색한다. derived query 로는 필드 가중치·서브필드·동점 정렬을 못 쓴다.
  *
- * 검색어가 있을 때의 점수식 (bool.should, minimum_should_match=1 — 셋 중 하나라도 맞으면 후보):
+ * 검색어가 있을 때의 점수식 (bool.should, minimum_should_match=1 — 셋 중 하나라도 맞으면 후보). 아래는 scope=ALL(기본)의 필드다:
  *   ① multi_match cross_fields AND  title^3 · authors^2 · publisher   — 검색어의 모든 형태소가 세 필드 어딘가에 있어야 한다.
  *        "한강 소년" 처럼 저자+제목이 섞인 검색어를 받아 준다. 세 필드 analyzer 가 같아(korean) cross_fields 가 성립한다.
  *   ② multi_match phrase          title.ngram^1.5 · authors.ngram     — 공백을 지운 2-gram 연속 일치. "어린왕자"↔"어린 왕자", 사전에 없는 고유명사.
  *   ③ term                        title.keyword ×10                    — 제목이 검색어와 글자까지 같으면 맨 위.
  *   ④ function_score              hasCover=false 이면 × noCoverWeight   — 표지 없는 판본을 조금 내린다(매핑 v3, 기본 0.7). 곱셈이라 ①~③ 의 서열은 유지.
  * 가중치는 실제 카탈로그를 색인한 뒤 대표 검색어로 조정한다. 여기 숫자는 시작값이다.
+ *
+ * 검색 범위(scope, 09-17): ①~③ 에 들어가는 필드 목록만 범위에 따라 바뀐다(FIELDS). ALL 이 위의 식 그대로고,
+ *   TITLE·AUTHOR·PUBLISHER 는 그 필드 하나의 형태소·bigram·완전일치만 본다 — 섞인 검색어를 못 받는 것은 의도된 동작이다.
+ *   매핑은 그대로라 재색인이 없다: title·authors·publisher 가 이미 각각 필드고 .ngram·.keyword 서브필드가 있다. ④·kdc 필터·정렬은 범위와 무관.
  *
  * KDC 필터(매핑 v4)는 점수에 끼지 않는 bool.filter 의 prefix 절이다 — categoryCode 가 keyword 라 "813.62" 가 "8"·"81"·"813" 에 걸린다.
  * 정렬은 검색어가 있으면 _score → loanCum(누적 대출) 내림차순 → id, 없으면 loanCum 내림차순 → id 다(동점 규칙 09-16).
@@ -45,9 +51,27 @@ import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
 @Repository
 public class ElasticsearchBookSearchRepository implements BookSearchRepository {
 
-	private static final List<String> MORPHEME_FIELDS = List.of("title^3", "authors^2", "publisher");
-	private static final List<String> NGRAM_FIELDS = List.of("title.ngram^1.5", "authors.ngram");
-	private static final float EXACT_TITLE_BOOST = 10f;
+	/** ③ 검색어와 글자까지 같은 문서에 곱하는 가중. 완전일치가 형태소·부분일치 위에 서게 하는 값이라 범위와 무관하게 같다. */
+	private static final float EXACT_BOOST = 10f;
+
+	/**
+	 * 범위별로 점수식 ①~③ 에 들어가는 필드. ④(표지 가중)·정렬은 범위와 무관.
+	 * ALL 은 09-17 이전의 필드 목록 그대로다. 단일 필드 범위에서는 cross_fields 가 그 필드 하나의 match(AND)와 같다.
+	 * PUBLISHER 는 매핑에 bigram 서브필드가 없어 ② 가 비고, publisher.keyword 에 normalizer 가 없어 ③ 만 공백·대소문자를 가린다(맞추려면 매핑 v7).
+	 */
+	private static final Map<SearchScope, ScopeFields> FIELDS = Map.of(
+		SearchScope.ALL, new ScopeFields(List.of("title^3", "authors^2", "publisher"), List.of("title.ngram^1.5", "authors.ngram"), "title.keyword"),
+		SearchScope.TITLE, new ScopeFields(List.of("title"), List.of("title.ngram"), "title.keyword"),
+		SearchScope.AUTHOR, new ScopeFields(List.of("authors"), List.of("authors.ngram"), "authors.keyword"),
+		SearchScope.PUBLISHER, new ScopeFields(List.of("publisher"), List.of(), "publisher.keyword"));
+
+	/**
+	 * @param morpheme ① cross_fields AND 대상(가중치 포함 표기)
+	 * @param ngram    ② phrase 대상. 비면 ② 를 만들지 않는다
+	 * @param exact    ③ term 대상 keyword 필드
+	 */
+	private record ScopeFields(List<String> morpheme, List<String> ngram, String exact) {
+	}
 
 	private final ElasticsearchOperations operations;
 	private final SearchProperties props;
@@ -58,13 +82,14 @@ public class ElasticsearchBookSearchRepository implements BookSearchRepository {
 	}
 
 	@Override
-	public BookSearchResult search(String q, String kdcPrefix, int page, int size) {
+	public BookSearchResult search(String q, String kdcPrefix, SearchScope scope, int page, int size) {
 		boolean byQuery = q != null && !q.isBlank();
 		boolean byKdc = kdcPrefix != null && !kdcPrefix.isBlank();
+		SearchScope resolved = Objects.requireNonNullElse(scope, SearchScope.ALL);
 
 		Query query = Query.of(b -> b.bool(bool -> {
 			if (byQuery) {
-				bool.must(relevance(q));
+				bool.must(relevance(q, resolved));
 			}
 			if (byKdc) {
 				bool.filter(f -> f.prefix(p -> p.field("categoryCode").value(kdcPrefix)));
@@ -88,15 +113,19 @@ public class ElasticsearchBookSearchRepository implements BookSearchRepository {
 		return new BookSearchResult(hits.getTotalHits(), hits.getSearchHits().stream().map(SearchHit::getContent).toList());
 	}
 
-	/** ①~④ 를 합친 관련도 절. 검색어가 있을 때만 쓴다. */
-	private Query relevance(String q) {
-		Query scored = Query.of(b -> b.bool(bool -> bool
-			.should(s -> s.multiMatch(m -> m.query(q).fields(MORPHEME_FIELDS)
-				.type(TextQueryType.CrossFields).operator(Operator.And)))
-			.should(s -> s.multiMatch(m -> m.query(q).fields(NGRAM_FIELDS)
-				.type(TextQueryType.Phrase)))
-			.should(s -> s.term(t -> t.field("title.keyword").value(q).boost(EXACT_TITLE_BOOST)))
-			.minimumShouldMatch("1")));
+	/** ①~④ 를 합친 관련도 절. 검색어가 있을 때만 쓴다. 범위는 ①~③ 의 필드 목록만 바꾼다. */
+	private Query relevance(String q, SearchScope scope) {
+		ScopeFields fields = FIELDS.get(scope);
+		Query scored = Query.of(b -> b.bool(bool -> {
+			bool.should(s -> s.multiMatch(m -> m.query(q).fields(fields.morpheme())
+				.type(TextQueryType.CrossFields).operator(Operator.And)));
+			if (!fields.ngram().isEmpty()) {
+				bool.should(s -> s.multiMatch(m -> m.query(q).fields(fields.ngram())
+					.type(TextQueryType.Phrase)));
+			}
+			bool.should(s -> s.term(t -> t.field(fields.exact()).value(q).boost(EXACT_BOOST)));
+			return bool.minimumShouldMatch("1");
+		}));
 
 		// 표지 없는 문서(hasCover=false)는 점수 × noCoverWeight. 후보 집합은 그대로고 순서만 바뀐다 — 곱셈이라 완전일치(×10)를 뒤집지는 못한다.
 		// hasCover 가 없는 옛 문서(v2)는 필터에 안 걸려 그대로다.
