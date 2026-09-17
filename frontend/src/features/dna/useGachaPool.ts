@@ -6,7 +6,8 @@
  *  `GET /books/search?kdc=` 는 누적 대출순으로 페이지를 주므로, 뒤 페이지로 갈수록
  *  덜 읽힌 책이 나온다. 그게 이 콘텐츠가 노리는 자리다.
  *
- *  나라를 먼저 고르고 그 안에서 한 묶음을 집는다. 한 코드로만 뽑으면 한국소설만 쏟아진다. */
+ *  나라를 먼저 고르고 그 안에서 한 묶음을 집는다. 한 코드로만 뽑으면 한국소설만 쏟아진다.
+ *  이미 읽은 책은 후보에서 뺀다 — 다 읽은 책을 뽑아 놓고 "새 영역"이라 말하면 우스워진다. */
 import { useQuery } from '@tanstack/react-query'
 import { searchBooksRaw } from '../../api/books'
 import type { ServerBookSummary } from '../../api/types'
@@ -30,6 +31,7 @@ function cleanAuthor(raw: string): string {
 
 function toDnaBook(b: ServerBookSummary): DnaBook {
   return {
+    bookId: b.bookId,
     isbn13: b.isbn13 ?? b.bookId,
     title: b.title,
     author: b.authors.length > 0 ? cleanAuthor(b.authors[0]) : '',
@@ -48,14 +50,16 @@ export interface GachaWindow {
   total: number
 }
 
-/** 한 나라의 소설에서 묶음 하나 */
-async function windowOf(kdc: string): Promise<GachaWindow> {
+/** 한 나라의 소설에서 묶음 하나. 이미 읽은 책은 뽑히지 않게 걷어낸다 */
+async function windowOf(kdc: string, read: ReadonlySet<string>): Promise<GachaWindow> {
   const head = await searchBooksRaw('', 0, WINDOW, kdc)
   const lastPage = Math.min(MAX_PAGE, Math.floor(Math.max(0, head.total - 1) / WINDOW))
   // 첫 페이지는 베스트셀러다. 뒤가 있으면 뒤에서 집어 와야 '취향 밖'이 된다
   const page = lastPage > 0 ? 1 + Math.floor(Math.random() * lastPage) : 0
   const window = page === 0 ? head : await searchBooksRaw('', page, WINDOW, kdc)
-  const items = (window.items.length > 0 ? window.items : head.items).map(toDnaBook).filter((b) => b.coverUrl !== '')
+  const items = (window.items.length > 0 ? window.items : head.items)
+    .map(toDnaBook)
+    .filter((b) => b.coverUrl !== '' && !read.has(b.isbn13))
   return { books: items, total: head.total }
 }
 
@@ -63,18 +67,18 @@ async function windowOf(kdc: string): Promise<GachaWindow> {
  *  고른 나라에 한 권도 없을 수 있다(이탈리아소설·중국소설은 카탈로그가 얇다).
  *  그때 빈손으로 돌아오면 화면은 '꺼내는 중'에 갇히고 손잡이가 잠긴 채로 남는다 —
  *  그래서 카탈로그가 가장 두꺼운 한국소설로 한 번 되돌아간다. */
-export async function fetchGachaWindow(): Promise<GachaWindow> {
-  const first = await windowOf(pick(FICTION_KDC)!)
+export async function fetchGachaWindow(read: ReadonlySet<string> = new Set()): Promise<GachaWindow> {
+  const first = await windowOf(pick(FICTION_KDC)!, read)
   if (first.books.length > 0) return first
-  return windowOf(FALLBACK_KDC)
+  return windowOf(FALLBACK_KDC, read)
 }
 
 /** 유리구를 채울 표지와 "소설 N권" 문구에 쓸 묶음 하나. 뽑을 때는 매번 새 묶음을 부른다.
  *  대화상자를 열 때만 부른다 — 리포트를 볼 때마다 검색을 두 번 때릴 이유가 없다. */
-export function useGachaWindow(enabled: boolean) {
+export function useGachaWindow(enabled: boolean, read: ReadonlySet<string>) {
   return useQuery({
     queryKey: ['gacha', 'fiction'],
-    queryFn: fetchGachaWindow,
+    queryFn: () => fetchGachaWindow(read),
     enabled,
     // 열 때마다 다른 묶음을 본다. gcTime 0 은 쓰지 않는다 —
     // StrictMode 가 붙였다 떼는 사이에 진행 중이던 요청째로 캐시가 지워져 '꺼내는 중'에서 멈춘다

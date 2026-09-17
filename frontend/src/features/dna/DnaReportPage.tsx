@@ -22,6 +22,7 @@ import { axisLabel, profileFromApi, type DnaProfile } from './dnaProfile'
 import { useGachaWindow } from './useGachaPool'
 import { buildHabits, type Habit } from './habits'
 import DnaConstellation from './DnaConstellation'
+import ReadingTypeField from './ReadingTypeField'
 import BookWorldCup from './BookWorldCup'
 import BookGacha from './BookGacha'
 import { GachaMachineArt } from './GachaMachine'
@@ -75,6 +76,77 @@ function Centerpiece({ tones, profile }: { tones: string[] | null; profile: DnaP
         <span className="dnar-figure__code">{profile.type.code}</span>
       </div>
     </div>
+  )
+}
+
+/** 두 새 시안은 같은 분석값을 다른 편집 방식으로 보여 준다. */
+function HeroBasis({ basis }: { basis: Basis }) {
+  return (
+    <p className="dnar-hero-alt__basis">
+      완독 {basis.readCount}권{basis.basedOnCount < basis.readCount ? ` 중 ${basis.basedOnCount}권` : ''} 분석 · {computedAgo(basis.generatedAt)}
+      {basis.unanalyzedCount > 0 && <span> · {basis.unanalyzedCount}권은 분석 데이터 준비 중</span>}
+    </p>
+  )
+}
+
+function HeroB({ profile, tones, basis }: { profile: DnaProfile; tones: string[] | null; basis: Basis }) {
+  return (
+    <section className="dnar-hero-b" aria-label="BOOK DNA B안">
+      <div className="dnar-hero-b__intro">
+        <span className="dnar-eyebrow">BOOK DNA · READING PORTRAIT</span>
+        <h1 className="dnar-hero-b__title">
+          읽은 책이 모여<br />
+          <em>당신의 문장</em>이 됩니다.
+        </h1>
+        <p className="dnar-hero-b__sub">당신의 읽는 세계를 더 깊이, 더 넓게.<br />한 권씩 쌓인 기록에서 지금의 취향을 발견합니다.</p>
+        <HeroBasis basis={basis} />
+      </div>
+      <div className="dnar-hero-b__portrait">
+        <div className="dnar-hero-b__topline"><span>YOUR READING TYPE</span><span>{profile.type.code}</span></div>
+        <p className="dnar-hero-b__phrase">{profile.type.phrase}</p>
+        <h2 className="dnar-hero-b__type">{profile.type.name}<span>입니다.</span></h2>
+        <p className="dnar-hero-b__summary">{profile.oneLine}</p>
+        <div className="dnar-hero-b__metrics">
+          {profile.metrics.map((metric, i) => (
+            <div className="dnar-hero-b__metric" key={metric.key}>
+              <span>{metric.key}</span>
+              <span className="dnar-hero-b__track"><span style={{ width: `${metric.value}%`, background: tones?.[i] ?? 'var(--eo-ink)' }} /></span>
+              <strong>{metric.value}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function HeroC({ profile, tones, basis }: { profile: DnaProfile; tones: string[] | null; basis: Basis }) {
+  return (
+    <section className="dnar-hero-c" aria-label="BOOK DNA C안">
+      <div className="dnar-hero-c__main">
+        <div className="dnar-hero-c__intro">
+          <span className="dnar-eyebrow">MY READING ANALYSIS</span>
+          <h1 className="dnar-hero-c__title">BOOK<br />DNA</h1>
+          <p className="dnar-hero-c__sub">흩어져 있던 글자들이 모여<br />당신의 독서타입을 씁니다.</p>
+          <HeroBasis basis={basis} />
+        </div>
+        <div className="dnar-hero-c__visual">
+          <ReadingTypeField typeName={profile.type.name} tones={tones} />
+          <div className="dnar-hero-c__caption">
+            <span>YOUR READING TYPE · {profile.type.code}</span>
+            <p>{profile.type.phrase}</p>
+          </div>
+        </div>
+      </div>
+      <div className="dnar-hero-c__metrics">
+        {profile.metrics.map((metric, i) => (
+          <div className="dnar-hero-c__metric" key={metric.key}>
+            <div><span>{metric.key}</span><strong>{metric.value}%</strong></div>
+            <span className="dnar-hero-c__track"><span style={{ width: `${metric.value}%`, background: tones?.[i] ?? 'var(--eo-ink)' }} /></span>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -170,12 +242,13 @@ const TESTS = [
 
 /** 가챠 대화상자 — 후보(소설 전체)는 열 때 서버에서 받는다. 받아 오는 동안에도 상자는 떠 있어야 해서
  *  BookGacha 를 감싸 그 기다림만 맡는다. */
-function GachaDialog({ axes, onClose }: { axes: DnaProfile['axes']; onClose: () => void }) {
-  const { data, isError } = useGachaWindow(true)
+function GachaDialog({ axes, read, onClose }: { axes: DnaProfile['axes']; read: ReadonlySet<string>; onClose: () => void }) {
+  const { data, isError } = useGachaWindow(true, read)
   return (
     <BookGacha
       pool={data?.books ?? []}
       total={data?.total ?? 0}
+      read={read}
       // 받아 왔는데 빈손인 경우도 실패로 본다 — 기다리는 문구를 띄운 채 손잡이를 잠가 두면 고장으로 보인다
       failed={isError || (data != null && data.books.length === 0)}
       axes={axes}
@@ -188,25 +261,11 @@ function GachaDialog({ axes, onClose }: { axes: DnaProfile['axes']; onClose: () 
 
 /** 줄마다 다른 선 그림 — 무엇을 센 값인지 한눈에 가르는 표식이다 */
 const HABIT_ART: Record<string, ReactNode> = {
-  // 펼친 책 — 두께
-  thickness: (
-    <>
-      <path d="M2 4.5c3.4-1.2 6-1.2 7 0v10c-1-1.2-3.6-1.2-7 0v-10Z" fill="none" stroke="currentColor" strokeWidth="1.1" />
-      <path d="M16 4.5c-3.4-1.2-6-1.2-7 0v10c1-1.2 3.6-1.2 7 0v-10Z" fill="none" stroke="currentColor" strokeWidth="1.1" />
-    </>
-  ),
   // 시계 — 출간 연도
   recency: (
     <>
       <circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" strokeWidth="1.1" />
       <path d="M9 5v4.3l2.8 1.8" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-    </>
-  ),
-  // 길이가 다른 두 막대 — 비율
-  origin: (
-    <>
-      <line x1="2.5" y1="6" x2="12" y2="6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <line x1="2.5" y1="12" x2="15.5" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity=".45" />
     </>
   ),
   // 펜촉 — 작가
@@ -323,6 +382,15 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
      이 페이지를 떠나 버린다. 주소에 두면 뒤로가기는 대화상자만 닫고 리포트에 남는다.
      새로고침·링크 공유로 바로 열리는 것은 덤이다. */
   const [params, setParams] = useSearchParams()
+  const heroVariant = params.get('hero')
+  const selectedHero = heroVariant === 'b' || heroVariant === 'c' ? heroVariant : 'a'
+  const selectHero = (variant: 'a' | 'b' | 'c') => {
+    if (selectedHero === variant) return
+    const next = new URLSearchParams(params)
+    if (variant === 'a') next.delete('hero')
+    else next.set('hero', variant)
+    setParams(next)
+  }
   const navigate = useNavigate()
   const raw = params.get('play')
   const open = (TESTS.some((t) => t.id === raw) ? raw : null) as 'gacha' | 'worldcup' | null
@@ -352,6 +420,11 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
   const canPlay = pool.length >= 4
   // 가챠만 후보가 다르다 — '완전 랜덤'이니 내 서재가 아니라 소설 전체에서 뽑는다
   const habits = useMemo(() => buildHabits(records), [records])
+  /** 이미 읽은 책의 ISBN — 가챠 후보에서 뺀다 */
+  const readIsbns = useMemo(
+    () => new Set(records.filter((b) => b.status === 'READ' && b.isbn13).map((b) => b.isbn13)),
+    [records],
+  )
 
   // 표지 더미는 별점이 높은 세 권 — 타입 패널의 오른쪽 아래를 채운다
   const top3 = books.filter((b) => b.coverUrl !== '').sort((a, b) => b.rating - a.rating).slice(0, 3)
@@ -371,7 +444,32 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
 
   return (
     <>
+      <div className="dnar-variantbar">
+        <span className="dnar-utility">상단 디자인 비교</span>
+        <div className="dnar-variantbar__choices" role="group" aria-label="BOOK DNA 상단 디자인 선택">
+          {([
+            ['a', '기존안'],
+            ['b', 'B안'],
+            ['c', 'C안'],
+          ] as const).map(([variant, label]) => (
+            <button
+              key={variant}
+              type="button"
+              className="dnar-variantbar__button"
+              aria-pressed={selectedHero === variant}
+              onClick={() => selectHero(variant)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       {/* ── 히어로 ────────────────────────────────── */}
+      {heroVariant === 'b' ? (
+        <HeroB profile={profile} tones={tones} basis={basis} />
+      ) : heroVariant === 'c' ? (
+        <HeroC profile={profile} tones={tones} basis={basis} />
+      ) : (
       <section className="dnar-hero">
         <div>
           <span className="dnar-eyebrow">My Reading Analysis</span>
@@ -426,6 +524,7 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
           </div>
         </div>
       </section>
+      )}
 
       {/* ── 요약 패널 3열 ─────────────────────────── */}
       <div className="dnar-bottom">
@@ -567,7 +666,7 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
         </p>
       </section>
       {/* 주소로 바로 들어왔는데 후보가 모자라면 열지 않는다 — 카드가 막던 조건을 여기서도 지킨다 */}
-      {open === 'gacha' && <GachaDialog axes={profile.axes} onClose={closePlay} />}
+      {open === 'gacha' && <GachaDialog axes={profile.axes} read={readIsbns} onClose={closePlay} />}
       {open === 'worldcup' && canPlay && (
         <BookWorldCup pool={pool} topAxis={profile.topAxis} onClose={closePlay} />
       )}

@@ -98,7 +98,9 @@ const COVER: Record<number, string> = {
 }
 /** 화면 BookSummary → 서버 BookSummary(§1.5) 모양. 서버가 주는 그대로를 흉내 내는 핸들러(검색·함께대출)가 쓴다 */
 const toServerBook = (bk: BookSummary): ServerBookSummary => ({
-  bookId: String(bk.bookId), isbn13: null, title: bk.title, authors: bk.author ? [bk.author] : [], publisher: bk.publisher,
+  // 실서버는 books.isbn13 을 그대로 준다. mock 카탈로그엔 없어 bookId 로 13자리를 만든다 —
+  // BOOK DNA 응답(buildDna)과 같은 규칙이라야 '이미 읽은 책 빼기' 가 로컬에서도 맞는다
+  bookId: String(bk.bookId), isbn13: `978${String(bk.bookId).padStart(10, '0')}`, title: bk.title, authors: bk.author ? [bk.author] : [], publisher: bk.publisher,
   publicationYear: bk.publicationYear, coverUrl: bk.coverUrl, pageCount: bk.pageCount, category: bk.category ?? null, classNo: null,
 })
 
