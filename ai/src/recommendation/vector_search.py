@@ -262,7 +262,10 @@ class QdrantQueryVectorStore:
         return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{index_version}:{key}"))
 
     def _get_vector(self, collection: str, point_key: str) -> tuple[float, ...] | None:
-        return self._vector_from_point(self._get_point(collection, point_key))
+        point = self._get_point(collection, point_key)
+        if point is None:
+            return None
+        return self._vector_from_point(point)
 
     def _vector_from_point(self, result: dict[str, Any]) -> tuple[float, ...]:
         raw_vector = result.get("vector") if isinstance(result, dict) else None
@@ -278,7 +281,7 @@ class QdrantQueryVectorStore:
             raise QueryVectorStoreError("Qdrant point vector was not finite")
         return vector
 
-    def _get_point(self, collection: str, point_key: str) -> dict[str, Any]:
+    def _get_point(self, collection: str, point_key: str) -> dict[str, Any] | None:
         point_id = self._point_id(self.index_version, point_key)
         endpoint = (
             f"{self.base_url}/collections/{quote(collection, safe='')}/points/"
@@ -323,6 +326,8 @@ class QdrantQueryVectorStore:
         from recommendation.book_dna import BookDnaRecord
 
         point = self._get_point(self.book_collection, isbn13)
+        if point is None:
+            return None
         payload = point.get("payload")
         if not isinstance(payload, dict):
             raise QueryVectorStoreError("Qdrant book point did not contain a payload")

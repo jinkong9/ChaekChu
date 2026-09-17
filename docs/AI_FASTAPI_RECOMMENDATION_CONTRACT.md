@@ -199,7 +199,7 @@ fixture, 집계 리포트만 저장소에서 관리한다.
 | `mode` | `COLD_START \| PERSONALIZED` | O | 추천 모드 |
 | `size` | `integer` |  | 기본 5, 최대 10 권장 |
 | `seedIsbns` | `string[]` |  | 관심 기준 도서 ISBN13 |
-| `excludeIsbns` | `string[]` |  | 서재·이미 본 책 등 제외 ISBN13 |
+| `excludeIsbns` | `string[]` |  | 서재·이미 본 책·최근 추천 도서 등 제외 ISBN13 |
 | `tags` | `TagPreference[]` |  | 사용자가 원하는 추천 방향 |
 | `weights` | `RecommendationWeights` |  | 최종 재랭킹 가중치 |
 
@@ -248,6 +248,13 @@ ISBN 기준으로 합친다. tag-only 요청도 이 경로를 사용하므로 se
 - `seedIsbns`
 - 색인에 없는 도서
 - 운영 정책상 비활성화된 도서
+
+FastAPI 추천 API는 요청 간 상태를 저장하지 않는다. 따라서 ‘다시 추천’은 백엔드가 새
+`requestId`를 발급하고, 기존 요청의 `seedIsbns`·`tags`·`weights`는 유지한 채 최근 추천
+스냅샷에서 모은 ISBN을 `excludeIsbns`에 추가해 다시 호출하는 방식으로 구현한다. 제외 목록은
+후보 검색과 최종 랭킹에서 모두 하드 필터로 적용되며, 후보가 요청 수보다 적으면 제외된 책을
+복원하지 않고 가능한 결과만 반환한다(`fallback=true`). 최근 추천 이력의 개수·수집·점진 완화
+정책은 백엔드 책임이다.
 
 태그 검색의 여러 code는 OR 조건으로 조회한다. 최종 태그 일치도는 요청 태그 weight와
 도서 payload의 `tagScores`를 사용해 재계산한다.

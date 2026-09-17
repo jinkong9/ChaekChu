@@ -118,6 +118,87 @@ def test_concurrent_recommendation_requests_keep_contract_and_isolation() -> Non
         assert EXCLUDED not in {item["isbn13"] for item in body["items"]}
 
 
+def test_next_recommendation_can_preserve_preferences_and_exclude_previous_deck() -> None:
+    first_payload = {
+        "requestId": "reroll-first",
+        "userId": "same-user",
+        "mode": "PERSONALIZED",
+        "size": 5,
+        "seedIsbns": [SEED],
+        "excludeIsbns": [EXCLUDED],
+        "tags": [{"code": "FIC", "weight": 1.0}],
+        "weights": {
+            "semantic": 0.0,
+            "tagMatch": 1.0,
+            "coLoan": 0.0,
+            "trending": 0.0,
+            "steady": 0.0,
+        },
+    }
+
+    with _installed(_engine()):
+        first_response = asyncio.run(_post(first_payload))
+        first = first_response.json()
+        first_isbns = [item["isbn13"] for item in first["items"]]
+        second_response = asyncio.run(
+            _post(
+                {
+                    **first_payload,
+                    "requestId": "reroll-second",
+                    "excludeIsbns": [EXCLUDED, *first_isbns],
+                }
+            )
+        )
+
+    second = second_response.json()
+    second_isbns = {item["isbn13"] for item in second["items"]}
+
+    assert first_response.status_code == second_response.status_code == 200
+    assert first["fallback"] is second["fallback"] is False
+    assert len(first_isbns) == len(second_isbns) == 5
+    assert set(first_isbns).isdisjoint(second_isbns)
+    assert SEED not in second_isbns
+    assert EXCLUDED not in second_isbns
+    assert all(item["matchedTags"] == ["FIC"] for item in second["items"])
+    assert all(item["featureScores"]["tagMatch"] > 0 for item in second["items"])
+
+
+def test_candidate_shortage_never_reintroduces_excluded_books() -> None:
+    indexed_isbns = [f"978000000{1000 + position:04d}" for position in range(1, 121)]
+    available_isbns = set(indexed_isbns[-3:])
+    excluded_isbns = sorted(
+        {EXCLUDED, *(isbn for isbn in indexed_isbns if isbn not in available_isbns)}
+    )
+    payload = {
+        "requestId": "reroll-shortage",
+        "userId": "same-user",
+        "mode": "PERSONALIZED",
+        "size": 5,
+        "seedIsbns": [SEED],
+        "excludeIsbns": excluded_isbns,
+        "tags": [{"code": "FIC", "weight": 1.0}],
+        "weights": {
+            "semantic": 0.0,
+            "tagMatch": 1.0,
+            "coLoan": 0.0,
+            "trending": 0.0,
+            "steady": 0.0,
+        },
+    }
+
+    with _installed(_engine()):
+        response = asyncio.run(_post(payload))
+
+    body = response.json()
+    result_isbns = {item["isbn13"] for item in body["items"]}
+
+    assert response.status_code == 200
+    assert body["fallback"] is True
+    assert result_isbns == available_isbns
+    assert result_isbns.isdisjoint(payload["excludeIsbns"])
+    assert SEED not in result_isbns
+
+
 class _TimeoutSearch:
     index_version = VERSION
 
