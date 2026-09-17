@@ -3,7 +3,8 @@
  *  한 지면을 세 단으로 읽는다.
  *  ① 히어로 — 독서타입 선언과 성향 5지표(무엇이 나왔나)
  *  ② 분석 패널 — 장르 레이더 · 키워드 · 한 줄 요약 · 독서타입(왜 그렇게 나왔나)
- *  ③ 콘텐츠 2장 — 가챠 · 월드컵(그래서 뭘 해 볼까)
+ *  ③ 독서 습관 — 두께 · 출간 연도 · 언어권 · 작가(어떻게 읽나)
+ *  ④ 콘텐츠 2장 — 가챠 · 월드컵(그래서 뭘 해 볼까)
  *
  *  선언 → 근거 → 다음 걸음의 순서다. 근거를 보기 전에 놀거리가 끼어들면
  *  리포트가 아니라 콘텐츠 모음으로 읽힌다.
@@ -19,6 +20,7 @@ import type { DnaBook } from './dnaTypes'
 import { displayTone, extractCoverColor } from './spectrum'
 import { axisLabel, profileFromApi, type DnaProfile } from './dnaProfile'
 import { useGachaPool } from './useGachaPool'
+import { buildHabits, type Habit } from './habits'
 import DnaConstellation from './DnaConstellation'
 import BookWorldCup from './BookWorldCup'
 import BookGacha from './BookGacha'
@@ -175,6 +177,87 @@ const TESTS = [
   },
 ] as const
 
+/* ── 독서 습관 ───────────────────────────────────────── */
+
+/** 줄마다 다른 선 그림 — 무엇을 센 값인지 한눈에 가르는 표식이다 */
+const HABIT_ART: Record<string, ReactNode> = {
+  // 펼친 책 — 두께
+  thickness: (
+    <>
+      <path d="M2 4.5c3.4-1.2 6-1.2 7 0v10c-1-1.2-3.6-1.2-7 0v-10Z" fill="none" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M16 4.5c-3.4-1.2-6-1.2-7 0v10c1-1.2 3.6-1.2 7 0v-10Z" fill="none" stroke="currentColor" strokeWidth="1.1" />
+    </>
+  ),
+  // 시계 — 출간 연도
+  recency: (
+    <>
+      <circle cx="9" cy="9" r="7" fill="none" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M9 5v4.3l2.8 1.8" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </>
+  ),
+  // 길이가 다른 두 막대 — 비율
+  origin: (
+    <>
+      <line x1="2.5" y1="6" x2="12" y2="6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <line x1="2.5" y1="12" x2="15.5" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity=".45" />
+    </>
+  ),
+  // 펜촉 — 작가
+  author: (
+    <>
+      <path d="M12.5 2.8 15.2 5.5 6.6 14.1 3 15l.9-3.6 8.6-8.6Z" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+      <line x1="10.8" y1="4.5" x2="13.5" y2="7.2" stroke="currentColor" strokeWidth="1.1" />
+    </>
+  ),
+  // 올라가는 선 — 읽는 속도
+  pace: (
+    <path d="M2.5 13.5 6.5 9l3 2.6 5.5-6.6" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+  ),
+  // 별 — 별점
+  rating: (
+    <path d="M9 2.6l2 4.2 4.5.6-3.3 3.2.8 4.6L9 13l-4 2.2.8-4.6L2.5 7.4 7 6.8l2-4.2Z" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+  ),
+  // 쌓인 책 세 권 — 찜해 둔 책
+  wish: (
+    <>
+      <rect x="2.5" y="4" width="13" height="3.2" rx="0.6" fill="none" stroke="currentColor" strokeWidth="1.1" />
+      <rect x="2.5" y="8.4" width="13" height="3.2" rx="0.6" fill="none" stroke="currentColor" strokeWidth="1.1" opacity=".6" />
+      <line x1="4" y1="14.4" x2="14" y2="14.4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" opacity=".35" />
+    </>
+  ),
+}
+
+/** 완독 기록에서 센 네 줄. 표본이 얇은 줄은 habits.ts 가 아예 만들지 않으므로 여기서는 받은 것만 그린다. */
+function Habits({ habits, readCount, capped }: { habits: Habit[]; readCount: number; capped: boolean }) {
+  return (
+    <section className="dnar-habits">
+      <div className="dnar-sechead">
+        <div>
+          <span className="dnar-eyebrow">Reading Habits</span>
+          <h2 className="dnar-title dnar-habits__title">독서 습관</h2>
+        </div>
+        <span className="dnar-utility">
+          완독 {readCount}권의 기록에서{capped ? ' (최근 200권 기준)' : ''}
+        </span>
+      </div>
+      <dl className="dnar-habits__list">
+        {habits.map((h) => (
+          <div key={h.id} className="dnar-habit">
+            <svg className="dnar-habit__art" viewBox="0 0 18 18" aria-hidden="true">
+              {HABIT_ART[h.id]}
+            </svg>
+            <div className="dnar-habit__text">
+              <dt className="dnar-habit__label">{h.label}</dt>
+              <dd className="dnar-habit__detail">{h.detail}</dd>
+            </div>
+            <span className="dnar-habit__value">{h.value}</span>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}
+
 /* ── 화면 ────────────────────────────────────────────── */
 
 /** 프로필이 무엇에서 계산됐나 — 히어로 지표 아래 한두 줄로 보인다. */
@@ -213,8 +296,10 @@ function basisOf(data: { readCount: number; generatedAt: string; books: DnaBookR
   }
 }
 
-function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
+function Report({ books, records, profile, tones, basis, declaredTags, topGenres }: {
   books: DnaBook[]
+  /** 서버 응답 그대로 — 쪽수·출간 연도·분류처럼 화면 타입(DnaBook)이 버린 값을 독서 습관이 쓴다 */
+  records: DnaBookResponse[]
   profile: DnaProfile
   tones: string[] | null
   basis: Basis
@@ -233,6 +318,7 @@ function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
   const canPlay = pool.length >= 4
   // 가챠만 후보가 다르다 — '완전 랜덤'이니 내 서재가 아니라 책 전체에서 뽑는다
   const gachaPool = useGachaPool()
+  const habits = useMemo(() => buildHabits(records), [records])
 
   // 표지 더미는 별점이 높은 세 권 — 타입 패널의 오른쪽 아래를 채운다
   const top3 = books.filter((b) => b.coverUrl !== '').sort((a, b) => b.rating - a.rating).slice(0, 3)
@@ -393,6 +479,11 @@ function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
         </section>
       </div>
 
+      {/* ── 독서 습관 — 취향(무엇을) 다음에 오는 버릇(어떻게) ── */}
+      {habits.length > 0 && (
+        <Habits habits={habits} readCount={basis.readCount} capped={records.length >= 200} />
+      )}
+
       {/* ── 콘텐츠 2장 — 리포트를 다 읽은 뒤의 다음 걸음 ── */}
       <section className="dnar-plays">
         <div className="dnar-sechead">
@@ -479,9 +570,14 @@ export default function DnaReportPage() {
                 : '잠시 후 다시 시도해 주세요.'
             }
             action={
-              <button type="button" className="dnar-notice__action" onClick={() => refetch()} disabled={isFetching}>
-                {isFetching ? '다시 부르는 중…' : '다시 시도'}
-              </button>
+              <div className="dnar-notice__actions">
+                <button type="button" className="dnar-notice__action" onClick={() => refetch()} disabled={isFetching}>
+                  {isFetching ? '다시 부르는 중…' : '다시 시도'}
+                </button>
+                <Link className="dnar-notice__action dnar-notice__action--quiet" to="/library">
+                  내 서재 보기
+                </Link>
+              </div>
             }
           />
         )}
@@ -491,21 +587,39 @@ export default function DnaReportPage() {
             title={data.readCount > 0 ? '아직 분석할 수 있는 책이 없어요.' : '읽은 책을 기록하면 DNA가 만들어져요.'}
             body={
               data.readCount > 0
-                ? `완독 ${data.readCount}권이 아직 분석 데이터에 없어 BOOK DNA를 만들 수 없어요. 분석 데이터가 늘어나면 자동으로 반영돼요.`
-                : '완독한 책의 장르와 별점이 쌓이면 취향의 축·성향 지표·독서타입을 계산해 드려요.'
+                ? `완독 ${data.readCount}권이 아직 분석 데이터에 없어 BOOK DNA를 만들 수 없어요. 분석 데이터가 늘어나면 자동으로 반영되니, 읽은 책을 더 기록해 두면 그만큼 빨리 채워져요.`
+                : '읽은 책을 검색해 별점과 완독일만 남기면 돼요. 한 권부터 시작되고, 세 권쯤 쌓이면 취향의 축·성향 지표·독서타입이 제 모습을 갖춥니다.'
             }
             action={
-              data.readCount > 0 ? undefined : (
-                <Link className="dnar-notice__action" to="/search">
-                  읽은 책 기록하러 가기
-                </Link>
-              )
+              // 기록이 하나도 없으면 책을 찾는 게 먼저, 기록은 있는데 분석이 안 됐으면 내 서재를 먼저 보여 준다
+              <div className="dnar-notice__actions">
+                {data.readCount > 0 ? (
+                  <>
+                    <Link className="dnar-notice__action" to="/library">
+                      내 서재에서 기록 보기
+                    </Link>
+                    <Link className="dnar-notice__action dnar-notice__action--quiet" to="/search">
+                      책 더 기록하기
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link className="dnar-notice__action" to="/search">
+                      읽은 책 검색해서 기록하기
+                    </Link>
+                    <Link className="dnar-notice__action dnar-notice__action--quiet" to="/library">
+                      내 서재 보기
+                    </Link>
+                  </>
+                )}
+              </div>
             }
           />
         )}
         {data?.profile.status === 'READY' && profile && basis && (
           <Report
             books={books}
+            records={data.books}
             profile={profile}
             tones={tones}
             basis={basis}

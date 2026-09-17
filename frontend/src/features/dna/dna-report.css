@@ -201,6 +201,46 @@
   margin-bottom: 24px;
 }
 
+/* ---------- 독서 습관 ----------
+   취향(무엇을 읽나) 다음에 오는 버릇(어떻게 읽나). 네 줄뿐이라 카드로 감싸지 않고
+   규칙선만으로 나눈다 — 지면이 이미 패널로 가득해서 상자를 더하면 무거워진다.
+   1180px 한 줄에 네 개를 늘어놓으면 값과 이름이 너무 멀어지므로 두 칸으로 접는다. */
+
+.dnar-habits { margin-top: 56px; }
+.dnar-habits__title { margin-top: 6px; }
+.dnar-habits__list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 48px;
+  margin: 0;
+}
+.dnar-habit {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 2px;
+  border-top: 1px solid var(--eo-rule-soft);
+}
+.dnar-habit__art { width: 18px; height: 18px; color: var(--eo-ink-faint); }
+.dnar-habit__text { display: grid; gap: 3px; min-width: 0; }
+.dnar-habit__label { font-size: 13px; font-weight: 650; letter-spacing: -0.02em; }
+.dnar-habit__detail {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--eo-ink-faint);
+  word-break: keep-all;
+}
+/* 값은 이 줄에서 유일하게 큰 글씨다 — 숫자는 표 숫자로 맞춰 자리가 흔들리지 않게 */
+.dnar-habit__value {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- 콘텐츠 카드 2장 ----------
    넷이던 카드가 둘로 줄었다. 같은 세로 카드를 그대로 두고 칸만 넓히면 글이 위에
    몰리고 아래가 텅 빈다. 그래서 카드 안을 [글 | 그림] 두 칸으로 눕혀, 넓어진 폭을
@@ -439,7 +479,9 @@
   color: var(--eo-ink-muted);
   word-break: keep-all;
 }
-/* 다음 걸음 하나 — 버튼도 링크도 같은 모양(DESIGN.md: 상자보다 밑줄) */
+/* 다음 걸음 — 버튼도 링크도 같은 모양(DESIGN.md: 상자보다 밑줄).
+   둘을 나란히 둘 때는 첫째만 잉크로 두고 둘째는 옅게 — 어디를 먼저 누를지 헷갈리지 않게. */
+.dnar-notice__actions { display: flex; flex-wrap: wrap; align-items: baseline; gap: 20px; margin-top: 6px; }
 .dnar-notice__action {
   margin-top: 6px;
   padding: 0 0 2px;
@@ -455,6 +497,8 @@
   cursor: pointer;
 }
 .dnar-notice__action:disabled { border-bottom-color: var(--eo-rule); color: var(--eo-ink-faint); cursor: default; }
+.dnar-notice__action--quiet { border-bottom-color: var(--eo-rule); color: var(--eo-ink-muted); font-weight: 550; }
+.dnar-notice__action--quiet:hover { border-bottom-color: var(--eo-ink); color: var(--eo-ink); }
 .dnar-notice__action:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
 
 /* ---------- 반응형 ---------- */
@@ -469,6 +513,8 @@
 }
 @media (max-width: 640px) {
   .dnar-hero { grid-template-columns: 1fr; padding: 28px 0 36px; }
+  .dnar-habits { margin-top: 40px; }
+  .dnar-habits__list { grid-template-columns: 1fr; }
   .dnar-tests { grid-template-columns: 1fr; }
   /* 좁은 화면에서는 눕힌 카드를 다시 세운다 — 그림에 줄 가로 폭이 없다 */
   .dnar-test { grid-template-columns: 1fr; min-height: 0; gap: 14px; }
