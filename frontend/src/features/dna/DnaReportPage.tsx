@@ -12,9 +12,12 @@
  *  지표·레이더·키워드·타입은 FastAPI profile 응답을 사용하고, 화면의 색은
  *  실제 서재 책 표지에서 뽑는다(DESIGN.md). */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useDna } from '../../lib/useDna'
 import { isDnaUnavailable, type DnaBookResponse, type DnaScore } from '../../api/dna'
+import { api } from '../../api/client'
+import type { LibraryItem } from '../../api/types'
 import { tagLabel, useTags } from '../../lib/useTags'
 import type { DnaBook } from './dnaTypes'
 import { accentOf, displayTone, extractCoverColor } from './spectrum'
@@ -583,6 +586,16 @@ function DnaNotice({ title, body, action }: { title: string; body: string; actio
 
 export default function DnaReportPage() {
   const { data, isLoading, isError, error, isFetching, refetch } = useDna()
+  /* DNA 호출이 실패하면 그것만으로는 원인을 알 수 없다 — 서버가 아픈 것인지, 애초에 기록이
+     없어서 만들 게 없는 것인지. 서재는 다른 API 라 그때 한 번 물어본다(서재 화면과 같은 캐시).
+     기록이 없다면 "다시 시도"는 아무 소용이 없고, 책을 기록하라고 말해야 맞다. */
+  const { data: library } = useQuery({
+    queryKey: ['library'],
+    queryFn: async () => (await api.get<{ items: LibraryItem[] }>('/library/me')).data.items,
+    enabled: isError,
+    retry: false,
+  })
+  const nothingRecorded = isError && library?.length === 0
   const books = useMemo(() => (data?.books ?? []).map(toDnaBook), [data?.books])
   const tones = useCoverTones(books)
   const profile = data ? profileFromApi(data.profile, data.readCount) : null
@@ -595,17 +608,26 @@ export default function DnaReportPage() {
         {/* 503 DNA_UNAVAILABLE 은 분석 쪽만 쉬는 것이다 — 서재·검색은 멀쩡하다고 말해 줘야 이탈하지 않는다 */}
         {(isError || (!isLoading && !data)) && (
           <DnaNotice
-            title="BOOK DNA를 만들지 못했어요."
+            title={nothingRecorded ? '아직 기록한 책이 없어요.' : 'BOOK DNA를 만들지 못했어요.'}
             body={
-              isDnaUnavailable(error)
-                ? '분석 서버가 잠시 쉬고 있어요. 서재와 검색은 그대로 쓸 수 있고, 잠시 뒤 다시 시도하면 돼요.'
-                : '잠시 후 다시 시도해 주세요.'
+              nothingRecorded
+                ? '읽은 책을 검색해 별점과 한 줄 후기를 남겨 주세요. 한 권부터 시작되고, 세 권쯤 쌓이면 취향의 축·성향 지표·독서타입이 제 모습을 갖춥니다.'
+                : isDnaUnavailable(error)
+                  ? '분석 서버가 잠시 쉬고 있어요. 서재와 검색은 그대로 쓸 수 있고, 잠시 뒤 다시 시도하면 돼요.'
+                  : '잠시 후 다시 시도해 주세요.'
             }
             action={
+              // 기록이 없어서 못 만든 거라면 '다시 시도'는 눌러도 달라질 게 없다 — 책을 기록하러 보낸다
               <div className="dnar-notice__actions">
-                <button type="button" className="dnar-notice__action" onClick={() => refetch()} disabled={isFetching}>
-                  {isFetching ? '다시 부르는 중…' : '다시 시도'}
-                </button>
+                {nothingRecorded ? (
+                  <Link className="dnar-notice__action" to="/search">
+                    읽은 책 검색해서 기록하기
+                  </Link>
+                ) : (
+                  <button type="button" className="dnar-notice__action" onClick={() => refetch()} disabled={isFetching}>
+                    {isFetching ? '다시 부르는 중…' : '다시 시도'}
+                  </button>
+                )}
                 <Link className="dnar-notice__action dnar-notice__action--quiet" to="/library">
                   내 서재 보기
                 </Link>
@@ -620,7 +642,7 @@ export default function DnaReportPage() {
             body={
               data.readCount > 0
                 ? `완독 ${data.readCount}권이 아직 분석 데이터에 없어 BOOK DNA를 만들 수 없어요. 분석 데이터가 늘어나면 자동으로 반영되니, 읽은 책을 더 기록해 두면 그만큼 빨리 채워져요.`
-                : '읽은 책을 검색해 별점과 완독일만 남기면 돼요. 한 권부터 시작되고, 세 권쯤 쌓이면 취향의 축·성향 지표·독서타입이 제 모습을 갖춥니다.'
+                : '읽은 책을 검색해 별점과 한 줄 후기를 남겨 주세요. 한 권부터 시작되고, 세 권쯤 쌓이면 취향의 축·성향 지표·독서타입이 제 모습을 갖춥니다.'
             }
             action={
               // 기록이 하나도 없으면 책을 찾는 게 먼저, 기록은 있는데 분석이 안 됐으면 내 서재를 먼저 보여 준다
