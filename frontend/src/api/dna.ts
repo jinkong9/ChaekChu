@@ -1,4 +1,5 @@
 import { api } from './client'
+import { apiErrorCode } from './books'
 
 export interface DnaBookResponse {
   bookId: string
@@ -61,3 +62,7 @@ export async function fetchMyDna(): Promise<DnaResponse> {
   const response = await api.get<DnaResponse>('/users/me/dna')
   return response.data
 }
+
+/** 503 DNA_UNAVAILABLE — AI·Qdrant 쪽만 쉬는 상태(계약 §5). 저장된 프로필도 없을 때만 온다.
+ *  서재·검색·추천은 멀쩡하므로 전역 오류로 번지지 않게 이 화면에서만 안내한다. */
+export const isDnaUnavailable = (err: unknown) => apiErrorCode(err) === 'DNA_UNAVAILABLE'

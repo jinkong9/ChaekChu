@@ -2,7 +2,7 @@
  *
  *  두 권을 나란히 놓고 "지금 더 읽고 싶은 쪽"을 고르게 하고, 이긴 책만 다음 판으로 올린다.
  *  16강 → 8강 → 준결승 → 결승 → 우승. 리포트의 다른 칸이 '읽은 기록'에서 취향을 뒤로
- *  계산하는 반면, 이 콘텐츠는 아직 안 읽은 책들 사이의 선택에서 취향을 앞으로 물어본다.
+ *  계산하는 반면, 이 콘텐츠는 내 서재의 책들 사이의 선택에서 취향을 앞으로 물어본다.
  *
  *  후보는 현재 사용자의 실제 서재에서 매 판마다 새로 뽑는다(Fisher–Yates).
  *
@@ -172,7 +172,7 @@ export default function BookWorldCup({
         </div>
       ) : (
         <>
-          <p className="dnar-dlg__ask">지금 더 읽고 싶은 쪽은?</p>
+          <p className="dnar-dlg__ask">지금 다시 손이 가는 쪽은?</p>
           <div className="dnar-wc__match">
             {left && <Cover book={left} side="←" onPick={() => pick(left)} />}
             <span className="dnar-wc__vs" aria-hidden="true">

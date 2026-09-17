@@ -1,136 +1,175 @@
 /** 완전 랜덤 책 가챠 — BOOK DNA 리포트의 01번 콘텐츠.
  *
- *  이름 그대로 균일 난수로 한 권을 뽑는다. 취향을 반영하지 않는 게 이 콘텐츠의 요지다 —
+ *  이름 그대로 난수로 한 권을 뽑는다. 취향을 반영하지 않는 게 이 콘텐츠의 요지다 —
  *  리포트의 나머지 칸이 "당신의 기록이 말하는 취향"이라면, 여기는 그 바깥으로 한 걸음이다.
- *  원래 01번(취향의 빈 곳 찾기)이 하려던 일을 난수로 대신한다.
+ *  후보는 서버가 가챠 전용으로 내준다 — GET /books/random(§4.8), 표지와 KDC 가 있는
+ *  추천 후보 약 44만 권 중 무작위 한 권. 손잡이를 돌릴 때마다 한 번 부른다.
  *
- *  다만 뽑고 끝내지 않는다. 뽑힌 책의 장르가 리포트 레이더에서 몇 %인지 붙여서
- *  "이게 내 취향에서 얼마나 먼 자리인지"를 알려 준다. 그래야 랜덤이 그냥 랜덤으로 끝나지 않는다.
- *
- *  돌아가는 표지는 연출일 뿐이고, 당첨은 뽑기를 누른 순간 이미 정해져 있다. */
+ *  결과가 나오기 전에는 표지를 보여 주지 않는다. */
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { addToLibrary } from '../../api/library'
+import { trackEvent } from '../../lib/events'
 import type { DnaBook } from './dnaTypes'
-import { axisOf, type DnaProfile } from './dnaProfile'
+import { axisOf } from './dnaProfile'
+import { isBookNotFound } from '../../api/books'
+import { drawRandomBook } from './gachaDraw'
 import { coverAtWidth } from '../../lib/coverUrl'
 import DnaDialog from './DnaDialog'
+import GachaMachine from './GachaMachine'
 
-/** 표지가 돌아가는 시간(ms)과 한 장이 머무는 시간(ms) */
-const SPIN_MS = 900
-const FRAME_MS = 70
+/** 기계가 움직이는 최소 시간(ms) */
+const SPIN_MS = 1600
 const COVER_W = 300
 
 type Phase = 'idle' | 'spinning' | 'done'
 
-/** 뽑힌 책의 장르가 이 독자의 레이더에서 몇 %인지 → 거리 한 줄 */
-function distance(book: DnaBook, axes: DnaProfile['axes']) {
-  const axis = axisOf(book.classNo)
-  const value = axes.find((a) => a.label === axis)?.value ?? 0
-  if (value >= 55) return { axis, value, verdict: '취향 정중앙 — 가장 많이 읽는 자리에서 뽑혔어요.' }
-  if (value >= 20) return { axis, value, verdict: '취향의 가장자리 — 읽긴 읽지만 중심은 아닌 자리예요.' }
-  return { axis, value, verdict: '완전히 새 영역 — 지금껏 거의 손대지 않은 장르예요.' }
-}
-
 export default function BookGacha({
-  pool,
-  axes,
+  read,
   onClose,
 }: {
-  pool: DnaBook[]
-  /** 리포트 레이더 — 뽑힌 책이 취향에서 얼마나 먼지 재는 자 */
-  axes: DnaProfile['axes']
+  /** 이미 읽은 책의 ISBN — 걸리면 다시 뽑는다 */
+  read: ReadonlySet<string>
   onClose: () => void
 }) {
+  const qc = useQueryClient()
+  /** 뽑은 책을 서재에 담는 중·담김·실패 */
+  const [saved, setSaved] = useState<'idle' | 'saving' | 'done' | 'error'>('idle')
   const [phase, setPhase] = useState<Phase>('idle')
   const [book, setBook] = useState<DnaBook | null>(null)
-  /** 돌아가는 동안 스쳐 보여 줄 표지 */
-  const [flash, setFlash] = useState<DnaBook | null>(null)
-  const timers = useRef<number[]>([])
+  /** 뽑지 못했을 때의 안내 — 서버가 비었는지, 그냥 실패인지 말이 다르다 */
+  const [drawError, setDrawError] = useState<string | null>(null)
+  /** 직전에 뽑힌 책 — 서버에 exclude 로 넘겨 같은 책이 연달아 나오지 않게 한다 */
+  const lastId = useRef<string | undefined>(undefined)
 
+  // 뽑는 도중에 닫히면 늦게 도착한 응답이 사라진 화면을 건드리지 않게 한다
+  const alive = useRef(true)
   useEffect(() => {
-    const ids = timers.current
-    return () => ids.forEach(clearTimeout)
+    // StrictMode 는 개발에서 effect 를 두 번 돌린다 — 첫 정리에서 내려간 깃발을 다시 올려야 뽑기가 멈추지 않는다
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
   }, [])
 
-  const pull = () => {
-    if (phase === 'spinning' || pool.length === 0) return
-    // 당첨은 지금 정한다. 아래 연출은 이 결과를 바꾸지 않는다
-    const won = pool[Math.floor(Math.random() * pool.length)]
+  const pull = async () => {
+    if (phase === 'spinning') return
     setPhase('spinning')
     setBook(null)
+    setSaved('idle')
+    setDrawError(null)
 
-    const ids: number[] = []
-    for (let t = 0; t < SPIN_MS; t += FRAME_MS) {
-      ids.push(
-        window.setTimeout(() => setFlash(pool[Math.floor(Math.random() * pool.length)]), t),
+    // 기계가 다 돌기 전에 답이 와도 기다린다 — 뽑는 맛은 그 시간에서 나온다
+    const spun = new Promise<void>((resolve) => window.setTimeout(resolve, SPIN_MS))
+    try {
+      const won = await drawRandomBook(lastId.current, read)
+      await spun
+      if (!alive.current) return
+      lastId.current = won.bookId
+      setBook(won)
+      setPhase('done')
+    } catch (err) {
+      await spun
+      if (!alive.current) return
+      setDrawError(
+        isBookNotFound(err)
+          ? '뽑을 책이 아직 준비되지 않았어요. 잠시 후 다시 시도해 주세요.'
+          : '한 권을 뽑지 못했어요. 손잡이를 다시 돌려 주세요.',
       )
+      setPhase('idle')
     }
-    ids.push(
-      window.setTimeout(() => {
-        setFlash(null)
-        setBook(won)
-        setPhase('done')
-      }, SPIN_MS),
-    )
-    timers.current.forEach(clearTimeout)
-    timers.current = ids
   }
 
-  const shown = book ?? flash
-  const d = book ? distance(book, axes) : null
+  const reset = () => {
+    setBook(null)
+    setSaved('idle')
+    setDrawError(null)
+    setPhase('idle')
+  }
+
+  /** 뽑은 책을 찜으로 담는다. DNA 응답까지 다시 부르지는 않는다 —
+   *  서재 지문이 바뀌어 프로필을 통째로 재계산하게 되고, 그 값은 다음에 이 화면을 열 때 맞으면 된다 */
+  const wish = (target: DnaBook) => {
+    if (!target.bookId || saved === 'saving' || saved === 'done') return
+    setSaved('saving')
+    trackEvent('WISH', { bookId: target.bookId, context: 'DNA' })
+    addToLibrary(target.bookId, 'WISH')
+      .then(() => {
+        qc.invalidateQueries({ queryKey: ['library'] })
+        qc.invalidateQueries({ queryKey: ['book', target.bookId] })
+        if (alive.current) setSaved('done')
+      })
+      // 401 은 인터셉터가 로그아웃으로 받아 간다 — 여기 남는 건 네트워크 끊김·서버 오류
+      .catch(() => alive.current && setSaved('error'))
+  }
+
 
   return (
     <DnaDialog
       label="완전 랜덤 책 가챠"
       kicker="Random Draw"
-      status={phase === 'done' ? '뽑기 완료' : phase === 'spinning' ? '뽑는 중' : `후보 ${pool.length}권`}
+      status={phase === 'done' ? '뽑기 완료' : phase === 'spinning' ? '뽑는 중' : ''}
       onClose={onClose}
     >
       <div className="dnar-gacha">
-        {phase === 'idle' ? (
+        {phase !== 'done' ? (
           <>
-            <p className="dnar-dlg__ask">취향은 잠시 접어 두고, 한 권을 뽑아 볼까요?</p>
-            <p className="dnar-gacha__lead">
-              표지가 있는 {pool.length}권에서 <b>가중치 없이</b> 한 권을 뽑습니다.
-              <br />
-              추천이 아니라 우연입니다 — 그래서 취향 밖의 책이 나올 수 있어요.
-            </p>
-            <button type="button" className="dnar-gacha__pull" onClick={pull}>
-              뽑기
-            </button>
+            {phase === 'idle' && <p className="dnar-dlg__ask">취향은 잠시 접어 두고, 한 권을 뽑아 볼까요?</p>}
+            {/* 기계가 곧 버튼이다 — 손잡이를 누르면 뽑힌다 */}
+            <GachaMachine onPull={pull} disabled={phase === 'spinning'} spinning={phase === 'spinning'} />
+            {phase === 'spinning' ? (
+              <p className="dnar-gacha__lead" role="status">한 권을 뽑는 중이에요…</p>
+            ) : (
+              <>
+                {drawError && <p className="dnar-gacha__lead" role="status">{drawError}</p>}
+                <button type="button" className="dnar-gacha__pull" onClick={pull}>손잡이 돌리기</button>
+              </>
+            )}
           </>
         ) : (
           <>
-            <div className={`dnar-gacha__slot ${phase === 'spinning' ? 'is-spinning' : ''}`}>
-              {shown && (
+            <div className="dnar-gacha__slot">
+              {book && (
                 <img
-                  key={shown.isbn13}
-                  src={coverAtWidth(shown.coverUrl, COVER_W) ?? shown.coverUrl}
-                  alt=""
+                  src={coverAtWidth(book.coverUrl, COVER_W) ?? book.coverUrl}
+                  alt={`${book.title} 표지`}
                   width={COVER_W}
                   decoding="async"
                 />
               )}
             </div>
 
-            {book && d && (
+            {book && (
               <div className="dnar-gacha__reveal">
                 <p className="dnar-gacha__title">{book.title}</p>
                 <p className="dnar-gacha__meta">
-                  {book.author} · {d.axis}
-                </p>
-                <p className="dnar-gacha__verdict">
-                  당신의 <b>{d.axis}</b> 지분은 {d.value}%.
-                  <br />
-                  {d.verdict}
+                  {book.author} · {axisOf(book.classNo)}
                 </p>
                 <div className="dnar-dlg__actions">
-                  <button type="button" className="dnar-dlg__button" onClick={pull}>
+                  {/* 뽑고 끝내지 않는다 — 마음에 들면 그 자리에서 서재로 넘긴다.
+                      담기는 POST /library(§6.2), 이미 있으면 409 → api/library 가 PATCH 로 받는다 */}
+                  {book.bookId && (
+                    <button
+                      type="button"
+                      className="dnar-dlg__button dnar-gacha__wish"
+                      onClick={() => wish(book)}
+                      disabled={saved === 'saving' || saved === 'done'}
+                    >
+                      {saved === 'done' ? '서재에 담겼어요' : saved === 'saving' ? '담는 중…' : '읽고 싶어요'}
+                    </button>
+                  )}
+                  <button type="button" className="dnar-dlg__button" onClick={reset}>
                     다시 뽑기
                   </button>
                   <button type="button" className="dnar-dlg__close" onClick={onClose}>
                     닫기
                   </button>
                 </div>
+                {saved === 'error' && (
+                  <p className="dnar-gacha__saveerror" role="status">
+                    서재에 담지 못했어요. 잠시 후 다시 눌러 주세요.
+                  </p>
+                )}
               </div>
             )}
           </>
