@@ -101,58 +101,39 @@ function Hero({ profile, tones, basis, serif }: { profile: DnaProfile; tones: st
             <span>YOUR READING TYPE · {profile.type.code}</span>
             <p>{profile.type.phrase}</p>
           </div>
-        </div>
-      </div>
-      <div className="dnar-hero-c__metrics">
-        {profile.metrics.map((metric) => (
-          <div className="dnar-hero-c__metric" key={metric.key}>
-            <div><span>{metric.key}</span><strong>{metric.value}%</strong></div>
-            <span className="dnar-hero-c__track"><span style={{ width: `${metric.value}%`, background: accent }} /></span>
+          {/* 지표 다섯은 이 이름의 근거다 — 1위가 이름을, 2위가 수식어를 만든다(AI 의 _metric_type).
+              지면 맨 아래 띠로 두면 히어로의 각주처럼 읽혀 그 인과가 보이지 않는다. 이름 바로 아래 둔다. */}
+          <div className="dnar-hero-c__metrics">
+            {profile.metrics.map((metric) => (
+              <div className="dnar-hero-c__metric" key={metric.key}>
+                <div><span>{metric.key}</span><strong>{metric.value}%</strong></div>
+                <span className="dnar-hero-c__track"><span style={{ width: `${metric.value}%`, background: accent }} /></span>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </section>
   )
 }
 
-/* ── 더 깊이 보는 테스트 4장 ──────────────────────────── */
+/* ── 더 깊이 보는 테스트 ──────────────────────────── */
 
-/** 카드마다 다른 작은 선 그림 — 아이콘이 아니라 그 테스트가 무엇을 보는지의 도식 */
-const TEST_ART: Record<string, ReactNode> = {
-  worldcup: (
-    <>
-      {/* 두 표지가 서로 기울어 맞붙고, 가운데 얇은 선이 대진을 가른다 */}
-      <rect x="30" y="8" width="24" height="34" rx="1" fill="currentColor" opacity=".3"
-        transform="rotate(-7 42 25)" />
-      <rect x="66" y="8" width="24" height="34" rx="1" fill="currentColor" opacity=".3"
-        transform="rotate(7 78 25)" />
-      <line x1="60" y1="4" x2="60" y2="42" stroke="currentColor" strokeWidth="1" opacity=".5" />
-    </>
-  ),
-}
-
-/** 지금 열려 있는 콘텐츠 두 장. 후보를 어디서 뽑는지가 서로 다르다 —
- *  가챠는 책 전체에서(우연), 월드컵은 내 서재에서(선택). 그래서 카드 설명도 그 차이를 말한다. */
+/** 가챠는 책 전체에서, 월드컵은 내 서재에서 고른다. */
 const TESTS = [
   {
     id: 'gacha',
-    kicker: 'Random Draw',
     name: '완전 랜덤 책 가챠',
-    desc: '취향을 접어 두고 아무 책이나 한 권 뽑아, 그게 취향에서 얼마나 먼지 알려드려요.',
-    from: '소설 전체에서 뽑아요',
   },
   {
     id: 'worldcup',
-    kicker: 'Book World Cup',
     name: '책 이상형 월드컵',
-    desc: '서재의 책을 두 권씩 맞붙여 지금 가장 손이 가는 한 권을 찾아드려요.',
-    from: '내 서재에서 골라요',
   },
 ] as const
 
 /** 가챠 대화상자 — 후보(소설 전체)는 열 때 서버에서 받는다. 받아 오는 동안에도 상자는 떠 있어야 해서
  *  BookGacha 를 감싸 그 기다림만 맡는다. */
-function GachaDialog({ axes, read, onClose }: { axes: DnaProfile['axes']; read: ReadonlySet<string>; onClose: () => void }) {
+function GachaDialog({ read, onClose }: { read: ReadonlySet<string>; onClose: () => void }) {
   const { data, isError } = useGachaWindow(true, read)
   return (
     <BookGacha
@@ -161,7 +142,6 @@ function GachaDialog({ axes, read, onClose }: { axes: DnaProfile['axes']; read: 
       read={read}
       // 받아 왔는데 빈손인 경우도 실패로 본다 — 기다리는 문구를 띄운 채 손잡이를 잠가 두면 고장으로 보인다
       failed={isError || (data != null && data.books.length === 0)}
-      axes={axes}
       onClose={onClose}
     />
   )
@@ -513,12 +493,11 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
           <h2 className="dnar-title">리포트를 덮고, 한 번 해 볼까요?</h2>
         </div>
         <ul className="dnar-tests">
-          {TESTS.map((t, i) => (
+          {TESTS.map((t) => (
             <li key={t.id}>
               <button
                 type="button"
-                className={`dnar-test ${t.id === 'gacha' ? 'dnar-test--gacha' : ''}`}
-                style={{ ['--tone' as string]: tones?.[i] ?? 'var(--eo-ink-faint)' }}
+                className="dnar-test dnar-test--feature"
                 onClick={() => {
                   const why = blockedReason(t)
                   if (why) return setPending(why)
@@ -534,17 +513,17 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
                   </>
                 ) : (
                   <>
-                    <div className="dnar-test__body">
-                      <span className="dnar-test__no">{String(i + 1).padStart(2, '0')}</span>
-                      <span className="dnar-test__kicker">{t.kicker}</span>
-                      <h3 className="dnar-test__name">{t.name}</h3>
-                      <p className="dnar-test__desc">{t.desc}</p>
-                      <span className="dnar-utility dnar-test__from">{t.from}</span>
-                      <span className="dnar-test__go">시작하기 →</span>
-                    </div>
-                    <svg className="dnar-test__art" viewBox="0 0 120 44" aria-hidden="true">
-                      {TEST_ART[t.id]}
-                    </svg>
+                    <h3 className="dnar-test__name">{t.name}</h3>
+                    <span className="dnar-test__duel" aria-hidden="true">
+                      <span className="dnar-test__duel-book dnar-test__duel-book--left">
+                        {pool[0] && <img src={coverAtWidth(pool[0].coverUrl, 280) ?? pool[0].coverUrl} alt="" loading="lazy" />}
+                      </span>
+                      <span className="dnar-test__duel-vs">VS</span>
+                      <span className="dnar-test__duel-book dnar-test__duel-book--right">
+                        {pool[1] && <img src={coverAtWidth(pool[1].coverUrl, 280) ?? pool[1].coverUrl} alt="" loading="lazy" />}
+                      </span>
+                    </span>
+                    <span className="dnar-test__go">고르러 가기 →</span>
                   </>
                 )}
               </button>
@@ -556,7 +535,7 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
         </p>
       </section>
       {/* 주소로 바로 들어왔는데 후보가 모자라면 열지 않는다 — 카드가 막던 조건을 여기서도 지킨다 */}
-      {open === 'gacha' && <GachaDialog axes={profile.axes} read={readIsbns} onClose={closePlay} />}
+      {open === 'gacha' && <GachaDialog read={readIsbns} onClose={closePlay} />}
       {open === 'worldcup' && canPlay && (
         <BookWorldCup pool={pool} topAxis={profile.topAxis} onClose={closePlay} />
       )}
