@@ -184,16 +184,20 @@ const recommendations: RecommendationResponse = {
 /** ============ 서재 (in-memory — 세션 동안 상태 유지) ============ */
 /** 서버는 Asia/Seoul 기준 오늘(§6.2) — mock 은 브라우저 로컬 날짜로 대신한다 */
 const today = () => new Date().toLocaleDateString('sv-SE')
+/** 실서버 LibraryItem 은 createdAt·updatedAt 을 준다(§6). 서재 정렬이 같은 완독일에서 담은 순서를 쓰므로 mock 도 채운다 */
+const nowIso = () => new Date().toISOString()
+/** seed 의 담은 시각 — id 순서대로 하루씩 앞선 시각을 준다(작은 id 가 먼저 담긴 책) */
+const seedAt = (n: number) => new Date(Date.UTC(2026, 3, n)).toISOString()
 let nextLibraryId = 9
 const library: LibraryItem[] = [
-  { libraryItemId: 1, book: CATALOG[6], status: 'READ', rating: 4, reviewText: '어른이 되기 전에 읽었어야 했다.', finishedDate: '2026-08-20' },
-  { libraryItemId: 2, book: CATALOG[9], status: 'READ', rating: null, reviewText: null, finishedDate: '2026-07-19' },
-  { libraryItemId: 3, book: CATALOG[10], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-08-27' },
-  { libraryItemId: 4, book: CATALOG[11], status: 'READ', rating: 3, reviewText: '가볍게 잘 읽힘', finishedDate: '2026-06-11' },
-  { libraryItemId: 5, book: CATALOG[8], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-05-02' },
-  { libraryItemId: 6, book: CATALOG[7], status: 'WISH', rating: null, reviewText: null, finishedDate: null },
-  { libraryItemId: 7, book: CATALOG[4], status: 'WISH', rating: null, reviewText: null, finishedDate: null },
-  { libraryItemId: 8, book: CATALOG[0], status: 'WISH', rating: null, reviewText: null, finishedDate: null },
+  { libraryItemId: 1, book: CATALOG[6], status: 'READ', rating: 4, reviewText: '어른이 되기 전에 읽었어야 했다.', finishedDate: '2026-08-20', createdAt: seedAt(1), updatedAt: seedAt(1) },
+  { libraryItemId: 2, book: CATALOG[9], status: 'READ', rating: null, reviewText: null, finishedDate: '2026-07-19', createdAt: seedAt(2), updatedAt: seedAt(2) },
+  { libraryItemId: 3, book: CATALOG[10], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-08-27', createdAt: seedAt(3), updatedAt: seedAt(3) },
+  { libraryItemId: 4, book: CATALOG[11], status: 'READ', rating: 3, reviewText: '가볍게 잘 읽힘', finishedDate: '2026-06-11', createdAt: seedAt(4), updatedAt: seedAt(4) },
+  { libraryItemId: 5, book: CATALOG[8], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-05-02', createdAt: seedAt(5), updatedAt: seedAt(5) },
+  { libraryItemId: 6, book: CATALOG[7], status: 'WISH', rating: null, reviewText: null, finishedDate: null, createdAt: seedAt(6), updatedAt: seedAt(6) },
+  { libraryItemId: 7, book: CATALOG[4], status: 'WISH', rating: null, reviewText: null, finishedDate: null, createdAt: seedAt(7), updatedAt: seedAt(7) },
+  { libraryItemId: 8, book: CATALOG[0], status: 'WISH', rating: null, reviewText: null, finishedDate: null, createdAt: seedAt(8), updatedAt: seedAt(8) },
 ]
 
 /** ============ 핸들러 ============ */
@@ -337,9 +341,11 @@ export const handlers = [
         // 이미 서재에 있으면(찜 등) 완독으로 승격만 — 중복 행을 만들지 않는다
         existing.status = 'READ'
         existing.rating = rating
+        existing.updatedAt = nowIso()
         continue
       }
-      library.unshift({ libraryItemId: nextLibraryId++, book, status: 'READ', rating, reviewText: null, finishedDate: null })
+      library.unshift({ libraryItemId: nextLibraryId++, book, status: 'READ', rating, reviewText: null, finishedDate: null,
+        createdAt: nowIso(), updatedAt: nowIso() })
     }
     return new HttpResponse(null, { status: 204 })
   }),
@@ -449,7 +455,7 @@ export const handlers = [
       )
     }
     const item: LibraryItem = { libraryItemId: nextLibraryId++, book: withCategory(book), status: body.status, rating: null, reviewText: null,
-      finishedDate: body.status === 'READ' ? today() : null }
+      finishedDate: body.status === 'READ' ? today() : null, createdAt: nowIso(), updatedAt: nowIso() }
     library.unshift(item)
     return HttpResponse.json(item, { status: 201 })
   }),
@@ -464,6 +470,7 @@ export const handlers = [
     if (body.status) item.status = body.status
     if (body.rating !== undefined) item.rating = body.rating
     if (body.reviewText !== undefined) item.reviewText = body.reviewText?.trim() || null
+    item.updatedAt = nowIso()
     return HttpResponse.json(item)
   }),
   // §6.4 — 204
