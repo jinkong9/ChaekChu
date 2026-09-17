@@ -19,11 +19,12 @@ import { tagLabel, useTags } from '../../lib/useTags'
 import type { DnaBook } from './dnaTypes'
 import { displayTone, extractCoverColor } from './spectrum'
 import { axisLabel, profileFromApi, type DnaProfile } from './dnaProfile'
-import { useGachaPool } from './useGachaPool'
+import { useGachaWindow } from './useGachaPool'
 import { buildHabits, type Habit } from './habits'
 import DnaConstellation from './DnaConstellation'
 import BookWorldCup from './BookWorldCup'
 import BookGacha from './BookGacha'
+import { GachaMachineArt } from './GachaMachine'
 import { coverAtWidth } from '../../lib/coverUrl'
 import './dna-report.css'
 
@@ -136,21 +137,6 @@ function Radar({ axes, tone }: { axes: DnaProfile['axes']; tone?: string }) {
 
 /** 카드마다 다른 작은 선 그림 — 아이콘이 아니라 그 테스트가 무엇을 보는지의 도식 */
 const TEST_ART: Record<string, ReactNode> = {
-  gacha: (
-    <>
-      {/* 대화상자에 세워 둘 그 기계의 축소판 — 유리구·손잡이·배출구, 그리고 굴러 나온 캡슐 하나 */}
-      <rect x="86" y="1.5" width="17" height="4" rx="2" fill="none" stroke="currentColor" strokeWidth="1" opacity=".55" />
-      <circle cx="94.5" cy="17" r="11.5" fill="none" stroke="currentColor" strokeWidth="1" opacity=".55" />
-      <circle cx="91" cy="14" r="3" fill="currentColor" opacity=".28" />
-      <circle cx="98.5" cy="20" r="3.5" fill="currentColor" opacity=".2" />
-      <line x1="84" y1="7.5" x2="105" y2="7.5" stroke="currentColor" strokeWidth="1" opacity=".55" />
-      <path d="M83 30h23l3 12H80z" fill="none" stroke="currentColor" strokeWidth="1" opacity=".55" />
-      <circle cx="94.5" cy="34.5" r="3.4" fill="none" stroke="currentColor" strokeWidth="1" opacity=".7" />
-      <line x1="92" y1="34.5" x2="97" y2="34.5" stroke="currentColor" strokeWidth="1.2" opacity=".8" />
-      <path d="M78 41q-13 3 -22-2" fill="none" stroke="currentColor" strokeWidth="1" opacity=".3" strokeDasharray="2 3" />
-      <circle cx="50" cy="35" r="6.5" fill="currentColor" opacity=".85" />
-    </>
-  ),
   worldcup: (
     <>
       {/* 두 표지가 서로 기울어 맞붙고, 가운데 얇은 선이 대진을 가른다 */}
@@ -171,7 +157,7 @@ const TESTS = [
     kicker: 'Random Draw',
     name: '완전 랜덤 책 가챠',
     desc: '취향을 접어 두고 아무 책이나 한 권 뽑아, 그게 취향에서 얼마나 먼지 알려드려요.',
-    from: '책 전체에서 뽑아요',
+    from: '소설 전체에서 뽑아요',
   },
   {
     id: 'worldcup',
@@ -181,6 +167,21 @@ const TESTS = [
     from: '내 서재에서 골라요',
   },
 ] as const
+
+/** 가챠 대화상자 — 후보(소설 전체)는 열 때 서버에서 받는다. 받아 오는 동안에도 상자는 떠 있어야 해서
+ *  BookGacha 를 감싸 그 기다림만 맡는다. */
+function GachaDialog({ axes, onClose }: { axes: DnaProfile['axes']; onClose: () => void }) {
+  const { data, isError } = useGachaWindow(true)
+  return (
+    <BookGacha
+      pool={data?.books ?? []}
+      total={data?.total ?? 0}
+      failed={isError}
+      axes={axes}
+      onClose={onClose}
+    />
+  )
+}
 
 /* ── 독서 습관 ───────────────────────────────────────── */
 
@@ -348,18 +349,17 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
   // 표지가 없는 책은 후보에서 뺀다 — 빈 자리가 대진표에 섞이면 고를 수가 없다
   const pool = useMemo(() => books.filter((b) => b.coverUrl !== ''), [books])
   const canPlay = pool.length >= 4
-  // 가챠만 후보가 다르다 — '완전 랜덤'이니 내 서재가 아니라 책 전체에서 뽑는다
-  const gachaPool = useGachaPool()
+  // 가챠만 후보가 다르다 — '완전 랜덤'이니 내 서재가 아니라 소설 전체에서 뽑는다
   const habits = useMemo(() => buildHabits(records), [records])
 
   // 표지 더미는 별점이 높은 세 권 — 타입 패널의 오른쪽 아래를 채운다
   const top3 = books.filter((b) => b.coverUrl !== '').sort((a, b) => b.rating - a.rating).slice(0, 3)
   const strongCount = Math.min(4, profile.keywords.length)
 
-  /** 카드를 열 수 없으면 그 이유를 그 자리에서 말한다 — 눌러도 아무 일 없는 버튼을 두지 않는다 */
+  /** 카드를 열 수 없으면 그 이유를 그 자리에서 말한다 — 눌러도 아무 일 없는 버튼을 두지 않는다.
+   *  가챠는 서재와 무관하게 늘 열린다(후보를 서버에서 받아 온다) */
   const blockedReason = (t: (typeof TESTS)[number]): string | null => {
-    if (t.id === 'gacha')
-      return gachaPool.length > 0 ? null : '뽑을 책 목록을 아직 불러오지 못했어요. 잠시 후 다시 열어 주세요.'
+    if (t.id === 'gacha') return null
     return canPlay ? null : `「${t.name}」는 표지가 있는 책이 4권 이상일 때 열려요 — 지금 서재에는 ${pool.length}권이에요.`
   }
 
@@ -527,7 +527,7 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
             <li key={t.id}>
               <button
                 type="button"
-                className="dnar-test"
+                className={`dnar-test ${t.id === 'gacha' ? 'dnar-test--gacha' : ''}`}
                 style={{ ['--tone' as string]: tones?.[i] ?? 'var(--eo-ink-faint)' }}
                 onClick={() => {
                   const why = blockedReason(t)
@@ -536,17 +536,27 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
                   openPlay(t.id)
                 }}
               >
-                <div className="dnar-test__body">
-                  <span className="dnar-test__no">{String(i + 1).padStart(2, '0')}</span>
-                  <span className="dnar-test__kicker">{t.kicker}</span>
-                  <h3 className="dnar-test__name">{t.name}</h3>
-                  <p className="dnar-test__desc">{t.desc}</p>
-                  <span className="dnar-utility dnar-test__from">{t.from}</span>
-                  <span className="dnar-test__go">시작하기 →</span>
-                </div>
-                <svg className="dnar-test__art" viewBox="0 0 120 44" aria-hidden="true">
-                  {TEST_ART[t.id]}
-                </svg>
+                {t.id === 'gacha' ? (
+                  <>
+                    <h3 className="dnar-test__name">완전랜덤 책 가챠</h3>
+                    <span className="dnar-test__machine"><GachaMachineArt /></span>
+                    <span className="dnar-test__go">돌리러 가기 →</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="dnar-test__body">
+                      <span className="dnar-test__no">{String(i + 1).padStart(2, '0')}</span>
+                      <span className="dnar-test__kicker">{t.kicker}</span>
+                      <h3 className="dnar-test__name">{t.name}</h3>
+                      <p className="dnar-test__desc">{t.desc}</p>
+                      <span className="dnar-utility dnar-test__from">{t.from}</span>
+                      <span className="dnar-test__go">시작하기 →</span>
+                    </div>
+                    <svg className="dnar-test__art" viewBox="0 0 120 44" aria-hidden="true">
+                      {TEST_ART[t.id]}
+                    </svg>
+                  </>
+                )}
               </button>
             </li>
           ))}
@@ -556,9 +566,7 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
         </p>
       </section>
       {/* 주소로 바로 들어왔는데 후보가 모자라면 열지 않는다 — 카드가 막던 조건을 여기서도 지킨다 */}
-      {open === 'gacha' && gachaPool.length > 0 && (
-        <BookGacha pool={gachaPool} axes={profile.axes} onClose={closePlay} />
-      )}
+      {open === 'gacha' && <GachaDialog axes={profile.axes} onClose={closePlay} />}
       {open === 'worldcup' && canPlay && (
         <BookWorldCup pool={pool} topAxis={profile.topAxis} onClose={closePlay} />
       )}

@@ -1,98 +1,174 @@
-/** 뽑기 기계 — 가챠의 첫 화면.
- *
- *  "완전 랜덤"이라는 말만 적어 두고 버튼 하나를 두면 그냥 버튼이다. 손잡이가 있는 기계를
- *  세워 두면 누르기 전에 이미 뽑는 일이 시작된다. 그래서 이 그림이 곧 버튼이다.
- *
- *  사진이나 3D 렌더가 아니라 선으로 그린다(DESIGN.md: 종이와 잉크, 색은 표지가 담당).
- *  유리구를 채우는 색은 이 화면에서도 표지에서 온다 — 캡슐 안의 작은 책이 실제 후보 열넉 권이다. */
-import { coverAtWidth } from '../../lib/coverUrl'
+/** 책 가챠 기계. 유리통의 공은 후보 책과 무관한 장식이다. */
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
-/** 캡슐 자리 — 유리구(중심 160,150 · 반지름 90) 안에 다섯 줄로 눕힌다.
- *  줄마다 담기는 수가 달라야 병에 쏟아 넣은 것처럼 보인다. 중심에서 67 을 넘지 않아야 캡슐이 유리를 뚫지 않는다. */
-const SLOTS: [number, number][] = [
-  [124, 110], [196, 110],
-  [104, 132], [156, 132], [208, 132],
-  [98, 158], [144, 158], [190, 158], [224, 158],
-  [112, 184], [160, 184], [208, 184],
-  [138, 208], [184, 208],
-]
-/** 캡슐 반지름과 그 안에 든 책의 크기 — 대각선이 지름을 넘지 않아야 책이 캡슐 밖으로 나오지 않는다 */
-const CAP_R = 23
-const BOOK_W = 24
-const BOOK_H = 33
+type KnobPointerEvent = ReactPointerEvent<SVGCircleElement>
+const BALLS = [
+  { x: 102, y: 195, r: 25, color: '#a7b7ad' },
+  { x: 143, y: 205, r: 27, color: '#d7b692' },
+  { x: 187, y: 205, r: 25, color: '#b9b2c5' },
+  { x: 225, y: 191, r: 25, color: '#c89f91' },
+  { x: 87, y: 161, r: 23, color: '#d4c49e' },
+  { x: 125, y: 164, r: 25, color: '#aebcc8' },
+  { x: 165, y: 171, r: 25, color: '#d0a9a2' },
+  { x: 205, y: 164, r: 25, color: '#b6bfa2' },
+  { x: 239, y: 155, r: 21, color: '#c6b6a0' },
+  { x: 103, y: 128, r: 22, color: '#c3a9b4' },
+  { x: 140, y: 133, r: 24, color: '#b9c4a9' },
+  { x: 179, y: 132, r: 24, color: '#d7b795' },
+  { x: 215, y: 126, r: 23, color: '#aabdc0' },
+  { x: 122, y: 99, r: 20, color: '#d3b9aa' },
+  { x: 159, y: 103, r: 23, color: '#a9b7a5' },
+  { x: 197, y: 98, r: 20, color: '#c5b6c7' },
+] as const
 
-export default function GachaMachine({ covers, onPull, disabled }: { covers: string[]; onPull: () => void; disabled?: boolean }) {
+/** 소개 카드와 가챠 화면이 같은 기계 그림을 쓴다. 실제 손잡이 동작은 가챠 화면에서만 붙인다. */
+export function GachaMachineArt({ angle = 0, onKnobDown, onKnobMove, onKnobEnd }: {
+  angle?: number
+  onKnobDown?: (event: KnobPointerEvent) => void
+  onKnobMove?: (event: KnobPointerEvent) => void
+  onKnobEnd?: (event: KnobPointerEvent) => void
+}) {
   return (
-    <button type="button" className="dnar-machine" onClick={onPull} disabled={disabled} aria-label="손잡이를 돌려 한 권 뽑기">
-      <svg viewBox="0 0 320 392" role="img" aria-hidden="true">
-        {/* 명판과 그것을 뚜껑에 붙드는 목 */}
-        <g className="dnar-machine__plate">
-          <rect className="dnar-machine__shell" x="150" y="38" width="20" height="24" />
-          <rect x="96" y="16" width="128" height="26" rx="4" />
-          <circle cx="104" cy="29" r="1.4" className="dnar-machine__screw" />
-          <circle cx="216" cy="29" r="1.4" className="dnar-machine__screw" />
-          <text x="160" y="33.5" textAnchor="middle">RANDOM BOOK</text>
-        </g>
+    <svg viewBox="0 0 320 392" role="img" aria-hidden="true">
+        <defs>
+          <linearGradient id="dnar-porcelain" x1="0" y1="0" x2="1" y2="0">
+            <stop stopColor="#e6dfd4" />
+            <stop offset=".14" stopColor="#fffdf8" />
+            <stop offset=".68" stopColor="#f4efe7" />
+            <stop offset="1" stopColor="#d9d0c5" />
+          </linearGradient>
+          <linearGradient id="dnar-glass" x1="0" y1="0" x2="1" y2=".65">
+            <stop stopColor="#fff" stopOpacity=".46" />
+            <stop offset=".5" stopColor="#fff" stopOpacity=".04" />
+            <stop offset="1" stopColor="#8c8277" stopOpacity=".16" />
+          </linearGradient>
+          <radialGradient id="dnar-ball-shade" cx=".32" cy=".24" r=".78">
+            <stop stopColor="#fff" stopOpacity=".55" />
+            <stop offset=".42" stopColor="#fff" stopOpacity=".02" />
+            <stop offset="1" stopColor="#3c332d" stopOpacity=".34" />
+          </radialGradient>
+          <linearGradient id="dnar-metal" x1="0" y1="0" x2="1" y2="1">
+            <stop stopColor="#eeeae3" />
+            <stop offset=".38" stopColor="#aaa49d" />
+            <stop offset=".7" stopColor="#f9f6ef" />
+            <stop offset="1" stopColor="#807970" />
+          </linearGradient>
+          <clipPath id="dnar-globe-clip"><circle cx="160" cy="145" r="96" /></clipPath>
+        </defs>
 
-        {/* 유리구 */}
-        <circle className="dnar-machine__glass" cx="160" cy="150" r="90" />
+        <ellipse cx="160" cy="381" rx="102" ry="8" fill="#777066" opacity=".14" />
 
-        {/* 캡슐 — 안에 든 작은 책이 오늘의 후보들이다 */}
-        {SLOTS.map(([cx, cy], i) => {
-          const cover = covers[i % Math.max(1, covers.length)]
-          return (
-            <g key={`${cx}-${cy}`}>
-              <circle className="dnar-machine__capsule" cx={cx} cy={cy} r={CAP_R} />
-              {cover && (
-                <image
-                  href={coverAtWidth(cover, BOOK_W) ?? cover}
-                  x={cx - BOOK_W / 2}
-                  y={cy - BOOK_H / 2}
-                  width={BOOK_W}
-                  height={BOOK_H}
-                  preserveAspectRatio="xMidYMid slice"
-                  opacity="0.88"
-                />
-              )}
-              <circle className="dnar-machine__capsule-edge" cx={cx} cy={cy} r={CAP_R} />
-              {/* 유리에 비친 빛 한 줄 */}
-              <path className="dnar-machine__gleam" d={`M${cx - 15} ${cy - 11}a19 19 0 0 1 11-7`} />
+        {/* 둥근 유리통과 색색의 공 */}
+        <circle cx="160" cy="145" r="96" fill="#f8f6f1" stroke="#bcb2a6" strokeWidth="2" />
+        <g clipPath="url(#dnar-globe-clip)">
+          <path d="M58 192c29 26 175 31 204-2v65H58z" fill="#d5cfc5" opacity=".3" />
+          {BALLS.map((ball) => (
+            <g key={`${ball.x}-${ball.y}`}>
+              <circle cx={ball.x} cy={ball.y} r={ball.r} fill={ball.color} stroke="#63594f" strokeOpacity=".2" />
+              <circle cx={ball.x} cy={ball.y} r={ball.r} fill="url(#dnar-ball-shade)" />
+              <ellipse cx={ball.x - ball.r * .29} cy={ball.y - ball.r * .37} rx={ball.r * .34} ry={ball.r * .16} fill="#fff" opacity=".38" transform={`rotate(-30 ${ball.x - ball.r * .29} ${ball.y - ball.r * .37})`} />
             </g>
-          )
-        })}
-        {/* 유리구 전체에 도는 빛 */}
-        <path className="dnar-machine__gleam" d="M100 120a74 74 0 0 1 36-30" />
-
-        {/* 뚜껑 — 캡슐보다 나중에 그려 유리구의 정수리를 덮는다 */}
-        <path className="dnar-machine__shell" d="M91 92a90 90 0 0 1 138 0z" />
-        <rect className="dnar-machine__shell" x="89" y="87" width="142" height="9" rx="4.5" />
-
-        {/* 몸통 */}
-        <path className="dnar-machine__shell" d="M128 232h64v20h-64z" />
-        <path className="dnar-machine__shell" d="M85 252h150l13 118H72z" />
-        <rect className="dnar-machine__shell" x="66" y="370" width="188" height="16" rx="4" />
-
-        {/* 손잡이 둘레의 안내 — 기계에 새겨진 문구 */}
-        <path id="dnar-twist" fill="none" d="M120 300a40 40 0 0 1 80 0" />
-        <text className="dnar-machine__engrave">
-          <textPath href="#dnar-twist" startOffset="50%" textAnchor="middle">
-            TWIST FOR A NEW STORY
-          </textPath>
-        </text>
-
-        {/* 손잡이 — 누르면 돌아간다 */}
-        <g className="dnar-machine__knob">
-          <circle className="dnar-machine__knob-face" cx="160" cy="300" r="21" />
-          <rect className="dnar-machine__knob-grip" x="145" y="297" width="30" height="6" rx="3" />
+          ))}
+          <circle cx="160" cy="145" r="96" fill="url(#dnar-glass)" />
+          <path d="M83 91c-23 24-30 54-22 84" fill="none" stroke="#fff" strokeWidth="13" strokeLinecap="round" opacity=".46" />
+          <path d="M239 103c16 29 20 53 14 75" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" opacity=".35" />
         </g>
-        <path className="dnar-machine__arrow" d="M127 289a26 26 0 0 0-2 12" />
-        <path className="dnar-machine__arrow" d="M193 289a26 26 0 0 1 2 12" />
+        <circle cx="160" cy="145" r="96" fill="none" stroke="#8e857b" strokeOpacity=".58" strokeWidth="2" />
 
-        {/* 배출구 — 이미 한 알이 떨어져 있다 */}
-        <rect className="dnar-machine__slot" x="132" y="332" width="56" height="28" rx="3" />
-        <circle className="dnar-machine__capsule" cx="160" cy="346" r="10" />
-        <circle className="dnar-machine__capsule-edge" cx="160" cy="346" r="10" />
-      </svg>
-    </button>
+        {/* 위쪽 뚜껑에는 문구를 넣지 않는다 */}
+        <path d="M68 93c4-32 39-51 92-51s88 19 92 51c-43-12-141-12-184 0z" fill="url(#dnar-porcelain)" stroke="#a99f92" strokeWidth="1.4" />
+        <path d="M79 78c35-31 125-34 161 0" fill="none" stroke="#fff" strokeWidth="8" opacity=".48" />
+        <path d="M67 92c53-12 133-12 186 0" fill="none" stroke="#8f8578" strokeWidth="3" opacity=".7" />
+
+        {/* 도자기 본체와 하단 받침 */}
+        <path d="M93 229h134c10 0 16 6 18 16l17 122H58l17-122c2-10 8-16 18-16z" fill="url(#dnar-porcelain)" stroke="#aca296" strokeWidth="1.5" />
+        <path d="M78 245h164" stroke="#fff" strokeWidth="2" opacity=".75" />
+        <path d="M56 362h208v12c0 5-4 8-9 8H65c-5 0-9-3-9-8z" fill="url(#dnar-porcelain)" stroke="#aca296" strokeWidth="1.5" />
+        <path d="M57 368h206" stroke="#fff" strokeWidth="2" opacity=".8" />
+
+        {/* 회전 손잡이와 배출구 */}
+        <circle cx="160" cy="285" r="29" fill="#ddd6cc" stroke="#80786f" strokeWidth="1.5" />
+        <circle cx="160" cy="285" r="25" fill="url(#dnar-metal)" stroke="#f9f6ee" strokeWidth="1.5" />
+        <g className="dnar-machine__knob" transform={`rotate(${angle} 160 285)`}>
+          <rect x="139" y="279" width="42" height="12" rx="6" fill="url(#dnar-metal)" stroke="#6e675f" strokeWidth="1.6" />
+          <path d="M143 282h33" stroke="#fff" strokeWidth="1.5" opacity=".7" />
+        </g>
+        <path d="M124 281a38 38 0 0 0 0 10m72-10a38 38 0 0 1 0 10" fill="none" stroke="#7b746c" strokeWidth="1.3" strokeLinecap="round" />
+        {onKnobDown && (
+          <circle
+            className="dnar-machine__knob-hit"
+            cx="160" cy="285" r="34"
+            fill="transparent"
+            onPointerDown={onKnobDown}
+            onPointerMove={onKnobMove}
+            onPointerUp={onKnobEnd}
+            onPointerCancel={onKnobEnd}
+          />
+        )}
+        <path d="M128 316h64c5 0 9 4 9 9v43h-82v-43c0-5 4-9 9-9z" fill="#e1d9ce" stroke="#a89d90" strokeWidth="1.4" />
+        <path d="M134 323h52c4 0 7 3 7 7v36h-66v-36c0-4 3-7 7-7z" fill="#393631" />
+        <circle cx="160" cy="348" r="15" fill="#c2b3a0" stroke="#ede5d8" strokeWidth="2" />
+        <circle cx="160" cy="348" r="15" fill="url(#dnar-ball-shade)" />
+        <path d="M127 368h66" stroke="#fff" strokeWidth="2" opacity=".7" />
+    </svg>
+  )
+}
+
+export default function GachaMachine({ onPull, disabled }: { onPull: () => void; disabled?: boolean }) {
+  const [angle, setAngle] = useState(0)
+  const drag = useRef<{ pointerId: number; last: number; rotation: number } | null>(null)
+  const finishTimer = useRef<number | null>(null)
+  const finishing = useRef(false)
+
+  useEffect(() => () => {
+    if (finishTimer.current !== null) window.clearTimeout(finishTimer.current)
+  }, [])
+
+  const pointerAngle = (event: KnobPointerEvent) => {
+    const svg = event.currentTarget.ownerSVGElement
+    if (!svg) return 0
+    const box = svg.getBoundingClientRect()
+    return Math.atan2(event.clientY - (box.top + box.height * 285 / 392), event.clientX - (box.left + box.width / 2)) * 180 / Math.PI
+  }
+
+  const handleDown = (event: KnobPointerEvent) => {
+    if (disabled || finishing.current) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    drag.current = { pointerId: event.pointerId, last: pointerAngle(event), rotation: 0 }
+  }
+
+  const handleMove = (event: KnobPointerEvent) => {
+    const current = drag.current
+    if (!current || current.pointerId !== event.pointerId) return
+    const next = pointerAngle(event)
+    let delta = next - current.last
+    if (delta > 180) delta -= 360
+    if (delta < -180) delta += 360
+    current.last = next
+    current.rotation += delta
+    setAngle(current.rotation)
+    if (Math.abs(current.rotation) >= 300) {
+      drag.current = null
+      finishing.current = true
+      event.currentTarget.releasePointerCapture(event.pointerId)
+      setAngle(current.rotation > 0 ? 360 : -360)
+      finishTimer.current = window.setTimeout(() => {
+        finishTimer.current = null
+        onPull()
+      }, 220)
+    }
+  }
+
+  const handleEnd = (event: KnobPointerEvent) => {
+    if (drag.current?.pointerId !== event.pointerId) return
+    drag.current = null
+    setAngle(0)
+  }
+
+  return (
+    <div className={`dnar-machine ${drag.current ? 'is-dragging' : ''}`} aria-label="손잡이를 잡고 돌리면 책을 뽑습니다">
+      <GachaMachineArt angle={angle} onKnobDown={handleDown} onKnobMove={handleMove} onKnobEnd={handleEnd} />
+    </div>
   )
 }

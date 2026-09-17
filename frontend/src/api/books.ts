@@ -23,12 +23,18 @@ export function toBookSummary(s: ServerBookSummary): BookSummary {
  *  q 가 ISBN 형태(하이픈 무시 13자리)면 서버가 정확 조회로 처리해 0~1건을 준다(그때 kdc 는 무시).
  *  탐색 한도 10,000건 — page*size+size 가 넘으면 400 이라 화면이 쪽 번호를 그 안에서만 만든다. */
 export async function searchBooks(q: string, page = 0, size = 20, kdc?: string): Promise<SearchResponse> {
+  const res = await searchBooksRaw(q, page, size, kdc)
+  return { total: res.total, page: res.page, size: res.size, items: res.items.map(toBookSummary) }
+}
+
+/** 서버 응답 그대로가 필요할 때 — 화면 타입(BookSummary)은 isbn13·classNo 를 버린다.
+ *  분류를 보고 무언가를 판단하는 쪽(BOOK DNA 가챠의 취향 거리)은 이쪽을 쓴다. */
+export async function searchBooksRaw(q: string, page = 0, size = 20, kdc?: string): Promise<ServerSearchResponse> {
   const params: Record<string, string | number> = { page, size }
   if (q) params.q = q
   if (kdc) params.kdc = kdc
   const res = await api.get<ServerSearchResponse>('/books/search', { params })
-  const { total, items } = res.data
-  return { total, page: res.data.page, size: res.data.size, items: items.map(toBookSummary) }
+  return res.data
 }
 
 /** 서버 오류 응답의 code (§1.3). 네트워크 오류·형식 밖이면 null. */
