@@ -835,9 +835,15 @@ export default function LibraryPage() {
   })
 
   const all = data ?? []
-  // 완독은 오래된 순 — 그 순서가 곧 이 책의 장 순서다
+  // 완독은 오래된 순 — 그 순서가 곧 이 책의 장 순서다.
+  // 완독일만 비교하면 같은 날 기록한 책들은 비교값이 0 이고, Array.sort 는 stable 이라
+  // 서버가 준 순서(updatedAt 내림차순, §6.1)가 그대로 남는다 — A·B·C 로 기록한 날이 C·B·A 로 뒤집혔다.
+  // 그래서 담은 순서(createdAt)를 2차 기준으로 둔다. mock 응답에 createdAt 이 없던 때를 위해 id 를 최종 폴백으로 남긴다.
   const read = all.filter((li) => li.status === 'READ')
-    .sort((x, y) => (x.finishedDate ?? '').localeCompare(y.finishedDate ?? ''))
+    .sort((x, y) =>
+      (x.finishedDate ?? '').localeCompare(y.finishedDate ?? '')
+      || (x.createdAt ?? '').localeCompare(y.createdAt ?? '')
+      || (x.libraryItemId - y.libraryItemId))
   const wish = all.filter((li) => li.status === 'WISH')
 
   const meta: BookMeta = {
