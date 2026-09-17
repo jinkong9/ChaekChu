@@ -91,7 +91,6 @@
   margin: 18px 0 22px;
 }
 
-.dnar-hero-alt__basis { margin: auto 0 0; padding-top: 32px; color: var(--eo-ink-faint); font-size: 11px; line-height: 1.7; }
 /* 한 칸이 200px 을 넘으므로 얇은 막대는 실선으로 보인다 — 본문 지표 막대(6px)보다 굵게 */
 .dnar-hero-c__track { display: block; height: 9px; background: var(--eo-placeholder); }
 .dnar-hero-c__track > span { display: block; height: 100%; }

@@ -63,23 +63,13 @@ function useCoverTones(books: DnaBook[]): string[] | null {
 
 /* ── 히어로 한가운데 ─────────────────────────────────── */
 
-/** 두 새 시안은 같은 분석값을 다른 편집 방식으로 보여 준다. */
-function HeroBasis({ basis }: { basis: Basis }) {
-  return (
-    <p className="dnar-hero-alt__basis">
-      완독 {basis.readCount}권{basis.basedOnCount < basis.readCount ? ` 중 ${basis.basedOnCount}권` : ''} 분석 · {computedAgo(basis.generatedAt)}
-      {basis.unanalyzedCount > 0 && <span> · {basis.unanalyzedCount}권은 분석 데이터 준비 중</span>}
-    </p>
-  )
-}
-
 /** 히어로 — 왼쪽은 문장, 오른쪽은 활자가 모여 쓰는 독서타입 이름.
  *
  *  제호(BOOK DNA)는 문장 위 작은 세리프 낙관으로 물러난다. 헤드라인과 타입 이름이
  *  둘 다 본문 글꼴이라 같은 집안이고, 크기로만 위계가 갈린다 — 주인공은 타입 이름이다.
  *
  *  `serif` 는 그 타입 이름을 한글 세리프로 쓴다(리포트 본문의 독서타입 이름과 같은 얼굴). */
-function Hero({ profile, tones, basis, serif }: { profile: DnaProfile; tones: string[] | null; basis: Basis; serif: boolean }) {
+function Hero({ profile, tones, serif }: { profile: DnaProfile; tones: string[] | null; serif: boolean }) {
   // 다섯 줄을 다섯 색으로 칠하면 무지개가 된다. 값의 차이는 길이가 말하므로 색은 하나면 된다
   const accent = accentOf(tones) ?? 'var(--eo-ink)'
   return (
@@ -93,7 +83,6 @@ function Hero({ profile, tones, basis, serif }: { profile: DnaProfile; tones: st
             <br />
             <em>당신의 취향</em>이 됩니다.
           </h1>
-          <HeroBasis basis={basis} />
         </div>
         <div className="dnar-hero-c__visual">
           <ReadingTypeField typeName={profile.type.name} tones={tones} serif={serif} />
@@ -213,43 +202,7 @@ function Habits({ habits }: { habits: Habit[] }) {
 
 /* ── 화면 ────────────────────────────────────────────── */
 
-/** 프로필이 무엇에서 계산됐나 — 히어로 지표 아래 한두 줄로 보인다. */
-interface Basis {
-  /** 서재의 READ 수(온보딩 seed 포함) — 서버 readCount */
-  readCount: number
-  /** 그중 AI 인덱스에 있어 실제 계산에 쓰인 수 — 서버 profile.basedOnCount */
-  basedOnCount: number
-  /** 인덱스에 없어 빠진 책 수. books[].analyzed === false 를 세고, 그 필드가 없는 옛 응답이면 readCount - basedOnCount 로 대신한다 */
-  unanalyzedCount: number
-  /** 프로필 계산 시각(UTC ISO). 저장된 프로필로 답할 때는 옛 시각이라 "언제 계산된 결과인지"를 함께 보인다 */
-  generatedAt: string
-}
-
-/** 계산 시각을 사람 말로 — 방금·N분 전·N시간 전·N일 전. 서버가 저장된 프로필(§3.4)을 줄 때 generatedAt 이 옛 시각이다. */
-function computedAgo(iso: string, now = Date.now()): string {
-  const ms = now - new Date(iso).getTime()
-  if (!Number.isFinite(ms) || ms < 60_000) return '방금 계산'
-  const min = Math.floor(ms / 60_000)
-  if (min < 60) return `${min}분 전 계산`
-  const hour = Math.floor(min / 60)
-  if (hour < 24) return `${hour}시간 전 계산`
-  return `${Math.floor(hour / 24)}일 전 계산`
-}
-
-/** 서버 응답에서 근거 숫자를 뽑는다. analyzed 가 없는 옛 응답에도 동작한다. */
-function basisOf(data: { readCount: number; generatedAt: string; books: DnaBookResponse[]; profile: { basedOnCount: number } }): Basis {
-  // READ 만 센다 — 문장이 "완독 N권 중 M권" 이라 찜(WISH)이 섞이면 수가 안 맞는다
-  const flagged = data.books.filter((b) => b.status === 'READ' && b.analyzed === false).length
-  const gap = Math.max(0, data.readCount - data.profile.basedOnCount)
-  return {
-    readCount: data.readCount,
-    basedOnCount: data.profile.basedOnCount,
-    unanalyzedCount: flagged > 0 ? flagged : gap,
-    generatedAt: data.generatedAt,
-  }
-}
-
-function Report({ books, records, profile, keywords, tones, basis, declaredTags, topGenres }: {
+function Report({ books, records, profile, keywords, tones, declaredTags, topGenres }: {
   books: DnaBook[]
   /** 서버 응답 그대로 — 쪽수·출간 연도·분류처럼 화면 타입(DnaBook)이 버린 값을 독서 습관이 쓴다 */
   records: DnaBookResponse[]
@@ -257,7 +210,6 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
   keywords: DnaScore[]
   profile: DnaProfile
   tones: string[] | null
-  basis: Basis
   /** 온보딩에서 내가 고른 관심 태그 (공개 taxonomy code) */
   declaredTags: string[]
   /** 실제로 많이 읽은 축 (같은 taxonomy) — 고른 것과 읽은 것을 맞대 본다 */
@@ -380,7 +332,7 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
         </div>
       </div>
       {/* ── 히어로 ────────────────────────────────── */}
-      <Hero profile={profile} tones={tones} basis={basis} serif={serifName} />
+      <Hero profile={profile} tones={tones} serif={serifName} />
 
       {/* ── 근거 구역 — 안 두 가지를 주소로 갈아 끼운다(?body=b) ── */}
       {bodyVariant === 'b' ? (
@@ -578,7 +530,6 @@ export default function DnaReportPage() {
   const books = useMemo(() => (data?.books ?? []).map(toDnaBook), [data?.books])
   const tones = useCoverTones(books)
   const profile = data ? profileFromApi(data.profile, data.readCount) : null
-  const basis = data ? basisOf(data) : null
 
   return (
     <main className="dnar">
@@ -649,14 +600,13 @@ export default function DnaReportPage() {
             }
           />
         )}
-        {data?.profile.status === 'READY' && profile && basis && (
+        {data?.profile.status === 'READY' && profile && (
           <Report
             books={books}
             records={data.books}
             keywords={data.profile.keywords}
             profile={profile}
             tones={tones}
-            basis={basis}
             declaredTags={data.declaredTags}
             topGenres={data.profile.evidence.topGenres}
           />
