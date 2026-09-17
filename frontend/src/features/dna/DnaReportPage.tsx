@@ -14,13 +14,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useDna } from '../../lib/useDna'
-import { isDnaUnavailable, type DnaBookResponse } from '../../api/dna'
+import { isDnaUnavailable, type DnaBookResponse, type DnaScore } from '../../api/dna'
 import { tagLabel, useTags } from '../../lib/useTags'
 import type { DnaBook } from './dnaTypes'
 import { displayTone, extractCoverColor } from './spectrum'
 import { axisLabel, profileFromApi, type DnaProfile } from './dnaProfile'
 import { useGachaWindow } from './useGachaPool'
 import { buildHabits, type Habit } from './habits'
+import Radar from './DnaRadar'
+import DnaEvidenceB from './DnaEvidenceB'
 import DnaConstellation from './DnaConstellation'
 import ReadingTypeField from './ReadingTypeField'
 import BookWorldCup from './BookWorldCup'
@@ -147,61 +149,6 @@ function HeroC({ profile, tones, basis }: { profile: DnaProfile; tones: string[]
         ))}
       </div>
     </section>
-  )
-}
-
-/* ── 장르 레이더 ─────────────────────────────────────── */
-
-const RADAR_SIZE = 250
-const RADAR_R = 62
-
-function radarPoint(i: number, count: number, r: number) {
-  const a = (Math.PI * 2 * i) / count - Math.PI / 2
-  return [RADAR_SIZE / 2 + Math.cos(a) * r, RADAR_SIZE / 2 + Math.sin(a) * r] as const
-}
-
-/** 서버 axes 는 여섯 축의 합이 100 이 되게 정규화된 '지분'이다(계약 §4.4). 100 을 꽉 찬 반지름으로 삼으면
- *  고르게 읽는 사람은 반지름 17%짜리 바늘이 되어 도형이 아무 말도 하지 못한다.
- *  그래서 모양은 1위 축을 테두리에 두고 그 비율로 그리고, 숫자는 실제 지분 %로 적는다 —
- *  모양은 균형을, 숫자는 크기를 말하게 나눈다. */
-function Radar({ axes, tone }: { axes: DnaProfile['axes']; tone?: string }) {
-  const n = axes.length
-  const peak = Math.max(...axes.map((a) => a.value), 1)
-  const ring = (r: number) =>
-    axes.map((_, i) => radarPoint(i, n, r).map((v) => v.toFixed(1)).join(',')).join(' ')
-  const shape = axes
-    .map((a, i) => radarPoint(i, n, (a.value / peak) * RADAR_R).map((v) => v.toFixed(1)).join(','))
-    .join(' ')
-
-  return (
-    <svg
-      className="dnar-radar"
-      viewBox={`0 0 ${RADAR_SIZE} ${RADAR_SIZE}`}
-      role="img"
-      aria-label={`장르 지분 — ${axes.map((a) => `${a.label} ${a.value}%`).join(', ')}`}
-    >
-      {[0.34, 0.67, 1].map((k) => (
-        <polygon key={k} className="dnar-radar__grid" points={ring(RADAR_R * k)} />
-      ))}
-      {axes.map((a, i) => {
-        const [x, y] = radarPoint(i, n, RADAR_R)
-        return <line key={a.label} className="dnar-radar__spoke" x1={RADAR_SIZE / 2} y1={RADAR_SIZE / 2} x2={x} y2={y} />
-      })}
-      <polygon className="dnar-radar__shape" points={shape} style={tone ? { ['--tone' as string]: tone } : undefined} />
-      {axes.map((a, i) => {
-        const [x, y] = radarPoint(i, n, RADAR_R + 22)
-        // 위·아래 꼭짓점은 가운데 정렬, 옆면은 도형 바깥쪽으로 밀어 낸다
-        const anchor = i === 0 || i === n / 2 ? 'middle' : x > RADAR_SIZE / 2 ? 'start' : 'end'
-        return (
-          <text key={a.label} x={x} y={y} textAnchor={anchor} className="dnar-radar__label">
-            <tspan>{a.label}</tspan>
-            <tspan className="dnar-radar__value" x={x} dy="12">
-              {a.value}%
-            </tspan>
-          </text>
-        )
-      })}
-    </svg>
   )
 }
 
@@ -362,10 +309,12 @@ function basisOf(data: { readCount: number; generatedAt: string; books: DnaBookR
   }
 }
 
-function Report({ books, records, profile, tones, basis, declaredTags, topGenres }: {
+function Report({ books, records, profile, keywords, tones, basis, declaredTags, topGenres }: {
   books: DnaBook[]
   /** 서버 응답 그대로 — 쪽수·출간 연도·분류처럼 화면 타입(DnaBook)이 버린 값을 독서 습관이 쓴다 */
   records: DnaBookResponse[]
+  /** 점수를 가진 원본 키워드 — 새 안이 칩 농도를 점수로 정한다 */
+  keywords: DnaScore[]
   profile: DnaProfile
   tones: string[] | null
   basis: Basis
@@ -382,6 +331,16 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
      이 페이지를 떠나 버린다. 주소에 두면 뒤로가기는 대화상자만 닫고 리포트에 남는다.
      새로고침·링크 공유로 바로 열리는 것은 덤이다. */
   const [params, setParams] = useSearchParams()
+  /** 근거 구역(레이더~독서 습관) 안 — 상단 시안과 같이 주소에 둔다 */
+  const bodyVariant = params.get('body') === 'b' ? 'b' : 'a'
+  const selectBody = (variant: 'a' | 'b') => {
+    if (bodyVariant === variant) return
+    const next = new URLSearchParams(params)
+    if (variant === 'a') next.delete('body')
+    else next.set('body', variant)
+    setParams(next, { replace: true })
+  }
+
   const heroVariant = params.get('hero')
   const selectedHero = heroVariant === 'b' || heroVariant === 'c' ? heroVariant : 'a'
   const selectHero = (variant: 'a' | 'b' | 'c') => {
@@ -463,6 +422,23 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
             </button>
           ))}
         </div>
+        <span className="dnar-utility">본문 비교</span>
+        <div className="dnar-variantbar__choices" role="group" aria-label="BOOK DNA 본문 디자인 선택">
+          {([
+            ['a', '기존안'],
+            ['b', '새 안'],
+          ] as const).map(([variant, label]) => (
+            <button
+              key={variant}
+              type="button"
+              className="dnar-variantbar__button"
+              aria-pressed={bodyVariant === variant}
+              onClick={() => selectBody(variant)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       {/* ── 히어로 ────────────────────────────────── */}
       {heroVariant === 'b' ? (
@@ -526,94 +502,110 @@ function Report({ books, records, profile, tones, basis, declaredTags, topGenres
       </section>
       )}
 
-      {/* ── 요약 패널 3열 ─────────────────────────── */}
-      <div className="dnar-bottom">
-        <section className="dnar-panel">
-          <h2 className="dnar-title">당신의 취향 한눈에 보기</h2>
-          <Radar axes={profile.axes} tone={tones?.[0]} />
-          {/* 고른 것과 읽은 것 — 온보딩에서 고른 관심사와 실제 완독 분포는 자주 갈린다. 그 간극을 보여 주는 게 리포트의 몫이다 */}
-          {(declared.length > 0 || actual.length > 0) && (
-            <dl className="dnar-compare">
-              <div>
-                <dt className="dnar-utility">고른 관심사</dt>
-                <dd>{declared.length > 0 ? declared.join(' · ') : '고른 관심사가 없어요'}</dd>
-              </div>
-              <div>
-                <dt className="dnar-utility">실제로 읽은 장르</dt>
-                <dd>{actual.length > 0 ? actual.join(' · ') : '아직 집계할 책이 없어요'}</dd>
-              </div>
-            </dl>
-          )}
-        </section>
+      {/* ── 근거 구역 — 안 두 가지를 주소로 갈아 끼운다(?body=b) ── */}
+      {bodyVariant === 'b' ? (
+        <DnaEvidenceB
+          profile={profile}
+          records={records}
+          habits={habits}
+          keywords={keywords}
+          declaredTags={declaredTags}
+          readCount={basis.readCount}
+          tones={tones}
+          habitArt={HABIT_ART}
+        />
+      ) : (
+        <>
+        {/* ── 요약 패널 3열 ─────────────────────────── */}
+        <div className="dnar-bottom">
+          <section className="dnar-panel">
+            <h2 className="dnar-title">당신의 취향 한눈에 보기</h2>
+            <Radar axes={profile.axes} tone={tones?.[0]} />
+            {/* 고른 것과 읽은 것 — 온보딩에서 고른 관심사와 실제 완독 분포는 자주 갈린다. 그 간극을 보여 주는 게 리포트의 몫이다 */}
+            {(declared.length > 0 || actual.length > 0) && (
+              <dl className="dnar-compare">
+                <div>
+                  <dt className="dnar-utility">고른 관심사</dt>
+                  <dd>{declared.length > 0 ? declared.join(' · ') : '고른 관심사가 없어요'}</dd>
+                </div>
+                <div>
+                  <dt className="dnar-utility">실제로 읽은 장르</dt>
+                  <dd>{actual.length > 0 ? actual.join(' · ') : '아직 집계할 책이 없어요'}</dd>
+                </div>
+              </dl>
+            )}
+          </section>
 
-        <section className="dnar-panel">
-          {/* 태그가 아직 붙지 않은 책만 읽었으면 키워드가 0개로 온다 — 그때는 제목만 남기지 않고 통째로 숨긴다 */}
-          {profile.keywords.length > 0 && (
-            <>
-              <h2 className="dnar-title">자주 읽는 키워드</h2>
-              <ul className="dnar-keywords">
-                {profile.keywords.map((k, i) => (
-                  <li key={k} className={`dnar-keyword ${i < strongCount ? 'is-strong' : ''}`}>
-                    #{k}
+          <section className="dnar-panel">
+            {/* 태그가 아직 붙지 않은 책만 읽었으면 키워드가 0개로 온다 — 그때는 제목만 남기지 않고 통째로 숨긴다 */}
+            {profile.keywords.length > 0 && (
+              <>
+                <h2 className="dnar-title">자주 읽는 키워드</h2>
+                <ul className="dnar-keywords">
+                  {profile.keywords.map((k, i) => (
+                    <li key={k} className={`dnar-keyword ${i < strongCount ? 'is-strong' : ''}`}>
+                      #{k}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            <h2 className="dnar-title">당신의 한 줄 요약</h2>
+            <figure className="dnar-quote">
+              <span className="dnar-quote__mark">“</span>
+              <blockquote className="dnar-quote__body">{profile.oneLine}</blockquote>
+              <span className="dnar-quote__mark dnar-quote__mark--close">”</span>
+            </figure>
+          </section>
+
+          <section className="dnar-panel dnar-panel--type" style={{ ['--tone' as string]: tones?.[0] ?? undefined }}>
+            <div className="dnar-type__head">
+              <span className="dnar-utility">당신의 독서타입</span>
+              <span className="dnar-eyebrow">{profile.type.code}</span>
+            </div>
+            <h2 className="dnar-type__name">{profile.type.name}</h2>
+            <p className="dnar-type__blurb">{profile.type.blurb}</p>
+            <div hidden={profile.type.likes.length === 0}>
+              <p className="dnar-utility" style={{ marginBottom: 10 }}>
+                이런 책을 좋아해요
+              </p>
+              <ul className="dnar-type__likes">
+                {profile.type.likes.map((l) => (
+                  <li key={l}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                      <circle cx="7" cy="7" r="6.2" fill="none" stroke="currentColor" strokeWidth="1" />
+                      <path d="M4.2 7.2 6.2 9.2 9.9 5.1" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                    </svg>
+                    <span>{l}</span>
                   </li>
                 ))}
               </ul>
-            </>
-          )}
-          <h2 className="dnar-title">당신의 한 줄 요약</h2>
-          <figure className="dnar-quote">
-            <span className="dnar-quote__mark">“</span>
-            <blockquote className="dnar-quote__body">{profile.oneLine}</blockquote>
-            <span className="dnar-quote__mark dnar-quote__mark--close">”</span>
-          </figure>
-        </section>
-
-        <section className="dnar-panel dnar-panel--type" style={{ ['--tone' as string]: tones?.[0] ?? undefined }}>
-          <div className="dnar-type__head">
-            <span className="dnar-utility">당신의 독서타입</span>
-            <span className="dnar-eyebrow">{profile.type.code}</span>
-          </div>
-          <h2 className="dnar-type__name">{profile.type.name}</h2>
-          <p className="dnar-type__blurb">{profile.type.blurb}</p>
-          <div hidden={profile.type.likes.length === 0}>
-            <p className="dnar-utility" style={{ marginBottom: 10 }}>
-              이런 책을 좋아해요
+            </div>
+            <p className="dnar-type__mark" aria-hidden="true">
+              읽는 만큼
+              <br />
+              넓어지는 사람
             </p>
-            <ul className="dnar-type__likes">
-              {profile.type.likes.map((l) => (
-                <li key={l}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-                    <circle cx="7" cy="7" r="6.2" fill="none" stroke="currentColor" strokeWidth="1" />
-                    <path d="M4.2 7.2 6.2 9.2 9.9 5.1" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                  </svg>
-                  <span>{l}</span>
-                </li>
+            <div className="dnar-type__stack">
+              {top3.map((b) => (
+                <img
+                  key={b.isbn13}
+                  src={coverAtWidth(b.coverUrl, 44) ?? b.coverUrl}
+                  alt=""
+                  title={b.title}
+                  loading="lazy"
+                  decoding="async"
+                />
               ))}
-            </ul>
-          </div>
-          <p className="dnar-type__mark" aria-hidden="true">
-            읽는 만큼
-            <br />
-            넓어지는 사람
-          </p>
-          <div className="dnar-type__stack">
-            {top3.map((b) => (
-              <img
-                key={b.isbn13}
-                src={coverAtWidth(b.coverUrl, 44) ?? b.coverUrl}
-                alt=""
-                title={b.title}
-                loading="lazy"
-                decoding="async"
-              />
-            ))}
-          </div>
-        </section>
-      </div>
+            </div>
+          </section>
+        </div>
 
-      {/* ── 독서 습관 — 취향(무엇을) 다음에 오는 버릇(어떻게) ── */}
-      {habits.length > 0 && (
-        <Habits habits={habits} readCount={basis.readCount} capped={records.length >= 200} />
+        {/* ── 독서 습관 — 취향(무엇을) 다음에 오는 버릇(어떻게) ── */}
+        {habits.length > 0 && (
+          <Habits habits={habits} readCount={basis.readCount} capped={records.length >= 200} />
+        )}
+        </>
       )}
 
       {/* ── 콘텐츠 2장 — 리포트를 다 읽은 뒤의 다음 걸음 ── */}
@@ -765,6 +757,7 @@ export default function DnaReportPage() {
           <Report
             books={books}
             records={data.books}
+            keywords={data.profile.keywords}
             profile={profile}
             tones={tones}
             basis={basis}

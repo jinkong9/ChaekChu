@@ -4,6 +4,12 @@ import { useEffect, useRef } from 'react'
 const GLYPHS = '가나다라마바사아자차카타파하읽는책의문장aeinorst'
 const FONT = "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', sans-serif"
 const INK = '#0b0b0b'
+// 마지막 글자가 도착한 뒤 타입 이름을 잠시 보여 주고 굵은 글씨로 넘긴다.
+const LETTER_FADE_START = 3.2
+const LETTER_FADE_END = 3.65
+const BOLD_START = 3.45
+const BOLD_END = 4
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value))
 
 type Letter = {
   glyph: string
@@ -87,34 +93,37 @@ export default function ReadingTypeField({ typeName, tones }: { typeName: string
         return
       }
       lastFrame = now
-      const elapsed = still ? 5 : (now - started) / 1000
+      const elapsed = still ? BOLD_END : (now - started) / 1000
+      const particleOpacity = 1 - clamp01((elapsed - LETTER_FADE_START) / (LETTER_FADE_END - LETTER_FADE_START))
       ctx.clearRect(0, 0, w, h)
-      for (const letter of letters) {
-        const progress = Math.max(0, Math.min(1, (elapsed - letter.delay) / 1.45))
-        const settle = 1 - Math.pow(1 - progress, 3)
-        let x = letter.fromX + (letter.x - letter.fromX) * settle
-        let y = letter.fromY + (letter.y - letter.fromY) * settle
-        if (!still) {
-          x += Math.sin(elapsed * 0.8 + letter.phase) * 0.55 * settle
-          y += Math.cos(elapsed * 0.7 + letter.phase) * 0.7 * settle
-        }
-        if (pointer && !still) {
-          const dx = x - pointer.x
-          const dy = y - pointer.y
-          const distance = Math.hypot(dx, dy)
-          if (distance > 0 && distance < 65) {
-            const push = (1 - distance / 65) * 9
-            x += dx / distance * push
-            y += dy / distance * push
+      if (particleOpacity > 0) {
+        for (const letter of letters) {
+          const progress = clamp01((elapsed - letter.delay) / 1.45)
+          const settle = 1 - Math.pow(1 - progress, 3)
+          let x = letter.fromX + (letter.x - letter.fromX) * settle
+          let y = letter.fromY + (letter.y - letter.fromY) * settle
+          if (!still) {
+            x += Math.sin(elapsed * 0.8 + letter.phase) * 0.55 * settle
+            y += Math.cos(elapsed * 0.7 + letter.phase) * 0.7 * settle
           }
+          if (pointer && !still) {
+            const dx = x - pointer.x
+            const dy = y - pointer.y
+            const distance = Math.hypot(dx, dy)
+            if (distance > 0 && distance < 65) {
+              const push = (1 - distance / 65) * 9
+              x += dx / distance * push
+              y += dy / distance * push
+            }
+          }
+          ctx.globalAlpha = letter.alpha * (0.25 + settle * 0.75) * particleOpacity
+          ctx.font = `600 ${letter.size}px ${FONT}`
+          ctx.fillStyle = letter.color
+          ctx.fillText(letter.glyph, x, y)
         }
-        ctx.globalAlpha = letter.alpha * (0.25 + settle * 0.75)
-        ctx.font = `600 ${letter.size}px ${FONT}`
-        ctx.fillStyle = letter.color
-        ctx.fillText(letter.glyph, x, y)
       }
-      // 입자가 획을 완성한 뒤 실제 타입명을 얇게 겹쳐, 결과를 한눈에 읽을 수 있게 한다.
-      const reveal = Math.max(0, Math.min(1, (elapsed - 1.7) / 0.5))
+      // 입자가 완성한 이름을 잠시 보여 준 뒤 굵은 글씨로 전환한다. 전환 후 입자는 그리지 않는다.
+      const reveal = clamp01((elapsed - BOLD_START) / (BOLD_END - BOLD_START))
       if (fontSize > 0 && reveal > 0) {
         ctx.globalAlpha = reveal
         ctx.font = `700 ${fontSize}px ${FONT}`
