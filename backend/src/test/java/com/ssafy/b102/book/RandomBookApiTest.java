@@ -65,7 +65,7 @@ class RandomBookApiTest {
 	private Set<String> eligibleBefore;
 	/** 우리 적격 3권 — 표지 있는 CORE·NEW 후보. */
 	private List<Long> eligible;
-	/** 나와서는 안 되는 3권 — 표지 null 후보 · 표지 빈 문자열 후보 · 표지 있는 비후보(TAIL). */
+	/** 나와서는 안 되는 5권 — 표지 null 후보 · 표지 빈 문자열 후보 · 표지 있는 비후보(TAIL) · 표지는 있지만 KDC null 후보 · KDC 빈 문자열 후보. */
 	private List<Long> ineligible;
 
 	@BeforeEach
@@ -73,8 +73,10 @@ class RandomBookApiTest {
 		User me = userRepository.save(User.fromOAuth(OAuthProvider.KAKAO, "random-" + System.nanoTime()));
 		bearer = "Bearer " + jwt.issue(me.getId());
 
-		eligibleBefore = new HashSet<>(jdbc.queryForList(
-			"select cast(id as text) from books where is_candidate and cover_url is not null and cover_url <> ''", String.class));
+		eligibleBefore = new HashSet<>(jdbc.queryForList("""
+			select cast(id as text) from books
+			where is_candidate and cover_url is not null and cover_url <> '' and category_code is not null and category_code <> ''""",
+			String.class));
 		eligible = List.of(
 			book("가챠 적격 1", "https://img.example/1.jpg", "CORE", true),
 			book("가챠 적격 2", "https://img.example/2.jpg", "NEW", true),
@@ -82,11 +84,13 @@ class RandomBookApiTest {
 		ineligible = List.of(
 			book("표지 없는 후보", null, "CORE", true),
 			book("빈 표지 후보", "", "CORE", true),
-			book("표지 있는 비후보", "https://img.example/x.jpg", "TAIL", false));
+			book("표지 있는 비후보", "https://img.example/x.jpg", "TAIL", false),
+			book("표지 있지만 KDC 없는 후보", "https://img.example/k1.jpg", "CORE", true, null),   // 프론트가 classNo 로 판정 문구를 만들어 KDC 없는 책은 뺀다(09-17 리뷰)
+			book("표지 있지만 KDC 빈 문자열 후보", "https://img.example/k2.jpg", "CORE", true, ""));
 	}
 
 	@Test
-	@DisplayName("모집단은 표지 있는 추천 후보만 — 30번 뽑아도 표지 없는 후보·빈 표지·비후보는 한 번도 안 나온다. 적격이 우리 3권뿐이면 셋이 다 나온다(매번 새로 뽑는다)")
+	@DisplayName("모집단은 표지·KDC 있는 추천 후보만 — 30번 뽑아도 표지 없는 후보·빈 표지·비후보·KDC 없는 후보는 한 번도 안 나온다. 적격이 우리 3권뿐이면 셋이 다 나온다(매번 새로 뽑는다)")
 	void picks_only_candidates_with_cover() throws Exception {
 		Set<String> allowed = new HashSet<>(eligibleBefore);
 		eligible.forEach(id -> allowed.add(String.valueOf(id)));
@@ -176,11 +180,15 @@ class RandomBookApiTest {
 		return "9791" + String.format("%09d", tail);
 	}
 
-	/** catalog_layer 는 V5 CHECK 때문에 후보(is_candidate)면 CORE·NEW 여야 한다. 비후보는 TAIL. */
 	private long book(String title, String coverUrl, String layer, boolean candidate) {
+		return book(title, coverUrl, layer, candidate, KDC);
+	}
+
+	/** catalog_layer 는 V5 CHECK 때문에 후보(is_candidate)면 CORE·NEW 여야 한다. 비후보는 TAIL. kdc 는 null·빈 문자열도 받는다(부적격 픽스처용). */
+	private long book(String title, String coverUrl, String layer, boolean candidate, String kdc) {
 		return jdbc.queryForObject("""
 			insert into books(isbn13, title, author, publisher, pub_year, category_code, cover_url, catalog_layer, is_candidate)
 			values (?, ?, '가챠 저자', '가챠 출판사', 2020, ?, ?, ?, ?) returning id""",
-			Long.class, uniqueIsbn(), title, KDC, coverUrl, layer, candidate);
+			Long.class, uniqueIsbn(), title, kdc, coverUrl, layer, candidate);
 	}
 }

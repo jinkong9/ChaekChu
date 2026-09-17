@@ -35,16 +35,16 @@ class RandomBookServiceTest {
 	@Test
 	@DisplayName("exclude 없음 → -1 을 묶어 표본 → 전체 순서로 묻고, 둘 다 비면 404 BOOK_NOT_FOUND")
 	void falls_back_then_404_when_empty() {
-		when(repository.sampleRandomCandidateWithCover(-1L)).thenReturn(Optional.empty());
-		when(repository.randomCandidateWithCover(-1L)).thenReturn(Optional.empty());
+		when(repository.sampleRandomGachaBook(-1L)).thenReturn(Optional.empty());
+		when(repository.randomGachaBook(-1L)).thenReturn(Optional.empty());
 
 		assertThatThrownBy(() -> service.pick(null))
 			.isInstanceOf(BusinessException.class)
 			.extracting(e -> ((BusinessException) e).code()).isEqualTo(ErrorCode.BOOK_NOT_FOUND);
 
 		InOrder inOrder = inOrder(repository);
-		inOrder.verify(repository).sampleRandomCandidateWithCover(-1L);
-		inOrder.verify(repository).randomCandidateWithCover(-1L);
+		inOrder.verify(repository).sampleRandomGachaBook(-1L);
+		inOrder.verify(repository).randomGachaBook(-1L);
 	}
 
 	@Test
@@ -57,7 +57,7 @@ class RandomBookServiceTest {
 		when(book.getAuthor()).thenReturn("한강 지음");
 		when(book.getCoverUrl()).thenReturn("https://img/1.jpg");
 		when(book.getCategoryCode()).thenReturn("813.7");
-		when(repository.sampleRandomCandidateWithCover(-1L)).thenReturn(Optional.of(book));
+		when(repository.sampleRandomGachaBook(-1L)).thenReturn(Optional.of(book));
 
 		BookSummaryResponse s = service.pick(null);
 
@@ -67,18 +67,18 @@ class RandomBookServiceTest {
 		assertThat(s.coverUrl()).isEqualTo("https://img/1.jpg");
 		assertThat(s.classNo()).isEqualTo("813.7");
 		assertThat(s.category()).isEqualTo("문학 > 한국문학");
-		verify(repository, never()).randomCandidateWithCover(anyLong());
+		verify(repository, never()).randomGachaBook(anyLong());
 	}
 
 	@Test
 	@DisplayName("exclude 는 두 쿼리에 그대로 전달된다")
 	void passes_exclude_to_both_queries() {
-		when(repository.sampleRandomCandidateWithCover(88123L)).thenReturn(Optional.empty());
-		when(repository.randomCandidateWithCover(88123L)).thenReturn(Optional.empty());
+		when(repository.sampleRandomGachaBook(88123L)).thenReturn(Optional.empty());
+		when(repository.randomGachaBook(88123L)).thenReturn(Optional.empty());
 
 		assertThatThrownBy(() -> service.pick(88123L)).isInstanceOf(BusinessException.class);
 
-		verify(repository).sampleRandomCandidateWithCover(88123L);
-		verify(repository).randomCandidateWithCover(88123L);
+		verify(repository).sampleRandomGachaBook(88123L);
+		verify(repository).randomGachaBook(88123L);
 	}
 }

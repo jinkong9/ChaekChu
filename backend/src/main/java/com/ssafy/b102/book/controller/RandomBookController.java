@@ -25,7 +25,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * `/books/random` 은 BookDetailController 의 `/{bookId:\d+}` 와 겹치지 않는다(경로 변수가 숫자만 받는다).
  */
 @Tag(name = "도서 가챠", description = """
-	표지 있는 추천 후보(`books.is_candidate`) 중 무작위 한 권. 사용자가 가챠를 누를 때 한 건씩 부른다.
+	표지와 KDC 가 있는 추천 후보(`books.is_candidate`) 중 무작위 한 권. 사용자가 가챠를 누를 때 한 건씩 부른다.
 	응답은 BookSummary(§1.5) 단일 객체이고, 프론트는 `classNo` 를 이미 화면에 있는 DNA 레이더 축과 대조해 「취향 정중앙 / 가장자리 / 새 영역」 문구를 만든다 —
 	서버는 AI 도 다른 API 도 부르지 않는다.""")
 @RestController
@@ -42,8 +42,9 @@ public class RandomBookController {
 	}
 
 	@Operation(summary = "무작위 도서 한 권(가챠)", description = """
-		모집단은 **`is_candidate = true` 이고 표지가 있는 책**이다. 후보(약 44만)만으로는 부족하다 — 후보 제외 규칙 `NO_SIGNAL` 이
+		모집단은 **`is_candidate = true` 이고 표지와 KDC(`classNo`)가 있는 책**이다. 후보(약 44만)만으로는 부족하다 — 후보 제외 규칙 `NO_SIGNAL` 이
 		소개·표지·키워드·관계 중 하나만 있어도 통과시켜 표지 없는 후보가 있고, 가챠는 표지를 300px 로 크게 띄우기 때문이다.
+		KDC 가 없는 후보(41만 중 23권)도 뺀다 — 프론트가 `classNo` 로 DNA 축과 대조해 판정 문구를 만드므로 없으면 화면이 문구를 못 만든다.
 
 		요청마다 새로 뽑는다. `exclude` 에 직전 `bookId` 를 주면 그 책은 빠진다 — 연속 호출에서 같은 책이 나올 확률(모집단 역수, 0.001% 안팎)까지
 		0 으로 막고 싶을 때만 붙인다. 서버는 이력을 저장하지 않는다.
