@@ -69,7 +69,7 @@ export default function SajuBooks({ pool, onClose }: { pool: DnaBook[]; onClose:
           >
             <p className="dnar-dlg__ask">생년월일을 알려 주세요.</p>
             <p className="dnar-saju__lead">
-              생년월일로 그날의 <b>일주(日柱)</b>를 세고, 일간의 <b>오행</b>에 맞는 장르에서 책을 고릅니다.
+              생년월일로 그날의 <b>일주(日柱)</b>를 세고, 일간의 <b>오행</b>에 맞는 장르를 내 서재에서 골라 드립니다.
               <br />
               태어난 시간은 받지 않습니다 — 일주는 날짜만으로 정해집니다.
             </p>
@@ -104,6 +104,12 @@ export default function SajuBooks({ pool, onClose }: { pool: DnaBook[]; onClose:
               그래서 <b>{result.usedAxis}</b>에서 골랐습니다 — 이 연결은 이 서비스의 해석입니다.
             </p>
 
+            {/* 그 오행의 장르가 서재에 한 권도 없을 수 있다 — 빈 목록을 그대로 두지 않고 그 사실을 말한다 */}
+            {result.books.length === 0 && (
+              <p className="dnar-saju__nature">
+                {result.usedAxis} 책이 아직 서재에 없어요. 그 장르의 책을 한 권 담고 다시 열어 주세요.
+              </p>
+            )}
             <ul className="dnar-saju__books">
               {result.books.map((b) => (
                 <li key={b.isbn13}>
