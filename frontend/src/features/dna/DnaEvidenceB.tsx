@@ -6,6 +6,7 @@
  *
  *  지금 안에서 비어 보이던 자리는 여백이 아니라 쓰지 않은 데이터였다. 서버는 이미 다 보내 주고 있다. */
 import { useMemo, type ReactNode } from 'react'
+import { Link } from 'react-router'
 import type { DnaBookResponse, DnaScore } from '../../api/dna'
 import { tagLabel, useTags } from '../../lib/useTags'
 import type { DnaProfile } from './dnaProfile'
@@ -26,7 +27,15 @@ function HabitRow({ habit, art }: { habit?: Habit; art: Record<string, ReactNode
         <dt className="dnar-habit__label">{habit.label}</dt>
         <dd className="dnar-habit__detail">{habit.detail}</dd>
       </div>
-      <span className="dnar-habit__value">{habit.value}</span>
+      <span className="dnar-habit__value">
+        {habit.to ? (
+          <Link className="dnar-habit__go" to={habit.to}>
+            {habit.value} <span aria-hidden="true">→</span>
+          </Link>
+        ) : (
+          habit.value
+        )}
+      </span>
     </div>
   )
 }

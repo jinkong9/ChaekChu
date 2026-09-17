@@ -312,6 +312,17 @@
   word-break: keep-all;
 }
 /* 값은 이 줄에서 유일하게 큰 글씨다 — 숫자는 표 숫자로 맞춰 자리가 흔들리지 않게 */
+/* 갈 곳이 있는 값만 밑줄을 달아 눌러 갈 수 있음을 알린다 (DESIGN.md: 상자보다 밑줄) */
+.dnar-habit__go {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--eo-rule);
+  padding-bottom: 1px;
+  white-space: nowrap;
+}
+.dnar-habit__go:hover { border-bottom-color: var(--eo-ink); }
+.dnar-habit__go:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
+
 .dnar-habit__value {
   font-size: 15px;
   font-weight: 650;

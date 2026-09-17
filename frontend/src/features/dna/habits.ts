@@ -11,6 +11,8 @@ import type { DnaBookResponse } from '../../api/dna'
 export interface Habit {
   id: string
   label: string
+  /** 값을 눌러 갈 곳 — 없으면 그냥 숫자로 둔다 */
+  to?: string
   /** 오른쪽에 큰 글씨로 서는 값 — "긴 편", "6 : 4" */
   value: string
   /** 그 값이 무엇에서 나왔는지 한 줄 */
@@ -45,7 +47,9 @@ function daysAgo(date: string | null, now: Date): number | null {
   return Number.isFinite(ms) ? Math.max(0, ms / DAY) : null
 }
 
-/** 평균 별점 → 사람이 쓰는 말. 5점 만점에서 4점을 넘기면 후한 쪽이다 */
+/** 평균 별점 → 사람이 쓰는 말. 5점 만점에서 4.3 을 넘기면 후한 쪽, 3.5 아래면 짠 쪽이다.
+ *  화면에 적는 수(소수 한 자리)를 그대로 재야 한다 — 4.25 를 "평균 4.3점 · 무던한 편"으로
+ *  적으면 규칙이 어긋난 것처럼 보인다. 그래서 반올림한 뒤에 판정한다. */
 function ratingLabel(avg: number): string {
   if (avg >= 4.3) return '후한 편'
   if (avg >= 3.5) return '무던한 편'
@@ -124,7 +128,8 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
   // 얼마나 후한지(평균)와 얼마나 남기는지(기록률)는 같은 버릇의 두 면이라 한 줄에 묶는다
   const rated = read.map((b) => b.rating).filter((r): r is number => typeof r === 'number' && r > 0)
   if (rated.length >= MIN_SAMPLE) {
-    const avg = rated.reduce((a, r) => a + r, 0) / rated.length
+    // 화면에 적는 값과 판정에 쓰는 값을 하나로 — 반올림을 먼저 한다
+    const avg = Math.round((rated.reduce((a, r) => a + r, 0) / rated.length) * 10) / 10
     habits.push({
       id: 'rating',
       label: '별점 습관',
@@ -141,6 +146,8 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
       label: '쌓아 둔 책',
       value: `${wish}권`,
       detail: '찜해 두고 아직 펼치지 않은 책이에요',
+      // 이 줄만 다음 걸음이 있다 — 찜 목록으로 바로 보낸다(서재의 찜 탭은 주소가 기억한다)
+      to: '/library?tab=wish',
     })
   }
 

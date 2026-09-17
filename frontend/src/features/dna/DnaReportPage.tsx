@@ -192,7 +192,15 @@ function Habits({ habits }: { habits: Habit[] }) {
               <dt className="dnar-habit__label">{h.label}</dt>
               <dd className="dnar-habit__detail">{h.detail}</dd>
             </div>
-            <span className="dnar-habit__value">{h.value}</span>
+            <span className="dnar-habit__value">
+              {h.to ? (
+                <Link className="dnar-habit__go" to={h.to}>
+                  {h.value} <span aria-hidden="true">→</span>
+                </Link>
+              ) : (
+                h.value
+              )}
+            </span>
           </div>
         ))}
       </dl>
