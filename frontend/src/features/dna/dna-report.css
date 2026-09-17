@@ -374,9 +374,69 @@
 .dnar-type__stack img:first-child { transform: rotate(-7deg); }
 .dnar-type__stack img:last-child { transform: rotate(7deg); }
 
-/* ---------- 로딩·오류 ---------- */
+/* ---------- 고른 것 vs 읽은 것 ----------
+   레이더 아래 두 줄. 온보딩에서 고른 관심사와 실제 완독 분포를 나란히 놓는다. */
+.dnar-compare {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--eo-rule-soft);
+}
+.dnar-compare div { display: grid; gap: 3px; }
+.dnar-compare dd {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.5;
+  letter-spacing: -0.02em;
+  word-break: keep-all;
+}
+
+/* ---------- 로딩·오류·빈 지면 ---------- */
 .dnar-skeleton { height: 280px; margin: 44px 0; background: var(--eo-placeholder); }
 .dnar-error { margin: 44px 0; font-size: 12px; color: var(--eo-ink-muted); }
+
+/* 리포트를 못 그릴 때도 제호는 선다 — 히어로와 같은 표제를 쓰고 그 아래에 상황과 다음 걸음만 둔다 */
+.dnar-notice {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  padding: 56px 0 96px;
+  max-width: 34em;
+}
+.dnar-notice .dnar-hero__display { margin: 0; }
+.dnar-notice__title {
+  margin: 10px 0 0;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  word-break: keep-all;
+}
+.dnar-notice__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--eo-ink-muted);
+  word-break: keep-all;
+}
+/* 다음 걸음 하나 — 버튼도 링크도 같은 모양(DESIGN.md: 상자보다 밑줄) */
+.dnar-notice__action {
+  margin-top: 6px;
+  padding: 0 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--eo-ink);
+  background: transparent;
+  color: var(--eo-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  cursor: pointer;
+}
+.dnar-notice__action:disabled { border-bottom-color: var(--eo-rule); color: var(--eo-ink-faint); cursor: default; }
+.dnar-notice__action:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
 
 /* ---------- 반응형 ---------- */
 @media (max-width: 1080px) {

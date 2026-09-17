@@ -7,11 +7,13 @@
  *  지표·레이더·키워드·타입은 FastAPI profile 응답을 사용하고, 화면의 색은
  *  실제 서재 책 표지에서 뽑는다(DESIGN.md). */
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Link } from 'react-router'
 import { useDna } from '../../lib/useDna'
-import type { DnaBookResponse } from '../../api/dna'
+import { isDnaUnavailable, type DnaBookResponse } from '../../api/dna'
+import { tagLabel, useTags } from '../../lib/useTags'
 import type { DnaBook } from './dnaTypes'
 import { displayTone, extractCoverColor } from './spectrum'
-import { profileFromApi, type DnaProfile } from './dnaProfile'
+import { axisLabel, profileFromApi, type DnaProfile } from './dnaProfile'
 import DnaConstellation from './DnaConstellation'
 import BookWorldCup from './BookWorldCup'
 import BookGacha from './BookGacha'
@@ -79,12 +81,17 @@ function radarPoint(i: number, count: number, r: number) {
   return [RADAR_SIZE / 2 + Math.cos(a) * r, RADAR_SIZE / 2 + Math.sin(a) * r] as const
 }
 
+/** 서버 axes 는 여섯 축의 합이 100 이 되게 정규화된 '지분'이다(계약 §4.4). 100 을 꽉 찬 반지름으로 삼으면
+ *  고르게 읽는 사람은 반지름 17%짜리 바늘이 되어 도형이 아무 말도 하지 못한다.
+ *  그래서 모양은 1위 축을 테두리에 두고 그 비율로 그리고, 숫자는 실제 지분 %로 적는다 —
+ *  모양은 균형을, 숫자는 크기를 말하게 나눈다. */
 function Radar({ axes, tone }: { axes: DnaProfile['axes']; tone?: string }) {
   const n = axes.length
+  const peak = Math.max(...axes.map((a) => a.value), 1)
   const ring = (r: number) =>
     axes.map((_, i) => radarPoint(i, n, r).map((v) => v.toFixed(1)).join(',')).join(' ')
   const shape = axes
-    .map((a, i) => radarPoint(i, n, (a.value / 100) * RADAR_R).map((v) => v.toFixed(1)).join(','))
+    .map((a, i) => radarPoint(i, n, (a.value / peak) * RADAR_R).map((v) => v.toFixed(1)).join(','))
     .join(' ')
 
   return (
@@ -92,7 +99,7 @@ function Radar({ axes, tone }: { axes: DnaProfile['axes']; tone?: string }) {
       className="dnar-radar"
       viewBox={`0 0 ${RADAR_SIZE} ${RADAR_SIZE}`}
       role="img"
-      aria-label={`장르 분포 — ${axes.map((a) => `${a.label} ${a.value}`).join(', ')}`}
+      aria-label={`장르 지분 — ${axes.map((a) => `${a.label} ${a.value}%`).join(', ')}`}
     >
       {[0.34, 0.67, 1].map((k) => (
         <polygon key={k} className="dnar-radar__grid" points={ring(RADAR_R * k)} />
@@ -110,7 +117,7 @@ function Radar({ axes, tone }: { axes: DnaProfile['axes']; tone?: string }) {
           <text key={a.label} x={x} y={y} textAnchor={anchor} className="dnar-radar__label">
             <tspan>{a.label}</tspan>
             <tspan className="dnar-radar__value" x={x} dy="12">
-              ({a.value})
+              {a.value}%
             </tspan>
           </text>
         )
@@ -180,13 +187,13 @@ const TESTS = [
     ready: true,
     kicker: 'Random Draw',
     name: '완전 랜덤 책 가챠',
-    desc: '취향을 접어 두고 한 권을 뽑아, 그게 취향에서 얼마나 먼지 알려드려요.',
+    desc: '내 서재에서 한 권을 무작위로 뽑아, 그 책이 내 취향의 어디쯤인지 알려드려요.',
   },
   {
     id: 'worldcup',
     kicker: 'Book World Cup',
     name: '책 이상형 월드컵',
-    desc: '두 권씩 맞붙여 지금 가장 읽고 싶은 한 권을 찾아드려요.',
+    desc: '서재의 책을 두 권씩 맞붙여 지금 가장 손이 가는 한 권을 찾아드려요.',
     ready: true,
   },
   {
@@ -194,7 +201,7 @@ const TESTS = [
     ready: true,
     kicker: 'Saju Reading',
     name: '사주로 보는 책',
-    desc: '생년월일의 일주와 오행에 맞는 책을 골라드려요. 재미로 보는 콘텐츠예요.',
+    desc: '생년월일의 일주와 오행에 맞는 책을 서재에서 골라드려요. 재미로 보는 콘텐츠예요.',
   },
   {
     id: 'timeline',
@@ -245,18 +252,33 @@ function basisOf(data: { readCount: number; generatedAt: string; books: DnaBookR
   }
 }
 
-function Report({ books, profile, tones, basis }: { books: DnaBook[]; profile: DnaProfile; tones: string[] | null; basis: Basis }) {
+function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
+  books: DnaBook[]
+  profile: DnaProfile
+  tones: string[] | null
+  basis: Basis
+  /** 온보딩에서 내가 고른 관심 태그 (공개 taxonomy code) */
+  declaredTags: string[]
+  /** 실제로 많이 읽은 축 (같은 taxonomy) — 고른 것과 읽은 것을 맞대 본다 */
+  topGenres: string[]
+}) {
   // 아직 화면이 없는 카드는 죽은 버튼 대신 준비 중임을 그 자리에서 알린다
   const [pending, setPending] = useState<string | null>(null)
   /** 열려 있는 콘텐츠 대화상자 */
   const [open, setOpen] = useState<'gacha' | 'worldcup' | 'saju' | null>(null)
-  // 콘텐츠 후보도 mock 인기도서가 아니라 실제 응답의 사용자 서재를 사용한다.
-  const pool = books
+  // 콘텐츠 후보는 실제 응답의 사용자 서재다. 세 콘텐츠 모두 표지를 보여 주고 고르게 하므로
+  // 표지가 없는 책은 후보에서 뺀다 — 빈 자리가 대진표에 섞이면 고를 수가 없다
+  const pool = useMemo(() => books.filter((b) => b.coverUrl !== ''), [books])
   const canPlay = pool.length >= 4
 
   // 표지 더미는 별점이 높은 세 권 — 타입 패널의 오른쪽 아래를 채운다
-  const top3 = [...books].sort((a, b) => b.rating - a.rating).slice(0, 3)
+  const top3 = books.filter((b) => b.coverUrl !== '').sort((a, b) => b.rating - a.rating).slice(0, 3)
   const strongCount = Math.min(4, profile.keywords.length)
+
+  // 관심 태그 라벨은 사전(GET /tags)에서 가져온다 — 서버는 공개 코드(FICTION)로 준다
+  const { data: tags } = useTags('GENRE')
+  const declared = declaredTags.map((code) => tagLabel(code, tags).replace(/^#/, ''))
+  const actual = topGenres.map(axisLabel)
 
   return (
     <>
@@ -350,7 +372,11 @@ function Report({ books, profile, tones, basis }: { books: DnaBook[]; profile: D
           ))}
         </ul>
         <p className="dnar-note" role="status">
-          {pending ? `「${pending}」는 아직 준비 중이에요 — 시안에서는 카드 구성만 확인합니다.` : ' '}
+          {pending
+            ? canPlay
+              ? `「${pending}」는 아직 준비 중이에요.`
+              : `「${pending}」는 표지가 있는 책이 4권 이상일 때 열려요 — 지금 서재에는 ${pool.length}권이에요.`
+            : ' '}
         </p>
       </section>
 
@@ -359,17 +385,35 @@ function Report({ books, profile, tones, basis }: { books: DnaBook[]; profile: D
         <section className="dnar-panel">
           <h2 className="dnar-title">당신의 취향 한눈에 보기</h2>
           <Radar axes={profile.axes} tone={tones?.[0]} />
+          {/* 고른 것과 읽은 것 — 온보딩에서 고른 관심사와 실제 완독 분포는 자주 갈린다. 그 간극을 보여 주는 게 리포트의 몫이다 */}
+          {(declared.length > 0 || actual.length > 0) && (
+            <dl className="dnar-compare">
+              <div>
+                <dt className="dnar-utility">고른 관심사</dt>
+                <dd>{declared.length > 0 ? declared.join(' · ') : '고른 관심사가 없어요'}</dd>
+              </div>
+              <div>
+                <dt className="dnar-utility">실제로 읽은 장르</dt>
+                <dd>{actual.length > 0 ? actual.join(' · ') : '아직 집계할 책이 없어요'}</dd>
+              </div>
+            </dl>
+          )}
         </section>
 
         <section className="dnar-panel">
-          <h2 className="dnar-title">자주 읽는 키워드</h2>
-          <ul className="dnar-keywords">
-            {profile.keywords.map((k, i) => (
-              <li key={k} className={`dnar-keyword ${i < strongCount ? 'is-strong' : ''}`}>
-                #{k}
-              </li>
-            ))}
-          </ul>
+          {/* 태그가 아직 붙지 않은 책만 읽었으면 키워드가 0개로 온다 — 그때는 제목만 남기지 않고 통째로 숨긴다 */}
+          {profile.keywords.length > 0 && (
+            <>
+              <h2 className="dnar-title">자주 읽는 키워드</h2>
+              <ul className="dnar-keywords">
+                {profile.keywords.map((k, i) => (
+                  <li key={k} className={`dnar-keyword ${i < strongCount ? 'is-strong' : ''}`}>
+                    #{k}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <h2 className="dnar-title">당신의 한 줄 요약</h2>
           <figure className="dnar-quote">
             <span className="dnar-quote__mark">“</span>
@@ -385,7 +429,7 @@ function Report({ books, profile, tones, basis }: { books: DnaBook[]; profile: D
           </div>
           <h2 className="dnar-type__name">{profile.type.name}</h2>
           <p className="dnar-type__blurb">{profile.type.blurb}</p>
-          <div>
+          <div hidden={profile.type.likes.length === 0}>
             <p className="dnar-utility" style={{ marginBottom: 10 }}>
               이런 책을 좋아해요
             </p>
@@ -430,8 +474,28 @@ function Report({ books, profile, tones, basis }: { books: DnaBook[]; profile: D
   )
 }
 
+/** 리포트를 그릴 수 없을 때의 지면.
+ *
+ *  회색 한 줄만 남기면 로그인해 들어온 사람은 "화면이 깨졌다"로 읽는다. 제호는 그대로 세워 두고
+ *  가운데에 지금 상황과 다음 걸음 하나만 놓는다. */
+function DnaNotice({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
+  return (
+    <section className="dnar-notice">
+      <span className="dnar-eyebrow">My Reading Analysis</span>
+      <h1 className="dnar-hero__display">
+        BOOK
+        <br />
+        DNA
+      </h1>
+      <p className="dnar-notice__title">{title}</p>
+      <p className="dnar-notice__body">{body}</p>
+      {action}
+    </section>
+  )
+}
+
 export default function DnaReportPage() {
-  const { data, isLoading, isError } = useDna()
+  const { data, isLoading, isError, error, isFetching, refetch } = useDna()
   const books = useMemo(() => (data?.books ?? []).map(toDnaBook), [data?.books])
   const tones = useCoverTones(books)
   const profile = data ? profileFromApi(data.profile, data.readCount) : null
@@ -441,19 +505,49 @@ export default function DnaReportPage() {
     <main className="dnar">
       <div className="dnar__shell">
         {isLoading && <div className="dnar-skeleton" aria-label="불러오는 중" />}
+        {/* 503 DNA_UNAVAILABLE 은 분석 쪽만 쉬는 것이다 — 서재·검색은 멀쩡하다고 말해 줘야 이탈하지 않는다 */}
         {(isError || (!isLoading && !data)) && (
-          <p className="dnar-error">BOOK DNA를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>
+          <DnaNotice
+            title="BOOK DNA를 만들지 못했어요."
+            body={
+              isDnaUnavailable(error)
+                ? '분석 서버가 잠시 쉬고 있어요. 서재와 검색은 그대로 쓸 수 있고, 잠시 뒤 다시 시도하면 돼요.'
+                : '잠시 후 다시 시도해 주세요.'
+            }
+            action={
+              <button type="button" className="dnar-notice__action" onClick={() => refetch()} disabled={isFetching}>
+                {isFetching ? '다시 부르는 중…' : '다시 시도'}
+              </button>
+            }
+          />
         )}
         {/* 읽은 책은 있는데 전부 인덱스에 없어 계산이 안 된 경우와, 정말 읽은 책이 없는 경우는 다른 말을 해야 한다 */}
         {data?.profile.status === 'INSUFFICIENT_DATA' && (
-          <p className="dnar-error">
-            {data.readCount > 0
-              ? `완독 ${data.readCount}권이 아직 분석 데이터에 없어 BOOK DNA를 만들 수 없어요. 분석 데이터가 늘어나면 자동으로 반영돼요.`
-              : '읽은 책이 아직 충분하지 않아요. 책을 읽고 기록하면 BOOK DNA가 생성됩니다.'}
-          </p>
+          <DnaNotice
+            title={data.readCount > 0 ? '아직 분석할 수 있는 책이 없어요.' : '읽은 책을 기록하면 DNA가 만들어져요.'}
+            body={
+              data.readCount > 0
+                ? `완독 ${data.readCount}권이 아직 분석 데이터에 없어 BOOK DNA를 만들 수 없어요. 분석 데이터가 늘어나면 자동으로 반영돼요.`
+                : '완독한 책의 장르와 별점이 쌓이면 취향의 축·성향 지표·독서타입을 계산해 드려요.'
+            }
+            action={
+              data.readCount > 0 ? undefined : (
+                <Link className="dnar-notice__action" to="/search">
+                  읽은 책 기록하러 가기
+                </Link>
+              )
+            }
+          />
         )}
         {data?.profile.status === 'READY' && profile && basis && (
-          <Report books={books} profile={profile} tones={tones} basis={basis} />
+          <Report
+            books={books}
+            profile={profile}
+            tones={tones}
+            basis={basis}
+            declaredTags={data.declaredTags}
+            topGenres={data.profile.evidence.topGenres}
+          />
         )}
       </div>
     </main>
