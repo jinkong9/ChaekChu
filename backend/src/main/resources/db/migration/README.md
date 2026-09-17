@@ -35,3 +35,4 @@
   즉시 끝난다 — 기동 healthcheck `start_period` 가 60초라 Flyway 가 그 안에 끝나야 한다.
 - `V8__user_dna_profiles.sql` 은 Book DNA 프로필 저장 표 하나다(사용자당 1행, JSONB profile). `GET /users/me/dna` 가 서재가 바뀌지 않았으면 AI 를 부르지 않고
   이 행으로 답하고, AI 장애 때는 마지막 프로필을 대신 낸다(BOOK_DNA_API_CONTRACT §5·§6). 빈 표를 만들 뿐이라 즉시 끝난다. `docs/sql/` 에 같은 파일을 둔다.
+- `V9__expand_recommendation_version_columns.sql` 은 `recommendations.feature_version`·`index_version` 을 `VARCHAR(128)` 로 확장한다. 모델·인덱스 배포 라벨이 기존 30자 제한을 넘으면 추천 스냅샷 INSERT 가 실패해 `/recommendations/next` 의 기준 덱이 사라지는 문제를 수정한다. `docs/sql/` 에 같은 파일을 둔다.

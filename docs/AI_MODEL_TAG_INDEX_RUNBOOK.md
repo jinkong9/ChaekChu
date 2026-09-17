@@ -316,6 +316,30 @@ docker compose --env-file ../deploy/.env -f ../deploy/docker-compose.yml exec -T
   python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8000/health", timeout=3).read().decode())'
 ```
 
+추천 smoke 요청 전에는 컨테이너 안에서 Qdrant active alias, 컬렉션 차원, 활성 도서 포인트,
+taxonomy tag prototype을 읽기 전용으로 점검한다. 입력 데이터나 GMS 키가 필요하지 않으며
+Qdrant에 쓰기 요청을 보내지 않는다. 기본은 taxonomy 전체 태그를 확인하고, 빠른 부분 점검은
+`--tag-code`를 반복해 지정한다.
+
+```bash
+COMPOSE='docker compose --env-file deploy/.env -f deploy/docker-compose.yml'
+$COMPOSE exec -T ai b102-recommendation audit-index \
+  --sample-size 3 \
+  --output /tmp/b102-index-audit.json
+
+# PASS면 exit 0, FAIL이면 exit 2이며 실패 report도 남는다.
+$COMPOSE exec -T ai python -c 'import json; r=json.load(open("/tmp/b102-index-audit.json")); print(json.dumps(r["indexAudit"], ensure_ascii=False, indent=2))'
+
+# taxonomy 전체 대신 필요한 태그만 검사할 때
+$COMPOSE exec -T ai b102-recommendation audit-index \
+  --tag-code FICTION --tag-code SCIENCE \
+  --output /tmp/b102-index-audit.json
+```
+
+`indexAudit.status`가 `PASS`이고 모든 check가 `PASS`일 때만 다음 추천 smoke 요청을 실행한다.
+`BOOK_ALIAS_MISSING`, `TAG_ALIAS_MISSING`, `INDEX_VERSION_MISMATCH`, `TAG_VERSION_MISMATCH`,
+`DIMENSION_MISMATCH`, `TAG_POINT_MISSING`, `QDRANT_UNAUTHORIZED`는 각각 alias·배포 버전·모델 차원·태그 색인·Qdrant 인증 설정을 먼저 확인한다.
+
 health 응답의 `modelVersion`, `indexVersion`이 이번 release와 같아야 한다. 이후
 백엔드 경유 smoke request로 다음을 확인한다.
 

@@ -84,6 +84,24 @@ class RecommendationSnapshotTest {
 	}
 
 	@Test
+	@DisplayName("긴 AI 모델·색인 버전도 추천 스냅샷에 저장된다")
+	void savesLongModelAndIndexVersions() {
+		String modelVersion = "gms-text-embedding-3-small-20260909-1000";
+		String indexVersion = "d4l-small-candidates-450k-20260915-034700";
+		RecommendationResponse response = new RecommendationResponse(
+			"rec_snapshot_long_versions", Instant.parse("2026-09-17T00:00:00Z"), "PERSONALIZED", false, 0,
+			Map.of("semantic", 0.45), List.of(), modelVersion, indexVersion, List.of());
+
+		snapshots.save(userId, response);
+
+		Map<String, Object> deck = jdbc.queryForMap(
+			"select feature_version, index_version from recommendations where public_id = ?",
+			"rec_snapshot_long_versions");
+		assertThat(deck.get("feature_version")).isEqualTo(modelVersion);
+		assertThat(deck.get("index_version")).isEqualTo(indexVersion);
+	}
+
+	@Test
 	@DisplayName("AI 계약이 주는 이유 유형이 전부 들어간다 — V1 CHECK 목록에는 하나도 없던 값들이다")
 	void acceptsEveryAiReasonType() {
 		List<String> aiReasons = List.of("TAG_MATCH", "SEMANTIC", "CO_LOAN", "TRENDING", "STEADY",
@@ -129,6 +147,29 @@ class RecommendationSnapshotTest {
 			Double.class, deckId)).containsExactly(100.0, 0.0);
 	}
 
+	@Test
+	@DisplayName("다음 추천은 소유한 기준 덱의 조건과 ISBN을 복원하고 최근 같은 조건 덱을 구한다")
+	void loadsNextRecommendationContextFromOwnedSnapshot() {
+		long olderBook = book("기준 덱 도서");
+		long secondBook = book("두 번째 덱 도서");
+		long thirdBook = book("세 번째 덱 도서");
+		long newestBook = book("가장 최근 덱 도서");
+		snapshots.save(userId, deck("rec_next_older", item(olderBook, 1, 90, "TAG_MATCH")));
+		snapshots.save(userId, deck("rec_next_second", item(secondBook, 1, 90, "TAG_MATCH")));
+		snapshots.save(userId, deck("rec_next_third", item(thirdBook, 1, 90, "TAG_MATCH")));
+		snapshots.save(userId, deck("rec_next_newest", item(newestBook, 1, 90, "TAG_MATCH")));
+
+		var context = snapshots.findNextContext(userId, "rec_next_older").orElseThrow();
+
+		assertThat(context.mode()).isEqualTo("PERSONALIZED");
+		assertThat(context.inputTags()).containsExactly("#소설");
+		assertThat(context.weights()).containsEntry("semantic", 0.45).containsEntry("tagMatch", 0.25);
+		assertThat(context.previousDeckIsbns()).containsExactly(isbn(olderBook));
+		assertThat(context.otherRecentDeckIsbns()).containsExactly(
+			List.of(isbn(newestBook)), List.of(isbn(thirdBook)));
+		assertThat(snapshots.findNextContext(userId + 1, "rec_next_older")).isEmpty();
+	}
+
 	// ── 도우미 ──
 
 	private RecommendationResponse deck(String publicId, RecommendationResponse.Item... items) {
@@ -149,6 +190,10 @@ class RecommendationSnapshotTest {
 			Long.class, uniqueIsbn(), title);
 		books.add(id);
 		return id;
+	}
+
+	private String isbn(long bookId) {
+		return jdbc.queryForObject("select isbn13 from books where id = ?", String.class, bookId);
 	}
 
 	/** 한 실행 안에서 절대 겹치지 않게 — nanoTime 만으로는 연속 호출이 같은 값을 낼 수 있다. */

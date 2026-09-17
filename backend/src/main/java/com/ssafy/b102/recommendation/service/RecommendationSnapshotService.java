@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -14,10 +15,13 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ssafy.b102.recommendation.dto.RecommendationResponse;
 import com.ssafy.b102.recommendation.repository.RecommendationSnapshotRepository;
 import com.ssafy.b102.recommendation.repository.RecommendationSnapshotRepository.ItemRow;
+import com.ssafy.b102.recommendation.repository.RecommendationSnapshotRepository.DeckReference;
+import com.ssafy.b102.recommendation.repository.RecommendationSnapshotRepository.DeckSnapshot;
 
 /**
  * 화면에 내보낸 추천 덱을 그대로 저장한다 — 「무엇을, 왜, 몇 점으로 골라 보냈나」의 정본.
@@ -34,6 +38,12 @@ public class RecommendationSnapshotService {
 	private static final int MAX_SCORE = 100;
 
 	private static final Logger log = LoggerFactory.getLogger(RecommendationSnapshotService.class);
+	private static final int RECENT_DECK_WINDOW = 3;
+
+	/** 다음 덱 생성에 필요한 과거 요청 조건과 덱별 제외 목록. 최신 덱부터 정렬한다. */
+	public record NextContext(String mode, List<String> inputTags, Map<String, Double> weights,
+		List<String> previousDeckIsbns, List<List<String>> otherRecentDeckIsbns) {
+	}
 
 	private final RecommendationSnapshotRepository repository;
 	private final ObjectMapper objectMapper;
@@ -59,6 +69,29 @@ public class RecommendationSnapshotService {
 		List<ItemRow> rows = itemRows(response);
 		repository.insertItems(recommendationId, rows);
 		log.debug("추천 스냅샷 저장 {} (사용자 {}, {}권)", response.recommendationId(), userId, rows.size());
+	}
+
+	/** 사용자가 소유한 기준 덱과 동일 조건의 최근 덱들을 읽는다. 남의 덱은 찾을 수 없는 것처럼 처리한다. */
+	@Transactional(readOnly = true)
+	public Optional<NextContext> findNextContext(long userId, String publicId) {
+		Optional<DeckSnapshot> found = repository.findOwnedDeckByPublicId(publicId, userId);
+		if (found.isEmpty()) {
+			return Optional.empty();
+		}
+		DeckSnapshot base = found.get();
+		List<String> inputTags = read(base.inputTagsJson(), new TypeReference<>() { });
+		Map<String, Double> weights = read(base.weightsJson(), new TypeReference<>() { });
+		List<DeckReference> recent = repository.findRecentDecks(userId, base.mode(),
+			base.inputTagsJson(), base.weightsJson(), RECENT_DECK_WINDOW);
+		List<String> previousIsbns = repository.findItemIsbns(base.id());
+		List<List<String>> otherDeckIsbns = recent.stream()
+			.filter(deck -> deck.id() != base.id())
+			.limit(RECENT_DECK_WINDOW - 1)
+			.map(deck -> repository.findItemIsbns(deck.id()))
+			.map(List::copyOf)
+			.toList();
+		return Optional.of(new NextContext(base.mode(), List.copyOf(inputTags), Map.copyOf(weights),
+			List.copyOf(previousIsbns), otherDeckIsbns));
 	}
 
 	/**
@@ -102,6 +135,15 @@ public class RecommendationSnapshotService {
 		catch (JsonProcessingException e) {
 			log.warn("추천 스냅샷 JSON 직렬화 실패 — {} 로 대체한다: {}", fallback, e.toString());
 			return fallback;
+		}
+	}
+
+	private <T> T read(String json, TypeReference<T> type) {
+		try {
+			return objectMapper.readValue(json, type);
+		}
+		catch (JsonProcessingException e) {
+			throw new IllegalStateException("추천 스냅샷 JSON을 읽지 못했다", e);
 		}
 	}
 

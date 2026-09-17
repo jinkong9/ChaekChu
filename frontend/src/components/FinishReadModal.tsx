@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { patchLibraryItem, saveLibraryRecord } from '../api/library'
 import { useFinishModalStore } from '../stores/finishModalStore'
 
 const REVIEW_MAX = 300
+/** 감상평 입력이 늘어날 수 있는 최대 높이(px) — 세 줄쯤. 그 위로는 안에서 스크롤한다 */
+const REVIEW_MAX_H = 72
 /** 오늘(로컬 날짜, YYYY-MM-DD) — toISOString 은 UTC 라 한국 새벽엔 전날이 된다. 서버도 Asia/Seoul 기준(§6.2) */
 const today = () => new Date().toLocaleDateString('sv-SE')
 
@@ -18,6 +20,9 @@ export default function FinishReadModal() {
   const [rating, setRating] = useState(0)
   const [review, setReview] = useState('')
   const [date, setDate] = useState(today())
+  // 완독일을 비웠다가 되돌릴 때 쓸 값 — 기록 수정으로 들어온 책의 원래 완독일이 날아가지 않게 한다
+  const lastDate = useRef(today())
+  const reviewRef = useRef<HTMLTextAreaElement>(null)
 
   // 대상이 바뀔 때 기존 기록으로 초기화 — 신규 완독과 기록 수정을 같은 모달이 감당한다
   useEffect(() => {
@@ -25,7 +30,18 @@ export default function FinishReadModal() {
     setRating(target.rating ?? 0)
     setReview(target.reviewText ?? '')
     setDate(target.finishedDate === null ? '' : (target.finishedDate ?? today()))
+    lastDate.current = target.finishedDate || today()
   }, [target])
+
+  /** 내용에 맞춰 감상평 칸의 높이를 맞춘다.
+   *  .eo-field 는 한 줄짜리 입력용이라 min-height:40px 를 갖는다 — 그대로 두면 여기서 잰 높이(한 줄 ≈ 29px)를
+   *  덮어써서 밑줄이 글자에서 떨어진 채로 남는다. 그래서 min-h-0 로 눌러 두고 높이를 여기서만 정한다. */
+  useEffect(() => {
+    const el = reviewRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, REVIEW_MAX_H)}px`
+  }, [review, target])
 
   useEffect(() => {
     if (!target) return
@@ -80,15 +96,31 @@ export default function FinishReadModal() {
 
         <div className="mt-5">
           <p className="eo-utility">한 줄 감상평 — 선택, 나만 볼 수 있어요</p>
-          <textarea className="eo-field eo-field--sm mt-1.5 w-full resize-none leading-relaxed" rows={2}
+          <textarea ref={reviewRef} rows={1}
+            className="eo-field eo-field--sm mt-1.5 w-full min-h-0 resize-none overflow-y-auto leading-relaxed"
             maxLength={REVIEW_MAX} value={review} onChange={(e) => setReview(e.target.value)} />
           <p className="eo-utility mt-1 text-right">{review.length} / {REVIEW_MAX}</p>
         </div>
 
+        {/* 완독일을 비우면 「서비스를 만나기 전에 읽은 책」이 되는데, 날짜 칸을 직접 지워야 하는 걸 아는 사람이 없었다.
+            그래서 비우는 일을 칩 하나로 만든다 — 켜면 날짜 칸을 걷어내고(빈 「연도-월-일」만 남아 있을 이유가 없다),
+            끄면 원래 날짜(없으면 오늘)로 되돌린다. 칩이 눌린 것 자체가 완독일 없음의 표시라 따로 설명을 두지 않는다. */}
         <div className="mt-4">
-          <p className="eo-utility">완독일 — 비우면 “서비스를 만나기 전에 읽은 책”으로 기록돼요</p>
-          <input type="date" className="eo-field eo-field--sm mt-1.5 w-[180px]" max={today()}
-            value={date} onChange={(e) => setDate(e.target.value)} aria-label="완독일" />
+          <p className="eo-utility">완독일</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+            {date && (
+              <input type="date" className="eo-field eo-field--sm w-[180px]" max={today()}
+                value={date} onChange={(e) => setDate(e.target.value)} aria-label="완독일" />
+            )}
+            <button type="button" aria-pressed={!date}
+              className={`eo-tag ${!date ? 'is-on' : ''}`}
+              onClick={() => {
+                if (date) { lastDate.current = date; setDate('') }
+                else setDate(lastDate.current || today())
+              }}>
+              서비스를 만나기 전에 읽었어요
+            </button>
+          </div>
         </div>
 
         {save.isError && <p className="eo-utility mt-3 text-ink">저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>}

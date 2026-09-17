@@ -18,13 +18,25 @@ export function toBookSummary(s: ServerBookSummary): BookSummary {
   }
 }
 
+/** 검색 범위(§4.1 scope) — 검색어를 어느 필드에 대고 점수를 내는가.
+ *  서버는 publisher 도 받지만 화면에는 내놓지 않는다(09-17 팀 결정) — 필요해지면 여기와 SCOPES 에 한 줄씩 더하면 된다. */
+export type SearchScope = 'all' | 'title' | 'author'
+
 /** GET /books/search (§4.1) — q 1~100자, page 0부터, size 1~50(기본 20). q·kdc 중 하나는 있어야 한다.
  *  kdc 는 KDC 코드 prefix(1~3자리) — 점수에 끼지 않는 filter 라 q 가 있으면 관련도 순 그대로, kdc 만이면 서버가 누적 대출순으로 준다.
- *  q 가 ISBN 형태(하이픈 무시 13자리)면 서버가 정확 조회로 처리해 0~1건을 준다(그때 kdc 는 무시).
+ *  scope 는 검색 범위 — 'all'(기본)은 제목·저자·출판사를 함께 보고, 'title'·'author' 는 그 필드 하나만 본다.
+ *    그래서 「한강 소년이 온다」처럼 저자+제목이 섞인 검색어는 좁힌 범위에서 안 잡힌다(서버 의도).
+ *    기본값이라 all 은 아예 싣지 않는다 — 주소가 짧아지고, 서버 기본값과도 같다.
+ *  q 가 ISBN 형태(하이픈 무시 13자리)면 서버가 정확 조회로 처리해 0~1건을 준다(그때 kdc·scope 는 무시).
  *  탐색 한도 10,000건 — page*size+size 가 넘으면 400 이라 화면이 쪽 번호를 그 안에서만 만든다. */
-export async function searchBooks(q: string, page = 0, size = 20, kdc?: string): Promise<SearchResponse> {
-  const res = await searchBooksRaw(q, page, size, kdc)
-  return { total: res.total, page: res.page, size: res.size, items: res.items.map(toBookSummary) }
+export async function searchBooks(q: string, page = 0, size = 20, kdc?: string, scope: SearchScope = 'all'): Promise<SearchResponse> {
+  const params: Record<string, string | number> = { page, size }
+  if (q) params.q = q
+  if (kdc) params.kdc = kdc
+  if (scope !== 'all') params.scope = scope
+  const res = await api.get<ServerSearchResponse>('/books/search', { params })
+  const { total, items } = res.data
+  return { total, page: res.data.page, size: res.data.size, items: items.map(toBookSummary) }
 }
 
 /** 서버 응답 그대로가 필요할 때 — 화면 타입(BookSummary)은 isbn13·classNo 를 버린다.

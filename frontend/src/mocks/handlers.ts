@@ -186,16 +186,20 @@ const recommendations: RecommendationResponse = {
 /** ============ 서재 (in-memory — 세션 동안 상태 유지) ============ */
 /** 서버는 Asia/Seoul 기준 오늘(§6.2) — mock 은 브라우저 로컬 날짜로 대신한다 */
 const today = () => new Date().toLocaleDateString('sv-SE')
+/** 실서버 LibraryItem 은 createdAt·updatedAt 을 준다(§6). 서재 정렬이 같은 완독일에서 담은 순서를 쓰므로 mock 도 채운다 */
+const nowIso = () => new Date().toISOString()
+/** seed 의 담은 시각 — id 순서대로 하루씩 앞선 시각을 준다(작은 id 가 먼저 담긴 책) */
+const seedAt = (n: number) => new Date(Date.UTC(2026, 3, n)).toISOString()
 let nextLibraryId = 9
 const library: LibraryItem[] = [
-  { libraryItemId: 1, book: CATALOG[6], status: 'READ', rating: 4, reviewText: '어른이 되기 전에 읽었어야 했다.', finishedDate: '2026-08-20' },
-  { libraryItemId: 2, book: CATALOG[9], status: 'READ', rating: null, reviewText: null, finishedDate: '2026-07-19' },
-  { libraryItemId: 3, book: CATALOG[10], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-08-27' },
-  { libraryItemId: 4, book: CATALOG[11], status: 'READ', rating: 3, reviewText: '가볍게 잘 읽힘', finishedDate: '2026-06-11' },
-  { libraryItemId: 5, book: CATALOG[8], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-05-02' },
-  { libraryItemId: 6, book: CATALOG[7], status: 'WISH', rating: null, reviewText: null, finishedDate: null },
-  { libraryItemId: 7, book: CATALOG[4], status: 'WISH', rating: null, reviewText: null, finishedDate: null },
-  { libraryItemId: 8, book: CATALOG[0], status: 'WISH', rating: null, reviewText: null, finishedDate: null },
+  { libraryItemId: 1, book: CATALOG[6], status: 'READ', rating: 4, reviewText: '어른이 되기 전에 읽었어야 했다.', finishedDate: '2026-08-20', createdAt: seedAt(1), updatedAt: seedAt(1) },
+  { libraryItemId: 2, book: CATALOG[9], status: 'READ', rating: null, reviewText: null, finishedDate: '2026-07-19', createdAt: seedAt(2), updatedAt: seedAt(2) },
+  { libraryItemId: 3, book: CATALOG[10], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-08-27', createdAt: seedAt(3), updatedAt: seedAt(3) },
+  { libraryItemId: 4, book: CATALOG[11], status: 'READ', rating: 3, reviewText: '가볍게 잘 읽힘', finishedDate: '2026-06-11', createdAt: seedAt(4), updatedAt: seedAt(4) },
+  { libraryItemId: 5, book: CATALOG[8], status: 'READ', rating: 5, reviewText: null, finishedDate: '2026-05-02', createdAt: seedAt(5), updatedAt: seedAt(5) },
+  { libraryItemId: 6, book: CATALOG[7], status: 'WISH', rating: null, reviewText: null, finishedDate: null, createdAt: seedAt(6), updatedAt: seedAt(6) },
+  { libraryItemId: 7, book: CATALOG[4], status: 'WISH', rating: null, reviewText: null, finishedDate: null, createdAt: seedAt(7), updatedAt: seedAt(7) },
+  { libraryItemId: 8, book: CATALOG[0], status: 'WISH', rating: null, reviewText: null, finishedDate: null, createdAt: seedAt(8), updatedAt: seedAt(8) },
 ]
 
 /** ============ 핸들러 ============ */
@@ -339,9 +343,11 @@ export const handlers = [
         // 이미 서재에 있으면(찜 등) 완독으로 승격만 — 중복 행을 만들지 않는다
         existing.status = 'READ'
         existing.rating = rating
+        existing.updatedAt = nowIso()
         continue
       }
-      library.unshift({ libraryItemId: nextLibraryId++, book, status: 'READ', rating, reviewText: null, finishedDate: null })
+      library.unshift({ libraryItemId: nextLibraryId++, book, status: 'READ', rating, reviewText: null, finishedDate: null,
+        createdAt: nowIso(), updatedAt: nowIso() })
     }
     return new HttpResponse(null, { status: 204 })
   }),
@@ -351,17 +357,31 @@ export const handlers = [
     const url = new URL(request.url)
     const q = url.searchParams.get('q')?.trim() ?? ''
     const kdc = url.searchParams.get('kdc') ?? ''
+    // §4.1 scope — 생략하면 all. 서버는 publisher 도 받지만 mock 카탈로그에 출판사가 없어 여기선 세 값만 흉내 낸다
+    const scope = url.searchParams.get('scope') ?? 'all'
     const page = Number(url.searchParams.get('page') ?? 0)
     const size = Math.min(50, Number(url.searchParams.get('size') ?? 20))
     if (!q && !kdc) return HttpResponse.json({ code: 'VALIDATION_FAILED', message: 'q 또는 kdc 가 필요합니다.' }, { status: 400 })
+    if (!['all', 'title', 'author', 'publisher'].includes(scope)) {
+      return HttpResponse.json({ code: 'VALIDATION_FAILED', message: '검색 범위가 올바르지 않습니다.',
+        details: { fields: [{ field: 'scope', reason: 'all · title · author · publisher 중 하나여야 합니다.' }] } }, { status: 400 })
+    }
     // mock 카탈로그엔 KDC 코드가 없어 대분류 라벨로 대신 거른다(§4.1 kdc prefix 의 1자리만 흉내). 서버는 books.category_code prefix
     const KDC_LABEL: Record<string, string> = { '1': '인문', '3': '사회', '4': '과학', '8': '문학', '9': '역사' }
     // 중분류(2자리)는 category 의 두 번째 마디로 흉내낸다 — "문학 > 독일문학" 에 '독일' 이 있으면 85. 3자리는 2자리처럼 본다
     const MID_LABEL: Record<string, string> = { '81': '한국', '82': '중국', '83': '일본', '84': '영미', '85': '독일', '86': '프랑스' }
     const kdcLabel = KDC_LABEL[kdc[0]]
     const midLabel = kdc.length >= 2 ? MID_LABEL[kdc.slice(0, 2)] : undefined
+    // 범위에 따라 검색어를 댈 자리가 달라진다 — 좁힌 범위는 그 필드 하나만 본다(서버와 같은 의도)
+    const matches = (bk: BookSummary) => {
+      if (!q) return true
+      if (scope === 'title') return bk.title.includes(q)
+      if (scope === 'author') return (bk.author ?? '').includes(q)
+      if (scope === 'publisher') return false // mock 카탈로그에 출판사가 없다
+      return bk.title.includes(q) || (bk.author ?? '').includes(q)
+    }
     const hits = CATALOG.map(withCategory)
-      .filter((bk) => !q || bk.title.includes(q) || (bk.author ?? '').includes(q))
+      .filter(matches)
       .filter((bk) => !kdc || (kdcLabel ? (bk.category ?? '').startsWith(kdcLabel) : false))
       .filter((bk) => !midLabel || (bk.category ?? '').includes(midLabel))
     const items: ServerBookSummary[] = hits.slice(page * size, page * size + size).map(toServerBook)
@@ -451,7 +471,7 @@ export const handlers = [
       )
     }
     const item: LibraryItem = { libraryItemId: nextLibraryId++, book: withCategory(book), status: body.status, rating: null, reviewText: null,
-      finishedDate: body.status === 'READ' ? today() : null }
+      finishedDate: body.status === 'READ' ? today() : null, createdAt: nowIso(), updatedAt: nowIso() }
     library.unshift(item)
     return HttpResponse.json(item, { status: 201 })
   }),
@@ -466,6 +486,7 @@ export const handlers = [
     if (body.status) item.status = body.status
     if (body.rating !== undefined) item.rating = body.rating
     if (body.reviewText !== undefined) item.reviewText = body.reviewText?.trim() || null
+    item.updatedAt = nowIso()
     return HttpResponse.json(item)
   }),
   // §6.4 — 204

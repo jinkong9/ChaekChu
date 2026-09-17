@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { isSearchUnavailable, searchBooks } from '../api/books'
+import type { SearchScope } from '../api/books'
 import type { BookSummary } from '../api/types'
 import { KDC_MAIN, isValidKdc, kdcAncestors, kdcLabel, useKdcChildren } from '../lib/kdc'
 import type { KdcCode } from '../lib/kdc'
@@ -22,6 +23,17 @@ const EXPLORE_LIMIT = 10_000
 const MAX_PAGE = Math.floor(EXPLORE_LIMIT / PAGE_SIZE)
 /** 페이지 번호 창 — 현재 쪽 좌우로 이만큼 */
 const PAGE_WINDOW = 4
+
+/** 검색 범위 세그먼트(§4.1 scope). 첫 칸은 '좁히지 않음'이라 「전체」다 — 제목·저자와 나란히 놓이는 자리다.
+ *  서버는 publisher 도 받지만 화면에는 두지 않는다(09-17) — 여기 한 줄만 더하면 살아난다. */
+const SCOPES = [
+  // by 는 조사까지 붙인 꼴을 그대로 둔다 — 라벨에 조사를 이어 붙이면 받침 없는 '저자'가 '저자으로'가 된다
+  { key: 'all', label: '전체', by: '제목·저자·출판사로', example: ' (예: 데미안, ISBN)' },
+  { key: 'title', label: '제목', by: '제목으로', example: ' (예: 소년이 온다)' },
+  { key: 'author', label: '저자', by: '저자로', example: ' (예: 한강)' },
+] as const satisfies readonly { key: SearchScope; label: string; by: string; example: string }[]
+
+const isValidScope = (v: string | null): v is SearchScope => SCOPES.some((s) => s.key === v)
 
 /** 검색 결과 행의 표지 — URL 이 깨진 책(네이버 404 등)은 서재·홈과 같은 규칙으로 제목 글자 자리로 바꾼다 */
 function RowCover({ book }: { book: BookSummary }) {
@@ -56,6 +68,9 @@ export default function SearchPage() {
   const q = params.get('q') ?? ''
   const kdcParam = params.get('kdc')
   const kdc = isValidKdc(kdcParam) ? kdcParam : ''
+  const scopeParam = params.get('scope')
+  // 주소로 들어온 값이 목록 밖이면(사람이 손으로 고쳤거나 옛 링크) 조용히 전체로 — 검색이 400 으로 죽지 않게 한다
+  const scope: SearchScope = isValidScope(scopeParam) ? scopeParam : 'all'
   const pageParam = Number(params.get('page') ?? 1)
   const page = Number.isInteger(pageParam) && pageParam >= 1 ? Math.min(pageParam, MAX_PAGE) : 1
   const [input, setInput] = useState(q)
@@ -63,13 +78,15 @@ export default function SearchPage() {
   const scrollKey = `search-scroll:${location.key}`
 
   /** URL 갱신 한 곳 — 비어 있는 값은 빼고, 1쪽은 ?page= 를 생략해 주소를 짧게 둔다 */
-  const update = (next: { q?: string; kdc?: string; page?: number }, replace = false) => {
+  const update = (next: { q?: string; kdc?: string; scope?: SearchScope; page?: number }, replace = false) => {
     const nq = next.q ?? q
     const nk = next.kdc ?? kdc
+    const ns = next.scope ?? scope
     const np = next.page ?? 1
     const sp: Record<string, string> = {}
     if (nq) sp.q = nq
     if (nk) sp.kdc = nk
+    if (ns !== 'all') sp.scope = ns
     if (np > 1) sp.page = String(np)
     setParams(sp, { replace })
   }
@@ -82,17 +99,20 @@ export default function SearchPage() {
       const sp: Record<string, string> = {}
       if (next) sp.q = next
       if (kdc) sp.kdc = kdc
+      // 고른 검색 범위도 같이 실어야 한다 — 빠뜨리면 글자를 칠 때마다 범위가 '전체'로 되돌아간다
+      if (scope !== 'all') sp.scope = scope
       setParams(sp, { replace: true })
     }, 300)
     return () => clearTimeout(t)
-  }, [input, q, kdc, setParams])
+  }, [input, q, kdc, scope, setParams])
 
   const tooLong = input.trim().length > 100
   const enabled = (q.length >= 1 && q.length <= 100) || kdc !== ''
 
   const { data, isFetching, error } = useQuery({
-    queryKey: ['search', q, kdc, page],
-    queryFn: () => searchBooks(q, page - 1, PAGE_SIZE, kdc || undefined),
+    // 범위가 키에 없으면 범위를 바꿔도 앞서 받아 둔 결과가 그대로 나온다
+    queryKey: ['search', q, kdc, scope, page],
+    queryFn: () => searchBooks(q, page - 1, PAGE_SIZE, kdc || undefined, scope),
     enabled,
     // 쪽을 넘길 때 이전 결과를 잠깐 유지해 목록이 깜빡 비지 않게 한다
     placeholderData: keepPreviousData,
@@ -126,6 +146,8 @@ export default function SearchPage() {
     window.scrollTo({ top: 0 })
   }
   const setKdc = (code: string) => update({ kdc: code, page: 1 })
+  // 범위를 바꾸면 결과 집합이 통째로 달라진다 — 분류 칩과 같은 규칙으로 1쪽부터 다시 본다
+  const setScope = (next: SearchScope) => update({ scope: next, page: 1 })
 
   // 드릴다운 사전 — 대분류가 정해지면 그 중분류를, 중분류까지 정해지면 그 소분류를 받는다. 각 하루 캐시
   const mainCode = kdc ? kdc[0] : ''
@@ -145,7 +167,11 @@ export default function SearchPage() {
   const rows = childrenOf(listing)
   const backTo = listing === '' ? null : parentOf(listing)
 
-  const summary = [q && `“${q}”`, kdc && `#${label(kdc)}`].filter(Boolean).join(' · ')
+  const current = SCOPES.find((s) => s.key === scope)!
+  const scopeLabel = current.label
+  // 좁혀서 찾은 결과인데 그 말이 없으면 "왜 이것밖에 안 나오지"가 된다 — 전체일 때만 생략한다
+  const summary = [q && `“${q}”`, scope !== 'all' && `${scopeLabel}만`, kdc && `#${label(kdc)}`]
+    .filter(Boolean).join(' · ')
 
   return (
     <main className="eo-page">
@@ -180,12 +206,25 @@ export default function SearchPage() {
           <input
             autoFocus={q === '' && kdc === ''}
             className="eo-field min-w-0 flex-1" style={{ border: 0 }}
-            placeholder={kdc ? `${label(kdc)} 안에서 찾기 — 비우면 대출 많은 순` : '제목·저자·출판사로 검색 (예: 데미안, ISBN) — 또는 아래 분류를 골라 시작'}
+            placeholder={kdc
+              ? `${label(kdc)} 안에서 ${scope === 'all' ? '찾기' : `${current.by} 찾기`} — 비우면 대출 많은 순`
+              : `${current.by} 검색${current.example} — 또는 아래 분류를 골라 시작`}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            aria-label="제목 또는 저자"
+            aria-label={`검색어 — ${scopeLabel} 범위`}
             maxLength={120}
           />
+        </div>
+
+        {/* 검색 범위 — 분류 칩(eo-tag)과 다른 모양이라 '또 하나의 분류 줄'로 읽히지 않는다.
+            서버 기본값이 all 이고 좁힌 범위는 그 필드 하나만 보므로(§4.1), 넓은 쪽을 기본으로 두고 필요할 때 좁히게 한다 */}
+        <div className="eo-segments mt-3" role="group" aria-label="검색 범위">
+          {SCOPES.map((s) => (
+            <button key={s.key} type="button" onClick={() => setScope(s.key)} aria-pressed={scope === s.key}
+              className={`eo-segment ${scope === s.key ? 'is-on' : ''}`}>
+              {s.label}
+            </button>
+          ))}
         </div>
 
         {/* 분류 칩 한 줄 — 처음엔 대분류 10개. 하나를 누르면 그 자리가 자식 분류로 바뀐다(검색어 없어도 대출 많은 순, §4.1).

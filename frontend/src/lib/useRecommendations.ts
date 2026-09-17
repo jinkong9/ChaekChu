@@ -18,6 +18,14 @@ async function fetchRecommendations(tags: string[]): Promise<RecommendationRespo
   return res.data
 }
 
+/** POST /recommendations/next (§5.2) — 「다시 추천받기」 전용. 기준 덱의 태그·가중치는 서버가 스냅샷에서 복원하므로
+ *  프론트는 지금 보고 있는 recommendationId 만 넘긴다. 서버가 기준 덱·최근 같은 조건 덱 3개·서재를 제외해 새 덱을 만든다.
+ *  후보가 모자라면 요청한 size 보다 적게 올 수 있고, 아예 없으면 빈 items 다 — 화면이 그 둘을 다르게 말해야 한다. */
+export async function fetchNextRecommendations(recommendationId: string, size = RECOMMEND_DECK_SIZE): Promise<RecommendationResponse> {
+  const res = await api.post<RecommendationResponse>('/recommendations/next', { recommendationId, size })
+  return res.data
+}
+
 /** 추천 덱 조회 — 홈·이유·기준조절 화면이 같은 캐시를 공유한다. 태그가 바뀌면 새 스냅샷(새 recommendationId).
  *  서버 사전에 없는 태그로 400 이 오면 태그 없이 한 번 더 받아 덱이 비지 않게 한다 — THEME·SIGNAL 태그는 사전에 아직 없다. */
 export function useRecommendations(tags: string[] = []) {

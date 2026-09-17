@@ -24,7 +24,7 @@
 | | `GET /books/{bookId}` | ● | BookDetailPage · 홈 링 | **구현(09-10)** · ISBN13 도 받는다 |
 | | `GET /books/{bookId}/similar` | ● | BookDetailPage 「비슷한 책」 | **구현(09-15)** · 적재 23% 라 빈 배열이 잦다 |
 | | `GET /books/{bookId}/co-loans` | ● | BookDetailPage 「함께 대출된 책」 스켈레톤 | **구현(09-10)** · FE 연결 |
-| 추천 | `GET /recommendations` | ● | RecommendPage · TunePage | 구현 대상 · 09-11 부터 덱을 DB 에 저장 |
+| 추천 | `GET /recommendations`, `POST /recommendations/next` | ● | RecommendPage · TunePage | GET 덱 저장 · 명시적 다음 덱 생성 |
 | 서재 | `GET /library/me` | ● | LibraryPage* | **구현(09-10)** · FE 연결 |
 | | `POST /library` | ● | RecommendPage · BookDetailPage | **구현(09-10)** · FE 연결(응답 본문의 `libraryItemId` 사용) |
 | | `PATCH /library/{libraryItemId}` | ● | LibraryList · LibraryPageB | **구현(09-10)** · FE 연결 |
@@ -274,10 +274,23 @@ AI 가 503·타임아웃이면 저장된 마지막 프로필을 그대로 내고
 
 ## 4. 도서
 
-### 4.1 `GET /books/search?q=&kdc=&page=&size=` ●
+### 4.1 `GET /books/search?q=&kdc=&scope=&page=&size=` ●
 
 `q` 와 `kdc` 중 **하나는 필수**(둘 다 없으면 `400`). `q` 는 1~100자로 제목·저자·출판사를 찾고, `kdc` 는 KDC 코드 prefix 1~3자리(`8` 문학 · `81` 한국문학 · `813` 소설)로 `books.category_code`(`"813.62"`)의 앞자리를 맞춘다.
-`q` 가 하이픈 포함 ISBN 형태면 ISBN 조회로 처리하고(그때 `kdc` 는 무시), L0 에 없으면 카카오 1회 조회로 온디맨드 등록을 시도한다(서비스 방향 §7).
+`q` 가 하이픈 포함 ISBN 형태면 ISBN 조회로 처리하고(그때 `kdc`·`scope` 는 무시), L0 에 없으면 카카오 1회 조회로 온디맨드 등록을 시도한다(서비스 방향 §7).
+
+`scope` 는 **검색 범위**(2026-09-17)다 — `q` 를 어느 필드에 대고 점수를 내는가. `all`(기본, 생략 가능) · `title` · `author` · `publisher` 중 하나, 대소문자 무시.
+`all` 은 지금까지의 동작 그대로(제목·저자·출판사를 함께 보며 `한강 소년` 처럼 저자+제목이 섞인 검색어도 받아 준다)라 **기존 호출은 바꿀 것이 없다**.
+`title`·`author`·`publisher` 는 사용자가 명시적으로 좁힐 때만 쓴다 — 그 필드 하나만 보므로 섞인 검색어는 찾지 못한다(의도된 동작).
+정렬·`kdc` 필터·페이징·탐색 한도는 범위와 무관하게 같다. 넷 중 하나가 아니면 `400 VALIDATION_FAILED` · `details.fields[{ field: "scope" }]`.
+
+| `scope` | ① 완전일치 ×10 | ② 형태소(nori, 모든 단어 필요) | ③ 부분일치(bigram) |
+| --- | --- | --- | --- |
+| `all` (기본) | `title.keyword` | `title^3 · authors^2 · publisher` (cross_fields) | `title.ngram^1.5 · authors.ngram` |
+| `title` | `title.keyword` | `title` | `title.ngram` |
+| `author` | `authors.keyword` | `authors` | `authors.ngram` |
+| `publisher` | 없음 | `publisher` | 없음 |
+
 
 **탐색 한도 10,000건.** `page × size + size` 가 이를 넘으면 `400` 이다 — `size=20` 이면 `page` 0~499, 화면 1~500쪽. ES `from+size` 상한이자 제품 결정(09-11):
 깊은 페이지를 억지로 주지 않고 분류·검색어로 좁히게 유도한다. 그래서 커서(`search_after`)는 두지 않는다. `total` 은 필터 적용 후 전체 건수라 한도보다 클 수 있으니,
@@ -295,7 +308,7 @@ AI 가 503·타임아웃이면 저장된 마지막 프로필을 그대로 내고
 | `q` + `kdc` | 같음 — `kdc` 는 점수에 끼지 않는 filter 라 순서가 그대로다. 분류 안에서도 검색 관련도가 먼저 |
 | `kdc` 만 | 누적 대출(`loanCum`) 내림차순 → `bookId` 오름차순. 대출값이 없는 책은 **마지막** |
 
-정렬·필터 파라미터는 이 둘뿐이다. 최신순·인기순 선택은 프론트에 없어 두지 않는다.
+정렬을 고르는 파라미터는 없다 — `q`·`kdc`·`scope` 셋이 전부다. 최신순·인기순 선택은 프론트에 없어 두지 않는다.
 
 구현 메모 (2026-09-09, V1 위에서):
 - ISBN 판정 = 하이픈·공백을 뗀 뒤 978/979 로 시작하는 13자리 숫자. 정확 조회라 결과는 0 또는 1건. **카카오 온디맨드 등록은 아직 없다** — 없으면 `total: 0`.
@@ -309,7 +322,9 @@ AI 가 503·타임아웃이면 저장된 마지막 프로필을 그대로 내고
 - **권차(v6, 09-16)**: ES 문서에 `vol`(keyword) 을 색인해 `items[].volume` 으로 내보낸다. 값이 없는 책은 `null`. 재색인은 배포 시 초기화기가 새 인덱스 `books_v6` 를 채우고 alias 를 원자적으로 옮긴다(105만 건, EC2 약 5분) — 그동안 검색은 v5 로 계속 되고 `volume` 만 `null` 이다.
 - **`kdc` 만 보낼 때의 대출순**은 매핑 v4 의 `loanCum` — 색인할 때 `book_demand_features` 최신 스냅샷(`2026-08`)의 `loan_cum` 을 LEFT JOIN 해 넣는다. 수요 지표가 없는 책(약 57만 권)은 `null` 이고 정렬에서 뒤로 간다. 스냅샷이 더 늘지 않는 전제라 월 배치·증분 갱신 경로는 두지 않았다(추가되면 전체 재색인).
 - 정렬에 `unmapped_type` 을 주므로 v4 재색인 중 alias 가 아직 v3 를 가리켜도 `500` 이 아니라 「전부 값 없음」으로 동작한다 — 그 15분 동안 대출순만 정확하지 않고 검색은 살아 있다.
+- **검색 범위 `scope`(2026-09-17)**: 매핑은 그대로다 — `title`·`authors`·`publisher` 가 이미 각각 필드고 `.ngram`·`.keyword` 서브필드가 있어, 범위에 따라 쿼리에 넣는 필드 목록만 바뀐다(재색인 없음, `books_v6` 유지). `author` 완전일치는 `authors.keyword`(공백 제거·소문자 normalizer)라 제목과 같은 규칙이다. `publisher` 에는 완전일치 절을 두지 않는다 — `publisher.keyword` 에 normalizer 가 없어 `문학동네`/`문학 동네` 중 원문과 글자까지 같은 쪽만 ×10 으로 튀어, 같은 출판사 책들이 대출순 대신 표기 변형으로 갈리기 때문. normalizer 를 붙인 매핑 v7 재색인 때 되살릴 수 있다. `q` 없이 `kdc` 만이면 점수를 내지 않아 `scope` 는 쓰이지 않지만 값은 검증한다. **프론트 붙이기**: `searchBooks(q, page, size, kdc, scope)` 처럼 인자를 더해 `all` 이 아닐 때만 쿼리에 싣고, URL 파라미터(`useSearchParams`)에 실어 새로고침·공유에도 유지, react-query 키에 포함.
 - 검색 엔진 장애는 `503 SEARCH_UNAVAILABLE`(§1.3).
+
 
 ### 4.7 `GET /kdc?depth=&parent=` ● (2026-09-11)
 
@@ -486,6 +501,33 @@ AI 에 닿지 못하면 `503 RECOMMENDATION_UNAVAILABLE` 이다. 상세 화면�
 
 <br/>
 
+### 4.8 `GET /books/random?exclude=` ● (09-17 구현)
+
+가챠 — **표지와 KDC 가 있는 추천 후보** 중 무작위 한 권. 요청마다 새로 뽑는다. 응답은 `BookSummary`(§1.5) **단일 객체**(봉투 없음).
+`classNo` 는 프론트가 이미 화면에 있는 DNA 레이더 축 점수(`GET /users/me/dna`)와 대조해 「취향 정중앙 / 가장자리 / 완전히 새 영역」 문구를 동기 계산으로 만드는 데 쓴다 —
+서버는 AI 도 다른 API 도 부르지 않는다.
+
+| 항목 | 규칙 |
+| --- | --- |
+| 모집단 | `books.is_candidate = true AND cover_url 있음 AND category_code 있음`. 후보(약 44만)만으로는 부족하다 — 후보 제외 규칙 `NO_SIGNAL` 이 소개·표지·키워드·관계 중 하나만 있어도 통과시켜 표지 없는 후보가 있고, 가챠는 표지를 300px 로 크게 띄우기 때문. KDC 없는 후보(운영 41만 중 23권)도 뺀다 — 프론트가 `classNo` 로 축 대조를 하니 없으면 판정 문구를 못 만든다(09-17 리뷰) |
+| `exclude` | 선택. 직전에 뽑힌 `bookId` 하나. 있으면 그 책은 빠진다. 연속 호출에서 같은 책이 나올 확률은 모집단 역수(0.001% 안팎)라 서버는 이력을 저장하지 않고, 그 확률까지 0 으로 막고 싶은 화면이 붙인다 |
+| 없음 | 모집단이 비면 `404 BOOK_NOT_FOUND`. 운영에서는 나지 않는다 — 후보 배치를 안 돌린 로컬 DB용 |
+| 형식 오류 | `exclude` 가 숫자가 아니면 `400 VALIDATION_FAILED` · `details.fields[{ field: "exclude" }]` |
+| 캐시 | `Cache-Control: no-store`. 같은 URL 의 GET 이라 어디서든 캐시되면 「매번 다른 책」이 깨진다 |
+
+```json
+GET /books/random?exclude=88123
+→ BookSummary
+```
+
+구현 메모 (2026-09-17):
+- **두 단계로 뽑는다.** ① `books TABLESAMPLE SYSTEM (0.5)` — 테이블 페이지의 0.5% 만 무작위로 읽고(운영 331만 행이면 1.5만~2만 행) 그 안에서 모집단 조건을 건 뒤 `ORDER BY random() LIMIT 1`. 읽는 양이 전체의 0.5% 라 cold 여도 100ms 안이고, 운영 규모에서는 표본 안에 적격 행이 천 단위라 비지 않는다. ② 표본이 비면(행이 몇 개뿐인 로컬·테스트 DB) 전체에서 같은 조건으로 `ORDER BY random() LIMIT 1` — 후보 부분 인덱스(`idx_books_candidate_id`)를 타고 `id` 만 뽑아 정렬해 소개문 같은 큰 컬럼이 정렬에 끼지 않게 한다. 표본 없이 바로 전체 `ORDER BY random()` 을 걸면 후보 44만 행의 표지 여부를 전부 확인해야 해서 warm 200~300ms, cold 1초 이상이다.
+- **공정성**: 모든 적격 책의 페이지가 같은 확률로 표본에 들고 표본 안에서 다시 균등하게 고르므로 책마다 거의 같은 확률이다. 페이지 안에 적격 책이 몇 권 몰려 있는지는 확률에 영향을 주지 않는다.
+- `is_candidate` 는 배치가 채우는 컬럼(V5)이라 `Book` 엔티티에 매핑하지 않았다 — 네이티브 쿼리다. `exclude` 가 없으면 `-1` 을 묶는다(null 을 묶으면 PG 가 파라미터 타입을 못 정한다).
+- 표지 URL 이 죽은 링크인지는 서버가 판별하지 않는다(프론트 `lib/coverUrl.ts` 영역). 마이그레이션·엔티티 변경·ES 모두 무관.
+
+<br/>
+
 ## 5. 추천
 
 ### 5.1 `GET /recommendations?size=&tags=` ●
@@ -528,6 +570,20 @@ AI taxonomy 에 같은 철자로 6개를 넣고(KDC 규칙, 재임베딩 없이 
 - 프론트가 그리는 것은 `recommendationId` `generatedAt` `fallback` `basedOnCount` `appliedTags` `items[].rank/tags/reasonText/book` 뿐이다. `score` `featureScores` `weights` `mode` `reasonType` 은 이벤트 분석·디버그용으로 남긴다(계약 §4.4).
 - 같은 스냅샷을 다시 조회하면 새로 저장하지 않는다. `tags` 를 바꿔 요청하면 새 스냅샷(새 `recommendationId`).
 - `reasonText` 는 서버가 완성한 한 문장(카드에 그대로). `reasonType` 별 템플릿은 추천 구현 문서에서.
+
+### 5.2 `POST /recommendations/next` — 같은 취향으로 다음 덱
+
+프론트가 사용자의 명시적인 「다시 추천」 동작에서 호출한다. 단순히 `GET /recommendations`를 다시 호출하는 대신, 직전에 화면에 표시한 `recommendationId`를 기준 덱으로 전달한다.
+
+```json
+{ "recommendationId": "rec_01J7…", "size": 5 }
+```
+
+- 기준 덱의 `appliedTags`와 `weights`를 스냅샷에서 복원하고, 현재 서재를 seed·제외 목록에 반영한다.
+- 기준 덱과 같은 사용자·모드·태그·가중치 조건의 최근 추천 덱을 최대 3개까지 찾는다. 기준 덱은 항상 제외하며, 이 덱들의 ISBN과 서재 ISBN을 AI의 `excludeIsbns`로 전달한다.
+- 후보가 부족하면 기준 덱 및 서재 제외는 유지한 채, 기준 덱을 제외한 나머지 덱 중 오래된 순으로 제외 목록에서 하나씩 완화해 재요청한다. 그래도 부족하면 가능한 수만 반환한다.
+- AI 호출에 실패하거나 결과가 비면 연령·성별 인기순위로 폴백한다. 폴백도 같은 제외 규칙을 적용하며, `fallback: true`로 표시한다. 폴백 덱에도 다음 요청에서 취향을 복원할 수 있도록 기준 덱의 `appliedTags`·`weights`를 유지한다. 기준 덱이 없거나 다른 사용자의 덱이면 `404 NOT_FOUND`를 반환한다.
+- 성공·폴백 결과 모두 새 `recommendationId`로 스냅샷에 저장한다. 프론트 변경은 이 API를 명시적 재추천 액션에 연결하는 범위이며 자동 새로고침 동작은 바꾸지 않는다.
 
 <br/>
 
