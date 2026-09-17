@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useDna } from '../../lib/useDna'
 import type { DnaBookResponse } from '../../api/dna'
 import type { DnaBook } from './dnaTypes'
-import { extractCoverColor } from './spectrum'
+import { displayTone, extractCoverColor } from './spectrum'
 import { profileFromApi, type DnaProfile } from './dnaProfile'
 import DnaConstellation from './DnaConstellation'
 import BookWorldCup from './BookWorldCup'
@@ -37,7 +37,8 @@ function useCoverTones(books: DnaBook[]): string[] | null {
       const colored = cs.filter((c) => c.s >= 0.15).sort((a, b) => a.h - b.h)
       const src = colored.length > 0 ? colored : cs
       const step = (src.length - 1) / Math.max(1, TONE_COUNT - 1)
-      setTones(Array.from({ length: TONE_COUNT }, (_, i) => src[Math.round(i * step)].hex))
+      // 채움·막대에 칠할 색이라 명도를 접는다(displayTone) — 파스텔 표지가 뽑히면 레이더가 종이색에 묻힌다
+      setTones(Array.from({ length: TONE_COUNT }, (_, i) => displayTone(src[Math.round(i * step)])))
     })
     return () => {
       alive = false

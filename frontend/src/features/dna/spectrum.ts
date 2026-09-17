@@ -51,6 +51,17 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${f(0)}${f(8)}${f(4)}`
 }
 
+/** 화면 요소(레이더 채움·지표 막대·카드 강조)에 쓸 때의 명도 범위. 표지 대표색은 흰 배경 표지의 파스텔이 많아
+ *  그대로 칠하면 종이 위에서 거의 안 보인다(레이더가 연하다는 지적, 09-16). 색상(h)·채도(s)는 두고 명도만 이 안으로 접는다. */
+const TONE_LIGHTNESS_MIN = 0.3
+const TONE_LIGHTNESS_MAX = 0.5
+
+/** 표지 대표색 → 화면에 칠할 색. 스펙트럼 띠(buildSpectrum)는 표지 그대로를 보이는 자리라 이 보정을 쓰지 않는다. */
+export function displayTone(color: CoverColor): string {
+  const l = Math.min(TONE_LIGHTNESS_MAX, Math.max(TONE_LIGHTNESS_MIN, color.l))
+  return hslToHex(color.h, color.s, l)
+}
+
 const imageCache = new Map<string, Promise<CoverColor>>()
 
 /** 표지가 전부 무채색일 때의 폴백 (종이 계열, placeholder보다 살짝 짙게) */
