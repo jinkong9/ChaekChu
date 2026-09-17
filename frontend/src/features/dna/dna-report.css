@@ -269,11 +269,13 @@
 .dnar-radar { width: 100%; height: auto; overflow: visible; }
 .dnar-radar__grid { fill: none; stroke: var(--eo-rule-soft); }
 .dnar-radar__spoke { stroke: var(--eo-rule-soft); }
+/* 채움은 톤 그대로를 절반 넘게 — 0.3 이던 때는 파스텔 표지 톤이 종이색에 묻혔다(09-16). 선은 잉크를 조금 섞어 채움보다 한 단 진하게 */
 .dnar-radar__shape {
   fill: var(--tone, var(--eo-ink-faint));
-  fill-opacity: 0.3;
-  stroke: var(--tone, var(--eo-ink));
-  stroke-width: 1.5;
+  fill-opacity: 0.55;
+  stroke: color-mix(in oklch, var(--tone, var(--eo-ink)) 75%, var(--eo-ink));
+  stroke-width: 2;
+  stroke-linejoin: round;
   animation: dnar-reveal 420ms ease-out both;
 }
 /* 축 이름은 label, 괄호 안 수치는 utility — DESIGN.md 스텝 그대로 */
