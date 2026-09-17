@@ -3,6 +3,9 @@ import { useEffect, useRef } from 'react'
 
 const GLYPHS = '가나다라마바사아자차카타파하읽는책의문장aeinorst'
 const FONT = "'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo', sans-serif"
+/** 세리프 안 — 리포트 본문의 독서타입 이름(.dnar-type__name)과 같은 글꼴.
+ *  Noto Serif KR 은 500·600 만 받아 두었으므로 700 을 쓰면 가짜 굵게가 된다 */
+const FONT_SERIF = "'Noto Serif KR', 'Apple SD Gothic Neo', serif"
 const INK = '#0b0b0b'
 // 마지막 글자가 도착한 뒤 타입 이름을 잠시 보여 주고 굵은 글씨로 넘긴다.
 const LETTER_FADE_START = 3.2
@@ -24,7 +27,7 @@ type Letter = {
   size: number
 }
 
-function makeLetters(w: number, h: number, typeName: string, tones: string[] | null): { letters: Letter[]; fontSize: number } {
+function makeLetters(w: number, h: number, typeName: string, tones: string[] | null, font: string, boldWeight: number): { letters: Letter[]; fontSize: number } {
   const mask = document.createElement('canvas')
   mask.width = Math.ceil(w)
   mask.height = Math.ceil(h)
@@ -35,7 +38,7 @@ function makeLetters(w: number, h: number, typeName: string, tones: string[] | n
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   do {
-    ctx.font = `700 ${fontSize}px ${FONT}`
+    ctx.font = `${boldWeight} ${fontSize}px ${font}`
     if (ctx.measureText(typeName).width <= w * 0.88) break
     fontSize *= 0.92
   } while (fontSize > 20)
@@ -67,7 +70,11 @@ function makeLetters(w: number, h: number, typeName: string, tones: string[] | n
   return { letters, fontSize }
 }
 
-export default function ReadingTypeField({ typeName, tones }: { typeName: string; tones: string[] | null }) {
+export default function ReadingTypeField({ typeName, tones, serif }: { typeName: string; tones: string[] | null; serif?: boolean }) {
+  // 세리프 안은 획이 가늘어 같은 굵기로 두면 너무 흐리다 — 한 단계씩 올려 잡는다
+  const font = serif ? FONT_SERIF : FONT
+  const boldWeight = serif ? 600 : 700
+  const thinWeight = serif ? 500 : 600
   const hostRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -117,7 +124,7 @@ export default function ReadingTypeField({ typeName, tones }: { typeName: string
             }
           }
           ctx.globalAlpha = letter.alpha * (0.25 + settle * 0.75) * particleOpacity
-          ctx.font = `600 ${letter.size}px ${FONT}`
+          ctx.font = `${thinWeight} ${letter.size}px ${font}`
           ctx.fillStyle = letter.color
           ctx.fillText(letter.glyph, x, y)
         }
@@ -126,7 +133,7 @@ export default function ReadingTypeField({ typeName, tones }: { typeName: string
       const reveal = clamp01((elapsed - BOLD_START) / (BOLD_END - BOLD_START))
       if (fontSize > 0 && reveal > 0) {
         ctx.globalAlpha = reveal
-        ctx.font = `700 ${fontSize}px ${FONT}`
+        ctx.font = `${boldWeight} ${fontSize}px ${font}`
         ctx.fillStyle = INK
         ctx.fillText(typeName, w / 2, h / 2)
       }
@@ -146,7 +153,7 @@ export default function ReadingTypeField({ typeName, tones }: { typeName: string
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      const field = makeLetters(w, h, typeName, tones)
+      const field = makeLetters(w, h, typeName, tones, font, boldWeight)
       letters = field.letters
       fontSize = field.fontSize
       started = performance.now()
@@ -163,6 +170,8 @@ export default function ReadingTypeField({ typeName, tones }: { typeName: string
       canvas.addEventListener('pointermove', onMove)
       canvas.addEventListener('pointerleave', onLeave)
     }
+    // 캔버스는 CSS 를 거치지 않아 웹폰트가 늦게 오면 대체 글꼴로 굳는다 — 도착하면 한 번 더 그린다
+    document.fonts?.ready.then(layout).catch(() => {})
     const ro = new ResizeObserver(layout)
     ro.observe(host)
     return () => {
@@ -171,7 +180,7 @@ export default function ReadingTypeField({ typeName, tones }: { typeName: string
       canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerleave', onLeave)
     }
-  }, [typeName, tones])
+  }, [typeName, tones, font, boldWeight, thinWeight])
 
   return (
     <div className="dnar-typefield" ref={hostRef} role="img" aria-label={`글자들이 모여 완성한 독서타입: ${typeName}`}>

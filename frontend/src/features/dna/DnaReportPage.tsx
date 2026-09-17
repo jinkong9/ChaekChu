@@ -122,18 +122,39 @@ function HeroB({ profile, tones, basis }: { profile: DnaProfile; tones: string[]
   )
 }
 
-function HeroC({ profile, tones, basis }: { profile: DnaProfile; tones: string[] | null; basis: Basis }) {
+/** C안 히어로의 글자 짜임 — 왼쪽 제호와 오른쪽 타입 이름이 부딪히는 문제를 네 가지로 풀어 본다.
+ *  serif  오른쪽을 한글 세리프로 (본문 독서타입 이름과 같은 얼굴)
+ *  small  왼쪽 제호를 워드마크 크기로 낮춰 주인공을 오른쪽에 넘긴다
+ *  ko     왼쪽을 한글 헤드라인으로 갈아 끼운다 (제호는 사라진다)
+ *  both   세리프 + 제호 축소 */
+export type HeroCType = 'serif' | 'small' | 'ko' | 'both' | null
+
+function HeroC({ profile, tones, basis, typeVariant }: { profile: DnaProfile; tones: string[] | null; basis: Basis; typeVariant: HeroCType }) {
+  const serif = typeVariant === 'serif' || typeVariant === 'both'
+  const small = typeVariant === 'small' || typeVariant === 'both'
   return (
     <section className="dnar-hero-c" aria-label="BOOK DNA C안">
       <div className="dnar-hero-c__main">
         <div className="dnar-hero-c__intro">
           <span className="dnar-eyebrow">MY READING ANALYSIS</span>
-          <h1 className="dnar-hero-c__title">BOOK<br />DNA</h1>
+          {typeVariant === 'ko' ? (
+            <h1 className="dnar-hero-c__title is-ko">
+              당신이 읽은 것들이
+              <br />
+              쓴 이름
+            </h1>
+          ) : (
+            <h1 className={`dnar-hero-c__title ${small ? 'is-small' : ''}`}>
+              BOOK
+              <br />
+              DNA
+            </h1>
+          )}
           <p className="dnar-hero-c__sub">흩어져 있던 글자들이 모여<br />당신의 독서타입을 씁니다.</p>
           <HeroBasis basis={basis} />
         </div>
         <div className="dnar-hero-c__visual">
-          <ReadingTypeField typeName={profile.type.name} tones={tones} />
+          <ReadingTypeField typeName={profile.type.name} tones={tones} serif={serif} />
           <div className="dnar-hero-c__caption">
             <span>YOUR READING TYPE · {profile.type.code}</span>
             <p>{profile.type.phrase}</p>
@@ -341,6 +362,16 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
     setParams(next, { replace: true })
   }
 
+  /** C안 안에서 글자 짜임을 다시 고른다(?htype=) */
+  const rawType = params.get('htype')
+  const heroCType = (['serif', 'small', 'ko', 'both'] as const).find((v) => v === rawType) ?? null
+  const selectHeroType = (variant: HeroCType) => {
+    const next = new URLSearchParams(params)
+    if (variant === null) next.delete('htype')
+    else next.set('htype', variant)
+    setParams(next, { replace: true })
+  }
+
   const heroVariant = params.get('hero')
   const selectedHero = heroVariant === 'b' || heroVariant === 'c' ? heroVariant : 'a'
   const selectHero = (variant: 'a' | 'b' | 'c') => {
@@ -422,6 +453,30 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
             </button>
           ))}
         </div>
+        {selectedHero === 'c' && (
+          <>
+            <span className="dnar-utility">C안 글자</span>
+            <div className="dnar-variantbar__choices" role="group" aria-label="C안 글자 짜임 선택">
+              {([
+                [null, '지금'],
+                ['serif', '오른쪽 세리프'],
+                ['small', '제호 축소'],
+                ['ko', '한글 제목'],
+                ['both', '세리프+축소'],
+              ] as const).map(([variant, label]) => (
+                <button
+                  key={label}
+                  type="button"
+                  className="dnar-variantbar__button"
+                  aria-pressed={heroCType === variant}
+                  onClick={() => selectHeroType(variant)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
         <span className="dnar-utility">본문 비교</span>
         <div className="dnar-variantbar__choices" role="group" aria-label="BOOK DNA 본문 디자인 선택">
           {([
@@ -444,7 +499,7 @@ function Report({ books, records, profile, keywords, tones, basis, declaredTags,
       {heroVariant === 'b' ? (
         <HeroB profile={profile} tones={tones} basis={basis} />
       ) : heroVariant === 'c' ? (
-        <HeroC profile={profile} tones={tones} basis={basis} />
+        <HeroC profile={profile} tones={tones} basis={basis} typeVariant={heroCType} />
       ) : (
       <section className="dnar-hero">
         <div>

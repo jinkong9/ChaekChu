@@ -279,6 +279,22 @@
   letter-spacing: -.025em;
   font-weight: 600;
 }
+/* 제호 축소 — 오른쪽 타입 이름에 주인공 자리를 넘긴다. 홈 GNB 워드마크 정도의 체급 */
+.dnar-hero-c__title.is-small {
+  margin: 30px 0 22px;
+  font-size: clamp(34px, 3.4vw, 46px);
+  line-height: 1.02;
+  letter-spacing: 0.01em;
+}
+/* 한글 제목 안 — 라틴 세리프 대신 한글 세리프로. 오른쪽 한글과 획의 결이 맞는다 */
+.dnar-hero-c__title.is-ko {
+  font-family: var(--font-serif-ko);
+  font-size: clamp(38px, 4.4vw, 62px);
+  font-weight: 600;
+  line-height: 1.22;
+  letter-spacing: -0.045em;
+  word-break: keep-all;
+}
 .dnar-hero-c__sub { margin: 0; color: var(--eo-ink-muted); font-size: 13px; line-height: 1.85; word-break: keep-all; }
 .dnar-hero-c__visual { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
 .dnar-typefield { width: 100%; aspect-ratio: 1.65; min-height: 280px; }
