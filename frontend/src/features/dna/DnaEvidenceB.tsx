@@ -10,9 +10,26 @@ import type { DnaBookResponse, DnaScore } from '../../api/dna'
 import { tagLabel, useTags } from '../../lib/useTags'
 import type { DnaProfile } from './dnaProfile'
 import { accentOf } from './spectrum'
-import { axisCounts, monthlyFinished, ratingSpread, topAuthors } from './dnaEvidence'
+import { axisCounts, monthlyFinished, ratingSpread } from './dnaEvidence'
 import type { Habit } from './habits'
 import Radar from './DnaRadar'
+
+/** 습관 한 줄. 그림 위에 얹히는 줄(.dnar-ev__pair 안)은 CSS 가 규칙선을 지운다 — 그 줄과 그림이 한 덩이라서다 */
+function HabitRow({ habit, art }: { habit?: Habit; art: Record<string, ReactNode> }) {
+  if (!habit) return null
+  return (
+    <div className="dnar-habit">
+      <svg className="dnar-habit__art" viewBox="0 0 18 18" aria-hidden="true">
+        {art[habit.id]}
+      </svg>
+      <div className="dnar-habit__text">
+        <dt className="dnar-habit__label">{habit.label}</dt>
+        <dd className="dnar-habit__detail">{habit.detail}</dd>
+      </div>
+      <span className="dnar-habit__value">{habit.value}</span>
+    </div>
+  )
+}
 
 export default function DnaEvidenceB({
   profile,
@@ -40,7 +57,6 @@ export default function DnaEvidenceB({
   const axes = useMemo(() => axisCounts(records, profile.axes), [records, profile.axes])
   const months = useMemo(() => monthlyFinished(records), [records])
   const stars = useMemo(() => ratingSpread(records), [records])
-  const authors = useMemo(() => topAuthors(records), [records])
 
   const live = axes.filter((a) => a.share > 0)
   const empty = axes.filter((a) => a.share === 0)
@@ -50,6 +66,9 @@ export default function DnaEvidenceB({
   const topKeyword = keywords[0]?.score ?? 0
   // 한 화면에 강조색 하나 — 표지에서 가장 선명한 색을 골라 막대와 레이더가 같은 색을 쓴다
   const accent = accentOf(tones) ?? 'var(--eo-ink)'
+  /** 그림과 짝이 있는 두 줄과, 짝이 없어 아래로 내려가는 나머지 */
+  const paired = { pace: habits.find((h) => h.id === 'pace'), rating: habits.find((h) => h.id === 'rating') }
+  const rest = habits.filter((h) => h.id !== 'pace' && h.id !== 'rating')
 
   return (
     <>
@@ -126,7 +145,7 @@ export default function DnaEvidenceB({
         </div>
       </section>
 
-      {/* 3. 독서 습관 */}
+      {/* 3. 독서 습관 — 요약 줄과 그 줄이 요약한 그림을 붙여 둔다 */}
       <section className="dnar-ev">
         <div className="dnar-sechead">
           <div>
@@ -134,26 +153,13 @@ export default function DnaEvidenceB({
             <h2 className="dnar-title dnar-habits__title">독서 습관</h2>
           </div>
         </div>
-        <div className="dnar-ev__habits">
-          <dl className="dnar-ev__habit-list">
-            {habits.map((h) => (
-              <div key={h.id} className="dnar-habit">
-                <svg className="dnar-habit__art" viewBox="0 0 18 18" aria-hidden="true">
-                  {habitArt[h.id]}
-                </svg>
-                <div className="dnar-habit__text">
-                  <dt className="dnar-habit__label">{h.label}</dt>
-                  <dd className="dnar-habit__detail">{h.detail}</dd>
-                </div>
-                <span className="dnar-habit__value">{h.value}</span>
-              </div>
-            ))}
-          </dl>
 
-          <div className="dnar-ev__charts">
-            {/* 월별 완독 — '읽는 속도'가 숫자로만 있던 것을 그림으로 */}
+        {/* '월 0.8권' 한 줄은 옆 막대 여섯 개를 한마디로 줄인 것이다. 둘을 좌우로 떼어 놓으면
+            같은 수라는 걸 아무도 모른다 — 요약을 자기 그림 바로 위에 얹는다. */}
+        <div className="dnar-ev__pairs">
+          <div className="dnar-ev__pair">
+            <HabitRow habit={paired.pace} art={habitArt} />
             <figure className="dnar-ev__chart">
-              <figcaption className="dnar-utility">최근 6개월 완독</figcaption>
               <div className="dnar-ev__bars">
                 {months.map((m) => (
                   <div key={m.label} className="dnar-ev__bar">
@@ -169,10 +175,11 @@ export default function DnaEvidenceB({
                 ))}
               </div>
             </figure>
+          </div>
 
-            {/* 별점 분포 — '무던한 편'이라는 말의 근거 */}
+          <div className="dnar-ev__pair">
+            <HabitRow habit={paired.rating} art={habitArt} />
             <figure className="dnar-ev__chart">
-              <figcaption className="dnar-utility">별점 분포</figcaption>
               <div className="dnar-ev__bars">
                 {stars.map((count, i) => (
                   <div key={i} className="dnar-ev__bar">
@@ -191,20 +198,15 @@ export default function DnaEvidenceB({
           </div>
         </div>
 
-        {authors.length > 0 && (
-          <div className="dnar-ev__authors">
-            <span className="dnar-utility">다시 찾은 작가</span>
-            <ul>
-              {authors.map((a) => (
-                <li key={a.name}>
-                  {a.name} <b>{a.count}권</b>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* 짝이 없는 줄들 — 그림으로 펼칠 만큼의 분포가 없다. 아래 한 단으로 내려 급을 낮춘다 */}
+        {rest.length > 0 && (
+          <dl className="dnar-ev__rest">
+            {rest.map((h) => (
+              <HabitRow key={h.id} habit={h} art={habitArt} />
+            ))}
+          </dl>
         )}
       </section>
-
     </>
   )
 }

@@ -251,16 +251,13 @@
 }
 .dnar-ev__keywords { display: grid; gap: 10px; align-content: start; }
 
-/* ③ 독서 습관 — 줄 목록과 작은 그림 둘 */
-.dnar-ev__habits {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 48px;
-  align-items: start;
-}
-.dnar-ev__habit-list { display: grid; margin: 0; }
-/* 두 그림은 위아래로 — 나란히 두면 각자 폭이 좁아 막대가 실오라기가 된다 */
-.dnar-ev__charts { display: grid; gap: 24px; }
+/* ③ 독서 습관 — 요약 줄과 그 줄이 요약한 그림을 한 덩이로 붙인다.
+   좌우로 떼어 놓으면 '월 0.8권'과 옆 막대 여섯이 같은 수라는 걸 알 수 없다. */
+.dnar-ev__pairs { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+.dnar-ev__pair { display: grid; gap: 14px; }
+/* 그림 위에 얹히는 줄은 규칙선을 긋지 않는다 — 선은 다른 항목과 가를 때만 쓴다.
+   .dnar-habit 이 파일 뒤쪽에 있어 같은 특정도로는 덮이지 않는다 — 부모를 함께 적는다 */
+.dnar-ev__pair .dnar-habit { border-top: 0; padding-top: 0; }
 .dnar-ev__chart { margin: 0; display: grid; gap: 10px; }
 .dnar-ev__bars { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; align-items: end; height: 96px; }
 .dnar-ev__bar { display: grid; grid-template-rows: auto 1fr auto; gap: 4px; justify-items: center; height: 100%; }
@@ -270,23 +267,14 @@
 .dnar-ev__bar-label { font-size: 10px; color: var(--eo-ink-faint); }
 .dnar-ev__bar-value { font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; }
 
-.dnar-ev__authors {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 20px;
-  margin-top: 22px;
-  padding-top: 16px;
-  border-top: 1px solid var(--eo-rule-soft);
-}
-.dnar-ev__authors ul { display: flex; flex-wrap: wrap; gap: 8px 20px; list-style: none; margin: 0; padding: 0; }
-.dnar-ev__authors li { font-size: 13px; letter-spacing: -0.02em; }
-.dnar-ev__authors b { font-weight: 650; }
+/* 짝이 없는 줄들 — 아래 한 단으로 내려 급을 낮춘다 */
+.dnar-ev__rest { display: grid; grid-template-columns: 1fr 1fr; column-gap: 48px; margin: 30px 0 0; }
 
 @media (max-width: 1080px) {
   .dnar-ev__map,
   .dnar-ev__type,
-  .dnar-ev__habits { grid-template-columns: 1fr; gap: 28px; }
+  .dnar-ev__pairs,
+  .dnar-ev__rest { grid-template-columns: 1fr; gap: 28px; }
 }
 @media (max-width: 640px) {
   .dnar-ev { margin-top: 40px; }
