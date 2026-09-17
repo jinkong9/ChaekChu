@@ -12,11 +12,12 @@ from recommendation.baseline import evaluate_d4l, evaluate_content, recommend_co
 from recommendation.d4l import DataError, load_d4l_jsonl
 from recommendation.embedding import OpenAICompatibleEmbeddingProvider
 from recommendation.embedding_batch import EmbeddingBatchConfig, EmbeddingBatchRunner, QdrantVersionedIndexStore
+from recommendation.index_audit import IndexAuditConfig, QdrantIndexAuditor
 from recommendation.normalization import NormalizationError, normalized_input_hash
 from recommendation.quality import evaluate_weight_grid, load_tag_sidecar
 from recommendation.runtime import build_artifact, configure_logging, refresh_artifact_hash, set_seed, write_artifact
 from recommendation.smoke import run_smoke
-from recommendation.tag_batch import GmsTagProvider, TAG_CACHE_VERSION, TagBatchRunner, TagGenerator
+from recommendation.tag_batch import GmsTagProvider, TAG_CACHE_VERSION, TAXONOMY, TagBatchRunner, TagGenerator
 from recommendation.tag_index import load_validated_tag_sidecar
 from recommendation.tag_payload_sync import TagPayloadSyncRunner
 from recommendation.tag_quality import TagQualityError, compare_tag_sidecars
@@ -30,7 +31,7 @@ from recommendation.validation import validate_d4l_jsonl
 
 LOGGER = logging.getLogger(__name__)
 COMMANDS = (
-    "build", "validate", "evaluate", "recommend", "index", "tags", "tag-index", "tag-payload-sync", "tune", "smoke", "tag-quality",
+    "build", "validate", "evaluate", "recommend", "index", "tags", "tag-index", "tag-payload-sync", "tune", "smoke", "tag-quality", "audit-index",
 )
 
 
@@ -49,8 +50,12 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     for command in COMMANDS:
         command_parser = subparsers.add_parser(command)
-        command_parser.add_argument("--input", type=Path, required=True)
         command_parser.add_argument("--output", type=Path)
+        if command == "audit-index":
+            command_parser.add_argument("--sample-size", type=int, default=3)
+            command_parser.add_argument("--tag-code", action="append", default=None)
+        else:
+            command_parser.add_argument("--input", type=Path, required=True)
         if command == "recommend":
             command_parser.add_argument("--user-id", required=True)
             command_parser.add_argument("--query-isbn")
@@ -144,6 +149,28 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def run(arguments: argparse.Namespace) -> Path:
+    if arguments.command == "audit-index":
+        logging.basicConfig(
+            level=os.getenv("AI_LOG_LEVEL", "INFO").upper(),
+            format="%(levelname)s %(name)s %(message)s",
+            force=True,
+        )
+        output_path = arguments.output or Path(os.getenv("TMPDIR", "/tmp")) / "b102-index-audit.json"
+        try:
+            audit = _run_index_audit(arguments)
+        except ValueError as error:
+            raise ConfigError(f"index audit configuration is invalid: {error}") from error
+        artifact = refresh_artifact_hash({
+            "command": "audit-index",
+            "schemaVersion": 1,
+            "indexAudit": audit,
+        })
+        write_artifact(output_path, artifact)
+        LOGGER.info("command=%s artifactHash=%s", arguments.command, artifact["artifactHash"])
+        if audit["status"] != "PASS":
+            raise ConfigError(f"active Qdrant index audit failed; report written to {output_path}")
+        return output_path
+
     config = load_config(arguments.config)
     configure_logging(config)
     set_seed(config.seed)
@@ -467,6 +494,35 @@ def _run_tag_prototype_index(arguments: argparse.Namespace) -> dict:
             max_retries=arguments.max_retries,
         ),
     ).run()
+
+
+def _run_index_audit(arguments: argparse.Namespace) -> dict:
+    qdrant_url = os.getenv("QDRANT_URL", "").strip()
+    index_version = os.getenv("AI_INDEX_VERSION", "").strip()
+    tag_version = os.getenv("AI_TAG_VERSION", "").strip()
+    if not qdrant_url or not index_version or not tag_version:
+        raise ConfigError("audit-index requires QDRANT_URL, AI_INDEX_VERSION, and AI_TAG_VERSION")
+    try:
+        dimension = int(os.getenv("EMBEDDING_DIMENSION", "512"))
+        timeout = float(os.getenv("QDRANT_TIMEOUT_SECONDS", "5"))
+    except ValueError as error:
+        raise ConfigError("EMBEDDING_DIMENSION or QDRANT_TIMEOUT_SECONDS is invalid") from error
+    if arguments.sample_size < 1 or arguments.sample_size > 100:
+        raise ConfigError("--sample-size must be between 1 and 100")
+    tag_codes = arguments.tag_code if arguments.tag_code is not None else [definition.code for definition in TAXONOMY]
+    auditor = QdrantIndexAuditor(IndexAuditConfig(
+        base_url=qdrant_url,
+        book_alias=os.getenv("QDRANT_COLLECTION", "books_active").strip(),
+        tag_alias=os.getenv("QDRANT_TAG_COLLECTION", "tags_active").strip(),
+        index_version=index_version,
+        tag_version=tag_version,
+        dimension=dimension,
+        sample_size=arguments.sample_size,
+        vector_name=os.getenv("QDRANT_VECTOR_NAME", "").strip() or None,
+        api_key=os.getenv("QDRANT_API_KEY") or None,
+        timeout_seconds=timeout,
+    ))
+    return auditor.audit(tag_codes=tag_codes)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
