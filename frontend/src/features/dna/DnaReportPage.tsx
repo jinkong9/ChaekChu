@@ -1,8 +1,12 @@
 /** BOOK DNA 분석 리포트.
  *
- *  히어로(독서타입 선언 + 성향 5지표)와 분석 패널을 한 지면에
- *  ① 히어로(독서타입 선언 + 성향 5지표) ② 더 깊이 보는 테스트 4장
- *  ③ 요약 패널(장르 레이더 · 키워드 · 한 줄 요약 · 독서타입)을 얹는다.
+ *  한 지면을 세 단으로 읽는다.
+ *  ① 히어로 — 독서타입 선언과 성향 5지표(무엇이 나왔나)
+ *  ② 분석 패널 — 장르 레이더 · 키워드 · 한 줄 요약 · 독서타입(왜 그렇게 나왔나)
+ *  ③ 콘텐츠 2장 — 가챠 · 월드컵(그래서 뭘 해 볼까)
+ *
+ *  선언 → 근거 → 다음 걸음의 순서다. 근거를 보기 전에 놀거리가 끼어들면
+ *  리포트가 아니라 콘텐츠 모음으로 읽힌다.
  *
  *  지표·레이더·키워드·타입은 FastAPI profile 응답을 사용하고, 화면의 색은
  *  실제 서재 책 표지에서 뽑는다(DESIGN.md). */
@@ -18,7 +22,6 @@ import { useGachaPool } from './useGachaPool'
 import DnaConstellation from './DnaConstellation'
 import BookWorldCup from './BookWorldCup'
 import BookGacha from './BookGacha'
-import SajuBooks from './SajuBooks'
 import { coverAtWidth } from '../../lib/coverUrl'
 import './dna-report.css'
 
@@ -151,69 +154,26 @@ const TEST_ART: Record<string, ReactNode> = {
       <line x1="60" y1="4" x2="60" y2="42" stroke="currentColor" strokeWidth="1" opacity=".5" />
     </>
   ),
-  saju: (
-    <>
-      {/* 오행 다섯 점 — 원으로 상생, 안쪽 별로 상극 */}
-      {[0, 1, 2, 3, 4].map((i) => {
-        const a = (Math.PI * 2 * i) / 5 - Math.PI / 2
-        return <circle key={i} cx={60 + Math.cos(a) * 17} cy={22 + Math.sin(a) * 17} r="2.6" fill="currentColor" opacity=".8" />
-      })}
-      <circle cx="60" cy="22" r="17" fill="none" stroke="currentColor" strokeWidth="1" opacity=".4" />
-      <polygon
-        points={[0, 2, 4, 1, 3].map((i) => {
-          const a = (Math.PI * 2 * i) / 5 - Math.PI / 2
-          return `${(60 + Math.cos(a) * 17).toFixed(1)},${(22 + Math.sin(a) * 17).toFixed(1)}`
-        }).join(' ')}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="0.8"
-        opacity=".28"
-      />
-    </>
-  ),
-  timeline: (
-    <path
-      d="M8 34 C 28 34, 34 10, 54 12 C 74 14, 76 36, 96 26 C 106 21, 110 14, 114 10"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-    />
-  ),
 }
 
+/** 지금 열려 있는 콘텐츠 두 장. 후보를 어디서 뽑는지가 서로 다르다 —
+ *  가챠는 책 전체에서(우연), 월드컵은 내 서재에서(선택). 그래서 카드 설명도 그 차이를 말한다. */
 const TESTS = [
   {
     id: 'gacha',
-    ready: true,
     kicker: 'Random Draw',
     name: '완전 랜덤 책 가챠',
     desc: '취향을 접어 두고 아무 책이나 한 권 뽑아, 그게 취향에서 얼마나 먼지 알려드려요.',
+    from: '책 전체에서 뽑아요',
   },
   {
     id: 'worldcup',
     kicker: 'Book World Cup',
     name: '책 이상형 월드컵',
     desc: '서재의 책을 두 권씩 맞붙여 지금 가장 손이 가는 한 권을 찾아드려요.',
-    ready: true,
-  },
-  {
-    id: 'saju',
-    ready: true,
-    kicker: 'Saju Reading',
-    name: '사주로 보는 책',
-    desc: '생년월일의 일주와 오행에 맞는 책을 서재에서 골라드려요. 재미로 보는 콘텐츠예요.',
-  },
-  {
-    id: 'timeline',
-    ready: false,
-    kicker: 'Taste Timeline',
-    name: '내 취향의 변화',
-    desc: '지금까지의 독서 기록으로 당신의 취향 변화를 살펴보세요.',
+    from: '내 서재에서 골라요',
   },
 ] as const
-
-const READY_COUNT = TESTS.filter((t) => t.ready).length
 
 /* ── 화면 ────────────────────────────────────────────── */
 
@@ -266,7 +226,7 @@ function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
   // 아직 화면이 없는 카드는 죽은 버튼 대신 준비 중임을 그 자리에서 알린다
   const [pending, setPending] = useState<string | null>(null)
   /** 열려 있는 콘텐츠 대화상자 */
-  const [open, setOpen] = useState<'gacha' | 'worldcup' | 'saju' | null>(null)
+  const [open, setOpen] = useState<'gacha' | 'worldcup' | null>(null)
   // 콘텐츠 후보는 실제 응답의 사용자 서재다. 세 콘텐츠 모두 표지를 보여 주고 고르게 하므로
   // 표지가 없는 책은 후보에서 뺀다 — 빈 자리가 대진표에 섞이면 고를 수가 없다
   const pool = useMemo(() => books.filter((b) => b.coverUrl !== ''), [books])
@@ -280,7 +240,6 @@ function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
 
   /** 카드를 열 수 없으면 그 이유를 그 자리에서 말한다 — 눌러도 아무 일 없는 버튼을 두지 않는다 */
   const blockedReason = (t: (typeof TESTS)[number]): string | null => {
-    if (!t.ready) return `「${t.name}」는 아직 준비 중이에요.`
     if (t.id === 'gacha')
       return gachaPool.length > 0 ? null : '뽑을 책 목록을 아직 불러오지 못했어요. 잠시 후 다시 열어 주세요.'
     return canPlay ? null : `「${t.name}」는 표지가 있는 책이 4권 이상일 때 열려요 — 지금 서재에는 ${pool.length}권이에요.`
@@ -347,45 +306,6 @@ function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
             )}
           </div>
         </div>
-      </section>
-
-      {/* ── 테스트 4장 ────────────────────────────── */}
-      <section>
-        <div className="dnar-sechead">
-          <h2 className="dnar-title">당신의 취향을 더 깊이 탐험해보세요.</h2>
-          <span className="dnar-utility">
-            {READY_COUNT}개 공개 · {TESTS.length - READY_COUNT}개 준비 중
-          </span>
-        </div>
-        <ul className="dnar-tests">
-          {TESTS.map((t, i) => (
-            <li key={t.id}>
-              <button
-                type="button"
-                className="dnar-test"
-                style={{ ['--tone' as string]: tones?.[i] ?? 'var(--eo-ink-faint)' }}
-                onClick={() => {
-                  const why = blockedReason(t)
-                  if (why) return setPending(why)
-                  setPending(null)
-                  setOpen(t.id as 'gacha' | 'worldcup' | 'saju')
-                }}
-              >
-                <span className="dnar-test__no">{String(i + 1).padStart(2, '0')}</span>
-                <span className="dnar-test__kicker">{t.kicker}</span>
-                <h3 className="dnar-test__name">{t.name}</h3>
-                <p className="dnar-test__desc">{t.desc}</p>
-                <svg className="dnar-test__art" viewBox="0 0 120 44" aria-hidden="true">
-                  {TEST_ART[t.id]}
-                </svg>
-                <span className="dnar-test__go">{t.ready ? '시작하기 →' : '준비 중'}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <p className="dnar-note" role="status">
-          {pending ?? ' '}
-        </p>
       </section>
 
       {/* ── 요약 패널 3열 ─────────────────────────── */}
@@ -473,11 +393,47 @@ function Report({ books, profile, tones, basis, declaredTags, topGenres }: {
         </section>
       </div>
 
+      {/* ── 콘텐츠 2장 — 리포트를 다 읽은 뒤의 다음 걸음 ── */}
+      <section className="dnar-plays">
+        <div className="dnar-sechead">
+          <h2 className="dnar-title">리포트를 덮고, 한 번 해 볼까요?</h2>
+          <span className="dnar-utility">둘 다 지금 바로 할 수 있어요</span>
+        </div>
+        <ul className="dnar-tests">
+          {TESTS.map((t, i) => (
+            <li key={t.id}>
+              <button
+                type="button"
+                className="dnar-test"
+                style={{ ['--tone' as string]: tones?.[i] ?? 'var(--eo-ink-faint)' }}
+                onClick={() => {
+                  const why = blockedReason(t)
+                  if (why) return setPending(why)
+                  setPending(null)
+                  setOpen(t.id as 'gacha' | 'worldcup')
+                }}
+              >
+                <div className="dnar-test__body">
+                  <span className="dnar-test__no">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="dnar-test__kicker">{t.kicker}</span>
+                  <h3 className="dnar-test__name">{t.name}</h3>
+                  <p className="dnar-test__desc">{t.desc}</p>
+                  <span className="dnar-utility dnar-test__from">{t.from}</span>
+                  <span className="dnar-test__go">시작하기 →</span>
+                </div>
+                <svg className="dnar-test__art" viewBox="0 0 120 44" aria-hidden="true">
+                  {TEST_ART[t.id]}
+                </svg>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p className="dnar-note" role="status">
+          {pending ?? ' '}
+        </p>
+      </section>
       {open === 'gacha' && <BookGacha pool={gachaPool} axes={profile.axes} onClose={() => setOpen(null)} />}
-      {open === 'worldcup' && (
-        <BookWorldCup pool={pool} topAxis={profile.topAxis} onClose={() => setOpen(null)} />
-      )}
-      {open === 'saju' && <SajuBooks pool={pool} onClose={() => setOpen(null)} />}
+      {open === 'worldcup' && <BookWorldCup pool={pool} topAxis={profile.topAxis} onClose={() => setOpen(null)} />}
     </>
   )
 }

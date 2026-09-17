@@ -201,11 +201,16 @@
   margin-bottom: 24px;
 }
 
-/* ---------- 테스트 카드 4장 ---------- */
+/* ---------- 콘텐츠 카드 2장 ----------
+   넷이던 카드가 둘로 줄었다. 같은 세로 카드를 그대로 두고 칸만 넓히면 글이 위에
+   몰리고 아래가 텅 빈다. 그래서 카드 안을 [글 | 그림] 두 칸으로 눕혀, 넓어진 폭을
+   그림이 받게 했다. 지면의 마지막 단이라 위쪽 규칙선이 리포트와 놀거리를 가른다. */
+
+.dnar-plays { margin-top: 56px; }
 
 .dnar-tests {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 18px;
   list-style: none;
   margin: 0;
@@ -213,17 +218,31 @@
 }
 .dnar-test {
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 24px;
   width: 100%;
-  min-height: 250px;
-  padding: 20px 18px;
+  /* 설명 길이가 달라도 두 장의 키는 같아야 한다 — li 는 늘어나지만 버튼은 스스로 늘지 않는다 */
+  height: 100%;
+  min-height: 210px;
+  padding: 22px 22px 20px;
   border: 1px solid var(--eo-rule-soft);
   background: var(--eo-paper);
   text-align: left;
   cursor: pointer;
   transition: border-color var(--eo-motion) ease-out, transform var(--eo-motion) ease-out;
 }
+/* 글 칸 — 번호·영문 라벨·제목·설명·출처를 쌓고, 시작하기는 바닥에 붙인다 */
+.dnar-test__body {
+  display: grid;
+  grid-template-rows: auto auto auto auto auto 1fr;
+  align-content: start;
+  gap: 10px;
+  height: 100%;
+}
+/* 후보를 어디서 뽑는지 — 두 콘텐츠의 성격이 여기서 갈린다 */
+.dnar-test__from { align-self: start; }
+.dnar-test__go { align-self: end; }
 .dnar-test:hover { border-color: var(--eo-ink); transform: translateY(-3px); }
 .dnar-test:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
 .dnar-test__no {
@@ -243,7 +262,7 @@
 }
 .dnar-test__name { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.03em; }
 .dnar-test__desc { margin: 0; font-size: 12px; line-height: 1.6; color: var(--eo-ink-muted); text-wrap: pretty; word-break: keep-all; }
-.dnar-test__art { align-self: end; height: 44px; color: var(--tone, var(--eo-ink-faint)); }
+.dnar-test__art { align-self: end; width: 120px; height: 44px; color: var(--tone, var(--eo-ink-faint)); }
 .dnar-test__go { font-size: 12px; font-weight: 650; letter-spacing: -0.02em; }
 .dnar-test:hover .dnar-test__go { text-decoration: underline; text-underline-offset: 3px; }
 .dnar-note { margin: 14px 0 0; font-size: 11px; color: var(--eo-ink-muted); }
@@ -445,14 +464,15 @@
   .dnar-basis { justify-items: start; text-align: left; }
   .dnar-hero__whisper { text-align: left; }
   .dnar-metrics { max-width: 420px; }
-  .dnar-tests { grid-template-columns: repeat(2, 1fr); }
   .dnar-bottom { grid-template-columns: 1fr 1fr; }
   .dnar-panel--type { grid-column: 1 / -1; }
 }
 @media (max-width: 640px) {
   .dnar-hero { grid-template-columns: 1fr; padding: 28px 0 36px; }
   .dnar-tests { grid-template-columns: 1fr; }
-  .dnar-test { min-height: 0; }
+  /* 좁은 화면에서는 눕힌 카드를 다시 세운다 — 그림에 줄 가로 폭이 없다 */
+  .dnar-test { grid-template-columns: 1fr; min-height: 0; gap: 14px; }
+  .dnar-plays { margin-top: 40px; }
   .dnar-bottom { grid-template-columns: 1fr; }
   .dnar-type__mark { display: none; }
 }
@@ -519,8 +539,7 @@
 }
 
 /* 콘텐츠 본체 — 껍데기의 남은 높이를 받아 가운데 정렬한다 */
-.dnar-gacha,
-.dnar-saju {
+.dnar-gacha {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -661,8 +680,7 @@
 
 /* ---------- 완전 랜덤 가챠 (01번 콘텐츠) ---------- */
 
-.dnar-gacha__lead,
-.dnar-saju__lead {
+.dnar-gacha__lead {
   margin: 0;
   max-width: 32em;
   font-size: 12px;
@@ -670,12 +688,10 @@
   color: var(--eo-ink-muted);
   word-break: keep-all;
 }
-.dnar-gacha__lead b,
-.dnar-saju__lead b { color: var(--eo-ink); font-weight: 650; }
+.dnar-gacha__lead b { color: var(--eo-ink); font-weight: 650; }
 
 /* 하나뿐인 결정적 CTA라 캡슐을 허용한다 (DESIGN.md Shapes) */
-.dnar-gacha__pull,
-.dnar-saju__submit {
+.dnar-gacha__pull {
   height: 40px;
   padding: 0 28px;
   border: 0;
@@ -688,11 +704,8 @@
   cursor: pointer;
   transition: transform var(--eo-motion) ease-out;
 }
-.dnar-gacha__pull:hover,
-.dnar-saju__submit:hover:not(:disabled) { transform: translateY(-2px); }
-.dnar-gacha__pull:focus-visible,
-.dnar-saju__submit:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
-.dnar-saju__submit:disabled { opacity: 0.35; cursor: default; }
+.dnar-gacha__pull:hover { transform: translateY(-2px); }
+.dnar-gacha__pull:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
 
 /* 표지가 바뀌며 돌아가는 자리. 높이를 미리 잡아 두지 않으면 당첨 순간 지면이 튄다 */
 .dnar-gacha__slot {
@@ -739,80 +752,7 @@
 }
 .dnar-gacha__verdict b { color: var(--eo-ink); font-weight: 650; }
 
-/* ---------- 사주 기반 추천 (03번 콘텐츠) ---------- */
-
-.dnar-saju__form { display: grid; justify-items: center; gap: 14px; }
-
-/* 날짜 입력 — 상자 대신 밑줄 하나 (DESIGN.md: 박스 테두리보다 밑줄) */
-.dnar-saju__field { display: grid; justify-items: center; gap: 6px; }
-.dnar-saju__field input {
-  height: 40px;
-  padding: 0 2px;
-  border: 0;
-  border-bottom: 1px solid var(--eo-rule);
-  background: transparent;
-  color: var(--eo-ink);
-  font: inherit;
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-.dnar-saju__field input:focus-visible { outline: none; border-bottom-color: var(--eo-ink); border-bottom-width: 2px; }
-
-.dnar-saju__disclaimer { max-width: 30em; line-height: 1.6; word-break: keep-all; }
-
-.dnar-saju__result { display: grid; justify-items: center; gap: 8px; }
-.dnar-saju__pillar {
-  margin: 0;
-  font-family: var(--font-serif-ko);
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: -0.045em;
-}
-.dnar-saju__nature {
-  margin: 0;
-  max-width: 30em;
-  font-size: 12px;
-  line-height: 1.85;
-  color: var(--eo-ink-muted);
-  word-break: keep-all;
-}
-.dnar-saju__nature b { color: var(--eo-ink); font-weight: 650; }
-.dnar-saju__bridge { max-width: 30em; margin: 2px 0 0; line-height: 1.6; word-break: keep-all; }
-.dnar-saju__bridge b { color: var(--eo-ink-muted); font-weight: 650; }
-
-.dnar-saju__books {
-  display: flex;
-  justify-content: center;
-  gap: 18px;
-  flex-wrap: wrap;
-  list-style: none;
-  margin: 18px 0 0;
-  padding: 0;
-}
-.dnar-saju__books li { display: grid; justify-items: center; gap: 8px; width: 150px; }
-.dnar-saju__books img {
-  width: 100%;
-  aspect-ratio: 0.7;
-  object-fit: cover;
-  background: var(--eo-placeholder);
-  outline: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.15);
-}
-.dnar-saju__book-title {
-  font-size: 12px;
-  font-weight: 650;
-  line-height: 1.35;
-  word-break: keep-all;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.dnar-saju__book-meta { font-size: 11px; color: var(--eo-ink-muted); }
-
 @media (prefers-reduced-motion: reduce) {
-  .dnar-gacha__pull:hover,
-  .dnar-saju__submit:hover:not(:disabled) { transform: none; }
+  .dnar-gacha__pull:hover { transform: none; }
   .dnar-gacha__slot:not(.is-spinning) img { animation: none; }
 }
