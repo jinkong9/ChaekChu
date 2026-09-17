@@ -501,6 +501,33 @@ AI 에 닿지 못하면 `503 RECOMMENDATION_UNAVAILABLE` 이다. 상세 화면�
 
 <br/>
 
+### 4.8 `GET /books/random?exclude=` ● (09-17 구현)
+
+가챠 — **표지와 KDC 가 있는 추천 후보** 중 무작위 한 권. 요청마다 새로 뽑는다. 응답은 `BookSummary`(§1.5) **단일 객체**(봉투 없음).
+`classNo` 는 프론트가 이미 화면에 있는 DNA 레이더 축 점수(`GET /users/me/dna`)와 대조해 「취향 정중앙 / 가장자리 / 완전히 새 영역」 문구를 동기 계산으로 만드는 데 쓴다 —
+서버는 AI 도 다른 API 도 부르지 않는다.
+
+| 항목 | 규칙 |
+| --- | --- |
+| 모집단 | `books.is_candidate = true AND cover_url 있음 AND category_code 있음`. 후보(약 44만)만으로는 부족하다 — 후보 제외 규칙 `NO_SIGNAL` 이 소개·표지·키워드·관계 중 하나만 있어도 통과시켜 표지 없는 후보가 있고, 가챠는 표지를 300px 로 크게 띄우기 때문. KDC 없는 후보(운영 41만 중 23권)도 뺀다 — 프론트가 `classNo` 로 축 대조를 하니 없으면 판정 문구를 못 만든다(09-17 리뷰) |
+| `exclude` | 선택. 직전에 뽑힌 `bookId` 하나. 있으면 그 책은 빠진다. 연속 호출에서 같은 책이 나올 확률은 모집단 역수(0.001% 안팎)라 서버는 이력을 저장하지 않고, 그 확률까지 0 으로 막고 싶은 화면이 붙인다 |
+| 없음 | 모집단이 비면 `404 BOOK_NOT_FOUND`. 운영에서는 나지 않는다 — 후보 배치를 안 돌린 로컬 DB용 |
+| 형식 오류 | `exclude` 가 숫자가 아니면 `400 VALIDATION_FAILED` · `details.fields[{ field: "exclude" }]` |
+| 캐시 | `Cache-Control: no-store`. 같은 URL 의 GET 이라 어디서든 캐시되면 「매번 다른 책」이 깨진다 |
+
+```json
+GET /books/random?exclude=88123
+→ BookSummary
+```
+
+구현 메모 (2026-09-17):
+- **두 단계로 뽑는다.** ① `books TABLESAMPLE SYSTEM (0.5)` — 테이블 페이지의 0.5% 만 무작위로 읽고(운영 331만 행이면 1.5만~2만 행) 그 안에서 모집단 조건을 건 뒤 `ORDER BY random() LIMIT 1`. 읽는 양이 전체의 0.5% 라 cold 여도 100ms 안이고, 운영 규모에서는 표본 안에 적격 행이 천 단위라 비지 않는다. ② 표본이 비면(행이 몇 개뿐인 로컬·테스트 DB) 전체에서 같은 조건으로 `ORDER BY random() LIMIT 1` — 후보 부분 인덱스(`idx_books_candidate_id`)를 타고 `id` 만 뽑아 정렬해 소개문 같은 큰 컬럼이 정렬에 끼지 않게 한다. 표본 없이 바로 전체 `ORDER BY random()` 을 걸면 후보 44만 행의 표지 여부를 전부 확인해야 해서 warm 200~300ms, cold 1초 이상이다.
+- **공정성**: 모든 적격 책의 페이지가 같은 확률로 표본에 들고 표본 안에서 다시 균등하게 고르므로 책마다 거의 같은 확률이다. 페이지 안에 적격 책이 몇 권 몰려 있는지는 확률에 영향을 주지 않는다.
+- `is_candidate` 는 배치가 채우는 컬럼(V5)이라 `Book` 엔티티에 매핑하지 않았다 — 네이티브 쿼리다. `exclude` 가 없으면 `-1` 을 묶는다(null 을 묶으면 PG 가 파라미터 타입을 못 정한다).
+- 표지 URL 이 죽은 링크인지는 서버가 판별하지 않는다(프론트 `lib/coverUrl.ts` 영역). 마이그레이션·엔티티 변경·ES 모두 무관.
+
+<br/>
+
 ## 5. 추천
 
 ### 5.1 `GET /recommendations?size=&tags=` ●
