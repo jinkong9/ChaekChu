@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
 type KnobPointerEvent = ReactPointerEvent<SVGCircleElement>
+type Point = { x: number; y: number }
 
 /** 손잡이를 이만큼 돌리면 뽑힌다. 한 바퀴를 요구하면 화면 위 26px짜리 원을 끊기지 않게
  *  끝까지 끌어야 해서 사실상 안 돌아간다 — 3분의 1바퀴면 '돌렸다'는 느낌은 그대로다. */
@@ -68,7 +69,7 @@ export function GachaMachineArt({ angle = 0, onKnobDown, onKnobMove, onKnobEnd }
 
 export default function GachaMachine({ onPull, disabled, spinning = false }: { onPull: () => void; disabled?: boolean; spinning?: boolean }) {
   const [angle, setAngle] = useState(0)
-  const drag = useRef<{ pointerId: number; last: number; rotation: number } | null>(null)
+  const drag = useRef<{ pointerId: number; center: Point | null; last: number; rotation: number } | null>(null)
   const finishTimer = useRef<number | null>(null)
   const finishing = useRef(false)
 
@@ -87,25 +88,30 @@ export default function GachaMachine({ onPull, disabled, spinning = false }: { o
     }, delay)
   }
 
-  const pointerAngle = (event: KnobPointerEvent) => {
+  /** 손잡이 중심의 화면 좌표. 끄는 동안 기계는 제자리에 있으므로 누를 때 한 번만 잰다 —
+   *  pointermove 마다 getBoundingClientRect 를 부르면 그때마다 레이아웃을 강제로 다시 계산한다. */
+  const knobCenter = (event: KnobPointerEvent): Point | null => {
     const svg = event.currentTarget.ownerSVGElement
-    if (!svg) return 0
+    if (!svg) return null
     const box = svg.getBoundingClientRect()
-    const art = ART
-    return Math.atan2(event.clientY - (box.top + box.height * art.knobY / 480), event.clientX - (box.left + box.width * art.knobX / 320)) * 180 / Math.PI
+    return { x: box.left + box.width * ART.knobX / 320, y: box.top + box.height * ART.knobY / 480 }
   }
+
+  const angleFrom = (center: Point | null, event: KnobPointerEvent) =>
+    center ? Math.atan2(event.clientY - center.y, event.clientX - center.x) * 180 / Math.PI : 0
 
   const handleDown = (event: KnobPointerEvent) => {
     if (disabled || finishing.current) return
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
-    drag.current = { pointerId: event.pointerId, last: pointerAngle(event), rotation: 0 }
+    const center = knobCenter(event)
+    drag.current = { pointerId: event.pointerId, center, last: angleFrom(center, event), rotation: 0 }
   }
 
   const handleMove = (event: KnobPointerEvent) => {
     const current = drag.current
     if (!current || current.pointerId !== event.pointerId) return
-    const next = pointerAngle(event)
+    const next = angleFrom(current.center, event)
     let delta = next - current.last
     if (delta > 180) delta -= 360
     if (delta < -180) delta += 360

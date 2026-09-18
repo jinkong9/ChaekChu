@@ -297,6 +297,25 @@ export default function PopularRingCanvas({
         () => canvas.removeEventListener('wheel', onWheel),
       )
 
+      // 라벨 크기를 매 프레임 재면, 바로 아래에서 하는 style 쓰기와 읽기가 번갈아
+      // 일어나 라벨 수만큼 강제 동기 레이아웃이 발생한다. 크기가 실제로 변하는 때는
+      // 뷰포트 폭(font-size 의 vw clamp), is-active 의 font-weight 450/700, 글꼴 로딩
+      // 뿐이므로 그때만 한 번에 모아서 잰다 — 쓰기 전에 읽기를 몰아 두면 그 프레임의
+      // 레이아웃도 한 번으로 끝난다.
+      // ResizeObserver 로는 안 된다. 라벨은 배치가 끝날 때까지 visibility:hidden 인데
+      // 숨은 요소에는 콜백이 오지 않아, 영영 배치되지 않는 교착이 된다.
+      const labelSizes = new Map<Element, { width: number; height: number }>()
+      let labelsDirty = true
+      let lastActiveId: string | null = null
+      const measureLabels = () => {
+        labelRefs.current.forEach((label) => {
+          if (label) labelSizes.set(label, { width: label.offsetWidth, height: label.offsetHeight })
+        })
+        labelsDirty = false
+      }
+      // 웹폰트가 늦게 붙으면 글자 폭이 달라진다
+      void document.fonts?.ready.then(() => { labelsDirty = true })
+
       nextApp.ticker.add((ticker) => {
         const dt = Math.min(ticker.deltaMS / 1000, 0.05)
         const snapTarget = snapTargetRef.current
@@ -350,6 +369,7 @@ export default function PopularRingCanvas({
           geometryOwner.style.setProperty('--popular-wordmark-shift', `${radiusY * -0.1}px`)
           geometryOwner.style.setProperty('--popular-preview-shift', `${radiusY * -0.14}px`)
           lastGeometryKey = geometryKey
+          labelsDirty = true
         }
 
         slots.forEach((slot) => {
@@ -381,6 +401,13 @@ export default function PopularRingCanvas({
           slot.placeholder.visible = !slot.cover
         })
 
+        // is-active 가 옮겨 가면 font-weight 가 바뀌어 폭이 달라진다
+        if (activeRef.current !== lastActiveId) {
+          lastActiveId = activeRef.current
+          labelsDirty = true
+        }
+        if (labelsDirty) measureLabels()
+
         let positionedLabelCount = 0
         segments.forEach((segment, index) => {
           const label = labelRefs.current[index]
@@ -397,8 +424,11 @@ export default function PopularRingCanvas({
           const normalLength = Math.hypot(cosine / radiusX, sine / radiusY) || 1
           const normalX = (cosine / radiusX) / normalLength
           const normalY = (sine / radiusY) / normalLength
-          const labelWidth = label.offsetWidth
-          const labelHeight = label.offsetHeight
+          const measured = labelSizes.get(label)
+          // 아직 관측 전인 라벨은 이번 프레임을 건너뛴다 — is-ready 도 그만큼 미뤄진다.
+          if (!measured) return
+          const labelWidth = measured.width
+          const labelHeight = measured.height
           const labelHalfExtent = Math.abs(normalX) * labelWidth * 0.5
             + Math.abs(normalY) * labelHeight * 0.5
 

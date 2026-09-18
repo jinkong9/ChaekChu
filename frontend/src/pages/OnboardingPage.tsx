@@ -76,7 +76,7 @@ export default function OnboardingPage() {
             <span className="text-[10px] tabular-nums text-ink-faint">{Math.round(((step + 1) / STEP_COUNT) * 100)}%</span>
           </div>
           <div className="eo-meter mt-2.5" role="presentation">
-            <span style={{ width: `${((step + 1) / STEP_COUNT) * 100}%` }} />
+            <span style={{ transform: `scaleX(${(step + 1) / STEP_COUNT})` }} />
           </div>
         </header>
 
