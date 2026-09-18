@@ -33,18 +33,24 @@ public class BookIndexRowRepository {
 	 * 파라미터 순서: CTE 안의 조건(where) → LIMIT → 그 다음 JOIN 의 as_of_month.
 	 */
 	/**
-	 * V5(09-15)부터 색인 대상은 books.catalog_layer 가 있는 행 = 기존 L1(누적 대출 72+ ∪ 신간, 약 105만 권)만이다.
-	 * L0 만 구간 226만 권은 93% 가 소개·표지가 없어 검색 결과에 빈 카드로만 나왔다(09-14 전수조사). 행은 그대로 있으므로 ISBN·상세·찜은 영향 없다.
-	 * 추천 후보(is_candidate, 약 44만)는 이보다 좁지만 검색은 L1 전체를 유지한다 — 사용자가 아는 책은 찾혀야 한다.
-	 * 부분 인덱스 idx_books_searchable_id (id) WHERE catalog_layer IS NOT NULL 을 탄다. countBooks 도 같은 조건이어야 「ES 문서 수 == PG 행수」완전성 검사가 맞는다.
+	 * V11(09-18)부터 색인 대상은 books.is_searchable 인 행이다. V5 의 층 조건(catalog_layer 있음)을 대체한다.
+	 *
+	 * 층에 속하더라도 아래는 검색에서도 뺀다 — 운영 화면에서 발견해 09-18 에 정했다.
+	 *   NO_HOLDING  도서관이 한 곳도 소장하지 않은 책(원장에 없음). 신간 트랙이 국중 서지만 보고 뽑아 들어왔다 — 신간 면제는 「대출 횟수」에 대한 것이지 소장 여부가 아니다
+	 *   EBOOK       종이책과 나란히 떠서 같은 책이 둘로 보였다 (달러구트: 종이 17,800원 / 전자 13,000원)
+	 *   TEXTBOOK · STUDY_AID  교과서·문제집·수험서는 검색 결과로도 부적절하다
+	 * NO_SIGNAL(소개·표지·키워드·관계 전부 없음)만 검색을 막지 않는다 — 서지만 있어도 제목으로 찾는 것은 되어야 한다. 추천 후보(is_candidate)에서는 계속 뺀다.
+	 *
+	 * 부분 인덱스 idx_books_searchable_id (id) WHERE is_searchable 을 탄다.
+	 * countBooks 도 같은 조건이어야 「ES 문서 수 == PG 행수」완전성 검사가 맞는다.
 	 */
-	private static final String SEARCH_LAYER_ONLY = "   where catalog_layer is not null\n";
+	private static final String SEARCHABLE_ONLY = "   where is_searchable\n";
 
 	private static final String BATCH_HEAD = """
 		with batch as materialized (
 		  select id, isbn13, title, author, publisher, pub_year, category_code, cover_url, vol, updated_at
 		    from books
-		""" + SEARCH_LAYER_ONLY;
+		""" + SEARCHABLE_ONLY;
 
 	private static final String BATCH_TAIL = """
 		   order by id
@@ -85,9 +91,9 @@ public class BookIndexRowRepository {
 			ROW_MAPPER, Timestamp.from(since), lastId, limit, demandMonth);
 	}
 
-	/** 색인 완전성 검증용 — populateAndSwitch 가 ES 문서 수와 비교한다. 색인 대상(catalog_layer 있음)만 센다. */
+	/** 색인 완전성 검증용 — populateAndSwitch 가 ES 문서 수와 비교한다. 색인 대상(is_searchable)만 센다. */
 	public long countBooks() throws DataAccessException {
-		Long count = jdbc.queryForObject("select count(*) from books where catalog_layer is not null", Long.class);
+		Long count = jdbc.queryForObject("select count(*) from books where is_searchable", Long.class);
 		return count == null ? 0 : count;
 	}
 

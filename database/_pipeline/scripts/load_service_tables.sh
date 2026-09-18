@@ -163,19 +163,22 @@ fi
 # ── V5 후보 층 (build_candidates.py 의 candidates.csv · 컬럼이 있을 때만) ───────────────
 has_column() { "${PSQL[@]}" -tAc "select 1 from information_schema.columns where table_name='$1' and column_name='$2'" | grep -q 1; }
 
-if want candidates && [[ -f "$DIR/candidates.csv" ]] && has_column books is_candidate; then
-  say "candidates ← $DIR/candidates.csv (books.catalog_layer[검색 층 CORE/NEW/TAIL] · is_candidate[추천 후보] · candidate_exclusion 전체 다시 계산)"
-  # ∵ 층·후보는 임계·규칙으로 통째로 파생되는 값 — 먼저 전부 비우고(L0 만 = NULL/false) L1 만 다시 채운다. 빠진 책이 층·후보로 남지 않게.
+if want candidates && [[ -f "$DIR/candidates.csv" ]] && has_column books is_searchable; then
+  say "candidates ← $DIR/candidates.csv (books.catalog_layer · is_searchable[검색 노출] · is_candidate[추천 후보] · candidate_exclusion 전체 다시 계산)"
+  # ∵ 층·노출·후보는 임계·규칙으로 통째로 파생되는 값 — 먼저 전부 비우고(L0 만 = NULL/false) L1 만 다시 채운다. 빠진 책이 남지 않게.
   POST_SQL='
-update books set catalog_layer = null, is_candidate = false, candidate_exclusion = null
- where catalog_layer is not null or is_candidate or candidate_exclusion is not null;
-update books b set catalog_layer = s.layer, is_candidate = s.include, candidate_exclusion = nullif(s.exclude_reason, '"''"')
+update books set catalog_layer = null, is_searchable = false, is_candidate = false, candidate_exclusion = null
+ where catalog_layer is not null or is_searchable or is_candidate or candidate_exclusion is not null;
+update books b set catalog_layer = s.layer, is_searchable = s.searchable, is_candidate = s.include,
+       candidate_exclusion = nullif(s.exclude_reason, '"''"')
   from stg_cand s where b.isbn13 = s.isbn13;
 analyze books;
-select catalog_layer, is_candidate, coalesce(candidate_exclusion, '"'-'"') exclusion, count(*) from books where catalog_layer is not null group by 1, 2, 3 order by 1, 2 desc, 3;'
-  stream 'create temp table stg_cand (isbn13 char(13), layer char(4), loan_cum bigint, pub_year varchar(10), include boolean, exclude_reason varchar(12),
+select catalog_layer, is_searchable, is_candidate, coalesce(candidate_exclusion, '"'-'"') exclusion, count(*)
+  from books where catalog_layer is not null group by 1, 2, 3, 4 order by 1, 2 desc, 3 desc, 4;'
+  stream 'create temp table stg_cand (isbn13 char(13), layer char(4), loan_cum bigint, holder_libs integer, pub_year varchar(10),
+  searchable boolean, include boolean, exclude_reason varchar(12),
   has_desc boolean, has_cover boolean, has_keywords boolean, has_relations boolean);
 \copy stg_cand from stdin with (format csv, header true)' tr -d '\r' < "$DIR/candidates.csv"
-  say "검색 층(catalog_layer)=$("${PSQL[@]}" -tAc "select count(*) from books where catalog_layer is not null") · 추천 후보(is_candidate)=$("${PSQL[@]}" -tAc "select count(*) from books where is_candidate")"
+  say "검색 노출(is_searchable)=$("${PSQL[@]}" -tAc "select count(*) from books where is_searchable") · 추천 후보(is_candidate)=$("${PSQL[@]}" -tAc "select count(*) from books where is_candidate")"
 fi
 say "완료"

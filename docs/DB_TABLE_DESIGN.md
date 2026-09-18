@@ -16,6 +16,7 @@
 | **V3** | **`docs/sql/V3__events_and_recommendation_snapshot.sql`** (09-11) | 추천 스냅샷을 쓸 수 있게 — `recommendations.public_id`·`index_version`, `recommendation_items.ck_ri_reason` 확대(AI 계약값), `user_actions` 의 `display_position`·`session_id`·`payload` + `DISMISS`·`SEARCH` |
 | **V4** | **`docs/sql/V4__drop_book_embeddings.sql`** (09-11) | `book_embeddings` 제거. 벡터는 Qdrant 가 보관한다 — 08-31 운영안 §7.3 이 애초에 만들지 말라고 정해 둔 표를 V2 가 만들었고, 쓰는 코드는 없었다 |
 | **V5** | **`docs/sql/V5__candidate_layer.sql`** (09-15 적용 — 로컬·EC2, Flyway CLI) | `books.catalog_layer`(CORE/NEW/TAIL/NULL) · `is_candidate` · `candidate_exclusion` + 부분 인덱스 2개. **검색 색인 = catalog_layer 있음 = 기존 L1 1,047,435권** · **추천 후보 = is_candidate 440,757권**(누적 대출 90% 커버리지 843+ ∪ 신간 − 전자책·교과서·학습참고서·신호 없음). books 331만 행은 메타데이터로 그대로. 값은 `build_candidates.py` → `load_service_tables.sh --only candidates` |
+| **V11** | **`docs/sql/V11__catalog_exclusion_rules.sql`** (09-18 적용 — 로컬·EC2, Flyway CLI) | `books.is_searchable` + CHECK 2개 + 부분 인덱스 교체. **검색 노출 = is_searchable 976,246** (층 1,047,435 − 소장 0개관 58,222 · 수험서 8,189 · 전자책 4,026 · 교과서 752) · **추천 후보 = is_candidate 406,451**. 결정 7 |
 | **V6** | `V6__books_volume.sql` (09-15) | `books.vol`(원장 권차) · `set_isbn`(세트 대표 ISBN). 시리즈 판본 접기용. 적용 뒤 원장 파케이에서 백필 |
 | **V7** | `V7__books_series_lookup_index.sql` (09-16) | `(lower(title), publisher) WHERE vol IS NOT NULL` 인덱스 — 권차가 진짜 권차인지 가리는 조회용 |
 | **V8** | **`docs/sql/V8__user_dna_profiles.sql`** (09-16) | `user_dna_profiles` — Book DNA 프로필 저장(사용자당 1행, JSONB). 서재 지문이 같으면 AI 호출 생략, AI 장애 시 마지막 프로필 반환(계약 §5·§6) |
@@ -163,6 +164,7 @@ CREATE TABLE books (
     --   1단계 소개 없음 41,541권 중 6,649권(16%) 회복. 비용 0.
     --   NULL = 둘 다 없음. 빈 문자열로 두지 않는다 — content_status 판정이 흐려진다.
     catalog_layer      CHAR(4),
+    is_searchable      BOOLEAN      NOT NULL DEFAULT FALSE,
     is_candidate       BOOLEAN      NOT NULL DEFAULT FALSE,
     candidate_exclusion VARCHAR(12),
     -- ∵ (V5, 09-15) 「어느 책을 ES 에 색인하는가」와 「어느 책을 추천 후보로 쓰는가」. L0 만 구간 226만 권은 93% 가 소개·표지가 없고 수요의 0.97% 라

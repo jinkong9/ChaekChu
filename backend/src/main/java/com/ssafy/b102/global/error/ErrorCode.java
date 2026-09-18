@@ -23,6 +23,7 @@ public enum ErrorCode {
 	SEARCH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "검색 서비스를 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	RECOMMENDATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "추천 서비스를 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	DNA_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Book DNA 서비스를 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+	WORLD_CUP_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "책 이상형 월드컵을 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 
 	private final HttpStatus status;

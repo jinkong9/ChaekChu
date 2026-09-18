@@ -27,6 +27,7 @@ L1 추천 후보 1,098,550종과 L0 카탈로그를 만드는 데 실제로 들�
 | `data4library/segment_popular_202608.jsonl` | 1 MB | 정보나루 `loanItemSrch` 연령×성별 12세그먼트 × 100 (06~08월) → `book_loaned_top20` | 완료 09-09 |
 | `data4library/books_dedup.parquet` | 153 MB | **ISBN 단위 원장.** 2,953,587종 · 누적 19.7억 건 · **KDC 95.3%**(소수점 67.4%) · 서지 100%. 필터·랭킹·수집 우선순위의 근거 | 완료 |
 | `data4library/enrich_queue.csv` | 34 MB | **수집 우선순위 큐.** 1,098,550행 (1단계 343,399 / 신간 147,729 / 꼬리 607,422) | 완료 |
+| `candidates/2026-09-18/` | 550 MB | **현재 기준.** 결정 7(소장 0개관·전자책·교과서·수험서 제외) 반영 — `d4l_usage.candidates.jsonl.gz` 364M(추천 후보 406,073줄) · `kakao_enriched.candidates.jsonl.gz` 107M · `candidates.csv`(L1 1,047,435: layer · searchable · include · 제외 사유 · holder_libs) · `manifest.json`. EC2 동일 | **완료 09-18** |
 | `candidates/2026-09-15/` | 570 MB | **추천 후보 층(결정 6) + 검색 층 목록.** `d4l_usage.candidates.jsonl.gz` 394M(추천 후보 440,377줄, 정보나루 형식 그대로 — **추천 배치 `--input`**) · `kakao_enriched.candidates.jsonl.gz` 119M · `candidates.csv`(L1 1,047,435 전부: layer CORE/NEW/TAIL · include=추천 후보 · 제외 사유) · `manifest.json`(임계 843·규칙·SHA). EC2 `~/pipeline_data/candidates/2026-09-15/` 동일 | **완료 09-15** |
 
 <br/>

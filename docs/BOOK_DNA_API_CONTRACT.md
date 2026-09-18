@@ -242,3 +242,46 @@ DNA 실패가 검색·서재·추천 API까지 실패시키면 안 된다. 백�
   → #185 품질·통합 검증 ✅
   → #186 운영·버전·캐시 문서화 ✅
 ```
+
+## 8. 익명 책 이상형 월드컵 (S15P21B102-189)
+
+월드컵 후보는 사용자 서재가 아니라 Data4Library 후보 스냅샷의 `loan_total` 누적 대출 내림차순 상위 500권이다(동률은 ISBN13 오름차순). GMS는 오프라인에서
+기존 `desc` 소개를 1~2문장으로 요약할 때만 사용한다. 월드컵 세션과 선택 중에는 GMS를 호출하지 않는다.
+
+### 8.1 세션 API
+
+#### `POST /api/v1/users/me/dna/world-cup/sessions`
+
+JWT 사용자 전용 세션을 만들고 후보 16권을 무작위로 대진에 편성한다. 선택 화면의 `choices`에는 익명 `choiceId`와 `synopsis`만 있고, ISBN·제목·저자·표지·내부 bookId는 없다.
+
+```json
+{
+  "sessionId": "cdb708a0-43b7-49b2-9f03-c50d65c6c9bb",
+  "status": "IN_PROGRESS",
+  "roundSize": 16,
+  "roundNumber": 1,
+  "matchNumber": 1,
+  "matchesInRound": 8,
+  "choices": [
+    { "choiceId": "opaque-id-1", "synopsis": "낯선 마을에 온 아이가 새로운 친구를 만나며 용기를 배워 갑니다." },
+    { "choiceId": "opaque-id-2", "synopsis": "오래된 기록을 따라 한 인물의 선택과 시대의 변화를 좇습니다." }
+  ],
+  "champion": null
+}
+```
+
+#### `POST /api/v1/users/me/dna/world-cup/sessions/{sessionId}/picks`
+
+```json
+{ "choiceId": "opaque-id-1" }
+```
+
+선택 후 다음 대진을 같은 응답 형식으로 반환한다. 최종 선택까지 성공하면 `status: COMPLETED`, 빈 `choices`, 그리고 그때에만 `champion`으로 canonical BookSummary(제목·저자·표지 등)를 반환한다. 세션은 사용자 소유로 확인하고 DB 행 잠금으로 동시 중복 선택을 막으며 24시간 뒤 만료한다.
+
+### 8.2 배치와 저장
+
+`b102-recommendation worldcup-summaries`로 GMS 요약 sidecar를 생성하고, 검수한 `SUCCESS` 행만 `book_world_cup_synopses`에 적재한다. Flyway V10은 요약 정본·순위와 사용자별 세션 상태를 만든다. 출처 해시·요약 버전·모델 버전을 보존하며 원본 카탈로그를 수정하지 않는다.
+
+후보 선택은 소개가 있는 행만 대상으로 제목을 정규화해 중복 판본을 제거한 뒤 대출 건수 상위 N권을 선정한다. 같은 정규화 제목에서는 대출 건수가 가장 높은 판본을 대표로 사용하고, 동률은 ISBN13 오름차순으로 결정한다. 현재 선택 규칙과 제외·중복 통계는 [요약 배치 런북](BOOK_WORLD_CUP_SUMMARY_RUNBOOK.md)에 정의한다.
+
+EC2 실행 및 파일럿 검수·적재 절차는 [BOOK_WORLD_CUP_SUMMARY_RUNBOOK.md](BOOK_WORLD_CUP_SUMMARY_RUNBOOK.md)를 따른다. 20권 파일럿의 실제 크레딧 및 소개 품질을 확인한 후에만 500권 생성을 실행한다.
