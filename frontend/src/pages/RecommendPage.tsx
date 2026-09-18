@@ -280,13 +280,13 @@ export default function RecommendPage() {
 
         {/* 꺼낸 책의 태그 + 행동 — 우표 면을 깨지 않도록 밖에 둔다 */}
         <div className="mt-8 flex flex-col items-center gap-4 text-center">
-          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
-            {featured.tags.map((t) => <span key={t} className={`eo-tag eo-tag--bare eo-tag--md ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
-          </div>
           <p className="max-w-[46ch]">
             <span className="text-[15px] font-semibold">{featured.book.title}</span>
             {featured.book.author && <span className="text-[12px] text-ink-muted"> · {featured.book.author}</span>}
           </p>
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
+            {featured.tags.map((t) => <span key={t} className={`eo-tag eo-tag--bare eo-tag--md ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
+          </div>
           {/* 둘 다 캡슐이되 채운 쪽은 찜하기 하나 — 읽음은 테두리만 남긴 같은 판이라 자리는 같고 무게만 낮다.
               이미 담긴 쪽은 라벨이 과거형으로 바뀌고 눌린 상태(aria-pressed)가 된다 —
               다시 누르면 읽음은 기록 수정, 찜은 해제다. 해제는 라벨에 드러나지 않으므로 이름표로 알린다 */}
