@@ -1,0 +1,405 @@
+.onboarding {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  color: #222;
+  font-family: var(--eo-font);
+}
+
+.onboarding__shell {
+  position: relative;
+  z-index: 1;
+  width: min(100% - 64px, 1380px);
+  margin: 0 auto;
+  padding: 68px 0 60px;
+}
+
+.onboarding--step-2 .onboarding__shell {
+  width: min(100% - 48px, 720px);
+  padding-top: 86px;
+}
+
+.onboarding--step-3 .onboarding__shell {
+  width: min(100% - 80px, 1100px);
+  padding-top: 36px;
+}
+
+.onboarding__illustration {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  width: auto;
+  max-width: none;
+  pointer-events: none;
+}
+
+.onboarding__quote {
+  position: absolute;
+  z-index: 1;
+  top: 26%;
+  right: 27%;
+  margin: 0;
+  color: #777;
+  font-family: 'Noto Serif KR', Georgia, serif;
+  font-size: 17px;
+  line-height: 1.7;
+  letter-spacing: .02em;
+}
+.onboarding__quote span { display: block; margin-top: 8px; }
+
+.onboarding__progress { width: 560px; max-width: 100%; }
+.onboarding--step-2 .onboarding__progress,
+.onboarding--step-3 .onboarding__progress { width: 100%; }
+
+.onboarding__progress-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  color: #777b82;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .08em;
+}
+
+.onboarding__meter {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: #e9e9e9;
+}
+
+.onboarding__meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #252525;
+  transition: width 180ms ease;
+}
+
+.onboarding__content { position: relative; }
+.onboarding__content h1 {
+  margin: 0;
+  color: #202020;
+  font-weight: 750;
+  letter-spacing: -.055em;
+  line-height: 1.13;
+  word-break: keep-all;
+}
+
+.onboarding__content--profile { width: 628px; max-width: 100%; margin-top: 54px; }
+.onboarding__content--profile h1 { font-size: clamp(44px, 4.4vw, 70px); }
+.onboarding__content--genres { margin-top: 68px; }
+.onboarding__content--genres h1 { font-size: clamp(42px, 4.2vw, 64px); }
+.onboarding__content--books { margin-top: 34px; }
+.onboarding__content--books h1 { font-size: clamp(38px, 3.8vw, 52px); }
+
+.onboarding__lead {
+  margin: 16px 0 0;
+  color: #777b82;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.48;
+  word-break: keep-all;
+}
+
+.onboarding__form {
+  display: grid;
+  gap: 20px;
+  margin-top: 44px;
+}
+
+.onboarding__form-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.onboarding__form-row label {
+  font-size: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.onboarding__form-row input,
+.onboarding__form-row select {
+  width: 100%;
+  height: 58px;
+  padding: 0 20px;
+  border: 1px solid #d4d6db;
+  border-radius: 9px;
+  outline: none;
+  background: #fff;
+  color: #272727;
+  font-size: 18px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.onboarding__form-row input::placeholder { color: #a3a7ad; }
+.onboarding__form-row input:focus-visible,
+.onboarding__form-row select:focus-visible {
+  border-color: #303030;
+  box-shadow: 0 0 0 2px rgba(32, 32, 32, .13);
+}
+
+.onboarding__form-row select { cursor: pointer; }
+
+/* 생년월일 — 한 칸짜리 달력 대신 연·월·일 세 칸. 연도가 가장 길어 조금 넓게 둔다 */
+.onboarding__birth {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: 10px;
+}
+
+.onboarding__next {
+  display: flex;
+  width: 100%;
+  height: 64px;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border: 0;
+  border-radius: 7px;
+  background: #292929;
+  color: #fff;
+  font-size: 19px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.onboarding__next:hover:not(:disabled) { background: #444; transform: translateY(-1px); }
+.onboarding__next:disabled { cursor: not-allowed; }
+.onboarding__next span { font-size: 27px; font-weight: 300; line-height: 1; }
+.onboarding__next:focus-visible,
+.onboarding__genre:focus-visible,
+.onboarding__book-select:focus-visible,
+.onboarding__rating button:focus-visible { outline: 2px solid #222; outline-offset: 3px; }
+
+.onboarding__content--profile .onboarding__next { margin-top: 48px; }
+.onboarding__hint {
+  margin: 14px 0 0;
+  color: #8b8f96;
+  font-size: 16px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.onboarding__genres {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 16px 12px;
+  margin-top: 54px;
+}
+
+.onboarding__genre {
+  min-height: 70px;
+  padding: 8px;
+  border: 1px solid #d5d7dc;
+  border-radius: 9px;
+  background: #fff;
+  color: #303030;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.onboarding__genre:hover:not(:disabled) { border-color: #646464; }
+.onboarding__genre.is-selected {
+  border-color: #696969;
+  background: #f7f4ef;
+}
+.onboarding__genre:disabled { opacity: .45; cursor: not-allowed; }
+.onboarding__content--genres .onboarding__next { margin-top: 62px; }
+
+.onboarding__content--books .onboarding__lead { margin-top: 14px; font-size: 18px; }
+.onboarding__books {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 24px 24px;
+  margin-top: 28px;
+}
+.onboarding__book { min-width: 0; }
+.onboarding__book { width: min(100%, 126px); margin: 0 auto; }
+.onboarding__book-select {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.onboarding__cover {
+  display: block;
+  position: relative;
+  width: 100%;
+  aspect-ratio: .72;
+  overflow: hidden;
+  border: 1px solid #e3e3e3;
+  border-radius: 3px;
+  background: #f0f0ee;
+}
+.onboarding__cover.is-selected { border-color: #b99a69; box-shadow: 0 0 0 2px #fff inset, 0 0 0 1px #b99a69; }
+.onboarding__cover img { width: 100%; height: 100%; object-fit: cover; }
+.onboarding__cover-fallback {
+  display: grid;
+  height: 100%;
+  padding: 12px;
+  place-items: center;
+  color: #555;
+  font-size: 15px;
+  text-align: center;
+}
+.onboarding__check {
+  display: grid;
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff9ed;
+  color: #303030;
+  font-size: 19px;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .15);
+}
+.onboarding__book-title,
+.onboarding__book-author {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.onboarding__book-title { margin-top: 10px; font-size: 16px; font-weight: 650; }
+.onboarding__book-author { margin-top: 4px; color: #92969e; font-size: 14px; }
+.onboarding__rating { display: flex; gap: 3px; margin-top: 5px; }
+.onboarding__rating button {
+  padding: 0 1px;
+  border: 0;
+  background: none;
+  color: #d7d7d7;
+  font-size: 18px;
+  cursor: pointer;
+}
+.onboarding__rating button.is-active { color: #a7834c; }
+.onboarding__content--books .onboarding__next { width: min(100%, 760px); margin: 28px auto 0; }
+
+/* 노트북 높이에서도 12권과 완료 버튼이 한 화면 안에 놓이도록 세 번째 단계를 압축한다. */
+@media (min-width: 701px) and (max-height: 900px) {
+  .onboarding--step-1 .onboarding__shell { padding-top: 48px; padding-bottom: 30px; }
+  .onboarding__content--profile { margin-top: 38px; }
+  .onboarding__content--profile h1 { font-size: clamp(42px, 4vw, 62px); }
+  .onboarding__content--profile .onboarding__form { margin-top: 32px; gap: 14px; }
+  .onboarding__content--profile .onboarding__next { margin-top: 32px; }
+
+  .onboarding--step-2 .onboarding__shell { padding-top: 46px; padding-bottom: 28px; }
+  .onboarding__content--genres { margin-top: 48px; }
+  .onboarding__genres { margin-top: 36px; gap: 12px; }
+  .onboarding__genre { min-height: 60px; }
+  .onboarding__content--genres .onboarding__next { margin-top: 38px; }
+
+  .onboarding--step-3 .onboarding__shell { padding-top: 22px; padding-bottom: 18px; }
+  .onboarding__content--books { margin-top: 20px; }
+  .onboarding__content--books h1 { font-size: 44px; }
+  .onboarding__content--books .onboarding__lead { margin-top: 8px; font-size: 16px; line-height: 1.35; }
+  .onboarding__books { gap: 14px 20px; margin-top: 16px; }
+  .onboarding__book { width: min(100%, 110px); }
+  .onboarding__book-title { margin-top: 6px; font-size: 14px; }
+  .onboarding__book-author { margin-top: 2px; font-size: 12px; }
+  .onboarding__rating { margin-top: 2px; }
+  .onboarding__rating button { font-size: 16px; }
+  .onboarding__content--books .onboarding__next { height: 54px; margin-top: 18px; }
+  .onboarding__content--books .onboarding__hint { margin-top: 8px; font-size: 13px; }
+}
+
+@media (min-width: 701px) and (max-height: 800px) {
+  .onboarding--step-3 .onboarding__shell { padding-top: 16px; padding-bottom: 12px; }
+  .onboarding__content--books { margin-top: 16px; }
+  .onboarding__books { gap: 10px 16px; }
+  .onboarding__book { width: min(100%, 104px); }
+}
+
+@media (max-width: 1100px) {
+  .onboarding__illustration { right: -130px; opacity: .45; }
+  .onboarding--step-1 .onboarding__shell { width: min(100% - 64px, 760px); margin-left: 6vw; }
+  .onboarding__books { gap: 20px 16px; }
+}
+
+@media (max-width: 700px) {
+  .onboarding { overflow: visible; }
+  .onboarding__shell,
+  .onboarding--step-1 .onboarding__shell,
+  .onboarding--step-2 .onboarding__shell,
+  .onboarding--step-3 .onboarding__shell {
+    width: min(100% - 36px, 540px);
+    margin: 0 auto;
+    padding: 30px 0 48px;
+  }
+  .onboarding__illustration { display: none; }
+  .onboarding__quote { display: none; }
+  .onboarding__progress-labels { font-size: 12px; margin-bottom: 10px; }
+  .onboarding__meter { height: 5px; }
+  .onboarding__content--profile,
+  .onboarding__content--genres,
+  .onboarding__content--books { margin-top: 46px; }
+  .onboarding__content h1 { font-size: clamp(34px, 8vw, 46px); }
+  .onboarding__lead,
+  .onboarding__content--books .onboarding__lead { margin-top: 12px; font-size: 16px; }
+  .onboarding__form { margin-top: 36px; gap: 17px; }
+  .onboarding__form-row { grid-template-columns: 1fr; gap: 7px; }
+  .onboarding__form-row label { font-size: 15px; }
+  .onboarding__form-row input,
+  .onboarding__form-row select { height: 52px; font-size: 16px; }
+  .onboarding__birth { gap: 8px; }
+  .onboarding__birth select { padding: 0 12px; font-size: 15px; }
+  .onboarding__content--profile .onboarding__next { margin-top: 34px; }
+  .onboarding__genres { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 34px; }
+  .onboarding__genre { min-height: 56px; font-size: 15px; }
+  .onboarding__content--genres .onboarding__next { margin-top: 42px; }
+  .onboarding__books { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 12px; }
+  .onboarding__book-title { font-size: 13px; }
+  .onboarding__book-author { font-size: 12px; }
+  .onboarding__next { height: 56px; font-size: 17px; }
+  .onboarding__hint { font-size: 13px; }
+}
+
+@media (max-width: 700px) and (max-height: 760px) {
+  .onboarding__shell,
+  .onboarding--step-1 .onboarding__shell,
+  .onboarding--step-2 .onboarding__shell,
+  .onboarding--step-3 .onboarding__shell { padding-top: 14px; padding-bottom: 14px; }
+  .onboarding__content--profile,
+  .onboarding__content--genres,
+  .onboarding__content--books { margin-top: 26px; }
+  .onboarding__content--books { margin-top: 14px; }
+  .onboarding__content h1 { font-size: clamp(32px, 7.5vw, 40px); }
+  .onboarding__lead,
+  .onboarding__content--books .onboarding__lead { font-size: 14px; line-height: 1.35; }
+  .onboarding__form { margin-top: 22px; gap: 10px; }
+  .onboarding__form-row { gap: 4px; }
+  .onboarding__form-row label { font-size: 13px; }
+  .onboarding__form-row input,
+  .onboarding__form-row select { height: 46px; }
+  .onboarding__content--profile .onboarding__next { margin-top: 20px; }
+  .onboarding__genres { margin-top: 22px; gap: 8px; }
+  .onboarding__genre { min-height: 48px; }
+  .onboarding__content--genres .onboarding__next { margin-top: 24px; }
+  .onboarding__content--books .onboarding__lead { margin-top: 8px; }
+  .onboarding__books { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .onboarding__book { width: min(100%, 58px); }
+  .onboarding__book-title { margin-top: 4px; font-size: 11px; }
+  .onboarding__book-author { margin-top: 1px; font-size: 10px; }
+  .onboarding__check { top: 4px; right: 4px; width: 20px; height: 20px; font-size: 13px; }
+  .onboarding__rating { gap: 0; margin-top: 1px; }
+  .onboarding__rating button { padding: 0; font-size: 11px; }
+  .onboarding__content--books .onboarding__next { height: 48px; margin-top: 8px; }
+  .onboarding__content--books .onboarding__hint { display: none; }
+  .onboarding__next { height: 50px; }
+  .onboarding__hint { margin-top: 8px; font-size: 12px; }
+}
