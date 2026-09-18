@@ -847,16 +847,6 @@
 
 .libd-rate__pages { color: rgba(23, 32, 57, 0.45); white-space: nowrap; }
 
-.libd-rate__link {
-  margin-left: auto;
-  border-bottom: 1px dashed rgba(23, 32, 57, 0.32);
-  color: rgba(23, 32, 57, 0.45);
-  white-space: nowrap;
-  transition: color 140ms ease, border-color 140ms ease;
-}
-
-.libd-rate__link:hover { color: var(--cobalt); border-color: var(--cobalt); }
-
 /* ── 찜 · 장르별 책장 — 선반을 이 무대 위로 ─────────────────── */
 .libd-shelf { position: relative; z-index: 10; padding: 10px 34px 56px; }
 .libd-shelf__row + .libd-shelf__row { margin-top: 20px; }
@@ -1079,8 +1069,34 @@
 }
 
 /* 표지 한 면과 기록 한 면. 책의 크기와 넘김은 기존 무대를 따른다. */
-.libd-face--cover { padding: 7.5% 8.5% 12%; }
+.libd-face--cover { padding: 7.5% 8.5% 8%; }
+/* 표지 아래로 상세 보기 한 줄이 들어온다 — 표지가 그 몫만큼 자리를 내준다 */
+.libd-face--cover .libd-title__cover { flex: 1 1 auto; height: auto; }
 .libd-face--cover .libd-title__cover img { object-fit: fill; }
+
+/* 상세 보기 — 오른쪽 면 메타 줄 끝에 있던 것을 표지 아래로 옮겼다. 거기서는
+   쪽번호와 구석을 다투고 잉크도 흐려서 눌러야 하는 것으로 보이지 않았다.
+   여기서는 표지 바로 아래 한 줄을 혼자 쓰고, 농도도 본문만큼 준다. */
+.libd-cover__detail {
+  flex: none;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  margin-top: 0.95em;
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid rgba(23, 32, 57, 0.3);
+  color: var(--ink);
+  font-size: 0.86em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+
+.libd-cover__detail svg { width: 1.05em; height: 1.05em; }
+.libd-cover__detail:hover { color: var(--cobalt); border-color: var(--cobalt); }
+.libd-cover__detail:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 4px; }
 .libd-face--record { padding-top: 7.5%; }
 .libd-face--record .libd-title__name { margin-top: 0.7em; font-size: 1.65em; flex-shrink: 0; }
 .libd-face--record .libd-title__by { font-size: 0.76em; }

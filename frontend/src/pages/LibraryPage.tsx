@@ -94,7 +94,7 @@ type BookMeta = { title: string; year: number; count: number; pages: number; rat
 function FrontFace({ meta }: { meta: BookMeta }) {
   return (
     <div className="libd-face libd-front">
-      <span className="libd-front__label">완독으로 엮은</span>
+      <span className="libd-front__label">읽은 책으로 만든</span>
       <span className="libd-front__title">{meta.title}</span>
       <span className="libd-front__mark" />
       <dl className="libd-front__stats">
@@ -151,7 +151,8 @@ function TocFace({ read, from, onPick }: {
   )
 }
 
-/** 한 권의 왼쪽 면 — 표지가 지면을 채운다. */
+/** 한 권의 왼쪽 면 — 표지가 지면을 채우고, 그 아래 한 줄이 상세로 나간다.
+ *  쪽번호 자리에 완독일을 적었었는데, 맞은편이 같은 날짜를 다시 말하고 있었다. */
 function TitleFace({ li }: { li: LibraryItem }) {
   const [broken, setBroken] = useState(false)
   const c = coverPalette(li.book.bookId)
@@ -169,7 +170,9 @@ function TitleFace({ li }: { li: LibraryItem }) {
           </span>
         )}
       </span>
-      <span className="libd-face__folio libd-face__folio--left">{li.finishedDate ?? ''}</span>
+      <Link className="libd-cover__detail" to={`/books/${li.book.bookId}`}>
+        책 상세 보기<ArrowIcon direction="right" />
+      </Link>
     </div>
   )
 }
@@ -210,7 +213,6 @@ function RateFace({ li, no }: { li: LibraryItem; no: number }) {
       <span className="libd-rate__meta">
         <span className="libd-rate__tag">{categoryKey(li)}</span>
         {li.book.pageCount != null && <span className="libd-rate__pages">{li.book.pageCount}쪽</span>}
-        <Link className="libd-rate__link" to={`/books/${li.book.bookId}`}>상세 보기</Link>
       </span>
       <span className="libd-face__folio libd-face__folio--right">{ordinal(no)}</span>
     </div>
@@ -939,14 +941,11 @@ export default function LibraryPage() {
       <header className={`libd__intro ${mode === 'wish' ? 'libd__intro--flow' : ''}`}>
         <p>{mode === 'read' ? 'READING ARCHIVE' : 'WISH LIST'}</p>
         <h2 id="libd-title">
-          {mode === 'read' ? '완독 기록을 한 권에'
+          {mode === 'read' ? '나만의 책 한 권'
             : <>내가 찜한 책 <em>{wish.length}권</em></>}
         </h2>
-        <span>
-          {mode === 'read'
-            ? '완독한 책의 감상과 기억을 한 장씩 모아보세요.'
-            : '당신의 읽고 싶은 마음이 쌓이는 공간'}
-        </span>
+        {/* 찜에는 부제를 두지 않는다 — 제목 줄이 '내가 찜한 책 N권'으로 이미 다 말한다 */}
+        {mode === 'read' && <span>완독한 책의 기록을 한 장씩 모아보세요.</span>}
         {mode === 'wish' && (
           <Link to="/search" className="eo-text-button libd__intro-action">+ 책 추가</Link>
         )}
