@@ -15,6 +15,9 @@ import { SHELF_ACTIONS } from '../lib/shelf'
 import { Stamp } from '../components/Stamp'
 import LetterStamp from '../components/LetterStamp'
 import StampFolder from '../components/StampFolder'
+import mailboxImg from '../assets/recommend-mailbox.webp'
+import birdImg from '../assets/recommend-bird.webp'
+import './RecommendPage.css'
 
 /** REC-001 추천 화면 — 추천을 '모아 둔 우표첩에서 오늘 치를 꺼내는' 동작으로 건넨다.
  *  유산지 봉투의 오른쪽 덮개가 젖혀지고, 그 틈으로 표지 우표와 사연 우표가 계단식으로 나온다.
@@ -216,8 +219,15 @@ export default function RecommendPage() {
     <main className="eo-page">
       <div className="eo-shell">
         <header className="eo-pagehead">
-          <p className="eo-eyebrow">{postmark}</p>
-          <h1 className="eo-headline">오늘의 책추</h1>
+          <div className="recommend-heading">
+            <h1 className="eo-headline">오늘의 책추</h1>
+            <div className="recommend-heading__scene" aria-hidden="true">
+              <img className="recommend-heading__mailbox" src={mailboxImg} alt="" />
+              <div className="recommend-heading__flight">
+                <img className="recommend-heading__bird" src={birdImg} alt="" />
+              </div>
+            </div>
+          </div>
           <p className="eo-body mt-3.5 max-w-[52ch]">
             {data.fallback
               ? '아직 취향을 몰라서 인기 도서로 첫 장을 채웠어요 — 찜하면 더 정확해져요.'
