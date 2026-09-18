@@ -74,8 +74,10 @@ export default function FinishReadModal() {
 
   if (!target) return null
 
+  // z-110: 서재의 「책 기록 수정」 화면(.libd-record, z-100)에서도 열린다 — 그 아래(90)에 두면 모달이 뜨긴 하는데 편집 화면이 덮어 안 보인다.
+  // 이 모달은 어느 화면에서 부르든 맨 위여야 하므로 오버레이들보다 한 단 높게 둔다
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-7" role="dialog" aria-modal="true" aria-label={`${target.title} 완독 기록`}>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-7" role="dialog" aria-modal="true" aria-label={`${target.title} 완독 기록`}>
       {/* 어둡게만 — 블러·글로우는 쓰지 않는다 */}
       <button className="absolute inset-0 bg-black/25" aria-label="닫기" onClick={close} />
       <div className="eo-panel relative w-[min(430px,calc(100vw-56px))] p-[18px]">

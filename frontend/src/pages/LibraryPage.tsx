@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { LibraryItem } from '../api/types'
 import { useAuthStore } from '../stores/authStore'
+import { useFinishModalStore } from '../stores/finishModalStore'
 import { coverPalette } from '../lib/coverPalette'
 import { coverAtWidth } from '../lib/coverUrl'
 import LibraryList from '../components/LibraryList'
@@ -755,7 +756,11 @@ function RecordScreen({ items, onClose }: { items: LibraryItem[]; onClose: () =>
   const [sort, setSort] = useState<SortKey>('recent')
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    // 완독 모달이 이 화면 위에 떠 있으면 ESC 는 모달 몫이다 — 둘이 같이 window 에서 듣고 있어서
+    // 양보하지 않으면 한 번의 ESC 로 모달과 편집 화면이 함께 닫힌다
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !useFinishModalStore.getState().target) onClose()
+    }
     window.addEventListener('keydown', onKey)
     // 뒤에 깔린 서재가 같이 스크롤되면 닫았을 때 엉뚱한 자리에 가 있다
     const scroll = document.body.style.overflow
