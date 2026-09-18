@@ -155,6 +155,7 @@ TAG_LABELS: dict[str, str] = {
     **{definition.code: definition.label for definition in TAXONOMY},
     "FICTION": "소설",
     "BUSINESS": "경제·경영",
+    "GROWTH": "자기계발",       # taxonomy 라벨은 「성장」. DNA 는 공개 코드 SELF_HELP 와 같은 말을 쓴다
     "SELF_HELP": "자기계발",
     "MYSTERY": "추리",
     "TRENDING": "지금 뜨는 책",
