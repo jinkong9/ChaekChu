@@ -228,10 +228,10 @@ export default function RecommendPage() {
         {/* 적용 중인 관심 태그 — 최종 점수의 근거를 사람이 이해할 수 있게 표시 */}
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule pt-3.5">
           <span className="eo-label shrink-0">관심 태그</span>
-          <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+          <div className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-1">
             {appliedTags.length === 0
               ? <span className="text-[11px] text-ink-faint">아직 없어요 — 태그를 고르면 그 결이 먼저 올라와요</span>
-              : appliedTags.map((t) => <span key={t} className={`eo-tag ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
+              : appliedTags.map((t) => <span key={t} className={`eo-tag eo-tag--bare ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
           </div>
           {/* 덱 전체에 작용하는 행동 둘이 나란히 선다 — 「다시 추천받기」는 기준을 그대로 두고 이 자리에서 책만 새로 받고,
               「기준 조절하기」는 기준을 바꾸러 떠난다. 재추천은 히어로까지 바꾸므로 히어로 위쪽인 이 줄이 맞는 자리다.
@@ -280,8 +280,8 @@ export default function RecommendPage() {
 
         {/* 꺼낸 책의 태그 + 행동 — 우표 면을 깨지 않도록 밖에 둔다 */}
         <div className="mt-8 flex flex-col items-center gap-4 text-center">
-          <div className="flex flex-wrap justify-center gap-1.5">
-            {featured.tags.map((t) => <span key={t} className={`eo-tag ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
+            {featured.tags.map((t) => <span key={t} className={`eo-tag eo-tag--bare eo-tag--md ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
           </div>
           <p className="max-w-[46ch]">
             <span className="text-[15px] font-semibold">{featured.book.title}</span>
@@ -290,7 +290,7 @@ export default function RecommendPage() {
           {/* 둘 다 캡슐이되 채운 쪽은 찜하기 하나 — 읽음은 테두리만 남긴 같은 판이라 자리는 같고 무게만 낮다.
               이미 담긴 쪽은 라벨이 과거형으로 바뀌고 눌린 상태(aria-pressed)가 된다 —
               다시 누르면 읽음은 기록 수정, 찜은 해제다. 해제는 라벨에 드러나지 않으므로 이름표로 알린다 */}
-          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-2">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
             {SHELF_ACTIONS.map((a, i) => {
               const on = mine(featured.book.bookId)?.status === a.status
               const undo = on && a.status === 'WISH'
@@ -340,9 +340,9 @@ function MiniFolder({ item, label, onSelect }: { item: RecommendationItem; label
         }]}
       />
       <p className="mt-3 line-clamp-2 text-[12px] font-semibold leading-snug" style={{ width: MINI.folderW + 24 }}>{item.book.title}</p>
-      {/* 태그 = 이 우표의 요약 이유 (2줄 수용 고정 높이로 카드 높이 정렬) */}
-      <div className="mt-2 flex h-[62px] flex-wrap content-start gap-1" style={{ width: MINI.folderW + 24 }}>
-        {item.tags.slice(0, 2).map((t) => <span key={t} className="eo-tag">{label(t)}</span>)}
+      {/* 태그 = 이 우표의 요약 이유 (2줄 수용 고정 높이로 카드 높이 정렬 — 상자를 걷은 만큼 높이도 줄였다) */}
+      <div className="mt-2 flex h-[32px] flex-wrap content-start gap-x-2.5 gap-y-1" style={{ width: MINI.folderW + 24 }}>
+        {item.tags.slice(0, 2).map((t) => <span key={t} className="eo-tag eo-tag--bare">{label(t)}</span>)}
       </div>
     </button>
   )
