@@ -96,6 +96,23 @@ export default function ReadingTypeField({ typeName, tones }: { typeName: string
     let textWidth = 0
     let pointer: { x: number; y: number } | null = null
 
+    /** 도착한 글자에 잔잔한 흔들림과 포인터 밀어내기를 얹는다 — 인트로와 호버가 같은 식을 써야 두 상태의 손맛이 같다 */
+    const jitter = (letter: Letter, x: number, y: number, seconds: number, settle: number): [number, number] => {
+      x += Math.sin(seconds * 0.8 + letter.phase) * 0.55 * settle
+      y += Math.cos(seconds * 0.7 + letter.phase) * 0.7 * settle
+      if (pointer) {
+        const dx = x - pointer.x
+        const dy = y - pointer.y
+        const distance = Math.hypot(dx, dy)
+        if (distance > 0 && distance < 65) {
+          const push = (1 - distance / 65) * 9
+          x += dx / distance * push
+          y += dy / distance * push
+        }
+      }
+      return [x, y]
+    }
+
     const draw = (now: number) => {
       raf = 0
       const elapsed = Math.min(50, now - lastFrame)
@@ -110,20 +127,13 @@ export default function ReadingTypeField({ typeName, tones }: { typeName: string
             for (const letter of letters) {
               const progress = clamp01((seconds - letter.delay) / 1.45)
               const settle = 1 - Math.pow(1 - progress, 3)
-              let x = letter.fromX + (letter.x - letter.fromX) * settle
-              let y = letter.fromY + (letter.y - letter.fromY) * settle
-              x += Math.sin(seconds * 0.8 + letter.phase) * 0.55 * settle
-              y += Math.cos(seconds * 0.7 + letter.phase) * 0.7 * settle
-              if (pointer) {
-                const dx = x - pointer.x
-                const dy = y - pointer.y
-                const distance = Math.hypot(dx, dy)
-                if (distance > 0 && distance < 65) {
-                  const push = (1 - distance / 65) * 9
-                  x += dx / distance * push
-                  y += dy / distance * push
-                }
-              }
+              const [x, y] = jitter(
+                letter,
+                letter.fromX + (letter.x - letter.fromX) * settle,
+                letter.fromY + (letter.y - letter.fromY) * settle,
+                seconds,
+                settle,
+              )
               ctx.globalAlpha = letter.alpha * (0.25 + settle * 0.75) * particleOpacity
               ctx.font = `${thinWeight} ${letter.size}px ${font}`
               ctx.fillStyle = letter.color
@@ -156,11 +166,14 @@ export default function ReadingTypeField({ typeName, tones }: { typeName: string
         ctx.fillText(typeName, w / 2, h / 2)
       }
       if (mix > 0) {
+        const seconds = now / 1000
         for (const letter of letters) {
           const arrival = still ? 1 : clamp01((progress - letter.delay * 0.35) / 0.65)
           const settle = 1 - Math.pow(1 - arrival, 3)
-          const x = letter.fromX + (letter.x - letter.fromX) * settle
-          const y = letter.fromY + (letter.y - letter.fromY) * settle
+          const baseX = letter.fromX + (letter.x - letter.fromX) * settle
+          const baseY = letter.fromY + (letter.y - letter.fromY) * settle
+          // reduced-motion 이면 정지 화면 — 흔들림도 밀어내기도 없다
+          const [x, y] = still ? [baseX, baseY] : jitter(letter, baseX, baseY, seconds, settle)
           ctx.globalAlpha = letter.alpha * mix * (0.25 + settle * 0.75)
           ctx.font = `${thinWeight} ${letter.size}px ${font}`
           ctx.fillStyle = letter.color
@@ -168,7 +181,9 @@ export default function ReadingTypeField({ typeName, tones }: { typeName: string
         }
       }
       ctx.globalAlpha = 1
-      if (progress !== target) raf = requestAnimationFrame(draw)
+      // 글자가 떠 있는 동안은 계속 그린다 — 인트로처럼 흔들리고 포인터에 밀려야 한다.
+      // 굵은 글씨로 다 돌아오면(mix 0) 그릴 게 없어 자연히 멈춘다. reduced-motion 은 도착 즉시 정지
+      if (progress !== target || (mix > 0 && !still)) raf = requestAnimationFrame(draw)
     }
     const schedule = () => {
       if (!raf) {
