@@ -266,6 +266,49 @@ const TAGS = [
   ['SOCIETY', '#사회'], ['POETRY', '#시'], ['TRAVEL', '#여행'], ['TECH', '#기술·IT'],
 ].map(([code, label]) => ({ code, label, kind: 'GENRE' as const, selectable: true }))
 
+/* ============ 월드컵 mock 상태 ============ */
+
+const WC_SIZE = 16
+/** 제목·저자가 드러나지 않는 소개문 — 실서버는 GMS 로 요약한 문장을 준다 */
+const WC_SYNOPSES = [
+  '낯선 마을에 온 아이가 새로운 친구를 만나며 용기를 배워 갑니다.',
+  '오래된 기록을 따라 한 인물의 선택과 시대의 변화를 좇습니다.',
+  '가족을 잃은 사람이 바닷가 마을에서 다시 하루를 살아가는 법을 찾습니다.',
+  '거대한 도시에서 감시받는 개인이 스스로 생각하는 일을 포기하지 않으려 합니다.',
+  '편의점 야간 근무자와 손님들이 사소한 다정함을 주고받으며 얽혀 갑니다.',
+  '두 자매가 서로 다른 방식으로 어머니의 부재를 견디는 이야기입니다.',
+  '실패한 과학자가 외딴 연구소에서 마지막 실험을 준비합니다.',
+  '전쟁이 끝난 뒤 돌아온 군인이 떠나기 전의 집을 낯설게 마주합니다.',
+  '수십 년 뒤 다시 만난 첫사랑과 남은 시간을 어떻게 쓸지 고민합니다.',
+  '작은 서점의 주인이 손님마다 한 권씩 책을 골라 주며 자기 이야기를 꺼냅니다.',
+  '외계에서 온 신호를 해독하는 언어학자가 시간에 대한 생각을 바꾸게 됩니다.',
+  '가난한 청년이 도시로 올라와 성공과 양심 사이에서 흔들립니다.',
+  '병원 야간 당직의가 환자들의 마지막 말들을 기록해 나갑니다.',
+  '실종된 동생을 찾는 언니가 가족의 감춰진 과거를 파헤칩니다.',
+  '은퇴한 형사가 미제 사건 하나를 혼자 다시 들춰 봅니다.',
+  '산골 학교의 마지막 학생과 교사가 폐교를 앞둔 한 해를 보냅니다.',
+]
+interface WcChoice { choiceId: string; book: BookSummary; synopsis: string }
+interface WcSession {
+  id: string
+  round: WcChoice[]
+  idx: number
+  winners: WcChoice[]
+  roundNumber: number
+  champion: BookSummary | null
+}
+const wcSessions = new Map<string, WcSession>()
+const wcResponse = (s: WcSession) => ({
+  sessionId: s.id,
+  status: s.champion ? 'COMPLETED' : 'IN_PROGRESS',
+  roundSize: WC_SIZE,
+  roundNumber: s.roundNumber,
+  matchNumber: s.idx / 2 + 1,
+  matchesInRound: s.round.length / 2,
+  choices: s.champion ? [] : s.round.slice(s.idx, s.idx + 2).map(({ choiceId, synopsis }) => ({ choiceId, synopsis })),
+  champion: s.champion ? toServerBook(s.champion) : null,
+})
+
 export const handlers = [
   // 태그 사전 — 온보딩 장르 칩·(추후) /tune 해시태그의 단일 원천
   // §4.7 분류 사전 — 문학(8) 가지만 채운 mock. depth·parent 둘 다 오면 400, 모르는 parent 는 items: [] (서버와 같다)
@@ -511,6 +554,51 @@ export const handlers = [
     }
     const picked = pool[Math.floor(Math.random() * pool.length)]
     return HttpResponse.json(toServerBook(picked), { headers: { 'Cache-Control': 'no-store' } })
+  }),
+
+  // 익명 책 이상형 월드컵 (BOOK_DNA_API_CONTRACT §8). 서버처럼 대진표를 서버 쪽(여기)에 들고,
+  // 선택 중에는 choiceId 와 synopsis 만 내준다. 우승이 정해질 때만 champion 으로 책의 정체를 준다.
+  http.post('*/users/me/dna/world-cup/sessions', ({ request }) => {
+    const auth = requireAuth(request)
+    if (auth) return auth
+    const pool = CATALOG.map(withCategory).filter((bk) => COVER[bk.bookId] ?? bk.coverUrl)
+    if (pool.length < WC_SIZE) {
+      return HttpResponse.json({ code: 'WORLD_CUP_UNAVAILABLE', message: '책 이상형 월드컵을 잠시 사용할 수 없습니다.' }, { status: 503 })
+    }
+    const picked = [...pool].sort(() => Math.random() - 0.5).slice(0, WC_SIZE)
+    const session: WcSession = {
+      id: crypto.randomUUID(),
+      round: picked.map((bk, i) => ({ choiceId: crypto.randomUUID(), book: bk, synopsis: WC_SYNOPSES[i % WC_SYNOPSES.length] })),
+      idx: 0,
+      winners: [],
+      roundNumber: 1,
+      champion: null,
+    }
+    wcSessions.set(session.id, session)
+    return HttpResponse.json(wcResponse(session))
+  }),
+  http.post('*/users/me/dna/world-cup/sessions/:sessionId/picks', async ({ params, request }) => {
+    const auth = requireAuth(request)
+    if (auth) return auth
+    const session = wcSessions.get(String(params.sessionId))
+    if (!session) return HttpResponse.json({ code: 'NOT_FOUND', message: '세션을 찾을 수 없습니다.' }, { status: 404 })
+    if (session.champion) return HttpResponse.json({ code: 'VALIDATION_FAILED', message: '이미 끝난 세션입니다.' }, { status: 400 })
+    const { choiceId } = (await request.json()) as { choiceId?: string }
+    const pair = session.round.slice(session.idx, session.idx + 2)
+    const won = pair.find((c) => c.choiceId === choiceId)
+    if (!won) return HttpResponse.json({ code: 'VALIDATION_FAILED', message: '이번 대진의 선택지가 아닙니다.' }, { status: 400 })
+    session.winners.push(won)
+    session.idx += 2
+    if (session.idx >= session.round.length) {
+      if (session.winners.length === 1) session.champion = session.winners[0].book
+      else {
+        session.round = session.winners
+        session.winners = []
+        session.idx = 0
+        session.roundNumber += 1
+      }
+    }
+    return HttpResponse.json(wcResponse(session))
   }),
 
   // BOOK DNA (BOOK_DNA_API_CONTRACT §2) — 실서버는 FastAPI 가 계산한다.
