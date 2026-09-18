@@ -14,6 +14,8 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api': { target: proxyTarget, changeOrigin: true, secure: true },
+        // 홈 링의 네이버 표지 — 운영은 nginx(deploy/web/nginx/snippets/app.conf)가, 로컬은 여기서 같은 경로를 네이버 CDN 으로 넘긴다
+        '/covers/naver': { target: 'https://bookthumb-phinf.pstatic.net', changeOrigin: true, rewrite: (p) => p.replace(/^\/covers\/naver/, '') },
       },
     },
   }
