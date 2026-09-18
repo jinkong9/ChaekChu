@@ -337,8 +337,11 @@ $COMPOSE exec -T ai b102-recommendation audit-index \
 ```
 
 `indexAudit.status`가 `PASS`이고 모든 check가 `PASS`일 때만 다음 추천 smoke 요청을 실행한다.
-`BOOK_ALIAS_MISSING`, `TAG_ALIAS_MISSING`, `INDEX_VERSION_MISMATCH`, `TAG_VERSION_MISMATCH`,
+`BOOK_ALIAS_MISSING`, `TAG_ALIAS_MISSING`, `INDEX_VERSION_MISMATCH`,
 `DIMENSION_MISMATCH`, `TAG_POINT_MISSING`, `QDRANT_UNAUTHORIZED`는 각각 alias·배포 버전·모델 차원·태그 색인·Qdrant 인증 설정을 먼저 확인한다.
+점진적 taxonomy 확장에서는 변경하지 않은 도서 payload와 기존 tag prototype이 원래 `tagVersion`을 유지할 수 있으므로,
+감사기는 설정 버전과 같거나 하위·상위 incremental 버전인지 확인하고 실제 값은 check 결과에 기록한다.
+`TAG_VERSION_MISSING` 또는 `TAG_VERSION_MISMATCH`이면 배치 payload 또는 prototype 메타데이터를 확인한다.
 
 health 응답의 `modelVersion`, `indexVersion`이 이번 release와 같아야 한다. 이후
 백엔드 경유 smoke request로 다음을 확인한다.

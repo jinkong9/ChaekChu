@@ -36,7 +36,7 @@ def _config(**overrides) -> IndexAuditConfig:
 
 def _fake_qdrant(
     *, book_index_version="index-v1", book_tag_version="tags-v1", book_dimension=4,
-    collection_dimension=4, missing_tags=(),
+    tag_prototype_version=None, collection_dimension=4, missing_tags=(),
 ):
     config = _config()
     tags = ("FICTION", "SCIENCE")
@@ -60,7 +60,7 @@ def _fake_qdrant(
             "payload": {
                 "tagCode": code,
                 "indexVersion": config.index_version,
-                "tagVersion": config.tag_version,
+                "tagVersion": tag_prototype_version or config.tag_version,
             },
         })
     requests: list[tuple[str, str, dict | None]] = []
@@ -105,15 +105,53 @@ def test_audit_passes_and_never_mutates_qdrant_or_returns_api_key() -> None:
     assert any(url.endswith("/points/scroll") for _method, url, _body in requests)
 
 
-def test_audit_reports_book_tag_version_mismatch_and_missing_tag() -> None:
-    config, tags, _requests, opener = _fake_qdrant(book_tag_version="old-tags", missing_tags={"SCIENCE"})
+def test_audit_allows_incremental_tag_versions_and_reports_missing_tag() -> None:
+    config, tags, _requests, opener = _fake_qdrant(
+        book_tag_version="tags-v1",
+        tag_prototype_version="tags-v1-kdc6",
+        missing_tags={"SCIENCE"},
+    )
 
     report = QdrantIndexAuditor(config, opener=opener).audit(tag_codes=tags)
 
     failures = {check["code"] for check in report["checks"] if check["status"] == "FAIL"}
     assert report["status"] == "FAIL"
-    assert "TAG_VERSION_MISMATCH" in failures
+    assert "TAG_VERSION_MISMATCH" not in failures
     assert "TAG_POINT_MISSING" in failures
+    versions = {check["name"]: check["actual"] for check in report["checks"] if check["name"].endswith("TagVersion")}
+    assert versions["bookPoint1TagVersion"] == "tags-v1"
+    assert versions["tagPoint:FICTIONTagVersion"] == "tags-v1-kdc6"
+
+
+def test_audit_accepts_parent_tag_version_when_runtime_uses_incremental_version() -> None:
+    config, tags, _requests, opener = _fake_qdrant(book_tag_version="tags-v1")
+    config = _config(tag_version="tags-v1-kdc6")
+
+    report = QdrantIndexAuditor(config, opener=opener).audit(tag_codes=tags)
+
+    assert report["status"] == "PASS"
+    assert any(
+        check["name"] == "bookPoint1TagVersion" and check["actual"] == "tags-v1"
+        for check in report["checks"]
+    )
+
+
+def test_audit_reports_unrelated_tag_version_mismatch() -> None:
+    config, tags, _requests, opener = _fake_qdrant(book_tag_version="another-dataset-v1")
+
+    report = QdrantIndexAuditor(config, opener=opener).audit(tag_codes=tags)
+
+    assert report["status"] == "FAIL"
+    assert any(check["code"] == "TAG_VERSION_MISMATCH" for check in report["checks"])
+
+
+def test_audit_reports_missing_tag_version() -> None:
+    config, tags, _requests, opener = _fake_qdrant(book_tag_version="")
+
+    report = QdrantIndexAuditor(config, opener=opener).audit(tag_codes=tags)
+
+    assert report["status"] == "FAIL"
+    assert any(check["code"] == "TAG_VERSION_MISSING" for check in report["checks"])
 
 
 def test_audit_reports_book_index_version_mismatch() -> None:
