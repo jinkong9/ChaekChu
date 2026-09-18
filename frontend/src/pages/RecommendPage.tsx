@@ -287,7 +287,7 @@ export default function RecommendPage() {
             <span className="text-[15px] font-semibold">{featured.book.title}</span>
             {featured.book.author && <span className="text-[12px] text-ink-muted"> · {featured.book.author}</span>}
           </p>
-          {/* 찜하기 하나만 캡슐형 CTA, 나머지 담기는 밑줄 버튼으로 위계를 낮춘다.
+          {/* 둘 다 캡슐이되 채운 쪽은 찜하기 하나 — 읽음은 테두리만 남긴 같은 판이라 자리는 같고 무게만 낮다.
               이미 담긴 쪽은 라벨이 과거형으로 바뀌고 눌린 상태(aria-pressed)가 된다 —
               다시 누르면 읽음은 기록 수정, 찜은 해제다. 해제는 라벨에 드러나지 않으므로 이름표로 알린다 */}
           <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-2">
@@ -297,7 +297,7 @@ export default function RecommendPage() {
               return (
                 <button key={a.status} onClick={() => save(featured, a.status)} disabled={saving} aria-pressed={on}
                   title={undo ? WISH_CANCEL_HINT : undefined} aria-label={undo ? WISH_CANCEL_HINT : undefined}
-                  className={i === 0 ? 'eo-button' : 'eo-text-button text-[13px]'}>
+                  className={i === 0 ? 'eo-button' : 'eo-button eo-button--ghost'}>
                   {on ? `✓ ${DONE_LABEL[a.status]}` : a.label}
                 </button>
               )

@@ -173,6 +173,28 @@
   cursor: not-allowed;
 }
 
+/* 캡슐과 나란히 서는 두 번째 행동 — 같은 판에 테두리만 남긴다.
+   무게만 다르고 자리는 같으므로, 채운 캡슐은 한 화면에 하나로 지켜진다(DESIGN.md Shapes).
+   도서 상세의 .bd-button-ghost 가 먼저 쓰던 짝을 공용 판으로 올린 것이다. */
+.eo-button--ghost {
+  border-color: var(--eo-rule);
+  background: transparent;
+  color: var(--eo-ink);
+  transition: border-color var(--eo-motion) ease-out, background var(--eo-motion) ease-out, transform var(--eo-motion) ease-out;
+}
+
+.eo-button--ghost:hover:not(:disabled),
+.eo-button--ghost:focus-visible:not(:disabled) {
+  border-color: var(--eo-ink);
+  opacity: 1;
+}
+
+/* 담겨 있는 쪽은 테두리와 옅은 바탕으로 알린다 — 라벨의 과거형과 함께 '담김'을 말한다 */
+.eo-button--ghost[aria-pressed='true'] {
+  border-color: var(--eo-ink);
+  background: rgba(11, 11, 11, 0.07);
+}
+
 /* 보조 행동 — 상자 없이 2px 밑줄만 */
 .eo-text-button {
   display: inline-flex;
