@@ -27,6 +27,7 @@ import ReadingTypeField from './ReadingTypeField'
 import BookWorldCup from './BookWorldCup'
 import BookGacha from './BookGacha'
 import { GachaMachineArt } from './GachaMachine'
+import { coverAtWidth } from '../../lib/coverUrl'
 import './dna-report.css'
 
 /** 이 화면이 쓰는 색의 개수 — 지표 5줄에 하나씩 배정하고, 앞의 4개를 히어로 원에 쓴다 */
@@ -154,7 +155,8 @@ const HABIT_ART: Record<string, ReactNode> = {
 
 /* ── 화면 ────────────────────────────────────────────── */
 
-function Report({ records, profile, keywords, tones, declaredTags }: {
+function Report({ books, records, profile, keywords, tones, declaredTags }: {
+  books: DnaBook[]
   /** 서버 응답 그대로 — 쪽수·출간 연도·분류처럼 화면 타입(DnaBook)이 버린 값을 독서 습관이 쓴다 */
   records: DnaBookResponse[]
   /** 점수를 가진 원본 키워드 — 새 안이 칩 농도를 점수로 정한다 */
@@ -195,13 +197,24 @@ function Report({ records, profile, keywords, tones, declaredTags }: {
     next.delete('play')
     setParams(next, { replace: true })
   }, [navigate, params, setParams])
-  // 가챠 후보 제외에는 실제 서재가 필요하다. 월드컵은 서버의 대출 상위 500권을 사용한다.
+  // 콘텐츠 후보는 실제 응답의 사용자 서재다. 세 콘텐츠 모두 표지를 보여 주고 고르게 하므로
+  // 표지가 없는 책은 후보에서 뺀다 — 빈 자리가 대진표에 섞이면 고를 수가 없다
+  const pool = useMemo(() => books.filter((b) => b.coverUrl !== ''), [books])
+  const canPlay = pool.length >= 4
+  // 가챠만 후보가 다르다 — '완전 랜덤'이니 내 서재가 아니라 소설 전체에서 뽑는다
   const habits = useMemo(() => buildHabits(records), [records])
   /** 이미 읽은 책의 ISBN — 가챠 후보에서 뺀다 */
   const readIsbns = useMemo(
     () => new Set(records.filter((b) => b.status === 'READ' && b.isbn13).map((b) => b.isbn13)),
     [records],
   )
+
+  /** 카드를 열 수 없으면 그 이유를 그 자리에서 말한다 — 눌러도 아무 일 없는 버튼을 두지 않는다.
+   *  가챠는 서재와 무관하게 늘 열린다(후보를 서버에서 받아 온다) */
+  const blockedReason = (t: (typeof TESTS)[number]): string | null => {
+    if (t.id === 'gacha') return null
+    return canPlay ? null : `「${t.name}」는 표지가 있는 책이 4권 이상일 때 열려요 — 지금 서재에는 ${pool.length}권이에요.`
+  }
 
   return (
     <>
@@ -231,6 +244,8 @@ function Report({ records, profile, keywords, tones, declaredTags }: {
                 type="button"
                 className="dnar-test dnar-test--feature"
                 onClick={() => {
+                  const why = blockedReason(t)
+                  if (why) return setPending(why)
                   setPending(null)
                   openPlay(t.id)
                 }}
@@ -245,11 +260,15 @@ function Report({ records, profile, keywords, tones, declaredTags }: {
                   <>
                     <h3 className="dnar-test__name">{t.name}</h3>
                     <span className="dnar-test__duel" aria-hidden="true">
-                      <span className="dnar-test__duel-book dnar-test__duel-book--left">?</span>
+                      <span className="dnar-test__duel-book dnar-test__duel-book--left">
+                        {pool[0] && <img src={coverAtWidth(pool[0].coverUrl, 280) ?? pool[0].coverUrl} alt="" loading="lazy" />}
+                      </span>
                       <span className="dnar-test__duel-vs">VS</span>
-                      <span className="dnar-test__duel-book dnar-test__duel-book--right">?</span>
+                      <span className="dnar-test__duel-book dnar-test__duel-book--right">
+                        {pool[1] && <img src={coverAtWidth(pool[1].coverUrl, 280) ?? pool[1].coverUrl} alt="" loading="lazy" />}
+                      </span>
                     </span>
-                    <span className="dnar-test__go">대출 상위 500권 · 익명 소개 →</span>
+                    <span className="dnar-test__go">고르러 가기 →</span>
                   </>
                 )}
               </button>
@@ -260,8 +279,11 @@ function Report({ records, profile, keywords, tones, declaredTags }: {
           {pending ?? ' '}
         </p>
       </section>
+      {/* 주소로 바로 들어왔는데 후보가 모자라면 열지 않는다 — 카드가 막던 조건을 여기서도 지킨다 */}
       {open === 'gacha' && <BookGacha read={readIsbns} onClose={closePlay} />}
-      {open === 'worldcup' && <BookWorldCup onClose={closePlay} />}
+      {open === 'worldcup' && canPlay && (
+        <BookWorldCup pool={pool} topAxis={profile.topAxis} onClose={closePlay} />
+      )}
     </>
   )
 }
@@ -373,6 +395,7 @@ export default function DnaReportPage() {
         )}
         {data?.profile.status === 'READY' && profile && (
           <Report
+            books={books}
             records={data.books}
             keywords={data.profile.keywords}
             profile={profile}
