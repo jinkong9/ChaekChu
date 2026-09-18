@@ -96,9 +96,10 @@ def test_kdc_axis_mapping_preserves_specific_ranges_before_broad_ranges() -> Non
     assert scores["BUSINESS"] == 50.0
 
 
-def test_every_taxonomy_code_has_a_korean_label_and_genres_stay_out_of_keywords() -> None:
-    """「자주 읽는 키워드」에 #SCIENCE #HISTORY #HUMANITIES 가 영문 코드 그대로 뜨던 문제(09-18)."""
-    from recommendation.book_dna import GENRE_CODES, TAG_LABELS
+def test_every_taxonomy_code_has_a_korean_label_and_only_axis_names_leave_keywords() -> None:
+    """「자주 읽는 키워드」에 #SCIENCE #HISTORY #HUMANITIES 가 영문 코드 그대로 뜨던 문제(09-18).
+    세부 장르는 한글 라벨로 남긴다 — 축이 「인문·사회」「과학·기술」로 묶어 보여 주므로 키워드에서 빼면 정보가 사라진다."""
+    from recommendation.book_dna import AXIS_NAME_CODES, TAG_LABELS
     from recommendation.tag_batch import TAXONOMY
 
     for definition in TAXONOMY:
@@ -116,10 +117,14 @@ def test_every_taxonomy_code_has_a_korean_label_and_genres_stay_out_of_keywords(
         today=date(2026, 1, 1),
     )
 
-    keyword_codes = [item.code for item in profile.keywords]
-    assert set(keyword_codes) == {"STEADY", "FAMILY"}                     # 장르는 축이 보여 준다
-    assert not (set(keyword_codes) & GENRE_CODES)
-    assert {item.code: item.label for item in profile.keywords} == {"STEADY": "꾸준히 읽는 책", "FAMILY": "가족"}
+    labels = {item.code: item.label for item in profile.keywords}
+    assert set(labels) == {"STEADY", "FAMILY", "HUMANITIES", "SCIENCE", "TECH", "HISTORY", "TRAVEL"}   # 세부 장르가 남는다
+    assert not (set(labels) & AXIS_NAME_CODES)
+    assert labels["HUMANITIES"] == "인문" and labels["SCIENCE"] == "과학" and labels["TECH"] == "기술·IT" and labels["HISTORY"] == "역사"
+    assert labels["STEADY"] == "꾸준히 읽는 책" and labels["FAMILY"] == "가족"
+    # 축 이름과 같은 코드는 키워드에서 빠진다
+    fiction = build_book_dna_profile([seed("9780000000009")], {"9780000000009": BookDnaRecord("9780000000009", tag_codes=("FIC", "ESSAY", "FANTASY"), class_no="813")}, today=date(2026, 1, 1))
+    assert [item.code for item in fiction.keywords] == ["FANTASY"]
     axes = {item.code: item.score for item in profile.axes}
     assert axes["HUMANITIES"] > 0 and axes["SCIENCE"] > 0 and axes["ART_HISTORY"] > 0   # 인문 / 과학·기술 / 예술·역사(981 기행)
     assert set(profile.evidence.top_tags) <= {"HUMANITIES", "STEADY", "SCIENCE", "TECH", "FAMILY", "HISTORY", "TRAVEL"}
