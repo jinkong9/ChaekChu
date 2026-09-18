@@ -208,7 +208,7 @@ export default function RecommendPage() {
       <div className="eo-shell">
         <header className="eo-pagehead">
           <p className="eo-eyebrow">{postmark} 소인</p>
-          <h1 className="eo-headline">오늘, 한 권 도착했어요</h1>
+          <h1 className="eo-headline">오늘의 책추</h1>
           <p className="eo-body mt-3.5 max-w-[52ch]">
             {data.fallback
               ? '아직 취향을 몰라서 인기 도서로 첫 장을 채웠어요 — 찜하면 더 정확해져요.'
