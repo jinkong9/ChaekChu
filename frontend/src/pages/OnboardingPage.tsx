@@ -117,7 +117,7 @@ export default function OnboardingPage() {
         </header>
 
         {step === 0 && <section className="onboarding__content onboarding__content--profile">
-          <h1>먼저,<br />어떻게 불러드릴까요?</h1>
+          <h1>어떻게 불러드릴까요?</h1>
           <p className="onboarding__lead">연령 · 성별은 첫 추천의 정확도를 높이는 데만 사용해요</p>
           <div className="onboarding__form">
             <div className="onboarding__form-row">
@@ -157,7 +157,7 @@ export default function OnboardingPage() {
         </section>}
 
         {step === 1 && <section className="onboarding__content onboarding__content--genres">
-          <h1>어떤 분야에 끌리세요?</h1>
+          <h1>어떤 분야에 관심이 있으세요?</h1>
           <p className="onboarding__lead">대충 골라도 괜찮아요 — 최대 {MAX_GENRES}개</p>
           <div className="onboarding__genres" aria-label="관심 분야">
             {GENRES.map((genre) => {
