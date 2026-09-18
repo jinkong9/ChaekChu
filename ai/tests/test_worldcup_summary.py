@@ -144,7 +144,7 @@ def test_runner_reestimates_cost_when_a_reused_isbn_source_changes(tmp_path: Pat
     rows[0]["desc"] = "변경된 소개입니다."
     write_input(source, rows)
 
-    with pytest.raises(ValueError, match="estimated GMS cost 4.0 exceeds hard cap 1.0"):
+    with pytest.raises(ValueError, match="estimated GMS cost 2.0 exceeds hard cap 1.0"):
         WorldCupSynopsisRunner(provider=provider, settings=SummarySettings(limit=1, max_estimated_credits=1)).run(
             source, sidecar, report
         )
