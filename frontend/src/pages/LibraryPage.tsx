@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { LibraryItem } from '../api/types'
@@ -737,7 +737,7 @@ function WishShelves({ wish }: { wish: LibraryItem[] }) {
 
 const SORTS = [
   { key: 'recent', label: '최신순' },
-  { key: 'rating', label: '별점 높은 순' },
+  { key: 'rating', label: '별점순' },
 ] as const
 
 type SortKey = (typeof SORTS)[number]['key']
@@ -751,9 +751,18 @@ const byRecent = (x: LibraryItem, y: LibraryItem) =>
 const byRating = (x: LibraryItem, y: LibraryItem) =>
   (y.rating ?? -1) - (x.rating ?? -1) || byRecent(x, y)
 
-function RecordScreen({ items, onClose }: { items: LibraryItem[]; onClose: () => void }) {
+/** 어느 쪽을 보는가 — 서재 탭(읽음/찜)에서 들어온 그대로 시작한다 */
+type ShelfFilter = 'READ' | 'WISH'
+/** 필터는 목록의 이름이라 명사로 — 서재 탭(읽음/찜)과 같은 것을 가리킨다. 모달의 상태 세그먼트(읽었어요/읽고 싶어요)는 행동이라 동사다 */
+const FILTERS: { key: ShelfFilter; label: string }[] = [
+  { key: 'READ', label: '읽은 책' },
+  { key: 'WISH', label: '찜한 책' },
+]
+
+function RecordScreen({ items, initialFilter, onClose }: { items: LibraryItem[]; initialFilter: ShelfFilter; onClose: () => void }) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortKey>('recent')
+  const [filter, setFilter] = useState<ShelfFilter>(initialFilter)
 
   useEffect(() => {
     // 완독 모달이 이 화면 위에 떠 있으면 ESC 는 모달 몫이다 — 둘이 같이 window 에서 듣고 있어서
@@ -772,43 +781,67 @@ function RecordScreen({ items, onClose }: { items: LibraryItem[]; onClose: () =>
   }, [onClose])
 
   const needle = query.trim().toLowerCase()
-  const shown = items
+  const inFilter = items.filter((li) => li.status === filter)
+  const shown = inFilter
     .filter((li) => !needle || `${li.book.title} ${li.book.author ?? ''}`.toLowerCase().includes(needle))
     .sort(sort === 'rating' ? byRating : byRecent)
 
   return createPortal(
-    <div className="libd-record eo-page" role="dialog" aria-modal="true" aria-label="책 기록 수정">
+    <div className="libd-record eo-page" role="dialog" aria-modal="true" aria-label="독서 기록 수정">
       {/* 들어올 때 누른 '책 기록 수정'과 같은 자리, 같은 버튼 */}
       <button type="button" className="eo-button libd-record__back" onClick={onClose}>서재로 돌아가기</button>
       <div className="eo-shell">
         <div>
           <p className="eo-eyebrow">Library</p>
-          <h1 className="eo-headline">책 기록 수정</h1>
-          <p className="eo-body mt-2.5">별점 · 한 줄 감상평 · 읽음/찜 상태를 여기서 고칩니다</p>
+          <h1 className="eo-headline">독서 기록 수정</h1>
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-rule pt-3">
-          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
-            className="eo-field eo-field--sm w-full sm:w-[260px]"
-            placeholder="제목 · 저자로 찾기" aria-label="서재에서 책 검색" />
-          <div className="eo-segments">
-            {SORTS.map((s) => (
-              <button key={s.key} type="button" onClick={() => setSort(s.key)} aria-pressed={sort === s.key}
-                className={`eo-segment ${sort === s.key ? 'is-on' : ''}`}>{s.label}</button>
-            ))}
+        {/* 툴바 — 왼쪽 검색, 오른쪽에 목록 필터(칩) · 정렬 · 권수.
+            툴바 안에는 밑줄을 하나도 두지 않는다: 검색 밑줄·정렬 밑줄이 바로 아래 첫 행의 rule과 겹쳐 선이 세 겹으로 보였다.
+            검색은 칩과 같은 1px 테두리 박스로, 정렬은 밑줄 없이 굵기·농도만으로 고른 쪽을 표시한다.
+            위계: 필터 칩(고른 쪽 잉크 반전)이 유일한 검은 덩어리, 정렬은 텍스트로 한 단 낮다.
+            상태는 행마다 셀렉트로 두던 것을 여기 필터 하나로 올렸다: 행에서는 안 바꾸고(모달에서) 지금 무엇을 보는지만 고른다 */}
+        <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-rule pt-4">
+          <label className="flex h-9 w-full items-center gap-2 border border-rule-soft px-3 transition-colors focus-within:border-ink sm:w-[260px]">
+            <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+              strokeLinecap="round" className="shrink-0 text-ink-faint">
+              <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+            </svg>
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
+              className="w-full bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-faint"
+              placeholder="제목 · 저자로 찾기" aria-label="서재에서 책 검색" />
+          </label>
+          <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="flex items-center gap-1.5" role="group" aria-label="목록">
+              {FILTERS.map((f) => (
+                <button key={f.key} type="button" onClick={() => setFilter(f.key)} aria-pressed={filter === f.key}
+                  className={`eo-tag ${filter === f.key ? 'is-on' : ''}`}>{f.label}</button>
+              ))}
+            </div>
+            <span aria-hidden className="hidden sm:block" style={{ width: 1, height: 14, background: 'var(--eo-rule-soft)' }} />
+            <div className="flex items-center gap-4" role="group" aria-label="정렬">
+              {SORTS.map((s) => (
+                <button key={s.key} type="button" onClick={() => setSort(s.key)} aria-pressed={sort === s.key}
+                  className={`text-[13px] whitespace-nowrap transition-colors ${
+                    sort === s.key ? 'font-bold text-ink' : 'text-ink-faint hover:text-ink'}`}>{s.label}</button>
+              ))}
+            </div>
+            <span aria-hidden className="hidden sm:block" style={{ width: 1, height: 14, background: 'var(--eo-rule-soft)' }} />
+            <p className="eo-utility whitespace-nowrap tabular-nums">
+              {needle ? `찾은 책 ${shown.length}권` : `총 ${inFilter.length}권`}
+            </p>
           </div>
-          <p className="eo-utility ml-auto">
-            {needle ? `찾은 책 ${shown.length}권 · 전체 ${items.length}권` : `전체 ${items.length}권`}
-          </p>
         </div>
 
         {shown.length > 0 ? (
-          <div className="mt-1"><LibraryList items={shown} /></div>
+          <div className="mt-4"><LibraryList items={shown} /></div>
         ) : (
           <div className="eo-empty">
             <p className="eo-body">
               {/* 조사(와/과)는 검색어 받침에 따라 달라진다 — 문구에서 아예 뺀다 */}
-              {needle ? `‘${query.trim()}’ — 서재에서 찾지 못했어요.` : '서재가 아직 비어 있어요.'}
+              {needle
+                ? `‘${query.trim()}’ — ${filter === 'READ' ? '읽은 책' : '찜한 책'} 중에서 찾지 못했어요.`
+                : filter === 'READ' ? '아직 읽었다고 기록한 책이 없어요.' : '아직 찜한 책이 없어요.'}
             </p>
             <Link to="/search" className="eo-button">책 찾으러 가기</Link>
           </div>
@@ -826,10 +859,30 @@ export default function LibraryPage() {
   // 탭은 주소가 기억한다 — 찜에서 상세로 갔다 뒤로 오면 찜으로 돌아와야 한다.
   // replace 라 탭 전환 자체는 뒤로 가기 단계를 만들지 않는다.
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const mode: Mode = params.get('tab') === 'wish' ? 'wish' : 'read'
   const setMode = (next: Mode) =>
     setParams(next === 'wish' ? { tab: 'wish' } : {}, { replace: true })
-  const [editing, setEditing] = useState(false)
+  // 편집 화면은 주소(?edit=1)에 둔다 — state 로만 들고 있으면 뒤로가기가 편집을 닫는 게 아니라 서재를 떠난다.
+  // DNA 의 가챠·월드컵(?play=)과 같은 패턴: 우리가 push 했으면 뒤로가기로 걷어내고, 링크로 바로 들어왔으면 replace 로 지운다
+  const editing = params.get('edit') === '1'
+  const pushedEdit = useRef(false)
+  const openEditing = () => {
+    const next = new URLSearchParams(params)
+    next.set('edit', '1')
+    pushedEdit.current = true
+    setParams(next)
+  }
+  const closeEditing = useCallback(() => {
+    if (pushedEdit.current) {
+      pushedEdit.current = false
+      navigate(-1)
+      return
+    }
+    const next = new URLSearchParams(params)
+    next.delete('edit')
+    setParams(next, { replace: true })
+  }, [navigate, params, setParams])
   // 책의 장·덮힘은 연표에서도 움직여야 해서 페이지가 들고 있는다. 0 = 속표지 + 목차.
   const [index, setIndex] = useState(0)
   const [isClosed, setIsClosed] = useState(true)
@@ -878,7 +931,7 @@ export default function LibraryPage() {
             찜 <span className="eo-segment__count">{wish.length}</span>
           </button>
         </div>
-        <button type="button" className="eo-button" onClick={() => setEditing(true)}>
+        <button type="button" className="eo-button" onClick={openEditing}>
           책 기록 수정
         </button>
       </div>
@@ -916,7 +969,7 @@ export default function LibraryPage() {
         </>
       )}
 
-      {editing && <RecordScreen items={all} onClose={() => setEditing(false)} />}
+      {editing && <RecordScreen items={all} initialFilter={mode === 'wish' ? 'WISH' : 'READ'} onClose={closeEditing} />}
     </section>
   )
 }

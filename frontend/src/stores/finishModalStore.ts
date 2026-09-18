@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { ShelfStatus } from '../api/types'
 
 /** 완독 모달 호출 대상 — libraryItemId 가 있으면 기존 항목 수정(PATCH), 없으면 신규 등록(POST → 409 폴백 → PATCH).
  *  id 는 서버가 문자열, 화면 타입은 아직 number 라 둘 다 받는다 (string id rename MR 에서 string 으로 좁힌다). */
@@ -10,6 +11,11 @@ export interface FinishTarget {
   reviewText?: string | null
   /** null = 완독일 없음(서비스 이전에 읽은 책) · undefined = 신규(오늘로 초기화) */
   finishedDate?: string | null
+  /** finish(기본) = 상세·추천에서 「읽었어요」 — READ 로 저장만 한다.
+   *  edit = 서재 「책 기록 수정」 — 상태(읽었어요/읽고 싶어요) 전환과 서재에서 빼기까지 이 모달이 맡는다 */
+  mode?: 'finish' | 'edit'
+  /** edit 일 때 지금 상태 — 세그먼트 초기값이자 「완독일이 지워져요」 안내를 띄울지의 기준 */
+  status?: ShelfStatus
 }
 
 interface FinishModalState {
