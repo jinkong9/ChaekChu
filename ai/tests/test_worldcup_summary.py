@@ -62,7 +62,7 @@ def test_provider_sends_only_description_context_and_parses_json() -> None:
     assert "description" in prompt
     assert "비공개 제목" not in prompt
     assert "저자 이름" not in prompt
-    assert "베스트셀러" in prompt
+    assert "베스트셀러" in sent["messages"][0]["content"]
     assert sent["model"] == "gpt-4o-mini"
 
 
