@@ -298,20 +298,16 @@
   font-size: 15px;
   text-align: center;
 }
-.onboarding__check {
-  display: grid;
+/* 읽은 책 도장 — 모서리 체크 대신 표지 한가운데에 비스듬히 찍는다 */
+.onboarding__stamp {
   position: absolute;
-  top: 9px;
-  right: 9px;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: 50%;
-  background: #fff9ed;
-  color: #303030;
-  font-size: 19px;
-  line-height: 1;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, .15);
+  top: 50%;
+  left: 50%;
+  width: 74%;
+  height: auto;
+  color: #1f1f1f;
+  transform: translate(-50%, -50%) rotate(-9deg);
+  pointer-events: none;
 }
 .onboarding__book-title,
 .onboarding__book-author {

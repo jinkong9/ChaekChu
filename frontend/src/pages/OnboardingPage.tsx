@@ -5,6 +5,7 @@ import { api } from '../api/client'
 import type { PopularBooksResponse, TagItem } from '../api/types'
 import { useAuthStore } from '../stores/authStore'
 import bookshelf from '../assets/onboarding-bookshelf.webp'
+import ReadStamp from '../components/ReadStamp'
 import './OnboardingPage.css'
 
 const MAX_GENRES = 5
@@ -105,7 +106,6 @@ export default function OnboardingPage() {
   return (
     <main className={`onboarding onboarding--step-${step + 1}`}>
       {step === 0 && <img className="onboarding__illustration" src={bookshelf} alt="" aria-hidden="true" />}
-      {step === 0 && <p className="onboarding__quote" aria-hidden="true">좋은 책이<br />좋은 하루를 만든다.<span>—</span></p>}
       <div className="onboarding__shell">
         <header className="onboarding__progress" aria-label={`온보딩 ${step + 1}단계, 총 ${STEP_COUNT}단계`}>
           <div className="onboarding__progress-labels">
@@ -197,7 +197,7 @@ export default function OnboardingPage() {
                   <span className={`onboarding__cover ${selected ? 'is-selected' : ''}`}>
                     {book.coverUrl ? <img src={book.coverUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
                       : <span className="onboarding__cover-fallback">{book.title}</span>}
-                    {selected && <span className="onboarding__check" aria-hidden="true">✓</span>}
+                    {selected && <ReadStamp className="onboarding__stamp" />}
                   </span>
                 </button>
                 <span className="onboarding__book-title" title={book.title}>{book.title}</span>
