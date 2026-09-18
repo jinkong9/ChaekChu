@@ -55,7 +55,7 @@ def test_book_dna_profile_endpoint_returns_contract_and_unresolved_isbns() -> No
         )
     finally:
         if previous is None:
-            app.state.__dict__.pop("book_dna_engine", None)
+            app.state._state.pop("book_dna_engine", None)
         else:
             configure_book_dna_profile_engine(previous)
 
@@ -85,7 +85,7 @@ def test_book_dna_profile_endpoint_rejects_invalid_seed_shape() -> None:
         )
     finally:
         if previous is None:
-            app.state.__dict__.pop("book_dna_engine", None)
+            app.state._state.pop("book_dna_engine", None)
         else:
             configure_book_dna_profile_engine(previous)
 
@@ -94,7 +94,7 @@ def test_book_dna_profile_endpoint_rejects_invalid_seed_shape() -> None:
 
 def test_book_dna_profile_endpoint_returns_503_without_runtime_engine() -> None:
     previous = getattr(app.state, "book_dna_engine", None)
-    app.state.__dict__.pop("book_dna_engine", None)
+    app.state._state.pop("book_dna_engine", None)
     try:
         response = TestClient(app).post(
             "/internal/v1/dna/profile",

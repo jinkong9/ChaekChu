@@ -79,7 +79,7 @@ rollback_or_explain() {
   "${COMPOSE[@]}" ps >&2 || true
   echo "$RELEASE $migration_fingerprint $(date -Is) $(id -un) $why" > "$STATE_DIR/last-failed-release" 2>/dev/null || true
   if [[ -n "$prev_release" && "$prev_release" != "$RELEASE" && "$prev_fingerprint" == "$migration_fingerprint" ]] \
-     && docker image inspect "b102-backend:$prev_release" "b102-web:$prev_release" >/dev/null 2>&1; then
+     && docker image inspect "b102-backend:$prev_release" "b102-web:$prev_release" "b102-ai:$prev_release" >/dev/null 2>&1; then
     echo "마이그레이션 지문이 같아 직전 릴리스 $prev_release 로 코드 자동 복구" >&2
     if RELEASE="$prev_release" "${COMPOSE[@]}" up -d --remove-orphans --wait --wait-timeout 300 >&2 && check_health >&2; then
       echo "직전 릴리스 $prev_release 복구 완료 (current-release 는 그대로 $prev_release)" >&2
@@ -107,7 +107,7 @@ if $BACKUP; then
 fi
 
 section "build"
-"${COMPOSE[@]}" build --pull=false web backend elasticsearch
+"${COMPOSE[@]}" build --pull=false web backend elasticsearch ai
 
 section "up"
 if ! "${COMPOSE[@]}" up -d --remove-orphans --wait --wait-timeout 300; then

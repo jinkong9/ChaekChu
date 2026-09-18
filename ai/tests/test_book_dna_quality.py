@@ -83,7 +83,7 @@ def test_endpoint_returns_insufficient_data_for_empty_or_unresolved_books() -> N
         )
     finally:
         if previous is None:
-            app.state.__dict__.pop("book_dna_engine", None)
+            app.state._state.pop("book_dna_engine", None)
         else:
             configure_book_dna_profile_engine(previous)
 
