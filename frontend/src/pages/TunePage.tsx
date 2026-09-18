@@ -33,9 +33,9 @@ export default function TunePage() {
     <main className="eo-page">
       <div className="eo-shell eo-shell--reading">
         <header className="eo-pagehead">
-          <p className="eo-eyebrow">Tune</p>
           <h1 className="eo-headline">어떤 결의 책이 먼저 보이면 좋을까요?</h1>
-          <p className="eo-body mt-4 max-w-[52ch]">
+          {/* 읽기 폭(720px) 안에서는 한 줄로 흐른다 — 52ch 로 묶으면 「안 / 골라도」에서 끊겼다 */}
+          <p className="eo-body mt-4">
             끌리는 태그를 고르면 그 결의 책이 위로 올라와요 — 최대 {MAX_TAGS}개, 안 골라도 괜찮아요.
           </p>
         </header>
