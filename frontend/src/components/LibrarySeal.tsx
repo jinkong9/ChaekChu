@@ -1,35 +1,24 @@
-import { useId, type CSSProperties } from 'react'
+import type { CSSProperties } from 'react'
 
-/** 장서인 — 「FROM THE LIBRARY OF · 책추책책추」가 도는 원형 인장.
+/** 장서인 — 책 무더기 위로 「책추책책추」가 서는 원형 인장.
  *  추천 엽서 우측 상단에 찍힌다. 「읽은 책」 도장(ReadStamp)과는 다른 판이다 —
  *  저쪽은 고른 표지에 찍는 확인 도장이고, 이쪽은 보낸 이를 밝히는 장서인이다.
  *  이미지 대신 선으로 그린 건 작게 찍혀도 획이 뭉개지지 않게 하기 위해서다. */
 export default function LibrarySeal({ className, style }: { className?: string; style?: CSSProperties }) {
-  // 한 화면에 여러 번 찍혀도 글자가 도는 길의 id 가 겹치지 않게 한다
-  const arc = `library-seal-arc-${useId()}`
-
   /** 네 갈래 반짝임 — 꼭짓점 사이가 안으로 패인 별 */
   const star = (cx: number, cy: number, r: number) =>
     `M ${cx} ${cy - r} Q ${cx} ${cy} ${cx + r} ${cy} Q ${cx} ${cy} ${cx} ${cy + r} Q ${cx} ${cy} ${cx - r} ${cy} Q ${cx} ${cy} ${cx} ${cy - r} Z`
 
   return (
     <svg className={className} style={style} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-      <defs>
-        {/* 9시에서 3시까지 위를 넘어가는 반원 — 글자는 이 길을 따라 선다 */}
-        <path id={arc} fill="none" d="M 11.5 50 A 38.5 38.5 0 0 1 88.5 50" />
-      </defs>
-
       <circle cx="50" cy="50" r="46.6" fill="none" stroke="currentColor" strokeWidth="2.2" />
 
-      {/* 테두리 글자 — 길 한가운데에 맞춰 12시를 중심으로 좌우가 고르게 벌어진다 */}
-      <text fill="currentColor" fontFamily="var(--eo-font)" fontSize="8.6" fontWeight="600" letterSpacing="1.15">
-        <textPath href={`#${arc}`} startOffset="50%" textAnchor="middle">FROM THE LIBRARY OF</textPath>
-      </text>
-
-      {/* 보낸 이 — 아래쪽은 글자를 눕히지 않고 바로 세워 읽히게 둔다 */}
-      <text x="50" y="84.5" fill="currentColor" textAnchor="middle"
+      {/* 보낸 이 — 테두리를 돌지 않고 아래쪽에 바로 세워 읽히게 둔다 */}
+      <text x="50" y="80" fill="currentColor" textAnchor="middle"
         fontFamily="var(--eo-font)" fontSize="12.5" fontWeight="700" letterSpacing="0.2">책추책책추</text>
 
+      {/* 테두리 글자를 걷어낸 만큼 그림을 조금 키우고 위로 올려 원 한가운데에 앉힌다 */}
+      <g transform="translate(50 48) scale(1.08) translate(-50 -53)">
       {/* 책 무더기 — 다섯 권을 어긋나게 쌓고, 넷째 권만 검정으로 눌러 무게를 준다 */}
       <g stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" fill="none">
         <rect x="36" y="30.5" width="29" height="7" rx="1.2" />
@@ -71,6 +60,7 @@ export default function LibrarySeal({ className, style }: { className?: string; 
         <circle cx="84.5" cy="55" r="1.9" />
         <circle cx="65.5" cy="30.5" r="1.2" />
         <circle cx="26.5" cy="49.5" r="1.2" />
+      </g>
       </g>
     </svg>
   )

@@ -41,7 +41,7 @@ export default function LetterStamp({ reason, to, width = 230, notch }: {
             <p className="uppercase" style={{ fontSize: width * 0.025, letterSpacing: '0.16em', marginTop: width * 0.018 }}>a book chosen for you</p>
           </div>
           {/* 보낸 이 표기는 글자 대신 장서인으로 — 엽서 우측 상단에 찍힌 도장 */}
-          <LibrarySeal className="shrink-0" style={{ width: width * 0.22, height: width * 0.22, color: INK, opacity: 0.86, transform: 'rotate(-7deg)' }} />
+          <LibrarySeal className="shrink-0" style={{ width: width * 0.22, height: width * 0.22, color: INK, opacity: 0.86 }} />
         </div>
 
         <div className="relative z-10 flex flex-1 min-h-0 flex-col" style={{ borderTop: `1px solid ${INK}62` }}>
