@@ -31,6 +31,8 @@ class ClassifyPathTests(unittest.TestCase):
     def test_component_source(self):
         self.assertEqual(classify_path("frontend/src/App.tsx"), {"frontend"})
         self.assertEqual(classify_path("backend/src/main/java/com/ssafy/b102/A.java"), {"backend"})
+        self.assertEqual(classify_path("ai/src/recommendation/api.py"), {"ai", "deploy"})
+        self.assertEqual(classify_path("ai/pyproject.toml"), {"ai", "deploy"})
         self.assertEqual(classify_path("database/카카오/scripts/kakao_book_common.py"), {"data"})
         self.assertEqual(classify_path("database/정보나루/tests/test_gap_pipeline.py"), {"data"})
         self.assertEqual(classify_path("database/_pipeline/scripts/embedding_study.py"), {"data"})
@@ -40,7 +42,7 @@ class ClassifyPathTests(unittest.TestCase):
             "README.md", "docs/ERD.md", "frontend/README.md", "backend/README.md", "deploy/README.md",
             "database/카카오/KAKAO_BOOK_SEARCH_API.md", "database/_pipeline/reports/x.json",
             "database/yes24/samples/a.jsonl", "docs/pipeline/report.pdf", "jira/jira_guide.md",
-            ".gitlab/merge_request_templates/Default.md", "ai/src/recommendation/cli.py", ".gitignore",
+            ".gitlab/merge_request_templates/Default.md", "ai/README.md", "ai/docs/operations.md", ".gitignore",
         ):
             self.assertEqual(classify_path(path), set(), path)
 
@@ -58,6 +60,17 @@ class ClassifyPathTests(unittest.TestCase):
         self.assertEqual(classify_path("scripts/ci/run-frontend-ci.sh"), {"frontend", "deploy"})
         self.assertEqual(classify_path("scripts/ci/run-backend-ci.sh"), {"backend", "deploy"})
         self.assertEqual(classify_path("scripts/ci/run-data-ci.sh"), {"data", "deploy"})
+        self.assertEqual(classify_path("scripts/ci/run-ai-ci.sh"), {"ai", "deploy"})
+
+    def test_ai_source_change_selects_ai_ci_and_deployment(self):
+        plan, unknown = classify_paths(["ai/src/recommendation/index_audit.py"])
+        self.assertEqual(selected(plan), {"ai", "deploy"})
+        self.assertEqual(unknown, [])
+
+    def test_ai_docs_only_change_does_not_deploy(self):
+        plan, unknown = classify_paths(["ai/README.md", "ai/docs/runbook.md"])
+        self.assertEqual(selected(plan), set())
+        self.assertEqual(unknown, [])
 
     def test_global_inputs_select_all(self):
         self.assertIsNone(classify_path("scripts/ci/lib.sh"))

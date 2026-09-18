@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """변경 경로로 CI 컴포넌트를 고른다. 출력은 JSON 한 덩어리.
 
-컴포넌트: frontend · backend · data · deploy
+컴포넌트: frontend · backend · ai · data · deploy
   - 문서만 바뀌면 아무것도 고르지 않는다
   - 분류할 수 없는 경로가 있거나 비교 기준(base)을 못 찾으면 전부 고른다 (안전 쪽으로 닫는다)
-  - ai/ 는 CI 대상이 아니다
+  - ai/ 소스는 AI CI와 배포 대상으로 선택한다 (문서 확장자는 제외)
   - dev 머지 커밋은 같은 (dev, MR head) 부모 쌍을 SUCCESS 로 검증한 MR-* 빌드가 있으면 컴포넌트 CI 를 건너뛰고 배포만 한다
     (reuse_merge_request_validation). Jenkins 는 MR 을 타깃과 머지한 상태로 빌드하므로 그 빌드가 검증한 트리는 머지 커밋의 트리와 같다.
     B102_REUSE_MR_VALIDATION=false 로 끄고, --all(FORCE_ALL) 이면 재사용하지 않는다.
@@ -26,7 +26,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-COMPONENTS = ("frontend", "backend", "data", "deploy")
+COMPONENTS = ("frontend", "backend", "ai", "data", "deploy")
 ZERO_SHA = "0" * 40
 # GitLab 머지 커밋 메시지 꼬리: "See merge request group/project!176" → Jenkins 브랜치 폴더 MR-176
 MERGE_REQUEST_REF = re.compile(r"See merge request \S+!(\d+)")
@@ -44,6 +44,7 @@ RULES: list[tuple[str, frozenset[str] | None]] = [
     # CI 스크립트는 자기 컴포넌트를 다시 돈다
     ("scripts/ci/run-frontend-ci.sh", frozenset({"frontend", "deploy"})),
     ("scripts/ci/run-backend-ci.sh", frozenset({"backend", "deploy"})),
+    ("scripts/ci/run-ai-ci.sh", frozenset({"ai", "deploy"})),
     ("scripts/ci/compose.backend-ci.yml", frozenset({"backend", "deploy"})),
     ("scripts/ci/run-data-ci.sh", frozenset({"data", "deploy"})),
     ("scripts/ci/", frozenset({"deploy"})),
@@ -58,6 +59,7 @@ RULES: list[tuple[str, frozenset[str] | None]] = [
     # 컴포넌트 (문서 제외는 아래 _is_doc 에서)
     ("frontend/", frozenset({"frontend"})),
     ("backend/", frozenset({"backend"})),
+    ("ai/", frozenset({"ai", "deploy"})),
     ("database/_pipeline/scripts/", frozenset({"data"})),
     ("database/_pipeline/", frozenset()),  # reports, deploy(수집기 systemd) — 테스트 없음
     ("database/", frozenset({"data"})),
@@ -67,7 +69,6 @@ RULES: list[tuple[str, frozenset[str] | None]] = [
     (".gitlab/", frozenset()),
     (".claude/", frozenset()),
     (".agents/", frozenset()),
-    ("ai/", frozenset()),
     (".gitignore", frozenset()),
     ("README.md", frozenset()),
     ("package-lock.json", frozenset()),  # 루트에 잘못 생긴 빈 파일

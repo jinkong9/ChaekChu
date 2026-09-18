@@ -15,7 +15,7 @@ pipeline {
         booleanParam(
             name: 'FORCE_ALL',
             defaultValue: false,
-            description: '변경 범위와 관계없이 frontend·backend·data·deploy 검증을 모두 실행한다.'
+            description: '변경 범위와 관계없이 frontend·backend·AI·data·deploy 검증을 모두 실행한다.'
         )
     }
 
@@ -74,13 +74,19 @@ pipeline {
                             }
                             env.CI_FRONTEND = planValue('frontend')
                             env.CI_BACKEND = planValue('backend')
+                            env.CI_AI = planValue('ai')
                             env.CI_DATA = planValue('data')
                             env.CI_DEPLOY = planValue('deploy')
                             // dev 머지 커밋: 같은 (dev, MR head) 쌍을 SUCCESS 로 검증한 MR 빌드가 있으면 true → 컴포넌트 CI 건너뜀
                             env.CI_REUSE_MR_VALIDATION = planValue('reuse_merge_request_validation')
                             env.CI_VERIFIED_BY = planValue('verified_by')
 
-                            def selected = ['frontend', 'backend', 'data', 'deploy'].findAll { env."CI_${it.toUpperCase()}" == 'true' }
+                            def selected = []
+                            if (env.CI_FRONTEND == 'true') { selected << 'frontend' }
+                            if (env.CI_BACKEND == 'true') { selected << 'backend' }
+                            if (env.CI_AI == 'true') { selected << 'ai' }
+                            if (env.CI_DATA == 'true') { selected << 'data' }
+                            if (env.CI_DEPLOY == 'true') { selected << 'deploy' }
                             env.CI_DOCS_ONLY = selected ? 'false' : 'true'
                             def label = selected ? selected.join(', ') : 'docs-only'
                             if (env.CI_REUSE_MR_VALIDATION == 'true') {
@@ -96,12 +102,16 @@ pipeline {
                     when { expression { env.CI_SUPERSEDED != 'true' && env.CI_REUSE_MR_VALIDATION != 'true' } }
                     options { timeout(time: 40, unit: 'MINUTES') }
                     failFast false
-                    // 같은 서버에서 운영 컨테이너와 메모리를 나눠 쓴다. 병렬은 frontend·data·deploy 처럼 가벼운 것만,
+                    // 같은 서버에서 운영 컨테이너와 메모리를 나눠 쓴다. 병렬은 frontend·AI·data·deploy 처럼 가벼운 것만,
                     // backend(PG+ES+gradle) 는 병렬 블록 뒤에 단독으로 돈다.
                     parallel {
                         stage('frontend') {
                             when { expression { env.CI_FRONTEND == 'true' } }
                             steps { sh 'bash scripts/ci/run-frontend-ci.sh' }
+                        }
+                        stage('ai') {
+                            when { expression { env.CI_AI == 'true' } }
+                            steps { sh 'bash scripts/ci/run-ai-ci.sh' }
                         }
                         stage('data') {
                             when { expression { env.CI_DATA == 'true' } }
@@ -159,12 +169,12 @@ pipeline {
 
             post {
                 always {
-                    junit(allowEmptyResults: true, testResults: 'backend/build/test-results/test/TEST-*.xml')
+                    junit(allowEmptyResults: true, testResults: 'backend/build/test-results/test/TEST-*.xml,ai/build/test-results/pytest.xml')
                     archiveArtifacts(allowEmptyArchive: true, artifacts: 'ci-plan.json')
                 }
                 cleanup {
                     // 워크스페이스는 다음 빌드가 재사용한다(캐시 효과). 빌드 산출물만 비운다.
-                    sh 'rm -rf frontend/dist frontend/node_modules backend/build || true'
+                    sh 'rm -rf frontend/dist frontend/node_modules backend/build ai/build || true'
                 }
             }
         }
