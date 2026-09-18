@@ -64,6 +64,24 @@
   letter-spacing: .08em;
 }
 
+.onboarding__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: #777b82;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.onboarding__back:hover { color: #272727; }
+.onboarding__back:focus-visible { outline: 2px solid #222; outline-offset: 3px; }
+.onboarding__back span { font-size: 17px; line-height: 1; }
+
 .onboarding__meter {
   height: 6px;
   overflow: hidden;
@@ -87,19 +105,18 @@
   letter-spacing: -.055em;
   line-height: 1.13;
   word-break: keep-all;
+  /* 세 단계가 한 크기를 쓴다 — 기준은 12권이 한 화면에 들어가야 하는 3단계다 */
+  font-size: clamp(38px, 3.8vw, 52px);
 }
 
 .onboarding__content--profile { width: 628px; max-width: 100%; margin-top: 54px; }
-.onboarding__content--profile h1 { font-size: clamp(44px, 4.4vw, 70px); }
 .onboarding__content--genres { margin-top: 68px; }
-.onboarding__content--genres h1 { font-size: clamp(42px, 4.2vw, 64px); }
 .onboarding__content--books { margin-top: 34px; }
-.onboarding__content--books h1 { font-size: clamp(38px, 3.8vw, 52px); }
 
 .onboarding__lead {
-  margin: 16px 0 0;
+  margin: 14px 0 0;
   color: #777b82;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 400;
   line-height: 1.48;
   word-break: keep-all;
@@ -156,7 +173,9 @@
 
 .onboarding__next {
   display: flex;
-  width: 100%;
+  /* 3단계 완료 버튼과 같은 폭·높이로 세 단계를 맞춘다 */
+  width: min(100%, 760px);
+  margin-inline: auto;
   height: 64px;
   align-items: center;
   justify-content: center;
@@ -172,7 +191,8 @@
 }
 
 .onboarding__next:hover:not(:disabled) { background: #444; transform: translateY(-1px); }
-.onboarding__next:disabled { cursor: not-allowed; }
+/* 잠긴 버튼이 검정 그대로면 눌러 보고 나서야 잠긴 걸 안다 — 농도로 먼저 말한다 */
+.onboarding__next:disabled { background: #c9ccd1; color: #fff; cursor: not-allowed; }
 .onboarding__next span { font-size: 27px; font-weight: 300; line-height: 1; }
 .onboarding__next:focus-visible,
 .onboarding__genre:focus-visible,
@@ -186,6 +206,31 @@
   font-size: 16px;
   line-height: 1.5;
   text-align: center;
+}
+
+/* 다음으로 못 가는 이유 — 나머지 안내문과 같은 농도로 두면 읽히지 않는다 */
+.onboarding__hint.is-blocked {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #8a5a20;
+  font-weight: 650;
+}
+
+.onboarding__hint.is-blocked::before {
+  content: '!';
+  display: grid;
+  width: 19px;
+  height: 19px;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: #8a5a20;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .onboarding__genres {
@@ -216,7 +261,6 @@
 .onboarding__genre:disabled { opacity: .45; cursor: not-allowed; }
 .onboarding__content--genres .onboarding__next { margin-top: 62px; }
 
-.onboarding__content--books .onboarding__lead { margin-top: 14px; font-size: 18px; }
 .onboarding__books {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -288,13 +332,12 @@
   cursor: pointer;
 }
 .onboarding__rating button.is-active { color: #a7834c; }
-.onboarding__content--books .onboarding__next { width: min(100%, 760px); margin: 28px auto 0; }
+.onboarding__content--books .onboarding__next { margin-top: 28px; }
 
 /* 노트북 높이에서도 12권과 완료 버튼이 한 화면 안에 놓이도록 세 번째 단계를 압축한다. */
 @media (min-width: 701px) and (max-height: 900px) {
   .onboarding--step-1 .onboarding__shell { padding-top: 48px; padding-bottom: 30px; }
   .onboarding__content--profile { margin-top: 38px; }
-  .onboarding__content--profile h1 { font-size: clamp(42px, 4vw, 62px); }
   .onboarding__content--profile .onboarding__form { margin-top: 32px; gap: 14px; }
   .onboarding__content--profile .onboarding__next { margin-top: 32px; }
 
@@ -306,16 +349,17 @@
 
   .onboarding--step-3 .onboarding__shell { padding-top: 22px; padding-bottom: 18px; }
   .onboarding__content--books { margin-top: 20px; }
-  .onboarding__content--books h1 { font-size: 44px; }
-  .onboarding__content--books .onboarding__lead { margin-top: 8px; font-size: 16px; line-height: 1.35; }
+  .onboarding__content h1 { font-size: 44px; }
+  .onboarding__lead { margin-top: 8px; font-size: 16px; line-height: 1.35; }
   .onboarding__books { gap: 14px 20px; margin-top: 16px; }
   .onboarding__book { width: min(100%, 110px); }
   .onboarding__book-title { margin-top: 6px; font-size: 14px; }
   .onboarding__book-author { margin-top: 2px; font-size: 12px; }
   .onboarding__rating { margin-top: 2px; }
   .onboarding__rating button { font-size: 16px; }
-  .onboarding__content--books .onboarding__next { height: 54px; margin-top: 18px; }
-  .onboarding__content--books .onboarding__hint { margin-top: 8px; font-size: 13px; }
+  .onboarding__next { height: 54px; }
+  .onboarding__content--books .onboarding__next { margin-top: 18px; }
+  .onboarding__hint { margin-top: 8px; font-size: 13px; }
 }
 
 @media (min-width: 701px) and (max-height: 800px) {
@@ -349,8 +393,7 @@
   .onboarding__content--genres,
   .onboarding__content--books { margin-top: 46px; }
   .onboarding__content h1 { font-size: clamp(34px, 8vw, 46px); }
-  .onboarding__lead,
-  .onboarding__content--books .onboarding__lead { margin-top: 12px; font-size: 16px; }
+  .onboarding__lead { margin-top: 12px; font-size: 16px; }
   .onboarding__form { margin-top: 36px; gap: 17px; }
   .onboarding__form-row { grid-template-columns: 1fr; gap: 7px; }
   .onboarding__form-row label { font-size: 15px; }
@@ -379,8 +422,7 @@
   .onboarding__content--books { margin-top: 26px; }
   .onboarding__content--books { margin-top: 14px; }
   .onboarding__content h1 { font-size: clamp(32px, 7.5vw, 40px); }
-  .onboarding__lead,
-  .onboarding__content--books .onboarding__lead { font-size: 14px; line-height: 1.35; }
+  .onboarding__lead { font-size: 14px; line-height: 1.35; }
   .onboarding__form { margin-top: 22px; gap: 10px; }
   .onboarding__form-row { gap: 4px; }
   .onboarding__form-row label { font-size: 13px; }
@@ -402,4 +444,15 @@
   .onboarding__content--books .onboarding__hint { display: none; }
   .onboarding__next { height: 50px; }
   .onboarding__hint { margin-top: 8px; font-size: 12px; }
+}
+
+/* 지면이 좁아 안내문을 접는 자리에서도, 넘어가지 못하는 이유만은 남겨 둔다 */
+.onboarding__content--books .onboarding__hint.is-blocked {
+  display: flex;
+  font-size: 15px;
+}
+
+@media (max-width: 700px) {
+  .onboarding__back { min-height: 44px; }
+  .onboarding__content--books .onboarding__hint.is-blocked { font-size: 14px; }
 }

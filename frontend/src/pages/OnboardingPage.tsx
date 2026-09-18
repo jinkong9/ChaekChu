@@ -109,6 +109,13 @@ export default function OnboardingPage() {
       <div className="onboarding__shell">
         <header className="onboarding__progress" aria-label={`온보딩 ${step + 1}단계, 총 ${STEP_COUNT}단계`}>
           <div className="onboarding__progress-labels">
+            {/* 앞 단계에서 적은 건 그대로 남겨 둔 채 돌아간다 — 1단계는 돌아갈 곳이 없어
+                빈 자리만 두어 STEP 라벨이 늘 같은 쪽에 붙게 한다 */}
+            {step > 0 ? (
+              <button className="onboarding__back" type="button" onClick={() => setStep((step - 1) as 0 | 1)}>
+                <span aria-hidden="true">←</span> 이전 단계
+              </button>
+            ) : <span />}
             <span>STEP {step + 1} / {STEP_COUNT}</span>
           </div>
           <div className="onboarding__meter" role="presentation">
@@ -178,7 +185,7 @@ export default function OnboardingPage() {
           <h1>읽어본 책이 있나요?</h1>
           <p className="onboarding__lead">
             {data?.segment ? `${data.segment.label}이 많이 읽은 책들이에요 — ` : '많이 읽힌 책들이에요 — '}
-            별점까지 남기면 첫 추천이 더 정확해져요.<br />3권 권장, 0권도 시작 가능
+            별점까지 남기면 첫 추천이 더 정확해져요.
           </p>
           <div className="onboarding__books">
             {(data?.items ?? []).map((book) => {
@@ -206,7 +213,7 @@ export default function OnboardingPage() {
           <button className="onboarding__next" type="button" disabled={!canFinishBooks} onClick={finish}>
             완료하고 시작하기 <span aria-hidden="true">→</span>
           </button>
-          <p className="onboarding__hint">
+          <p className={`onboarding__hint ${canFinishBooks ? '' : 'is-blocked'}`}>
             {canFinishBooks ? '아무 책도 선택하지 않아도 추천을 시작할 수 있어요.' : '고른 책에 별점을 남기면 넘어갈 수 있어요.'}
           </p>
         </section>}
