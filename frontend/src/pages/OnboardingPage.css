@@ -301,12 +301,12 @@
 /* 읽은 책 도장 — 모서리 체크 대신 표지 한가운데에 비스듬히 찍는다 */
 .onboarding__stamp {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 74%;
+  top: 5%;
+  right: 5%;
+  width: 56%;
   height: auto;
   color: #1f1f1f;
-  transform: translate(-50%, -50%) rotate(-9deg);
+  transform: rotate(-8deg);
   pointer-events: none;
 }
 .onboarding__book-title,
@@ -363,6 +363,12 @@
   .onboarding__content--books { margin-top: 16px; }
   .onboarding__books { gap: 10px 16px; }
   .onboarding__book { width: min(100%, 104px); }
+}
+
+/* 넓은 화면에서 1단계 글·폼이 지면 왼쪽 끝에 붙어 있었다 —
+   삽화가 맡은 오른쪽을 뺀 나머지의 가운데로 민다 */
+@media (min-width: 1101px) {
+  .onboarding--step-1 .onboarding__shell { padding-left: clamp(24px, 6vw, 120px); }
 }
 
 @media (max-width: 1100px) {

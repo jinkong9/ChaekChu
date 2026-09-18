@@ -10,7 +10,7 @@ export default function ReadStamp({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
       <defs>
         {/* 12시에서 시작해 시계 방향으로 한 바퀴 — 아래쪽 글자가 뒤집히는 건 둥근 인장의 생김새다 */}
-        <path id={arc} fill="none" d="M 50 9.6 a 40.4 40.4 0 1 1 -0.01 0" />
+        <path id={arc} fill="none" d="M 50 14 a 36 36 0 1 1 -0.01 0" />
       </defs>
 
       {/* 표지 위에 얹히므로 종이 한 겹을 깔아 획을 읽히게 한다 */}
@@ -26,12 +26,12 @@ export default function ReadStamp({ className }: { className?: string }) {
       <text
         fill="currentColor"
         fontFamily="var(--eo-font)"
-        fontSize="11.8"
+        fontSize="11"
         fontWeight="700"
         letterSpacing="0.3"
         transform="rotate(-20 50 50)"
       >
-        <textPath href={`#${arc}`} startOffset="0%" textLength="252" lengthAdjust="spacing">
+        <textPath href={`#${arc}`} startOffset="0%" textLength="222" lengthAdjust="spacing">
           LOVE IT · READ IT · RETURN IT ·
         </textPath>
       </text>
