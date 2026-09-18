@@ -184,11 +184,14 @@ class RandomBookApiTest {
 		return book(title, coverUrl, layer, candidate, KDC);
 	}
 
-	/** catalog_layer 는 V5 CHECK 때문에 후보(is_candidate)면 CORE·NEW 여야 한다. 비후보는 TAIL. kdc 는 null·빈 문자열도 받는다(부적격 픽스처용). */
+	/**
+	 * catalog_layer 는 V5 CHECK 때문에 후보(is_candidate)면 CORE·NEW 여야 한다. 비후보는 TAIL. kdc 는 null·빈 문자열도 받는다(부적격 픽스처용).
+	 * is_searchable 은 V11 CHECK(ck_books_candidate_needs_searchable — 후보면 검색 대상이어야 한다) 때문에 후보와 같은 값으로 넣는다.
+	 */
 	private long book(String title, String coverUrl, String layer, boolean candidate, String kdc) {
 		return jdbc.queryForObject("""
-			insert into books(isbn13, title, author, publisher, pub_year, category_code, cover_url, catalog_layer, is_candidate)
-			values (?, ?, '가챠 저자', '가챠 출판사', 2020, ?, ?, ?, ?) returning id""",
-			Long.class, uniqueIsbn(), title, kdc, coverUrl, layer, candidate);
+			insert into books(isbn13, title, author, publisher, pub_year, category_code, cover_url, catalog_layer, is_searchable, is_candidate)
+			values (?, ?, '가챠 저자', '가챠 출판사', 2020, ?, ?, ?, ?, ?) returning id""",
+			Long.class, uniqueIsbn(), title, kdc, coverUrl, layer, candidate, candidate);
 	}
 }
