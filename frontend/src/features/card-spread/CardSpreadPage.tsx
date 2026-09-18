@@ -226,7 +226,7 @@ export default function CardSpreadPage() {
       <div className="bd-shell">
         <div className="bd-top">
           {/* ---- 왼쪽: 펼친 지면(표지 + 도서 카드)과 그 아래 행동 ---- */}
-          <section>
+          <section className="bd-object">
             <div className="bd-spread">
               <div className="bd-mount">
                 {book.coverUrl
@@ -283,15 +283,24 @@ export default function CardSpreadPage() {
             {saveError && <p className="bd-cta-error" role="alert">{saveError}</p>}
           </section>
 
-          {/* ---- 오른쪽: 표제·지표·읽을거리 ---- */}
-          <section>
+          {/* ---- 오른쪽 위: 표제 ----
+              좁은 폭에서는 이 머리만 펼침면 위로 올라간다(card-spread.css .bd-top).
+              표지 한 장과 도서 카드 한 장이 각각 한 화면을 차지하는 탓에,
+              한 단으로 누우면 책 제목을 보려고 두 번 쓸어내려야 했다.
+              지표까지 함께 올리지는 않는다 — 네 칸이 세로로 눕는 폭에서는 그것만 450px 라,
+              제목 다음에 숫자 넉 줄을 지나야 표지가 나온다. 숫자는 책을 본 뒤에 읽는 것이다. */}
+          <header className="bd-lead">
             {/* 카드에 적힌 서지(지은이·출판사·출판연도·쪽수·분류·ISBN)는 여기서 되풀이하지 않는다.
                 제목만 예외로 둔다 — 지면의 표제이자 이 화면의 h1이라 카드의 제목 칸과 겹쳐도 값이 있다 */}
             <p className="bd-eyebrow">
               {fromRec ? '추천으로 들어왔을 때만 보이는 이유 한 줄' : '조금 더 나은 나를 위한 한 권'}
             </p>
             <h1 className="bd-headline">{book.title}</h1>
+          </header>
 
+          {/* ---- 오른쪽 아래: 지표와 읽을거리 ----
+              두 단일 때는 바로 위 표제에 붙어 지금까지와 같은 자리에 선다 */}
+          <section className="bd-read">
             {facts.length > 0 && (
               <dl className="bd-facts">
                 {facts.map((f) => (
@@ -312,6 +321,11 @@ export default function CardSpreadPage() {
                 <p className="bd-prose">{book.description}</p>
               </section>
             )}
+
+            {/* 두 절 사이의 늘어나는 여백 — 왼쪽 펼침면이 더 길 때 그 차이를 여기서 받아
+                두 단이 같은 선에서 끝난다. 56px 까지만 벌어지므로, 소개가 아주 짧은 책에서
+                절 사이에 구멍이 뚫리지는 않는다(그때는 예전처럼 그냥 어긋난 채로 둔다). */}
+            <span className="bd-slack" aria-hidden="true" />
 
             <section className="bd-block">
               <div className="bd-block__head">

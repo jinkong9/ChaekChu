@@ -31,19 +31,62 @@
 
 /* ---------- 위쪽 두 단 ---------- */
 
+/* 세 덩이가 두 단으로 선다: 왼쪽에 펼침면(.bd-object)이 두 줄을 관통하고,
+   오른쪽은 표제(.bd-lead) 위, 지표와 읽을거리(.bd-read) 아래로 나뉜다.
+   줄 사이 여백을 0으로 두어 지금까지의 간격(지표의 아래 괘선 → 절의 안쪽 여백)을 그대로 남긴다.
+   둘째 줄을 1fr 로 두는 것은 펼침면이 더 길 때 그 여분을 .bd-read 가 받게 하기 위해서다 —
+   auto 로 두면 격자가 남는 높이를 두 줄에 반씩 나눠 표제와 본문 사이가 벌어진다. */
 .bd-top {
   display: grid;
   grid-template-columns: minmax(0, 47fr) minmax(0, 53fr);
+  grid-template-rows: auto 1fr;
   align-items: start;
-  gap: clamp(26px, 3.4vw, 50px);
+  column-gap: clamp(26px, 3.4vw, 50px);
+  row-gap: 0;
 }
 
 /* 파일 대지는 '물건'이다 — 한 단으로 내려가도 지면 폭만큼 늘어나면 축척이 무너지고
    카드 안쪽에 빈 자리가 크게 남는다. 왼쪽 단은 어느 폭에서도 이 크기를 넘지 않는다 */
-.bd-top > section:first-child { max-width: 620px; }
+.bd-object {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  max-width: 620px;
+}
 
+.bd-lead { grid-column: 2; grid-row: 1; }
+
+.bd-read {
+  display: flex;
+  flex-direction: column;
+  grid-column: 2;
+  grid-row: 2;
+  align-self: stretch;
+}
+
+/* 왼쪽 펼침면이 더 길 때 그 차이를 두 절 사이에서 받아, 두 단이 같은 선에서 끝나게 한다.
+   한도를 두는 까닭: 소개가 한두 줄뿐인 책에서는 차이가 300px 를 넘는데, 그만큼을
+   절 사이에 부으면 아랫선을 맞추려다 본문 한가운데가 끊긴다. 거기까지는 어긋난 채로 둔다. */
+.bd-slack {
+  flex: 1 1 0;
+  max-height: 56px;
+}
+
+/* 한 단으로 누우면 순서를 바꾼다 — 표제가 먼저, 그다음이 펼침면, 지표·읽을거리는 그 뒤다.
+   표지 한 장(250px)과 도서 카드 한 장(307px)이 각각 한 화면을 차지해서,
+   원래 순서로는 책 제목까지 내려가는 데 두 번을 쓸어내려야 했다. */
 @media (max-width: 1000px) {
-  .bd-top { grid-template-columns: minmax(0, 1fr); gap: 34px; }
+  .bd-top {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    row-gap: 34px;
+  }
+  .bd-lead { grid-column: 1; grid-row: 1; }
+  .bd-object { grid-column: 1; grid-row: 2; }
+  .bd-read { grid-column: 1; grid-row: 3; }
+  /* 줄 사이 여백이 이미 34px 다 — 지표가 표제 바로 아래 있을 때의 간격을 여기서 또 더하지 않는다 */
+  .bd-read > .bd-facts:first-child { margin-top: 0; }
+  /* 한 단에서는 맞출 옆 단이 없다 */
+  .bd-slack { display: none; }
 }
 
 /* ---------- 펼침면 ---------- */
@@ -214,7 +257,15 @@
   white-space: nowrap;
 }
 
+/* 값 칸은 165px 남짓이라 「그리스인 조르바 — 열린책들 세계문학 254」 같은 제목은 한 줄에 못 든다.
+   한 줄로 못 박고 … 로 끊으면 카드에 인쇄된 서지가 title 속성 안에만 남는다 — 카드는 읽히라고 있는 판이다.
+   두 줄까지 펴고 그 너머만 줄인다. 행의 baseline 정렬은 그대로다 — 격자는 첫 줄의 기준선을 잡으므로
+   값이 두 줄이 되어도 라벨은 첫 줄 옆에 남는다. */
 .bd-card__rows dd {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   min-width: 0;
   padding: clamp(4px, 0.5vw, 6px) 2px;
   border-bottom: 1px solid var(--eo-rule-soft);
@@ -223,8 +274,8 @@
   font-size: clamp(12px, 1vw, 14px);
   font-weight: 650;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
 
