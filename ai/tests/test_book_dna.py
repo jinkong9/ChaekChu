@@ -94,3 +94,32 @@ def test_kdc_axis_mapping_preserves_specific_ranges_before_broad_ranges() -> Non
     scores = {item.code: item.score for item in profile.axes}
     assert scores["ESSAY"] == 50.0
     assert scores["BUSINESS"] == 50.0
+
+
+def test_every_taxonomy_code_has_a_korean_label_and_genres_stay_out_of_keywords() -> None:
+    """「자주 읽는 키워드」에 #SCIENCE #HISTORY #HUMANITIES 가 영문 코드 그대로 뜨던 문제(09-18)."""
+    from recommendation.book_dna import GENRE_CODES, TAG_LABELS
+    from recommendation.tag_batch import TAXONOMY
+
+    for definition in TAXONOMY:
+        label = TAG_LABELS[definition.code]
+        assert label != definition.code, definition.code
+        assert any("가" <= ch <= "힣" for ch in label), (definition.code, label)   # 한글 라벨이어야 화면에 코드가 새지 않는다
+
+    profile = build_book_dna_profile(
+        [seed("9780000000001"), seed("9780000000002"), seed("9780000000003")],
+        {
+            "9780000000001": BookDnaRecord("9780000000001", tag_codes=("HUMANITIES", "STEADY"), class_no="189.2"),
+            "9780000000002": BookDnaRecord("9780000000002", tag_codes=("SCIENCE", "TECH", "FAMILY"), class_no="539"),
+            "9780000000003": BookDnaRecord("9780000000003", tag_codes=("HISTORY", "TRAVEL"), class_no="981.1"),
+        },
+        today=date(2026, 1, 1),
+    )
+
+    keyword_codes = [item.code for item in profile.keywords]
+    assert set(keyword_codes) == {"STEADY", "FAMILY"}                     # 장르는 축이 보여 준다
+    assert not (set(keyword_codes) & GENRE_CODES)
+    assert {item.code: item.label for item in profile.keywords} == {"STEADY": "꾸준히 읽는 책", "FAMILY": "가족"}
+    axes = {item.code: item.score for item in profile.axes}
+    assert axes["HUMANITIES"] > 0 and axes["SCIENCE"] > 0 and axes["ART_HISTORY"] > 0   # 인문 / 과학·기술 / 예술·역사(981 기행)
+    assert set(profile.evidence.top_tags) <= {"HUMANITIES", "STEADY", "SCIENCE", "TECH", "FAMILY", "HISTORY", "TRAVEL"}
