@@ -161,8 +161,10 @@ TAG_LABELS: dict[str, str] = {
     "TRENDING": "지금 뜨는 책",
     "STEADY": "꾸준히 읽는 책",
 }
-# 키워드 칸에서 빼는 장르 코드 — 장르는 위 레이더 축이 이미 비율로 보여 준다. 남는 것은 소재·신호 태그(판타지·가족·시간여행·신간·꾸준히 읽는 책 …).
-GENRE_CODES = frozenset(GENRE_TAG_TO_AXIS) | frozenset({"TRAVEL"})
+# 키워드 칸에서 빼는 코드 — 레이더 축 이름과 글자까지 같은 것만(소설·에세이·경제·경영·자기계발). 같은 말이 두 번 보이는 것을 막는 용도다.
+# 과학·역사·인문·사회·예술·시·여행·기술 은 남긴다: 축은 「인문·사회」「과학·기술」「예술·역사」로 묶어 보여 주므로 세부 장르는 키워드에서만 볼 수 있다.
+# 09-18 에 장르를 전부 뺐다가 키워드 칸이 「꾸준히 읽는 책」 하나만 남는 사용자가 생겨 되돌렸다.
+AXIS_NAME_CODES = frozenset({"FIC", "FICTION", "ESSAY", "ECONOMY", "BUSINESS", "GROWTH", "SELF_HELP"})
 
 
 def _axis_for(record: BookDnaRecord) -> str | None:
@@ -293,7 +295,7 @@ def build_book_dna_profile(
             key=lambda item: (-item.score, item.code),
         )
     )
-    keyword_scores = _normalise({tag: value for tag, value in tag_values.items() if tag not in GENRE_CODES})
+    keyword_scores = _normalise({tag: value for tag, value in tag_values.items() if tag not in AXIS_NAME_CODES})
     keywords = tuple(
         DnaScore(tag, TAG_LABELS.get(tag, tag), score)
         for tag, score in sorted(keyword_scores.items(), key=lambda item: (-item[1], item[0]))[:keyword_limit]
