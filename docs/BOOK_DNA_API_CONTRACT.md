@@ -282,4 +282,6 @@ JWT 사용자 전용 세션을 만들고 후보 16권을 무작위로 대진에 
 
 `b102-recommendation worldcup-summaries`로 GMS 요약 sidecar를 생성하고, 검수한 `SUCCESS` 행만 `book_world_cup_synopses`에 적재한다. Flyway V10은 요약 정본·순위와 사용자별 세션 상태를 만든다. 출처 해시·요약 버전·모델 버전을 보존하며 원본 카탈로그를 수정하지 않는다.
 
+후보 선택은 소개가 있는 행만 대상으로 제목을 정규화해 중복 판본을 제거한 뒤 대출 건수 상위 N권을 선정한다. 같은 정규화 제목에서는 대출 건수가 가장 높은 판본을 대표로 사용하고, 동률은 ISBN13 오름차순으로 결정한다. 현재 선택 규칙과 제외·중복 통계는 [요약 배치 런북](BOOK_WORLD_CUP_SUMMARY_RUNBOOK.md)에 정의한다.
+
 EC2 실행 및 파일럿 검수·적재 절차는 [BOOK_WORLD_CUP_SUMMARY_RUNBOOK.md](BOOK_WORLD_CUP_SUMMARY_RUNBOOK.md)를 따른다. 20권 파일럿의 실제 크레딧 및 소개 품질을 확인한 후에만 500권 생성을 실행한다.

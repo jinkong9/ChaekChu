@@ -62,6 +62,7 @@ def test_provider_sends_only_description_context_and_parses_json() -> None:
     assert "description" in prompt
     assert "비공개 제목" not in prompt
     assert "저자 이름" not in prompt
+    assert "베스트셀러" in prompt
     assert sent["model"] == "gpt-4o-mini"
 
 
@@ -75,7 +76,7 @@ def test_summary_post_validation_rejects_identity_spoiler_and_overlong_sentence_
         validate_synopsis(text, book("9780000000001", "비공개 제목", 20))
 
 
-def test_runner_selects_top_loan_books_persists_metadata_and_skips_missing_description(tmp_path: Path) -> None:
+def test_runner_excludes_missing_descriptions_and_persists_selected_book_metadata(tmp_path: Path) -> None:
     source = tmp_path / "source.jsonl"
     sidecar = tmp_path / "summaries.jsonl"
     report = tmp_path / "report.json"
@@ -91,14 +92,45 @@ def test_runner_selects_top_loan_books_persists_metadata_and_skips_missing_descr
     result = runner.run(source, sidecar, report)
     rows = [json.loads(line) for line in sidecar.read_text(encoding="utf-8").splitlines()]
 
-    assert [row["isbn13"] for row in rows] == ["9780000000002", "9780000000003", "9780000000004"]
+    assert [row["isbn13"] for row in rows] == ["9780000000002", "9780000000004", "9780000000001"]
     assert [row["loanRank"] for row in rows] == [1, 2, 3]
-    assert [row["status"] for row in rows] == ["SUCCESS", "MISSING_SOURCE", "SUCCESS"]
-    assert all(row["sourceHash"] and row["summaryVersion"] == "book-world-cup-summary-v1" for row in rows)
-    assert result["status"] == "PARTIAL"
-    assert result["gmsRequests"] == 2
-    assert result["missingSourceRows"] == 1
-    assert len(provider.calls) == 2
+    assert [row["status"] for row in rows] == ["SUCCESS", "SUCCESS", "SUCCESS"]
+    assert all(row["selectionRule"] == "loan_desc_title_unique_v1" for row in rows)
+    assert all(row["sourceHash"] and row["summaryVersion"] == "book-world-cup-summary-v2" for row in rows)
+    assert result["status"] == "SUCCESS"
+    assert result["gmsRequests"] == 3
+    assert result["missingSourceRows"] == 0
+    assert result["excludedMissingDescriptionRows"] == 1
+    assert len(provider.calls) == 3
+
+
+def test_runner_deduplicates_normalized_titles_before_selecting_top_books(tmp_path: Path) -> None:
+    source = tmp_path / "source.jsonl"
+    sidecar = tmp_path / "summaries.jsonl"
+    report = tmp_path / "report.json"
+    write_input(source, [
+        source_row("9780000000001", "ＡＢＣ  Book: Story", 100, "소개입니다."),
+        source_row("9780000000002", "abc book :story", 120, "더 높은 대출량 판본 소개입니다."),
+        source_row("9780000000003", "다른 작품", 110, "다른 작품 소개입니다."),
+        source_row("9780000000004", "설명 누락 고대출", 1000, None),
+        source_row("9780000000005", "낮은 대출량 작품", 10, "소개입니다."),
+    ])
+    provider = FakeProvider()
+    runner = WorldCupSynopsisRunner(provider=provider, settings=SummarySettings(limit=2, max_estimated_credits=4))
+
+    result = runner.run(source, sidecar, report)
+    rows = [json.loads(line) for line in sidecar.read_text(encoding="utf-8").splitlines()]
+
+    assert [row["isbn13"] for row in rows] == ["9780000000002", "9780000000003"]
+    assert [row["loanCount"] for row in rows] == [120, 110]
+    assert [row["loanRank"] for row in rows] == [1, 2]
+    assert result["inputRows"] == 5
+    assert result["eligibleRows"] == 4
+    assert result["uniqueTitleRows"] == 3
+    assert result["duplicateTitleRows"] == 1
+    assert result["excludedMissingDescriptionRows"] == 1
+    assert result["selectedRows"] == 2
+    assert provider.calls == ["9780000000002", "9780000000003"]
 
 
 def test_runner_hard_credit_cap_prevents_all_calls(tmp_path: Path) -> None:
@@ -123,12 +155,19 @@ def test_runner_resumes_successful_rows_without_duplicate_gms_calls(tmp_path: Pa
 
     WorldCupSynopsisRunner(provider=provider, settings=settings).run(source, sidecar, report)
     first_call_count = len(provider.calls)
+    legacy_rows = [json.loads(line) for line in sidecar.read_text(encoding="utf-8").splitlines()]
+    for row in legacy_rows:
+        row["selectionRule"] = "loan_total_desc_isbn13_asc"
+    sidecar.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in legacy_rows), encoding="utf-8")
+
     second = WorldCupSynopsisRunner(provider=provider, settings=settings).run(source, sidecar, report)
+    refreshed_rows = [json.loads(line) for line in sidecar.read_text(encoding="utf-8").splitlines()]
 
     assert first_call_count == 3
     assert len(provider.calls) == first_call_count
     assert second["gmsRequests"] == 3
     assert second["processedRows"] == 3
+    assert all(row["selectionRule"] == "loan_desc_title_unique_v1" for row in refreshed_rows)
 
 
 def test_runner_reestimates_cost_when_a_reused_isbn_source_changes(tmp_path: Path) -> None:
