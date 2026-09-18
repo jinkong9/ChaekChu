@@ -39,7 +39,7 @@
   width: 68px;
   height: 66px;
   object-fit: contain;
-  animation: recommend-bird-deliver 8s linear infinite;
+  animation: recommend-bird-deliver 11s linear infinite;
 }
 
 @keyframes recommend-bird-deliver {

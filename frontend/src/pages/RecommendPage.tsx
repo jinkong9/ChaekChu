@@ -228,11 +228,6 @@ export default function RecommendPage() {
               </div>
             </div>
           </div>
-          <p className="eo-body mt-3.5 max-w-[52ch]">
-            {data.fallback
-              ? '아직 취향을 몰라서 인기 도서로 첫 장을 채웠어요 — 찜하면 더 정확해져요.'
-              : `최근 기록한 ${data.basedOnCount}권을 보고 골랐어요`}
-          </p>
         </header>
 
         {/* 적용 중인 관심 태그 — 최종 점수의 근거를 사람이 이해할 수 있게 표시 */}
