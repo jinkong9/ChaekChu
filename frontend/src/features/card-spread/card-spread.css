@@ -172,10 +172,12 @@
 
 /* 표지는 대지 높이를 채우고 원본 비율을 지킨다 — 카드와 키를 맞추려고 표지를 자르지 않는다.
    판형이 책마다 다르므로 0.7로 고정하지 않고 contain으로 둔다 */
+/* 대지를 채우되 원본의 1.5배까지만 — 상한은 표지가 뜬 뒤 JS 가 --bd-cover-cap 에 적는다
+   (CardSpreadPage COVER_MAX_UPSCALE). 변수가 없으면 예전처럼 대지 폭까지다. */
 .bd-mount img {
   display: block;
-  width: auto;
-  max-width: 100%;
+  width: 100%;
+  max-width: min(100%, var(--bd-cover-cap, 100%));
   height: auto;
   max-height: 100%;
   object-fit: contain;
@@ -257,15 +259,10 @@
   white-space: nowrap;
 }
 
-/* 값 칸은 165px 남짓이라 「그리스인 조르바 — 열린책들 세계문학 254」 같은 제목은 한 줄에 못 든다.
-   한 줄로 못 박고 … 로 끊으면 카드에 인쇄된 서지가 title 속성 안에만 남는다 — 카드는 읽히라고 있는 판이다.
-   두 줄까지 펴고 그 너머만 줄인다. 행의 baseline 정렬은 그대로다 — 격자는 첫 줄의 기준선을 잡으므로
-   값이 두 줄이 되어도 라벨은 첫 줄 옆에 남는다. */
+/* 값은 한 줄로 못 박는다 — 줄 수가 들쭉날쭉하면 카드의 괘선 간격이 행마다 달라져
+   인쇄물의 격자가 무너진다. 긴 제목·분류는 … 로 끊기고 전문은 dd 의 title 속성에 남는다.
+   (두 줄까지 펴 본 판을 되돌린 것이다 — 읽히는 글자보다 카드의 규칙이 먼저다) */
 .bd-card__rows dd {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   min-width: 0;
   padding: clamp(4px, 0.5vw, 6px) 2px;
   border-bottom: 1px solid var(--eo-rule-soft);
@@ -274,8 +271,8 @@
   font-size: clamp(12px, 1vw, 14px);
   font-weight: 650;
   line-height: 1.25;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 

@@ -37,6 +37,13 @@ const CARD_LINE = '“당신의 오늘도,\n좋은 책과 함께하길.”'
 /** 표지가 실제로 그려지는 최대 폭 — coverUrl 판(版) 선택에 쓴다 */
 const COVER_W = { spread: 320, tile: 150 }
 
+/** 원본을 몇 배까지 늘려 걸 것인가.
+ *  표지 원본은 책마다 폭이 다르다 — 알라딘 cover500 은 「있으면 500」이라, 원본이 작은 책은
+ *  같은 주소로 200 이나 85 짜리가 온다. 원본 크기 그대로 걸면 그런 책은 250px 짜리 흰 대지 한가운데
+ *  우표만 하게 붙어 「왜 나만 작지」로 보이고, 대지를 꽉 채우면 3배로 늘어나 뭉갠다.
+ *  1.5배까지만 늘리고 그 위로는 원본을 지킨다 — 작은 책도 자리는 차지하되 문질러지지는 않는다. */
+const COVER_MAX_UPSCALE = 1.5
+
 /** 아이콘은 선 굵기 1.5 하나로 통일한다 (DESIGN.md Shapes — 꼭 필요한 자리에만) */
 function Icon({ d, ...rest }: { d: string } & React.SVGProps<SVGSVGElement>) {
   return (
@@ -230,8 +237,13 @@ export default function CardSpreadPage() {
             <div className="bd-spread">
               <div className="bd-mount">
                 {book.coverUrl
-                  ? <img src={coverAtWidth(book.coverUrl, COVER_W.spread)!} alt={`${book.title} 표지`}
-                      referrerPolicy="no-referrer" decoding="async" />
+                  /* key 로 책마다 새 <img> 를 받는다 — 같은 노드를 돌려 쓰면 앞 책의 상한이
+                     새 표지가 뜨기 전까지 남아 큰 표지가 잠깐 작게 걸린다 */
+                  ? <img key={book.coverUrl} src={coverAtWidth(book.coverUrl, COVER_W.spread)!} alt={`${book.title} 표지`}
+                      referrerPolicy="no-referrer" decoding="async"
+                      /* 받아 보기 전에는 원본이 몇 px 인지 알 수 없다 — 떠야 알 수 있으므로 그때 상한을 적어 준다 */
+                      onLoad={(e) => e.currentTarget.style.setProperty(
+                        '--bd-cover-cap', `${Math.round(e.currentTarget.naturalWidth * COVER_MAX_UPSCALE)}px`)} />
                   : <span>{book.title}</span>}
               </div>
 
