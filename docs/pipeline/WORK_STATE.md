@@ -1,6 +1,6 @@
 # 작업 상태 (재개 지점)
 
-갱신 2026-09-15 · 수집 전부 종료(정보나루 09-09 · 카카오 09-10) · 서비스 DB V1·V2 적재 완료 · **V5 층 표시 로컬·EC2 — 검색 L1 1,047,435 · 추천 후보 440,757** · 임베딩 진행 중(Qdrant, 후보 파일 전달)
+갱신 2026-09-18 · 수집 전부 종료 · **V11 제외 규칙(결정 7) 로컬·EC2 — 검색 노출 976,246 · 추천 후보 406,451** · 임베딩 진행 중(Qdrant, 후보 파일 전달)
 
 > **09-11 정정 — 벡터 저장소는 Qdrant 로 굳었다.** 아래 「ES dense_vector 권고 · Qdrant 보류」와 「e5-large 1024d」는 09-10 시점의 계획이고,
 > 실제로 돌아가는 것은 08-31 운영안(`EMBEDDING_QDRANT_OPERATING_PLAN.md`) 쪽이다. EC2 확인 결과:
@@ -28,9 +28,10 @@
 [완료] V1 적재 — books 3,312,467 · book_tags 2,023,895 · book_loaned_top20 1,200   로컬 · EC2 둘 다 (09-09) → books 는 09-10 카카오 완주본으로 upsert
 [완료] V2 스키마 — V2__recommendation_layer.sql, Flyway CLI 로 로컬·EC2 적용 (09-09 14:40). book_texts 는 books 컬럼 3개로 흡수
 [완료] V2 적재 — kdc_codes 949 · book_keywords 8,784,823 · book_relations 13,699,166 (대상 연결 99.5~99.9%) · book_demand_features 2,749,303   로컬 · EC2 (09-09 16:40)
-[완료] 층 표시(V5, 결정 6) — 검색 색인 = L1 1,047,435 (books.catalog_layer CORE/NEW/TAIL) · 추천 후보 = 누적 843+ ∪ 신간 − 전자책·교과서·학습참고서·신호없음 = 440,757 (is_candidate)   로컬 · EC2 (09-15)
-[완료] 추천 배치 입력 파일 — candidates/2026-09-15/d4l_usage.candidates.jsonl.gz (정보나루 형식 그대로 · 후보 440,377줄) · EC2 ~/pipeline_data/candidates/2026-09-15/ 동일
-[진행] 임베딩 → Qdrant `books_active` (09-15 실측 10만 점 = 09-14 비용 검증분 / 후보 44만 목표 — 위 파일을 --input 으로) · ES 는 BM25(nori) 어휘 색인만(현재 books_v4 331만, 배포 뒤 books_v5 L1 105만) — `book_embeddings` 표는 V4 로 제거
+[완료] 층 표시(V5, 결정 6) — catalog_layer CORE/NEW/TAIL = L1 1,047,435   로컬 · EC2 (09-15)
+[완료] 제외 규칙(V11, 결정 7) — 소장 0개관·전자책·교과서·수험서는 검색에서도 뺀다 → is_searchable 976,246 · is_candidate 406,451   로컬 · EC2 (09-18)
+[완료] 추천 배치 입력 파일 — candidates/2026-09-18/d4l_usage.candidates.jsonl.gz (정보나루 형식 그대로 · 후보 406,073줄) · EC2 ~/pipeline_data/candidates/2026-09-18/ 동일
+[진행] 임베딩 → Qdrant `books_active` (09-15 실측 10만 점 = 09-14 비용 검증분 / 후보 40.6만 목표 — 위 파일을 --input 으로) · ES 는 BM25(nori) 어휘 색인만(현재 books_v6, 배포 뒤 books_v7 = is_searchable 976,246) — `book_embeddings` 표는 V4 로 제거
 ```
 
 <br/>
@@ -99,8 +100,8 @@ L1 추천 후보  누적 대출 72+ (수요 99%) ∪ 2025+ 신간 = 1,098,550   
 
 ## 6. 다음 작업
 
-0. **검색 재색인** — 머지·배포 뒤 `books_v5` 로 자동 rebuild(색인기가 `catalog_layer` 있는 L1 만 읽음). 운영 ES 는 09-15 현재 alias `books` → `books_v4` **3,312,467 문서(L0 전체)** 이고, 배포 뒤 **1,047,435** 가 된다. 배포 로그의 「재색인 완료 … PG 1047435행과 일치」로 확인
-1. **임베딩** — 후보 440,757권(`candidates/2026-09-15/d4l_usage.candidates.jsonl.gz` = ai/ 계약 형식) STRUCT(제목/저자/분류/키워드 30/소개 둘) → **Qdrant `books_active`**. 09-15 기준 10만 점(09-14 비용 검증분)이라 `GET /books/{id}/similar` 은 아직 열 수 없다. 적재분 관리는 `ndjson` 작업 파일(08-31 운영안 §7.3)
+0. **검색 재색인** — 머지·배포 뒤 `books_v7` 로 자동 rebuild(색인기가 `is_searchable` 만 읽음). 09-18 현재 alias `books` → `books_v6` 이고, 배포 뒤 **976,246** 이 된다. 배포 로그의 「재색인 완료 … PG 976246행과 일치」로 확인
+1. **임베딩** — 후보 406,451권(`candidates/2026-09-18/d4l_usage.candidates.jsonl.gz` = ai/ 계약 형식) STRUCT(제목/저자/분류/키워드 30/소개 둘) → **Qdrant `books_active`**. 09-15 기준 10만 점(09-14 비용 검증분)이라 `GET /books/{id}/similar` 은 아직 열 수 없다. 적재분 관리는 `ndjson` 작업 파일(08-31 운영안 §7.3)
 2. **ES 색인** — `books` BM25(nori: 제목·저자·출판사·`book_keywords`·소개 둘) + `dense_vector` int8_hnsw. 컨테이너 상한 4G → 5G
 3. **`book_demand_features` 다음 달** — 10월 원장 스냅샷이 오면 `loan_24m`·`trending_score`·`steady_score` 계산 시작(결정 3). 지금은 누적·3/12개월·소장관만
 4. `ai/` 서비스에 스냅샷 경로 연결 (`d4l-usage-v1` 계약 validate) — 또는 DB(`book_relations` 등)를 읽도록 전환 여부 결정

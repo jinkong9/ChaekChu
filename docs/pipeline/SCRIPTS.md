@@ -423,5 +423,6 @@ py scripts/build_candidates.py --snapshot ../project_personal/snapshots/2026-09-
 → d4l_usage.candidates.jsonl.gz (추천 후보만 · 정보나루 스냅샷 줄 그대로 · isbn13 중복은 desc 긴 줄) · kakao_enriched.candidates.jsonl.gz · candidates.csv (L1 전부, layer + include) · manifest.json
 PG_CONTAINER=… bash scripts/load_service_tables.sh ../project_personal/candidates/<날짜> --only candidates   # books.catalog_layer · is_candidate · candidate_exclusion 전체 재계산 (V5 컬럼 있을 때만)
 ```
-09-15 결과: 검색 층 1,047,435 (TAIL 566,054) · 후보 모집단 481,381 → 포함 440,757 (CORE 356,707 · NEW 84,050) · 제외 NO_SIGNAL 28,795 · STUDY_AID 9,483 · TEXTBOOK 1,785 · EBOOK 561. 빌드 4분, 적재 로컬·EC2 수 분.
+09-18 결과(결정 7 반영): 층 1,047,435 → **검색 노출 976,246** → **추천 후보 406,451** · 제외 NO_HOLDING 58,222 · NO_SIGNAL 10,378 · STUDY_AID 8,189 · EBOOK 4,026 · TEXTBOOK 752. 빌드 2분 30초.
+제외 사유 중 NO_HOLDING·EBOOK·TEXTBOOK·STUDY_AID 는 층 전체(TAIL 포함)에 적용해 **검색까지** 막고, NO_SIGNAL 만 추천 후보에서만 뺀다.
 `d4l_usage.candidates.jsonl.gz` 는 `ai/src/recommendation/d4l.py` 의 d4l-usage 계약을 그대로 통과한다(중복 ISBN 제거, ok·bookname 없는 줄 제외).

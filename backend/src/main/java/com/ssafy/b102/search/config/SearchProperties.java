@@ -21,7 +21,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *   v5 = 매핑은 v4 와 같고 **문서 집합**이 바뀜(09-15) — books 전 행(331만)이 아니라 books.catalog_layer 가 있는 L1 약 105만 권만 색인한다
  *        (V5 마이그레이션 · 누적 대출 72+ ∪ 신간. 추천 후보 is_candidate 는 더 좁지만 검색은 L1 전체). 옛 인덱스의 226만 빈 문서를 지우려면
  *        덮어쓰기(indexAll)가 아니라 새 인덱스로 rebuild 해야 하므로 버전을 올린다.
- *
+ *   v6 = vol(권차) 추가 — 같은 작품의 판본·권차 구분용(09-16).
+ *   v7 = 매핑은 그대로고 **문서 집합**이 다시 좁아짐(09-18, V11) — books.is_searchable 인 약 98만 권만 색인한다.
+ *        소장 0개관·전자책·교과서·수험서를 검색에서도 뺐다. 덮어쓰기(indexAll)로는 옛 문서가 남으므로 새 인덱스로 rebuild 한다.
  * noCoverWeight: 표지 없는 문서 점수에 곱하는 계수(0 < w ≤ 1). 1 이면 끔. 덧셈 가산이 아니라 곱셈이라 검색어마다 점수 크기가 달라도 같은 비율로 내려간다.
  *   관련도가 훨씬 높은 책이 표지가 없다고 무관한 책 아래로 떨어지지 않도록 0.7 을 시작값으로 둔다 — 완전일치 가산(×10)은 그대로 살아 있다.
  */
@@ -47,7 +49,7 @@ public record SearchProperties(String alias, String indexName, Boolean createInd
 			alias = DEFAULT_ALIAS;
 		}
 		if (indexName == null || indexName.isBlank()) {
-			indexName = alias + "_v5";
+			indexName = alias + "_v7";
 		}
 		if (createIndexOnStart == null) {
 			createIndexOnStart = Boolean.TRUE;
