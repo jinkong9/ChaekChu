@@ -104,19 +104,22 @@ class BookIndexServiceTest {
 	}
 
 	@Test
-	@DisplayName("catalog_layer 가 없는 책(L0 만)은 indexAll·증분·sourceCount 에서 빠지고, 추천 후보가 아니어도 L1(TAIL·제외 사유) 이면 색인된다 (V5)")
-	void only_search_layer_is_indexed() {
+	@DisplayName("is_searchable 이 아닌 책은 indexAll·증분·sourceCount 에서 빠진다. TAIL·NO_SIGNAL 은 검색되고 STUDY_AID 는 빠진다 (V11)")
+	void only_searchable_rows_are_indexed() {
 		Long metaOnly = insertBook(uniqueIsbn(4), "어느 지역 향토지", "편찬위원회", "시청", 1998, "911", Instant.now(), false);
-		jdbc.update("update books set catalog_layer = 'TAIL', is_candidate = false where id = ?", oldBook);                // L1 꼬리 — 검색만
-		jdbc.update("update books set candidate_exclusion = 'STUDY_AID', is_candidate = false where id = ?", bookIds.get(1)); // 후보 제외 — 검색은 됨
-		long searchable = jdbc.queryForObject("select count(*) from books where catalog_layer is not null", Long.class);
+		jdbc.update("update books set catalog_layer = 'TAIL', is_candidate = false where id = ?", oldBook);                 // L1 꼬리 — 검색만
+		// 신호 없음은 검색을 막지 않는다. 수험서는 검색까지 막는다 — V11 에서 갈린 두 경우
+		jdbc.update("update books set candidate_exclusion = 'NO_SIGNAL', is_candidate = false where id = ?", freshBook);
+		Long studyAid = insertBook(uniqueIsbn(5), "공무원 기출문제 총정리", "편집부", "고시원", 2023, "350", Instant.now(), true);
+		jdbc.update("update books set candidate_exclusion = 'STUDY_AID', is_candidate = false, is_searchable = false where id = ?", studyAid);
+		long searchable = jdbc.queryForObject("select count(*) from books where is_searchable", Long.class);
 
 		IndexReport report = indexService.indexAll();
 		assertThat(report.failed()).isZero();
-		assertThat(indexService.sourceCount()).isEqualTo(searchable);                        // 완전성 검사 기준 = 검색 층 행수
-		assertThat(get(freshBook)).isNotNull();
+		assertThat(indexService.sourceCount()).isEqualTo(searchable);                        // 완전성 검사 기준 = 검색 대상 행수
+		assertThat(get(freshBook)).isNotNull();                                              // NO_SIGNAL 이어도 검색됨
 		assertThat(get(oldBook)).isNotNull();                                                // TAIL 도 색인
-		assertThat(get(bookIds.get(1))).isNotNull();                                         // 후보 제외여도 색인
+		assertThat(operations.get(String.valueOf(studyAid), BookDocument.class, IndexCoordinates.of(props.alias()))).isNull();
 		assertThat(operations.get(String.valueOf(metaOnly), BookDocument.class, IndexCoordinates.of(props.alias()))).isNull();
 
 		IndexReport incremental = indexService.indexUpdatedSince(Instant.now().minus(1, ChronoUnit.DAYS));
@@ -180,7 +183,7 @@ class BookIndexServiceTest {
 		return operations.get(String.valueOf(id), BookDocument.class, IndexCoordinates.of(props.alias()));
 	}
 
-	/** 검색 층(catalog_layer CORE, 추천 후보 true)으로 넣는다 — V5 부터 색인기는 catalog_layer 가 있는 행만 읽는다. */
+	/** 검색 대상(catalog_layer CORE · is_searchable · 추천 후보)으로 넣는다 — V11 부터 색인기는 is_searchable 인 행만 읽는다. */
 	private Long insertBook(String isbn13, String title, String author, String publisher, Integer pubYear, String kdc, Instant updatedAt) {
 		return insertBook(isbn13, title, author, publisher, pubYear, kdc, updatedAt, true);
 	}
@@ -188,10 +191,10 @@ class BookIndexServiceTest {
 	private Long insertBook(String isbn13, String title, String author, String publisher, Integer pubYear, String kdc, Instant updatedAt,
 		boolean candidate) {
 		Long id = jdbc.queryForObject(
-			"insert into books(isbn13, title, author, publisher, pub_year, category_code, updated_at, catalog_layer, is_candidate) "
-				+ "values (?, ?, ?, ?, ?, ?, ?, ?, ?) returning id",
+			"insert into books(isbn13, title, author, publisher, pub_year, category_code, updated_at, catalog_layer, is_searchable, is_candidate) "
+				+ "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id",
 			Long.class, isbn13, title, author, publisher, pubYear, kdc, java.sql.Timestamp.from(updatedAt),
-			candidate ? "CORE" : null, candidate);
+			candidate ? "CORE" : null, candidate, candidate);
 		bookIds.add(id);
 		return id;
 	}
