@@ -207,7 +207,7 @@ export default function RecommendPage() {
     <main className="eo-page">
       <div className="eo-shell">
         <header className="eo-pagehead">
-          <p className="eo-eyebrow">{postmark} 소인</p>
+          <p className="eo-eyebrow">{postmark}</p>
           <h1 className="eo-headline">오늘의 책추</h1>
           <p className="eo-body mt-3.5 max-w-[52ch]">
             {data.fallback
@@ -236,7 +236,7 @@ export default function RecommendPage() {
                   {rerolling ? '고르는 중' : '다시 추천받기'}
                 </button>}
             <span aria-hidden style={{ width: 1, height: 18, background: 'var(--eo-rule)' }} />
-            <Link to="/tune" className="eo-text-button">기준 조절하기</Link>
+            <Link to="/tune" className="eo-text-button">관심 태그 고르기</Link>
           </div>
         </div>
         {rerollError && <p className="eo-utility mt-2 text-ink" role="alert">{rerollError}</p>}
@@ -246,7 +246,7 @@ export default function RecommendPage() {
           <div className="relative shrink-0" style={{ width: HERO.w, height: HERO.h }}>
             <StampFolder
               open={heroOpen} width={HERO.folderW} height={HERO.folderH}
-              label="오늘의 책" sub={`${postmark} 소인 · No.${featured.rank}`}
+              label={`For ${nickname ?? '독자'}`} sub={`${postmark}`}
               slots={[
                 {
                   key: 'cover', out: 250, tilt: -2, top: 28, left: 20,
@@ -262,7 +262,7 @@ export default function RecommendPage() {
                   key: 'letter', out: 505, tilt: 1.6, top: 7, left: 5,
                   // 사연 우표 = 추천 상세로 가는 문. 그 화면이 아직 없어 링크는 보류 —
                   // 라우트가 생기면 표지 우표와 같은 모양으로 Link만 감싸면 된다.
-                  node: <LetterStamp reason={featured.reasonText} to={nickname} postmark={postmark} rank={featured.rank} width={230} notch={PAGE_BG} />,
+                  node: <LetterStamp reason={featured.reasonText} to={nickname} width={230} notch={PAGE_BG} />,
                 },
               ]}
             />
@@ -297,7 +297,7 @@ export default function RecommendPage() {
         {/* ===== 나머지 후보 — 같은 우표첩을 작게. 손을 올린 한 통만 열린다 ===== */}
         <section className="eo-section mt-12">
           <div className="eo-section__header">
-            <h2 className="eo-title">우표첩의 다음 장</h2>
+            <h2 className="eo-title">더 많은 추천</h2>
             <span>손을 올리면 표지가 보이고, 누르면 위로 꺼내 놓아요</span>
           </div>
           <div className="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-4">
@@ -321,7 +321,7 @@ function MiniFolder({ item, label, onSelect }: { item: RecommendationItem; label
       aria-label={`${item.book.title} 꺼내 보기`}>
       <StampFolder
         open={open} width={MINI.folderW} height={MINI.folderH}
-        label={`No.${item.rank}`}
+        label={`Top.${item.rank}`}
         slots={[{
           key: 'cover', out: MINI.out, tilt: -2, top: 17, left: 12,
           node: <Stamp book={item.book} width={MINI.stampW} notch={PAGE_BG} frame={STAMP_PAPER} />,

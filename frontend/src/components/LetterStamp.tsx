@@ -1,3 +1,4 @@
+import LibrarySeal from './LibrarySeal'
 import { Perforated } from './Stamp'
 
 /** 사연 우표 — 추천 이유를 우표와 같은 판형(5:7)의 손글씨 엽서로 만든 것.
@@ -7,14 +8,10 @@ import { Perforated } from './Stamp'
 const PAPER = '#eeede2'
 const INK = '#0b0b0b'
 
-export default function LetterStamp({ reason, to, postmark, rank, width = 230, notch }: {
+export default function LetterStamp({ reason, to, width = 230, notch }: {
   reason: string
   /** 인사말의 수신인 — 없으면 '독자' */
   to?: string | null
-  /** 소인(날짜 도장)에 찍을 문구 */
-  postmark?: string
-  /** 우표의 액면가 자리에 찍는 순위 */
-  rank?: number
   width?: number
   notch?: string
 }) {
@@ -43,7 +40,8 @@ export default function LetterStamp({ reason, to, postmark, rank, width = 230, n
             <p className="font-medium leading-none" style={{ fontSize: width * 0.082, letterSpacing: '0.08em' }}>POSTCARD</p>
             <p className="uppercase" style={{ fontSize: width * 0.025, letterSpacing: '0.16em', marginTop: width * 0.018 }}>a book chosen for you</p>
           </div>
-          <span style={{ fontSize: width * 0.024, letterSpacing: '0.12em', opacity: 0.62 }}>BOOKCHU · SEOUL</span>
+          {/* 보낸 이 표기는 글자 대신 장서인으로 — 엽서 우측 상단에 찍힌 도장 */}
+          <LibrarySeal className="shrink-0" style={{ width: width * 0.22, height: width * 0.22, color: INK, opacity: 0.86, transform: 'rotate(-7deg)' }} />
         </div>
 
         <div className="relative z-10 flex flex-1 min-h-0 flex-col" style={{ borderTop: `1px solid ${INK}62` }}>
@@ -54,28 +52,6 @@ export default function LetterStamp({ reason, to, postmark, rank, width = 230, n
             <p className="font-hand mt-auto self-end" style={{ fontSize: line * 0.68, opacity: 0.78 }}>책추책책추 드림</p>
           </div>
 
-          {/* 우편 요소는 얇은 하단 메타 영역으로 모아 본문 읽기를 방해하지 않게 한다. */}
-          <div className="relative flex items-center" style={{ minHeight: width * 0.19, borderTop: `1px solid ${INK}42`, padding: `${pad * 0.42}px ${pad * 0.35}px` }}>
-            <div className="flex flex-1 flex-col justify-center" style={{ gap: width * 0.018, paddingRight: pad * 0.65 }}>
-              {[0, 1].map((i) => <div key={i} style={{ height: 1, background: `${INK}55` }} />)}
-              <span className="uppercase" style={{ fontSize: width * 0.023, letterSpacing: '0.12em', opacity: 0.68 }}>sent with a reason</span>
-            </div>
-
-            {postmark && (
-              <div className="flex shrink-0 items-center justify-center rounded-full pointer-events-none"
-                style={{
-                  width: width * 0.14, height: width * 0.14, border: `${Math.max(1.2, width * 0.006)}px solid ${INK}`,
-                  opacity: 0.32, transform: 'rotate(-10deg)', marginRight: pad * 0.55,
-                }}>
-                <span className="leading-none" style={{ fontSize: width * 0.026 }}>{postmark}</span>
-              </div>
-            )}
-
-            <div className="flex shrink-0 items-center gap-1" style={{ fontSize: width * 0.027, letterSpacing: '0.08em' }}>
-              <span>No.</span>
-              <span className="flex items-center justify-center rounded-full border" style={{ borderColor: `${INK}88`, width: width * 0.1, height: width * 0.1 }}>{rank ?? 1}</span>
-            </div>
-          </div>
         </div>
       </div>
     </Perforated>
