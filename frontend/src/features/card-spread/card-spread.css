@@ -172,10 +172,12 @@
 
 /* 표지는 대지 높이를 채우고 원본 비율을 지킨다 — 카드와 키를 맞추려고 표지를 자르지 않는다.
    판형이 책마다 다르므로 0.7로 고정하지 않고 contain으로 둔다 */
+/* 대지를 채우되 원본의 1.5배까지만 — 상한은 표지가 뜬 뒤 JS 가 --bd-cover-cap 에 적는다
+   (CardSpreadPage COVER_MAX_UPSCALE). 변수가 없으면 예전처럼 대지 폭까지다. */
 .bd-mount img {
   display: block;
-  width: auto;
-  max-width: 100%;
+  width: 100%;
+  max-width: min(100%, var(--bd-cover-cap, 100%));
   height: auto;
   max-height: 100%;
   object-fit: contain;
