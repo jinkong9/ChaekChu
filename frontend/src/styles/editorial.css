@@ -173,6 +173,28 @@
   cursor: not-allowed;
 }
 
+/* 캡슐과 나란히 서는 두 번째 행동 — 같은 판에 테두리만 남긴다.
+   무게만 다르고 자리는 같으므로, 채운 캡슐은 한 화면에 하나로 지켜진다(DESIGN.md Shapes).
+   도서 상세의 .bd-button-ghost 가 먼저 쓰던 짝을 공용 판으로 올린 것이다. */
+.eo-button--ghost {
+  border-color: var(--eo-rule);
+  background: transparent;
+  color: var(--eo-ink);
+  transition: border-color var(--eo-motion) ease-out, background var(--eo-motion) ease-out, transform var(--eo-motion) ease-out;
+}
+
+.eo-button--ghost:hover:not(:disabled),
+.eo-button--ghost:focus-visible:not(:disabled) {
+  border-color: var(--eo-ink);
+  opacity: 1;
+}
+
+/* 담겨 있는 쪽은 테두리와 옅은 바탕으로 알린다 — 라벨의 과거형과 함께 '담김'을 말한다 */
+.eo-button--ghost[aria-pressed='true'] {
+  border-color: var(--eo-ink);
+  background: rgba(11, 11, 11, 0.07);
+}
+
 /* 보조 행동 — 상자 없이 2px 밑줄만 */
 .eo-text-button {
   display: inline-flex;
@@ -316,6 +338,26 @@ button.eo-tag.is-on:focus-visible {
 }
 
 .eo-tag--lg { min-height: 36px; padding: 0 13px; font-size: 12px; }
+
+/* 글자만 남긴 태그 — 읽기만 하는 자리에서 상자를 걷는다. 고르는 칩(기준 조절·검색)은
+   상자가 곧 누를 자리라 그대로 둔다. 「#」가 앞에 붙어 상자 없이도 태그로 읽힌다 */
+.eo-tag--bare {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* 꺼내 놓은 한 권의 태그만 한 단계 키운다 — 제목 바로 위에서 추천 이유를 먼저 읽는 자리라
+   같은 상자 없는 칩이어도 목록·머리말의 칩보다 크게 선다 */
+.eo-tag--bare.eo-tag--md { font-size: 13px; }
+
+/* 내가 고른 태그는 상자 대신 잉크 농도와 굵기로 드러낸다 */
+.eo-tag--bare.is-on {
+  background: transparent;
+  color: var(--eo-ink);
+  font-weight: 650;
+}
 
 @media (max-width: 640px) {
   .eo-tag--lg { min-height: 44px; }

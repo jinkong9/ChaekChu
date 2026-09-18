@@ -1,0 +1,72 @@
+.recommend-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.recommend-heading .eo-headline { flex: none; }
+
+.recommend-heading__scene {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  color: var(--eo-ink);
+  pointer-events: none;
+}
+
+/* 원본이 정사각 그림이라 폭·높이를 같이 주고 contain 으로 비율을 지킨다 */
+.recommend-heading__mailbox {
+  width: 96px;
+  height: 96px;
+  flex: none;
+  object-fit: contain;
+}
+
+.recommend-heading__flight {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 72px;
+}
+
+.recommend-heading__bird {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  width: 68px;
+  height: 66px;
+  object-fit: contain;
+  animation: recommend-bird-deliver 18s linear infinite;
+}
+
+@keyframes recommend-bird-deliver {
+  0% { left: 0; opacity: 1; transform: translateY(2px); }
+  45% { transform: translateY(-3px); }
+  90% { left: calc(100% - 68px); opacity: 1; transform: translateY(1px); }
+  94% { left: calc(100% - 68px); opacity: 0; }
+  95% { left: 0; opacity: 0; }
+  100% { left: 0; opacity: 1; transform: translateY(2px); }
+}
+
+@media (max-width: 480px) {
+  .recommend-heading { gap: 7px; }
+  .recommend-heading__scene { gap: 2px; }
+  .recommend-heading__mailbox { width: 68px; height: 68px; }
+  .recommend-heading__flight { height: 54px; }
+  .recommend-heading__bird { top: 3px; width: 50px; height: 48px; }
+  @keyframes recommend-bird-deliver {
+    0% { left: 0; opacity: 1; transform: translateY(2px); }
+    45% { transform: translateY(-2px); }
+    90% { left: calc(100% - 50px); opacity: 1; transform: translateY(1px); }
+    94% { left: calc(100% - 50px); opacity: 0; }
+    95% { left: 0; opacity: 0; }
+    100% { left: 0; opacity: 1; transform: translateY(2px); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recommend-heading__bird { animation: none; }
+}

@@ -167,6 +167,10 @@ components:
 
 검정 배경, 종이색 텍스트, 높이 `40px`, 좌우 패딩 `17px`, 굵기 700. hover/focus에서 opacity `.68`, `translateY(-1px)`, `140ms ease-out`. 한 화면에 한두 개의 핵심 행동에만 쓴다.
 
+### Ghost pill button
+
+주요 캡슐과 나란히 서는 두 번째 행동. 같은 판형(높이 `40px`, 좌우 패딩 `17px`, `999px`)에 바탕을 비우고 `1px rule` 테두리만 남긴다. hover/focus는 테두리를 `ink`로 올린다. 이미 담긴 상태(`aria-pressed`)는 테두리 `ink`와 `rgba(11,11,11,.07)` 바탕으로 알린다. 채운 캡슐은 한 화면에 하나로 지킨다.
+
 ### Underline text button
 
 배경과 박스 테두리 없이 2px 밑줄만 둔다. 높이 `40px`, `15px/700`을 기본으로 하고 보조 disclosure는 `11px/600`과 1px 선을 사용한다. hover/focus는 opacity 또는 잉크 농도만 바꾼다.

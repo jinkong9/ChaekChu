@@ -25,3 +25,8 @@ dist-ssr
 
 # local env
 .env
+
+# 삽화 원본 — 화면은 같은 이름의 webp 만 불러 쓴다(알파 여백을 잘라 360px 으로 줄인 판).
+# 원본은 다시 손볼 때만 필요해 로컬에 둔다. 새 원본을 받으면 여기에 한 줄 더 적는다.
+/src/assets/recommend-mailbox.png
+/src/assets/recommend-bird.png

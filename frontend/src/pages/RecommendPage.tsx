@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useReducedMotion } from 'motion/react'
 import { api } from '../api/client'
-import { addToLibrary } from '../api/library'
+import { addToLibrary, removeLibraryItem } from '../api/library'
 import type { LibraryItem, RecommendationItem, ShelfStatus } from '../api/types'
 import { useRecommendations, fetchNextRecommendations, RECOMMEND_DECK_SIZE } from '../lib/useRecommendations'
 import { tagLabel, useTags } from '../lib/useTags'
@@ -15,6 +15,9 @@ import { SHELF_ACTIONS } from '../lib/shelf'
 import { Stamp } from '../components/Stamp'
 import LetterStamp from '../components/LetterStamp'
 import StampFolder from '../components/StampFolder'
+import mailboxImg from '../assets/recommend-mailbox.webp'
+import birdImg from '../assets/recommend-bird.webp'
+import './RecommendPage.css'
 
 /** REC-001 추천 화면 — 추천을 '모아 둔 우표첩에서 오늘 치를 꺼내는' 동작으로 건넨다.
  *  유산지 봉투의 오른쪽 덮개가 젖혀지고, 그 틈으로 표지 우표와 사연 우표가 계단식으로 나온다.
@@ -29,6 +32,8 @@ const STAMP_PAPER = '#f6f1e3'  // 우표 테 — 종이 바탕에서 톱니가 �
 const HERO = { w: 748, h: 344, folderW: 240, folderH: 336 }
 /** 2위 이하 미니 우표첩 */
 const MINI = { folderW: 132, folderH: 185, stampW: 108, out: 100 }
+/** 찜한 책의 버튼을 다시 누르면 무슨 일이 생기는지 — 라벨(「✓ 찜했어요」)은 상태만 말하고 행동은 말하지 않는다 */
+const WISH_CANCEL_HINT = '찜 해제'
 /** 이미 서재에 담긴 책의 버튼 라벨 — SHELF_ACTIONS 의 현재형과 짝 */
 const DONE_LABEL: Record<ShelfStatus, string> = { WISH: '찜했어요', READ: '읽었어요' }
 
@@ -136,14 +141,21 @@ export default function RecommendPage() {
         finishedDate: existing?.status === 'READ' ? existing.finishedDate : undefined })
       return
     }
-    // 찜은 서버로 바로 간다. 이미 담긴 책이면 409 → api/library 가 PATCH 로 처리한다
-    trackEvent('WISH', { bookId, recommendationId: data.recommendationId, rank: item.rank, position: positionOf(item), context: 'RECOMMEND' })
+    // 찜은 서버로 바로 간다. 담기는 POST(이미 있으면 409 → api/library 가 PATCH)라 두 번 눌러도 줄이 늘지 않고,
+    // 이미 찜해 둔 책이면 같은 버튼이 해제가 된다 — DELETE /library/{id} (§6.4). 도서 상세의 찜 버튼과 같은 몸짓이다.
+    // 찜에는 별점·감상이 없어 해제해도 함께 지워질 기록이 없다.
+    const wished = existing?.status === 'WISH' ? existing : null
+    // 이벤트는 담을 때만 보낸다 — 계약의 EventType 에 해제가 없다(lib/events.ts)
+    if (!wished) trackEvent('WISH', { bookId, recommendationId: data.recommendationId, rank: item.rank, position: positionOf(item), context: 'RECOMMEND' })
     setSaving(true)
     setSaveError(null)
-    addToLibrary(bookId, status)
+    const req: Promise<unknown> = wished ? removeLibraryItem(wished.libraryItemId) : addToLibrary(bookId, status)
+    req
       .then(() => { qc.invalidateQueries({ queryKey: ['library'] }); qc.invalidateQueries({ queryKey: ['book', String(bookId)] }) })
       // 401 은 인터셉터가 로그아웃으로 받아 간다 — 여기 남는 건 네트워크 끊김·서버 오류
-      .catch(() => setSaveError('서재에 담지 못했어요. 잠시 후 다시 눌러 주세요.'))
+      .catch(() => setSaveError(wished
+        ? '찜을 해제하지 못했어요. 잠시 후 다시 눌러 주세요.'
+        : '서재에 담지 못했어요. 잠시 후 다시 눌러 주세요.'))
       .finally(() => setSaving(false))
   }
   const click = (item: RecommendationItem) =>
@@ -207,34 +219,38 @@ export default function RecommendPage() {
     <main className="eo-page">
       <div className="eo-shell">
         <header className="eo-pagehead">
-          <p className="eo-eyebrow">{postmark} 소인</p>
-          <h1 className="eo-headline">오늘, 한 권 도착했어요</h1>
-          <p className="eo-body mt-3.5 max-w-[52ch]">
-            {data.fallback
-              ? '아직 취향을 몰라서 인기 도서로 첫 장을 채웠어요 — 찜하면 더 정확해져요.'
-              : `최근 기록한 ${data.basedOnCount}권을 보고 골랐어요`}
-          </p>
+          <div className="recommend-heading">
+            <h1 className="eo-headline">오늘의 책추</h1>
+            <div className="recommend-heading__scene" aria-hidden="true">
+              <img className="recommend-heading__mailbox" src={mailboxImg} alt="" />
+              <div className="recommend-heading__flight">
+                <img className="recommend-heading__bird" src={birdImg} alt="" />
+              </div>
+            </div>
+          </div>
         </header>
 
         {/* 적용 중인 관심 태그 — 최종 점수의 근거를 사람이 이해할 수 있게 표시 */}
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule pt-3.5">
           <span className="eo-label shrink-0">관심 태그</span>
-          <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+          <div className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-1">
             {appliedTags.length === 0
               ? <span className="text-[11px] text-ink-faint">아직 없어요 — 태그를 고르면 그 결이 먼저 올라와요</span>
-              : appliedTags.map((t) => <span key={t} className={`eo-tag ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
+              : appliedTags.map((t) => <span key={t} className={`eo-tag eo-tag--bare ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
           </div>
           {/* 덱 전체에 작용하는 행동 둘이 나란히 선다 — 「다시 추천받기」는 기준을 그대로 두고 이 자리에서 책만 새로 받고,
               「기준 조절하기」는 기준을 바꾸러 떠난다. 재추천은 히어로까지 바꾸므로 히어로 위쪽인 이 줄이 맞는 자리다.
-              캡슐형 CTA 는 히어로의 「찜하기」가 쓰고 있어 둘 다 밑줄 링크로 위계를 낮춘다(DESIGN.md) */}
-          <div className="flex shrink-0 items-center gap-x-4">
+              11px 회색 disclosure 링크로 두었더니 종이 오른쪽 끝에서 아무도 찾지 못했다 — 밑줄 버튼 위계로 올려
+              잉크 농도와 2px 선을 준다. 둘은 서로 대등한 행동이라 같은 위계로 나란히 두고, 캡슐형은
+              히어로의 「찜하기」 하나로 남겨 화면의 결정적 CTA 는 여전히 하나다(DESIGN.md) */}
+          <div className="flex shrink-0 items-center gap-x-5">
             {exhausted
               ? <span className="eo-utility">더 보여드릴 책이 없어요</span>
-              : <button type="button" className="eo-link" onClick={reroll} disabled={rerolling}>
+              : <button type="button" className="eo-text-button" onClick={reroll} disabled={rerolling}>
                   {rerolling ? '고르는 중' : '다시 추천받기'}
                 </button>}
-            <span aria-hidden style={{ width: 1, height: 12, background: 'var(--eo-rule-soft)' }} />
-            <Link to="/tune" className="eo-link">기준 조절하기</Link>
+            <span aria-hidden style={{ width: 1, height: 18, background: 'var(--eo-rule)' }} />
+            <Link to="/tune" className="eo-text-button">관심 태그 고르기</Link>
           </div>
         </div>
         {rerollError && <p className="eo-utility mt-2 text-ink" role="alert">{rerollError}</p>}
@@ -244,7 +260,7 @@ export default function RecommendPage() {
           <div className="relative shrink-0" style={{ width: HERO.w, height: HERO.h }}>
             <StampFolder
               open={heroOpen} width={HERO.folderW} height={HERO.folderH}
-              label="오늘의 책" sub={`${postmark} 소인 · No.${featured.rank}`}
+              label={`For ${nickname ?? '독자'}`} sub={`${postmark}`}
               slots={[
                 {
                   key: 'cover', out: 250, tilt: -2, top: 28, left: 20,
@@ -260,7 +276,7 @@ export default function RecommendPage() {
                   key: 'letter', out: 505, tilt: 1.6, top: 7, left: 5,
                   // 사연 우표 = 추천 상세로 가는 문. 그 화면이 아직 없어 링크는 보류 —
                   // 라우트가 생기면 표지 우표와 같은 모양으로 Link만 감싸면 된다.
-                  node: <LetterStamp reason={featured.reasonText} to={nickname} postmark={postmark} rank={featured.rank} width={230} notch={PAGE_BG} />,
+                  node: <LetterStamp reason={featured.reasonText} to={nickname} width={230} notch={PAGE_BG} />,
                 },
               ]}
             />
@@ -269,21 +285,24 @@ export default function RecommendPage() {
 
         {/* 꺼낸 책의 태그 + 행동 — 우표 면을 깨지 않도록 밖에 둔다 */}
         <div className="mt-8 flex flex-col items-center gap-4 text-center">
-          <div className="flex flex-wrap justify-center gap-1.5">
-            {featured.tags.map((t) => <span key={t} className={`eo-tag ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
-          </div>
           <p className="max-w-[46ch]">
             <span className="text-[15px] font-semibold">{featured.book.title}</span>
             {featured.book.author && <span className="text-[12px] text-ink-muted"> · {featured.book.author}</span>}
           </p>
-          {/* 찜하기 하나만 캡슐형 CTA, 나머지 담기는 밑줄 버튼으로 위계를 낮춘다.
-              이미 담긴 쪽은 라벨이 과거형으로 바뀌고 눌린 상태(aria-pressed)가 된다 — 다시 누르면 읽음은 기록 수정, 찜은 그대로 */}
-          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-2">
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
+            {featured.tags.map((t) => <span key={t} className={`eo-tag eo-tag--bare eo-tag--md ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
+          </div>
+          {/* 둘 다 캡슐이되 채운 쪽은 찜하기 하나 — 읽음은 테두리만 남긴 같은 판이라 자리는 같고 무게만 낮다.
+              이미 담긴 쪽은 라벨이 과거형으로 바뀌고 눌린 상태(aria-pressed)가 된다 —
+              다시 누르면 읽음은 기록 수정, 찜은 해제다. 해제는 라벨에 드러나지 않으므로 이름표로 알린다 */}
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
             {SHELF_ACTIONS.map((a, i) => {
               const on = mine(featured.book.bookId)?.status === a.status
+              const undo = on && a.status === 'WISH'
               return (
                 <button key={a.status} onClick={() => save(featured, a.status)} disabled={saving} aria-pressed={on}
-                  className={i === 0 ? 'eo-button' : 'eo-text-button text-[13px]'}>
+                  title={undo ? WISH_CANCEL_HINT : undefined} aria-label={undo ? WISH_CANCEL_HINT : undefined}
+                  className={i === 0 ? 'eo-button' : 'eo-button eo-button--ghost'}>
                   {on ? `✓ ${DONE_LABEL[a.status]}` : a.label}
                 </button>
               )
@@ -295,7 +314,7 @@ export default function RecommendPage() {
         {/* ===== 나머지 후보 — 같은 우표첩을 작게. 손을 올린 한 통만 열린다 ===== */}
         <section className="eo-section mt-12">
           <div className="eo-section__header">
-            <h2 className="eo-title">우표첩의 다음 장</h2>
+            <h2 className="eo-title">더 많은 추천</h2>
             <span>손을 올리면 표지가 보이고, 누르면 위로 꺼내 놓아요</span>
           </div>
           <div className="grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-4">
@@ -319,16 +338,16 @@ function MiniFolder({ item, label, onSelect }: { item: RecommendationItem; label
       aria-label={`${item.book.title} 꺼내 보기`}>
       <StampFolder
         open={open} width={MINI.folderW} height={MINI.folderH}
-        label={`No.${item.rank}`}
+        label={`Top.${item.rank}`}
         slots={[{
           key: 'cover', out: MINI.out, tilt: -2, top: 17, left: 12,
           node: <Stamp book={item.book} width={MINI.stampW} notch={PAGE_BG} frame={STAMP_PAPER} />,
         }]}
       />
       <p className="mt-3 line-clamp-2 text-[12px] font-semibold leading-snug" style={{ width: MINI.folderW + 24 }}>{item.book.title}</p>
-      {/* 태그 = 이 우표의 요약 이유 (2줄 수용 고정 높이로 카드 높이 정렬) */}
-      <div className="mt-2 flex h-[62px] flex-wrap content-start gap-1" style={{ width: MINI.folderW + 24 }}>
-        {item.tags.slice(0, 2).map((t) => <span key={t} className="eo-tag">{label(t)}</span>)}
+      {/* 태그 = 이 우표의 요약 이유 (2줄 수용 고정 높이로 카드 높이 정렬 — 상자를 걷은 만큼 높이도 줄였다) */}
+      <div className="mt-2 flex h-[32px] flex-wrap content-start gap-x-2.5 gap-y-1" style={{ width: MINI.folderW + 24 }}>
+        {item.tags.slice(0, 2).map((t) => <span key={t} className="eo-tag eo-tag--bare">{label(t)}</span>)}
       </div>
     </button>
   )

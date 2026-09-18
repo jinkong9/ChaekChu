@@ -34,6 +34,12 @@ export default function StampFolder({
   // 모양의 재미는 덮개가 맡고, 몸통은 반듯한 슬리브로 둔다.
   const sideMouth = `polygon(0 0, 100% 0, 100% 100%, 0 100%)`
 
+  // 표지 손글씨는 「No.3」처럼 짧은 것도, 닉네임(최대 20자)이 들어가는 「For 가영」도 받는다.
+  // 글자 수로 재면 라틴이 섞인 「For 가영」이 한글 8자로 잡혀 괜히 작아지므로, 한글 1em ·
+  // 그 밖 0.5em 으로 폭을 어림해 표지 안쪽 폭(7.1em)에 맞춘다. 절반까지만 줄여 읽히는 크기를 지킨다
+  const labelEm = [...label].reduce((w, c) => w + (/[가-힣ㄱ-ㅎㅏ-ㅣ一-鿿ぁ-ヿ]/.test(c) ? 1 : 0.5), 0)
+  const labelScale = Math.max(0.5, Math.min(1, 7.1 / labelEm))
+
   const FLAP_R = 0.3   // 덮개 폭 / 봉투 폭
   const FLAP_SHAPE = 'polygon(0 0, 76% 0, 94% 5%, 100% 9%, 100% 91%, 94% 95%, 76% 100%, 0 100%)'
   const FLAP_PATH = 'M0 0 L76 0 L94 5 L100 9 L100 91 L94 95 L76 100 L0 100'
@@ -75,7 +81,7 @@ export default function StampFolder({
         <div className="absolute left-0 top-0" style={{ width: width * 0.16, height: height * 0.2, background: 'rgba(255,255,255,.24)', clipPath: 'polygon(0 0, 100% 0, 0 100%)' }} />
 
         <div className="absolute left-0 right-0" style={{ bottom: height * 0.16, paddingLeft: width * 0.11 }}>
-          <p className="font-hand leading-none" style={{ fontSize: width * 0.125, color: '#0b0b0b' }}>{label}</p>
+          <p className="font-hand leading-none" style={{ fontSize: width * 0.125 * labelScale, color: '#0b0b0b' }}>{label}</p>
           {sub && <p className="mt-1.5 leading-none" style={{ fontSize: width * 0.055, color: '#0b0b0b', opacity: 0.5 }}>{sub}</p>}
         </div>
         {/* 앞판 아래 인쇄선 두 줄 */}
