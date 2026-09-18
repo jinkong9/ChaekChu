@@ -226,15 +226,17 @@ export default function RecommendPage() {
           </div>
           {/* 덱 전체에 작용하는 행동 둘이 나란히 선다 — 「다시 추천받기」는 기준을 그대로 두고 이 자리에서 책만 새로 받고,
               「기준 조절하기」는 기준을 바꾸러 떠난다. 재추천은 히어로까지 바꾸므로 히어로 위쪽인 이 줄이 맞는 자리다.
-              캡슐형 CTA 는 히어로의 「찜하기」가 쓰고 있어 둘 다 밑줄 링크로 위계를 낮춘다(DESIGN.md) */}
-          <div className="flex shrink-0 items-center gap-x-4">
+              11px 회색 disclosure 링크로 두었더니 종이 오른쪽 끝에서 아무도 찾지 못했다 — 밑줄 버튼 위계로 올려
+              잉크 농도와 2px 선을 준다. 둘은 서로 대등한 행동이라 같은 위계로 나란히 두고, 캡슐형은
+              히어로의 「찜하기」 하나로 남겨 화면의 결정적 CTA 는 여전히 하나다(DESIGN.md) */}
+          <div className="flex shrink-0 items-center gap-x-5">
             {exhausted
               ? <span className="eo-utility">더 보여드릴 책이 없어요</span>
-              : <button type="button" className="eo-link" onClick={reroll} disabled={rerolling}>
+              : <button type="button" className="eo-text-button" onClick={reroll} disabled={rerolling}>
                   {rerolling ? '고르는 중' : '다시 추천받기'}
                 </button>}
-            <span aria-hidden style={{ width: 1, height: 12, background: 'var(--eo-rule-soft)' }} />
-            <Link to="/tune" className="eo-link">기준 조절하기</Link>
+            <span aria-hidden style={{ width: 1, height: 18, background: 'var(--eo-rule)' }} />
+            <Link to="/tune" className="eo-text-button">기준 조절하기</Link>
           </div>
         </div>
         {rerollError && <p className="eo-utility mt-2 text-ink" role="alert">{rerollError}</p>}
