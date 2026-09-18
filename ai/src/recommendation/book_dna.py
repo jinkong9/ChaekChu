@@ -13,6 +13,8 @@ import math
 import re
 from typing import Iterable, Literal, Mapping, Sequence
 
+from recommendation.tag_batch import TAXONOMY
+
 
 BookStatus = Literal["READ", "WISH"]
 ProfileStatus = Literal["READY", "INSUFFICIENT_DATA"]
@@ -130,35 +132,36 @@ AXES: tuple[tuple[str, str], ...] = (
 )
 AXIS_CODES = {code for code, _label in AXES}
 AI_TO_PUBLIC = {"FIC": "FICTION", "ECONOMY": "BUSINESS", "GROWTH": "SELF_HELP"}
+# 책의 장르 태그 → 레이더 축. 여기 없는 코드(TRAVEL 등)는 KDC 앞자리로 정한다(_axis_for) — 98x 기행은 예술·역사, 816 기행문학은 소설.
 GENRE_TAG_TO_AXIS = {
     "FIC": "FICTION",
     "FICTION": "FICTION",
+    "POETRY": "FICTION",        # 문학 축. KDC 811 도 8 로 시작해 같은 결과
     "ESSAY": "ESSAY",
     "HISTORY": "ART_HISTORY",
+    "ART": "ART_HISTORY",
     "SCIENCE": "SCIENCE",
+    "TECH": "SCIENCE",          # 축 이름이 「과학·기술」
     "ECONOMY": "BUSINESS",
     "BUSINESS": "BUSINESS",
     "GROWTH": "BUSINESS",
     "SELF_HELP": "BUSINESS",
-    "ART": "ART_HISTORY",
+    "HUMANITIES": "HUMANITIES",
+    "SOCIETY": "HUMANITIES",    # 축 이름이 「인문·사회」
 }
-TAG_LABELS = {
-    "FIC": "소설",
+# 태그 코드 → 화면 라벨. 기본은 배치 taxonomy(tag_batch.TAXONOMY)의 라벨을 그대로 쓰고, DNA 화면 어투가 다른 것만 덮어쓴다.
+# 09-18 까지 이 표를 손으로 따로 적어 SCIENCE·HISTORY 가 빠져 있었고, 「자주 읽는 키워드」에 #SCIENCE #HISTORY #HUMANITIES 가 영문 코드 그대로 떴다.
+TAG_LABELS: dict[str, str] = {
+    **{definition.code: definition.label for definition in TAXONOMY},
     "FICTION": "소설",
-    "ESSAY": "에세이",
-    "ECONOMY": "경제·경영",
     "BUSINESS": "경제·경영",
-    "GROWTH": "자기계발",
     "SELF_HELP": "자기계발",
-    "FANTASY": "판타지",
     "MYSTERY": "추리",
-    "ROMANCE": "로맨스",
-    "FAMILY": "가족",
-    "TIME_TRAVEL": "시간여행",
-    "NEW_BOOK": "신간",
     "TRENDING": "지금 뜨는 책",
     "STEADY": "꾸준히 읽는 책",
 }
+# 키워드 칸에서 빼는 장르 코드 — 장르는 위 레이더 축이 이미 비율로 보여 준다. 남는 것은 소재·신호 태그(판타지·가족·시간여행·신간·꾸준히 읽는 책 …).
+GENRE_CODES = frozenset(GENRE_TAG_TO_AXIS) | frozenset({"TRAVEL"})
 
 
 def _axis_for(record: BookDnaRecord) -> str | None:
@@ -289,7 +292,7 @@ def build_book_dna_profile(
             key=lambda item: (-item.score, item.code),
         )
     )
-    keyword_scores = _normalise({tag: value for tag, value in tag_values.items() if tag not in {"FIC", "FICTION", "ESSAY", "ECONOMY", "BUSINESS", "GROWTH", "SELF_HELP"}})
+    keyword_scores = _normalise({tag: value for tag, value in tag_values.items() if tag not in GENRE_CODES})
     keywords = tuple(
         DnaScore(tag, TAG_LABELS.get(tag, tag), score)
         for tag, score in sorted(keyword_scores.items(), key=lambda item: (-item[1], item[0]))[:keyword_limit]
