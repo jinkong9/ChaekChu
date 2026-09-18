@@ -146,7 +146,9 @@ class QdrantIndexAuditor:
             raise ValueError("at least one tag code must be audited")
 
         try:
-            response = self._request("GET", "/collections/aliases")
+            # Qdrant exposes the global alias list at GET /aliases. The
+            # /collections/{collection_name}/aliases route is collection-scoped.
+            response = self._request("GET", "/aliases")
             aliases = response.get("result", {}).get("aliases")
             if not isinstance(aliases, list):
                 raise _QdrantRequestError("QDRANT_INVALID_RESPONSE")

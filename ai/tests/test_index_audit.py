@@ -68,7 +68,7 @@ def _fake_qdrant(
     def opener(request, timeout):
         body = json.loads(request.data.decode("utf-8")) if request.data else None
         requests.append((request.method, request.full_url, body))
-        if request.full_url.endswith("/collections/aliases"):
+        if request.full_url == f"{config.base_url}/aliases":
             return _Response({"result": {"aliases": [
                 {"alias_name": "books_active", "collection_name": "books_v1"},
                 {"alias_name": "tags_active", "collection_name": "tags_v1"},
@@ -100,6 +100,7 @@ def test_audit_passes_and_never_mutates_qdrant_or_returns_api_key() -> None:
     assert report["indexVersion"] == "index-v1"
     assert report["tagVersion"] == "tags-v1"
     assert all(method in {"GET", "POST"} for method, _url, _body in requests)
+    assert ("GET", f"{config.base_url}/aliases", None) in requests
     assert all(not any(word in json.dumps(check) for word in ("secret-test-key",)) for check in report["checks"])
     assert any(url.endswith("/points/scroll") for _method, url, _body in requests)
 
