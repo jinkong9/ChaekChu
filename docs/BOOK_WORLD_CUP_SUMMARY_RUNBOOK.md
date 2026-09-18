@@ -5,12 +5,12 @@ Jira: `S15P21B102-189`
 
 ## 기준과 비용 가드
 
-- 입력은 데이터 담당자가 제공한 Data4Library JSONL/JSONL.GZ 후보 스냅샷이다. `loan_total` 내림차순, 동률 ISBN13 오름차순으로 상위 N권을 선택한다. 입력 해시, 원천 이름·기간, 선택 규칙을 부착한다.
+- 입력은 데이터 담당자가 제공한 Data4Library JSONL/JSONL.GZ 후보 스냅샷이다. 먼저 소개(`desc`)가 비어 있는 행을 제외하고, 제목을 유니코드 NFKC·대소문자·공백 기준으로 정규화해 같은 제목의 판본을 묶는다. 각 제목 그룹에서는 대출 건수(`loan_total`)가 가장 높은 책을 대표로 고르며, 동률이면 ISBN13 오름차순을 사용한다. 그 후 대출 건수 내림차순·ISBN13 오름차순으로 상위 N권을 선택한다. 부제는 보존하므로 부제가 다른 제목은 별도 책으로 취급한다. 입력 해시, 원천 이름·기간, 선택 규칙을 부착한다.
 - GMS에는 책 소개(`desc`), 분류, 출간연도만 보낸다. 제목·저자·ISBN 등 식별정보는 프롬프트 입력에서 제외한다.
 - 모델 기본값은 `gpt-4o-mini`, 계획 비용은 요청당 2 크레딧이다. 20권 파일럿 예상은 약 40크레딧, 500권은 약 1,000크레딧이다.
 - 기본 최대 예상 비용은 1,200 크레딧이며 요청 횟수도 런타임에 제한한다. 상한을 넘는 실행은 GMS 호출 전에 종료한다.
 - 재시작 시 같은 입력 해시·요약 버전의 성공행과 소개 원문이 없는 행은 재사용한다. 부분 파일은 `.<sidecar>.tmp`, 진행 현황은 report JSON이다.
-- 월드컵 진행 API에서는 GMS를 부르지 않는다. 요약에 제목·저자 포함, 3문장 이상, 스포일러 표현 등이 검출되면 재시도하며 실패는 `FAILED`로 보고한다.
+- 요약 버전 v2는 작품 내용·소재·주제를 우선하고, 판매·수상·작가 약력 등 홍보 정보를 줄거리처럼 바꾸지 않도록 한다. 월드컵 진행 API에서는 GMS를 부르지 않는다. 요약에 제목·저자 포함, 3문장 이상, 스포일러 표현 등이 검출되면 재시도하며 실패는 `FAILED`로 보고한다.
 
 ## 20권 파일럿 (EC2)
 
@@ -44,23 +44,25 @@ tmux new-session -d -s "$RUN_ID" \
      > '$RUN_DIR/console.log' 2>&1"
 ```
 
-다른 Git Bash에서 실시간 진행률을 본다(10초 갱신). report의 성공/실패·요청 수·예상 비용과 임시 sidecar 행 수를 함께 확인한다.
+선택 규칙은 GMS 호출 전에 적용된다. report에서 전체 입력, 소개가 있는 행, 중복 제거 뒤 고유 제목 수, 제외된 소개 누락 수를 확인할 수 있다. 상위 N권 후보에 중복 판본과 소개 누락이 들어가지 않는다.
+
+다른 Git Bash에서 실시간 진행률을 본다(10초 갱신). report의 선택 통계·성공/실패·요청 수·예상 비용과 임시 sidecar 행 수를 함께 확인한다.
 
 ```bash
 RUN_DIR=/home/ubuntu/pipeline_data/data4library/worldcup-runs/여기에_RUN_ID
-watch -n 10 "date '+%F %T %Z'; jq '{status,selectedRows,processedRows,remainingRows,successRows,missingSourceRows,failedRows,gmsRequests,estimatedGmsCredits,maxEstimatedCredits}' '$RUN_DIR/report.json' 2>/dev/null; wc -l '$RUN_DIR/.synopses.jsonl.tmp' 2>/dev/null; tail -5 '$RUN_DIR/console.log' 2>/dev/null"
+watch -n 10 "date '+%F %T %Z'; jq '{status,inputRows,eligibleRows,uniqueTitleRows,duplicateTitleRows,excludedMissingDescriptionRows,selectedRows,processedRows,remainingRows,successRows,missingSourceRows,failedRows,gmsRequests,estimatedGmsCredits,maxEstimatedCredits}' '$RUN_DIR/report.json' 2>/dev/null; wc -l '$RUN_DIR/.synopses.jsonl.tmp' 2>/dev/null; tail -5 '$RUN_DIR/console.log' 2>/dev/null"
 ```
 
 완료 뒤 파일럿 품질과 실제 GMS 잔액 차감을 확인한다.
 
 ```bash
-jq '{status,inputRows,selectedRows,successRows,missingSourceRows,failedRows,gmsRequests,estimatedGmsCredits,outputHash}' "$RUN_DIR/report.json"
+jq '{status,inputRows,eligibleRows,uniqueTitleRows,duplicateTitleRows,excludedMissingDescriptionRows,selectedRows,successRows,missingSourceRows,failedRows,gmsRequests,estimatedGmsCredits,outputHash}' "$RUN_DIR/report.json"
 jq -s '{rows:length, statuses:(group_by(.status)|map({status:.[0].status,count:length})), samples:(map(select(.status=="SUCCESS"))[:5]|map({loanRank,synopsis}))}' "$RUN_DIR/synopses.jsonl"
 ```
 
-정책 검수에서 제목·저자 노출, 스포일러, 사실 오류를 확인하고, GMS 크레딧 화면의 실제 사용량으로 호출당 평균을 재산출한다. 소개의 대부분이 유효하고 500권 추정 비용이 1,200 이하일 때만 `--limit 500`으로 별도 새 run을 시작한다. 파일럿에서 비용·품질 문제가 보이면 전체 배치를 실행하지 않는다.
+정책 검수에서 제목·저자 노출, 스포일러, 사실 오류를 확인하고, 중복 제목이 없는지와 소개 누락 제외 통계도 확인한다. GMS 크레딧 화면의 실제 사용량으로 호출당 평균을 재산출한다. 소개 품질이 적절하고 500권 추정 비용이 1,200 이하일 때만 `--limit 500`으로 별도 새 run을 시작한다. 파일럿에서 비용·품질 문제가 보이면 전체 배치를 실행하지 않는다.
 
-500권 실행에서는 파일럿 출력도 재사용해 이미 만든 20권을 다시 호출하지 않는다. `--resume-sidecar`에는 완료된 파일럿 sidecar의 실제 경로를 넣는다.
+500권 실행에서는 같은 입력·요약 버전인 새 파일럿 출력도 재사용해 이미 만든 요약의 재호출을 줄인다. 이전 v1 파일럿은 요약 프롬프트가 달라졌으므로 v2 배치에서 재사용하지 않는다. `--resume-sidecar`에는 이번 v2 파일럿 sidecar의 실제 경로를 넣는다.
 
 ```bash
 uv run b102-recommendation --config config/local.toml worldcup-summaries \
