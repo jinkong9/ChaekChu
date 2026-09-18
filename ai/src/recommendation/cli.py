@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import os
 from pathlib import Path
 import sys
@@ -26,12 +27,13 @@ from recommendation.tag_prototype import (
     TagPrototypeBatchConfig,
     TagPrototypeBatchRunner,
 )
+from recommendation.worldcup_summary import GmsSynopsisProvider, SummarySettings, WorldCupSynopsisRunner
 from recommendation.validation import validate_d4l_jsonl
 
 
 LOGGER = logging.getLogger(__name__)
 COMMANDS = (
-    "build", "validate", "evaluate", "recommend", "index", "tags", "tag-index", "tag-payload-sync", "tune", "smoke", "tag-quality", "audit-index",
+    "build", "validate", "evaluate", "recommend", "index", "tags", "tag-index", "tag-payload-sync", "tune", "smoke", "tag-quality", "audit-index", "worldcup-summaries",
 )
 
 
@@ -56,6 +58,18 @@ def create_parser() -> argparse.ArgumentParser:
             command_parser.add_argument("--tag-code", action="append", default=None)
         else:
             command_parser.add_argument("--input", type=Path, required=True)
+        if command == "worldcup-summaries":
+            command_parser.add_argument("--sidecar", type=Path, required=True)
+            command_parser.add_argument("--resume-sidecar", type=Path, action="append", default=[],
+                                        help="previous compatible synopsis sidecar to reuse (may be repeated)")
+            command_parser.add_argument("--report", type=Path, default=None)
+            command_parser.add_argument("--limit", type=int, default=500, help="top-loan candidate count (1-500; default: 500)")
+            command_parser.add_argument("--model", default=None)
+            command_parser.add_argument("--credits-per-request", type=float, default=None)
+            command_parser.add_argument("--max-estimated-credits", type=float, default=None)
+            command_parser.add_argument("--max-retries", type=int, default=2)
+            command_parser.add_argument("--source-period", default=None,
+                                        help="source snapshot period/version, e.g. 2026-09-15")
         if command == "recommend":
             command_parser.add_argument("--user-id", required=True)
             command_parser.add_argument("--query-isbn")
@@ -193,7 +207,7 @@ def run(arguments: argparse.Namespace) -> Path:
         elif arguments.command == "validate":
             artifact["validation"] = validate_d4l_jsonl(input_path)
             books = None
-        elif arguments.command in {"index", "tags", "tag-index", "tag-payload-sync", "smoke", "tag-quality"}:
+        elif arguments.command in {"index", "tags", "tag-index", "tag-payload-sync", "smoke", "tag-quality", "worldcup-summaries"}:
             books = None
         else:
             books = load_d4l_jsonl(input_path)
@@ -201,6 +215,11 @@ def run(arguments: argparse.Namespace) -> Path:
             artifact["index"] = _run_embedding_index(arguments, input_path)
         elif arguments.command == "tags":
             artifact["tags"] = _run_tag_batch(arguments, input_path)
+        elif arguments.command == "worldcup-summaries":
+            try:
+                artifact["worldCupSummaries"] = _run_worldcup_summaries(arguments, input_path, output_path)
+            except ValueError as error:
+                raise ConfigError(f"world-cup summary configuration or processing failed: {error}") from error
         elif arguments.command == "tag-index":
             artifact["tagIndex"] = _run_tag_prototype_index(arguments)
         elif arguments.command == "tag-payload-sync":
@@ -395,6 +414,31 @@ def _run_tag_batch(arguments: argparse.Namespace, input_path: Path) -> dict:
         cache_path=cache_path,
         cache_version=cache_version,
     ).run(input_path, arguments.sidecar.expanduser().resolve())
+
+
+def _run_worldcup_summaries(arguments: argparse.Namespace, input_path: Path, artifact_path: Path) -> dict:
+    endpoint = (os.getenv("WORLD_CUP_SUMMARY_API_URL") or os.getenv("TAG_API_URL") or "").strip()
+    api_key = (os.getenv("WORLD_CUP_SUMMARY_API_KEY") or os.getenv("TAG_API_KEY") or os.getenv("GMS_API_KEY") or "").strip()
+    model = (arguments.model or os.getenv("WORLD_CUP_SUMMARY_MODEL") or "gpt-4o-mini").strip()
+    if not endpoint or not api_key:
+        raise ConfigError("worldcup-summaries requires WORLD_CUP_SUMMARY_API_URL (or TAG_API_URL) and an API key")
+    try:
+        timeout = float(os.getenv("WORLD_CUP_SUMMARY_TIMEOUT_SECONDS", "30"))
+        credits = float(arguments.credits_per_request if arguments.credits_per_request is not None else os.getenv("WORLD_CUP_SUMMARY_CREDITS_PER_REQUEST", "2"))
+        max_credits = float(arguments.max_estimated_credits if arguments.max_estimated_credits is not None else os.getenv("WORLD_CUP_SUMMARY_MAX_ESTIMATED_CREDITS", "1200"))
+        settings = SummarySettings(model_version=model, credits_per_request=credits,
+                                   max_estimated_credits=max_credits, limit=arguments.limit,
+                                   max_retries=arguments.max_retries, source_period=arguments.source_period)
+    except (ValueError, TypeError) as error:
+        raise ConfigError("world-cup summary limits or timeout are invalid") from error
+    if timeout <= 0 or not math.isfinite(timeout):
+        raise ConfigError("WORLD_CUP_SUMMARY_TIMEOUT_SECONDS must be positive and finite")
+    provider = GmsSynopsisProvider(endpoint=endpoint, api_key=api_key, model=model, timeout_seconds=timeout)
+    report_path = arguments.report.expanduser().resolve() if arguments.report else artifact_path.with_suffix(".report.json")
+    return WorldCupSynopsisRunner(provider=provider, settings=settings).run(
+        input_path, arguments.sidecar.expanduser().resolve(), report_path,
+        tuple(path.expanduser().resolve() for path in arguments.resume_sidecar),
+    )
 
 
 def _run_tag_payload_sync(arguments: argparse.Namespace, input_path: Path) -> dict:

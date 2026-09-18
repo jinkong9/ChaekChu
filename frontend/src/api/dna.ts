@@ -1,5 +1,6 @@
 import { api } from './client'
 import { apiErrorCode } from './books'
+import type { ServerBookSummary } from './types'
 
 export interface DnaBookResponse {
   bookId: string
@@ -60,6 +61,35 @@ export interface DnaResponse {
 
 export async function fetchMyDna(): Promise<DnaResponse> {
   const response = await api.get<DnaResponse>('/users/me/dna')
+  return response.data
+}
+
+export interface WorldCupChoice {
+  choiceId: string
+  synopsis: string
+}
+
+export interface WorldCupSessionResponse {
+  sessionId: string
+  status: 'IN_PROGRESS' | 'COMPLETED'
+  roundSize: number
+  roundNumber: number
+  matchNumber: number
+  matchesInRound: number
+  choices: WorldCupChoice[]
+  champion: ServerBookSummary | null
+}
+
+export async function createDnaWorldCupSession(): Promise<WorldCupSessionResponse> {
+  const response = await api.post<WorldCupSessionResponse>('/users/me/dna/world-cup/sessions')
+  return response.data
+}
+
+export async function pickDnaWorldCupChoice(sessionId: string, choiceId: string): Promise<WorldCupSessionResponse> {
+  const response = await api.post<WorldCupSessionResponse>(
+    `/users/me/dna/world-cup/sessions/${encodeURIComponent(sessionId)}/picks`,
+    { choiceId },
+  )
   return response.data
 }
 
