@@ -1,188 +1,191 @@
 /** 책 이상형 월드컵 — BOOK DNA 리포트의 02번 콘텐츠.
  *
- *  두 권을 나란히 놓고 "지금 더 읽고 싶은 쪽"을 고르게 하고, 이긴 책만 다음 판으로 올린다.
- *  16강 → 8강 → 준결승 → 결승 → 우승. 리포트의 다른 칸이 '읽은 기록'에서 취향을 뒤로
- *  계산하는 반면, 이 콘텐츠는 내 서재의 책들 사이의 선택에서 취향을 앞으로 물어본다.
+ *  두 권의 소개문만 나란히 놓고 "지금 더 읽고 싶은 쪽"을 고르게 한다. 제목·저자·표지는 끝까지 감춘다 —
+ *  표지와 이름값을 걷어낸 채로 고르면 무엇이 남는지 보는 게 이 콘텐츠의 요지다.
+ *  16강 → 8강 → 준결승 → 결승, 15번 고르면 우승 책의 정체가 처음 공개된다.
  *
- *  후보는 현재 사용자의 실제 서재에서 매 판마다 새로 뽑는다(Fisher–Yates).
- *
- *  선택 기록은 마지막에 장르로 집계해서 리포트의 1위 장르와 맞대 본다 — 고른 것과 읽은 것이
- *  갈리는지 보는 게 이 콘텐츠의 결론이다. */
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { DnaBook } from './dnaTypes'
-import { axisOf, type Axis } from './dnaProfile'
+ *  후보는 내 서재가 아니라 대출 상위 요약 풀(약 500권)에서 서버가 편성한다(BOOK_DNA_API_CONTRACT §8).
+ *  대진표도 서버가 든다 — 화면은 세션 응답을 그대로 보여 주고, 고른 choiceId 를 돌려보내기만 한다. */
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  createWorldCupSession,
+  isWorldCupSessionGone,
+  isWorldCupUnavailable,
+  pickWorldCup,
+  type WorldCupSession,
+} from '../../api/dna'
+import { toDnaBook } from './gachaDraw'
+import { axisOf } from './dnaProfile'
 import { coverAtWidth } from '../../lib/coverUrl'
 import DnaDialog from './DnaDialog'
 
-/** 16강까지만. 그 이상은 고르는 사람이 지친다 */
-const SIZE_CAP = 16
-const COVER_W = 240
-
 const ROUND_LABEL: Record<number, string> = { 16: '16강', 8: '8강', 4: '준결승', 2: '결승' }
 
-function shuffled<T>(arr: T[]): T[] {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
+/** 지금 라운드의 인원 — 16강 1라운드, 8강 2라운드… */
+const participantsOf = (s: WorldCupSession) => s.roundSize >> (s.roundNumber - 1)
 
-/** 후보를 섞어 2의 거듭제곱 개수만 남긴다 — 부전승이 생기면 대진이 설명하기 어려워진다 */
-function draft(pool: DnaBook[]): DnaBook[] {
-  let size = 2
-  while (size * 2 <= Math.min(SIZE_CAP, pool.length)) size *= 2
-  return shuffled(pool).slice(0, size)
-}
+type Phase = 'idle' | 'loading' | 'playing' | 'done'
 
-interface Bracket {
-  /** 이번 라운드 참가자 */
-  round: DnaBook[]
-  /** 지금 맞붙는 짝의 왼쪽 인덱스 */
-  idx: number
-  /** 이번 라운드에서 이긴 책들 */
-  winners: DnaBook[]
-  /** 처음부터 고른 모든 책 — 마지막에 장르로 집계한다 */
-  picks: DnaBook[]
-  champion: DnaBook | null
-}
-
-const start = (pool: DnaBook[]): Bracket => ({
-  round: draft(pool),
-  idx: 0,
-  winners: [],
-  picks: [],
-  champion: null,
-})
-
-function Cover({ book, onPick, side }: { book: DnaBook; onPick: () => void; side: string }) {
+function Synopsis({
+  text,
+  side,
+  disabled,
+  onPick,
+}: {
+  text: string
+  side: string
+  disabled: boolean
+  onPick: () => void
+}) {
   return (
-    <button type="button" className="dnar-wc__pick" onClick={onPick}>
-      <img
-        src={coverAtWidth(book.coverUrl, COVER_W) ?? book.coverUrl}
-        alt=""
-        width={COVER_W}
-        decoding="async"
-      />
-      <span className="dnar-wc__pick-title">{book.title}</span>
-      <span className="dnar-wc__pick-meta">
-        {book.author} · {axisOf(book.classNo)}
-      </span>
-      <span className="dnar-wc__pick-key" aria-hidden="true">
-        {side}
-      </span>
+    <button type="button" className="dnar-wc__synopsis" onClick={onPick} disabled={disabled}>
+      <span className="dnar-wc__synopsis-text">{text}</span>
+      <span className="dnar-wc__pick-key" aria-hidden="true">{side}</span>
     </button>
   )
 }
 
-export default function BookWorldCup({
-  pool,
-  topAxis,
-  onClose,
-}: {
-  pool: DnaBook[]
-  /** 리포트 레이더의 1위 장르 — 결과에서 선택과 맞대 본다 */
-  topAxis: Axis
-  onClose: () => void
-}) {
-  const [b, setB] = useState<Bracket>(() => start(pool))
+export default function BookWorldCup({ onClose }: { onClose: () => void }) {
+  const [phase, setPhase] = useState<Phase>('idle')
+  const [session, setSession] = useState<WorldCupSession | null>(null)
+  /** 고른 쪽을 서버에 보내는 중 — 응답 전에는 두 카드를 잠근다 */
+  const [picking, setPicking] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const pick = useCallback((book: DnaBook) => {
-    setB((m) => {
-      if (m.champion) return m
-      const winners = [...m.winners, book]
-      const picks = [...m.picks, book]
-      const next = m.idx + 2
-      // 이번 라운드에 아직 짝이 남았다
-      if (next < m.round.length) return { ...m, idx: next, winners, picks }
-      // 라운드가 끝났다 — 한 권만 남으면 우승, 아니면 이긴 책들로 다음 라운드
-      if (winners.length === 1) return { ...m, winners, picks, champion: winners[0] }
-      return { round: winners, idx: 0, winners: [], picks, champion: null }
-    })
+  // 요청 중에 닫히면 늦게 온 응답이 사라진 화면을 건드리지 않게 한다
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
   }, [])
 
-  const left = b.round[b.idx]
-  const right = b.round[b.idx + 1]
+  const begin = useCallback(async () => {
+    setPhase('loading')
+    setError(null)
+    setSession(null)
+    try {
+      const s = await createWorldCupSession()
+      if (!alive.current) return
+      setSession(s)
+      setPhase(s.status === 'COMPLETED' ? 'done' : 'playing')
+    } catch (err) {
+      if (!alive.current) return
+      setError(
+        isWorldCupUnavailable(err)
+          ? '월드컵에 낼 책이 아직 준비되지 않았어요. 잠시 후 다시 시도해 주세요.'
+          : '대진표를 짜지 못했어요. 다시 시작해 주세요.',
+      )
+      setPhase('idle')
+    }
+  }, [])
 
-  // 좌우 방향키로 고른다 — 표지를 겨냥하지 않아도 빠르게 넘길 수 있다
+  const pick = useCallback(
+    async (choiceId: string) => {
+      if (!session || picking || phase !== 'playing') return
+      setPicking(true)
+      setError(null)
+      try {
+        const next = await pickWorldCup(session.sessionId, choiceId)
+        if (!alive.current) return
+        setSession(next)
+        if (next.status === 'COMPLETED') setPhase('done')
+      } catch (err) {
+        if (!alive.current) return
+        if (isWorldCupSessionGone(err)) {
+          // 24시간이 지났거나 세션이 사라졌다 — 이어 갈 수 없으니 처음으로
+          setSession(null)
+          setPhase('idle')
+          setError('세션이 끝났어요. 처음부터 다시 시작해 주세요.')
+        } else {
+          setError('선택이 전달되지 않았어요. 다시 골라 주세요.')
+        }
+      } finally {
+        if (alive.current) setPicking(false)
+      }
+    },
+    [session, picking, phase],
+  )
+
+  const [left, right] = session?.choices ?? []
+
+  // 좌우 방향키로 고른다 — 카드를 겨냥하지 않아도 빠르게 넘길 수 있다
   useEffect(() => {
-    if (b.champion || !left || !right) return
+    if (phase !== 'playing' || !left || !right) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') pick(left)
-      else if (e.key === 'ArrowRight') pick(right)
+      if (e.key === 'ArrowLeft') pick(left.choiceId)
+      else if (e.key === 'ArrowRight') pick(right.choiceId)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [b.champion, left, right, pick])
+  }, [phase, left, right, pick])
 
-  /** 선택 기록을 장르로 집계 — 우승 책은 이긴 판수만큼 세어져 자연히 무게가 커진다 */
-  const tally = useMemo(() => {
-    const map = new Map<Axis, number>()
-    for (const p of b.picks) map.set(axisOf(p.classNo), (map.get(axisOf(p.classNo)) ?? 0) + 1)
-    const ranked = [...map.entries()].sort((x, y) => y[1] - x[1])
-    return { top: ranked[0], total: b.picks.length }
-  }, [b.picks])
-
-  const matchNo = b.idx / 2 + 1
-  const matchesInRound = b.round.length / 2
+  const champion = phase === 'done' && session?.champion ? toDnaBook(session.champion) : null
+  const status =
+    phase === 'done'
+      ? '우승'
+      : phase === 'playing' && session
+        ? `${ROUND_LABEL[participantsOf(session)] ?? `${participantsOf(session)}강`} · ${session.matchNumber} / ${session.matchesInRound}`
+        : ''
 
   return (
-    <DnaDialog
-      label="책 이상형 월드컵"
-      kicker="Book World Cup"
-      status={
-        b.champion
-          ? '우승'
-          : `${ROUND_LABEL[b.round.length] ?? `${b.round.length}강`} · ${matchNo} / ${matchesInRound}`
-      }
-      onClose={onClose}
-    >
-      {b.champion ? (
+    <DnaDialog label="책 이상형 월드컵" kicker="Book World Cup" status={status} onClose={onClose}>
+      {phase === 'idle' || phase === 'loading' ? (
+        <div className="dnar-wc__result">
+          <p className="dnar-dlg__ask">표지도 제목도 없이, 소개 두 줄만 보고 고릅니다.</p>
+          <p className="dnar-wc__verdict">
+            16권이 서로 맞붙어 15번 고르면 한 권이 남아요.
+            <br />
+            우승한 책이 무엇이었는지는 그때 처음 알려 드려요.
+          </p>
+          {error && <p className="dnar-wc__error" role="status">{error}</p>}
+          <div className="dnar-dlg__actions">
+            <button type="button" className="dnar-dlg__button" onClick={begin} disabled={phase === 'loading'}>
+              {phase === 'loading' ? '대진표를 짜는 중' : '시작하기'}
+            </button>
+            <button type="button" className="dnar-dlg__close" onClick={onClose}>닫기</button>
+          </div>
+        </div>
+      ) : phase === 'done' && champion ? (
         <div className="dnar-wc__result">
           <h2 className="dnar-wc__crown">당신의 한 권</h2>
-          <img
-            className="dnar-wc__champion"
-            src={coverAtWidth(b.champion.coverUrl, 300) ?? b.champion.coverUrl}
-            alt=""
-            width={300}
-            decoding="async"
-          />
-          <p className="dnar-wc__champion-title">{b.champion.title}</p>
-          <p className="dnar-wc__champion-meta">
-            {b.champion.author} · {axisOf(b.champion.classNo)}
-          </p>
-          {tally.top && (
-            <p className="dnar-wc__verdict">
-              {tally.total}번의 선택 중 {tally.top[1]}번을 <b>{tally.top[0]}</b>에 주셨어요.
-              <br />
-              {tally.top[0] === topAxis
-                ? `리포트에서 가장 많이 읽은 장르도 ${topAxis} — 고르는 취향과 읽는 취향이 같습니다.`
-                : `그런데 가장 많이 읽은 장르는 ${topAxis}였어요 — 고르는 취향과 읽는 취향이 갈립니다.`}
-            </p>
+          {champion.coverUrl && (
+            <img
+              className="dnar-wc__champion"
+              src={coverAtWidth(champion.coverUrl, 300) ?? champion.coverUrl}
+              alt=""
+              width={300}
+              decoding="async"
+            />
           )}
-          <div className="dnar-wc__again">
-            <button type="button" className="dnar-dlg__button" onClick={() => setB(start(pool))}>
-              다시 하기
-            </button>
-            <button type="button" className="dnar-dlg__close" onClick={onClose}>
-              닫기
-            </button>
+          <p className="dnar-wc__champion-title">{champion.title}</p>
+          <p className="dnar-wc__champion-meta">
+            {champion.author && `${champion.author} · `}{axisOf(champion.classNo)}
+          </p>
+          <p className="dnar-wc__verdict">
+            {(session?.roundSize ?? 16) - 1}번의 선택 끝에 남은 책이에요.
+            <br />
+            제목도 표지도 모른 채 소개문만으로 고른 결과입니다.
+          </p>
+          <div className="dnar-dlg__actions">
+            <button type="button" className="dnar-dlg__button" onClick={begin}>다시 하기</button>
+            <button type="button" className="dnar-dlg__close" onClick={onClose}>닫기</button>
           </div>
         </div>
       ) : (
         <>
-          <p className="dnar-dlg__ask">지금 다시 손이 가는 쪽은?</p>
-          <div className="dnar-wc__match">
-            {left && <Cover book={left} side="←" onPick={() => pick(left)} />}
-            <span className="dnar-wc__vs" aria-hidden="true">
-              VS
-            </span>
-            {right && <Cover book={right} side="→" onPick={() => pick(right)} />}
+          <p className="dnar-dlg__ask">지금 더 읽고 싶은 쪽은?</p>
+          <div className="dnar-wc__match dnar-wc__match--text">
+            {left && <Synopsis text={left.synopsis} side="←" disabled={picking} onPick={() => pick(left.choiceId)} />}
+            <span className="dnar-wc__vs" aria-hidden="true">VS</span>
+            {right && <Synopsis text={right.synopsis} side="→" disabled={picking} onPick={() => pick(right.choiceId)} />}
           </div>
-          <p className="dnar-utility dnar-dlg__hint">
-            표지를 누르거나 방향키로 고르세요 · Esc로 닫기
-          </p>
+          {error ? (
+            <p className="dnar-wc__error" role="status">{error}</p>
+          ) : (
+            <p className="dnar-utility dnar-dlg__hint">카드를 누르거나 방향키로 고르세요 · Esc로 닫기</p>
+          )}
         </>
       )}
     </DnaDialog>

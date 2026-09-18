@@ -368,6 +368,14 @@
 .dnar-test__duel-book--left { transform: rotate(-8deg) translateY(8px); background: #c9cfc6; }
 .dnar-test__duel-book--right { transform: rotate(8deg) translateY(-8px); background: #d4c9bb; }
 .dnar-test__duel-book img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.dnar-test__duel-book--anon {
+  display: grid;
+  place-items: center;
+  font-family: var(--font-wordmark);
+  font-size: 34px;
+  font-weight: 600;
+  color: rgba(11, 11, 11, 0.32);
+}
 .dnar-test__duel-vs {
   position: absolute;
   z-index: 1;
@@ -646,6 +654,42 @@
 
 .dnar-dlg__hint { text-align: center; }
 
+/* 익명 대진 — 표지 대신 소개문 카드. 두 장이 같은 높이로 서야 길이 차이가 힌트가 되지 않는다 */
+.dnar-wc__match--text { align-items: stretch; }
+.dnar-wc__synopsis {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 340px;
+  min-height: 220px;
+  padding: 28px 26px 20px;
+  border: 1px solid var(--eo-rule-soft);
+  background: var(--eo-paper);
+  color: var(--eo-ink);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--eo-motion) ease-out, transform var(--eo-motion) ease-out, box-shadow var(--eo-motion) ease-out;
+}
+.dnar-wc__synopsis:hover:not(:disabled) {
+  border-color: var(--eo-ink);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.1);
+}
+.dnar-wc__synopsis:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 4px; }
+.dnar-wc__synopsis:disabled { cursor: wait; opacity: 0.7; }
+.dnar-wc__synopsis-text {
+  align-self: center;
+  font-family: var(--font-serif-ko);
+  font-size: 16px;
+  line-height: 1.8;
+  letter-spacing: -0.01em;
+  word-break: keep-all;
+}
+.dnar-wc__error { margin: 10px 0 0; font-size: 12px; text-align: center; color: var(--eo-ink-muted); }
+
 /* ---------- 결과 ---------- */
 
 .dnar-wc__result {
@@ -700,6 +744,8 @@
   /* 좁은 화면에서는 두 표지를 위아래로 세우고 VS가 그 사이에 놓인다 */
   .dnar-wc__match { grid-template-columns: 1fr; gap: 14px; }
   .dnar-wc__pick { max-width: 46vw; }
+  .dnar-wc__synopsis { max-width: none; min-height: 0; padding: 20px 18px 14px; }
+  .dnar-wc__synopsis-text { font-size: 14px; }
   /* 방향키 안내는 키보드가 없는 화면에서 뜻이 없다 */
   .dnar-wc__pick-key { display: none; }
   .dnar-dlg__hint { display: none; }
@@ -707,6 +753,8 @@
 @media (prefers-reduced-motion: reduce) {
   .dnar-wc__pick img { transition: none; }
   .dnar-wc__pick:hover img { transform: none; }
+  .dnar-wc__synopsis { transition: none; }
+  .dnar-wc__synopsis:hover:not(:disabled) { transform: none; }
 }
 
 /* ---------- 완전 랜덤 가챠 (01번 콘텐츠) ---------- */

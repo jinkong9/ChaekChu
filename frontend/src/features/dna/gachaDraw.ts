@@ -19,7 +19,8 @@ function cleanAuthor(raw: string): string {
   return raw.replace(/^글쓴이\s*[:：]\s*/, '').split(/\s*(지음|엮음|옮김|저|글·그림|글|그림|·|;|,)\s*/)[0].trim() || raw
 }
 
-function toDnaBook(b: ServerBookSummary): DnaBook {
+/** 서버 BookSummary → 화면 DnaBook. 가챠 결과와 월드컵 우승 책이 같은 변환을 쓴다 */
+export function toDnaBook(b: ServerBookSummary): DnaBook {
   return {
     bookId: b.bookId,
     isbn13: b.isbn13 ?? b.bookId,
