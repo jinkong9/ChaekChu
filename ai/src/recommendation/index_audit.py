@@ -138,6 +138,32 @@ class QdrantIndexAuditor:
         actual = payload.get(expected_key) if isinstance(payload, Mapping) else None
         self._check(checks, name, expected_value, actual, code="OK" if actual == expected_value else code)
 
+    def _validate_tag_version(
+        self,
+        checks: list[dict[str, Any]],
+        name: str,
+        payload: Any,
+        *,
+        expected_version: str,
+    ) -> None:
+        # Incremental taxonomy updates intentionally leave unchanged book payloads
+        # and existing tag prototypes on their original tagVersion. The online
+        # reader addresses them by indexVersion + tagCode, not tagVersion.
+        actual = payload.get("tagVersion") if isinstance(payload, Mapping) else None
+        valid = isinstance(actual, str) and bool(actual.strip())
+        related = valid and (
+            actual == expected_version
+            or actual.startswith(f"{expected_version}-")
+            or expected_version.startswith(f"{actual}-")
+        )
+        self._check(
+            checks,
+            name,
+            f"{expected_version} or a related incremental version",
+            actual,
+            code="TAG_VERSION_MISSING" if not valid else "OK" if related else "TAG_VERSION_MISMATCH",
+        )
+
     def audit(self, *, tag_codes: Iterable[str]) -> dict[str, Any]:
         checks: list[dict[str, Any]] = []
         config = self.config
@@ -222,10 +248,8 @@ class QdrantIndexAuditor:
                         expected_key="indexVersion", expected_value=config.index_version,
                         code="INDEX_VERSION_MISMATCH",
                     )
-                    self._validate_payload_version(
-                        checks, f"bookPoint{position}TagVersion", payload,
-                        expected_key="tagVersion", expected_value=config.tag_version,
-                        code="TAG_VERSION_MISMATCH",
+                    self._validate_tag_version(
+                        checks, f"bookPoint{position}TagVersion", payload, expected_version=config.tag_version
                     )
                     self._validate_vector(checks, f"bookPoint{position}Vector", point)
             except _QdrantRequestError as error:
@@ -257,10 +281,8 @@ class QdrantIndexAuditor:
                         expected_key="indexVersion", expected_value=config.index_version,
                         code="INDEX_VERSION_MISMATCH",
                     )
-                    self._validate_payload_version(
-                        checks, f"tagPoint:{code}TagVersion", payload,
-                        expected_key="tagVersion", expected_value=config.tag_version,
-                        code="TAG_VERSION_MISMATCH",
+                    self._validate_tag_version(
+                        checks, f"tagPoint:{code}TagVersion", payload, expected_version=config.tag_version
                     )
                     self._validate_vector(checks, f"tagPoint:{code}Vector", point)
                 self._check(checks, "tagPrototypeCoverage", len(codes), len(points),
