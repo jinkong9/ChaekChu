@@ -207,7 +207,7 @@ export default function SearchPage() {
             autoFocus={q === '' && kdc === ''}
             className="eo-field min-w-0 flex-1" style={{ border: 0 }}
             placeholder={kdc
-              ? `${label(kdc)} 안에서 ${scope === 'all' ? '찾기' : `${current.by} 찾기`} — 비우면 대출 많은 순`
+              ? `${label(kdc)} 안에서 ${scope === 'all' ? '찾기' : `${current.by} 찾기`}`
               : `${current.by} 검색${current.example} — 또는 아래 분류를 골라 시작`}
             value={input}
             onChange={(e) => setInput(e.target.value)}
