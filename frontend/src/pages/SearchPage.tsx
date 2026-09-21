@@ -6,6 +6,7 @@ import type { SearchScope } from '../api/books'
 import type { BookSummary } from '../api/types'
 import { KDC_MAIN, isValidKdc, kdcAncestors, kdcLabel, useKdcChildren } from '../lib/kdc'
 import type { KdcCode } from '../lib/kdc'
+import Pager from '../components/Pager'
 
 /** 검색 위치를 남겨 두는 자리 — 히스토리 항목(location.key)마다 목록 스크롤 offset 하나.
  *  Safari 프라이빗 모드처럼 저장이 막히는 곳에서도 이동은 막히면 안 된다. */
@@ -21,8 +22,6 @@ const PAGE_SIZE = 20
 /** 서버 탐색 한도(§4.1) — from+size 가 이를 넘으면 400. size 20 이면 500쪽까지 */
 const EXPLORE_LIMIT = 10_000
 const MAX_PAGE = Math.floor(EXPLORE_LIMIT / PAGE_SIZE)
-/** 페이지 번호 창 — 현재 쪽 좌우로 이만큼 */
-const PAGE_WINDOW = 4
 
 /** 검색 범위 세그먼트(§4.1 scope). 첫 칸은 '좁히지 않음'이라 「전체」다 — 제목·저자와 나란히 놓이는 자리다.
  *  서버는 publisher 도 받지만 화면에는 두지 않는다(09-17) — 여기 한 줄만 더하면 살아난다. */
@@ -40,17 +39,6 @@ function RowCover({ book }: { book: BookSummary }) {
   const [broken, setBroken] = useState(false)
   if (!book.coverUrl || broken) return <span className="eo-row__cover" aria-hidden />
   return <img className="eo-row__cover" src={book.coverUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
-}
-
-/** 쪽 번호 목록 — 1·끝은 항상, 현재 ±PAGE_WINDOW, 벌어진 곳은 '…'(null) */
-function pageNumbers(current: number, last: number): (number | null)[] {
-  if (last <= PAGE_WINDOW * 2 + 3) return Array.from({ length: last }, (_, i) => i + 1)
-  const set = new Set<number>([1, last])
-  for (let p = current - PAGE_WINDOW; p <= current + PAGE_WINDOW; p++) if (p >= 1 && p <= last) set.add(p)
-  const sorted = [...set].sort((a, b) => a - b)
-  const out: (number | null)[] = []
-  sorted.forEach((p, i) => { if (i > 0 && p - sorted[i - 1] > 1) out.push(null); out.push(p) })
-  return out
 }
 
 /** EXP-001 통합 검색 — 검색어(q)와 분류 토큰(kdc)을 함께 쓴다. GET /books/search (§4.1).
@@ -288,21 +276,9 @@ export default function SearchPage() {
           </ul>
         )}
 
-        {/* 쪽 번호 — 1·끝 고정, 현재 ±4, 벌어진 곳은 … . 활성 쪽은 굵기·밑줄(새 색 없음). 탐색 한도 위의 쪽은 만들지 않는다 */}
-        {enabled && total > 0 && lastPage > 1 && (
-          <nav className="mt-6 flex flex-wrap items-center justify-center gap-1 text-[12px] tabular-nums" aria-label="쪽 이동">
-            <button type="button" className="eo-link min-w-[30px] text-center disabled:opacity-30" disabled={page === 1} onClick={() => goPage(page - 1)} aria-label="이전 쪽">←</button>
-            {pageNumbers(page, lastPage).map((p, i) =>
-              p === null
-                ? <span key={`gap-${i}`} className="min-w-[30px] text-center text-ink-faint">…</span>
-                : <button key={p} type="button" onClick={() => goPage(p)} aria-current={p === page ? 'page' : undefined}
-                    className={`min-h-[30px] min-w-[30px] border-b-2 px-1 transition-colors duration-150 ${
-                      p === page ? 'border-ink font-bold text-ink' : 'border-transparent text-ink-muted hover:text-ink'}`}>
-                    {p}
-                  </button>)}
-            <button type="button" className="eo-link min-w-[30px] text-center disabled:opacity-30" disabled={page === lastPage} onClick={() => goPage(page + 1)} aria-label="다음 쪽">→</button>
-            <span className="eo-utility ml-3">{from.toLocaleString()}–{to.toLocaleString()} / {explorable.toLocaleString()}</span>
-          </nav>
+        {/* 탐색 한도 위의 쪽은 만들지 않는다 — explorable 이 이미 잘린 수다 */}
+        {enabled && total > 0 && (
+          <Pager page={page} lastPage={lastPage} from={from} to={to} total={explorable} onPage={goPage} />
         )}
         {enabled && total > EXPLORE_LIMIT && page === lastPage && (
           <p className="eo-utility mt-3 text-center">

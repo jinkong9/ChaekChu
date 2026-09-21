@@ -16,6 +16,7 @@ import { useFinishModalStore } from '../stores/finishModalStore'
 import { coverPalette } from '../lib/coverPalette'
 import { coverAtWidth } from '../lib/coverUrl'
 import LibraryList from '../components/LibraryList'
+import Pager from '../components/Pager'
 import bookArchiveTitle from '../assets/book-archive-title.webp'
 import './LibraryPage.css'
 
@@ -54,6 +55,13 @@ type StyleWithVars = CSSProperties & Record<`--${string}`, string | number>
 /** 한 면(--book-h)에 들어가는 목차 줄 수. 판면이 em 이라 책 크기가 변해도 이 값은 그대로다. */
 const TOC_MAX = 11
 
+/** 목차가 차지하는 장 수. 0장은 왼쪽이 속표지라 오른쪽 한 면(TOC_MAX 줄)뿐이고,
+ *  그래도 남으면 양면(TOC_MAX*2)을 쓰는 목차 장이 이어진다.
+ *  장 번호 ↔ 완독 순번을 옮기는 곳은 전부 이 값을 써야 한다 — 연표가 1로 고정해 두어,
+ *  완독이 11권을 넘어 목차가 두 장이 되면 표지를 눌렀을 때 한 장씩 밀린 곳이 열렸다. */
+const tocSheetCount = (readCount: number) =>
+  1 + Math.max(0, Math.ceil((readCount - TOC_MAX) / (TOC_MAX * 2)))
+
 /** 눈금으로 세울 수 있는 장 수. 넘으면 눈금 없이 화살표와 쪽수만 둔다 —
  *  스무 개가 넘는 눈금은 세어지지도, 눌러지지도 않는다. */
 const TICK_MAX = 12
@@ -86,7 +94,7 @@ function useReducedMotion() {
   return reduced
 }
 
-type BookMeta = { title: string; year: number; count: number; pages: number; rating: string | null }
+type BookMeta = { title: string; year: number; span: string; count: number; pages: number; rating: string | null }
 
 /* ══════════════════ 지면 — 책 안에 들어가는 네 종류의 면 ══════════════════ */
 
@@ -101,7 +109,7 @@ function FrontFace({ meta }: { meta: BookMeta }) {
         <div><dt>완독</dt><dd>{meta.count}권</dd></div>
         {meta.pages > 0 && <div><dt>쪽수</dt><dd>{meta.pages.toLocaleString()}쪽</dd></div>}
         {meta.rating && <div><dt>평균 별점</dt><dd>★ {meta.rating}</dd></div>}
-        <div><dt>엮은 해</dt><dd>{meta.year}</dd></div>
+        <div><dt>엮은 해</dt><dd>{meta.span}</dd></div>
       </dl>
     </div>
   )
@@ -285,6 +293,16 @@ function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
   )
 }
 
+/** 첫 장·마지막 장 — 화살표에 벽을 하나 세운 글리프. ArrowIcon 과 같은 24 격자·같은 선 굵기라
+ *  네 버튼이 한 줄에서 같은 크기로 읽힌다. 오른쪽은 ArrowIcon 과 같은 규칙으로 뒤집는다. */
+function EndIcon({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={`libd-arrow-icon ${direction === 'right' ? 'is-right' : ''}`}>
+      <path d="M17 18 11 12l6-6M7 5.5v13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClosed }: {
   read: LibraryItem[]
   meta: BookMeta
@@ -310,10 +328,12 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
 
   // 목차는 한 면에 TOC_MAX 줄. 0장은 왼쪽이 속표지라 오른쪽 한 면뿐이고,
   // 그래도 남으면 양면을 쓰는 목차 장을 잇는다 — 모든 책이 목차에서 닿는다.
-  const tocSheets: Extract<Sheet, { kind: 'toc' }>[] = [{ kind: 'toc', leftFrom: null, rightFrom: 0 }]
-  for (let from = TOC_MAX; from < read.length; from += TOC_MAX * 2) {
-    tocSheets.push({ kind: 'toc', leftFrom: from, rightFrom: from + TOC_MAX })
-  }
+  const tocSheets: Extract<Sheet, { kind: 'toc' }>[] = Array.from(
+    { length: tocSheetCount(read.length) },
+    (_, k) => k === 0
+      ? { kind: 'toc', leftFrom: null, rightFrom: 0 }
+      : { kind: 'toc', leftFrom: TOC_MAX * (2 * k - 1), rightFrom: TOC_MAX * 2 * k },
+  )
   const sheets: Sheet[] = [
     ...tocSheets,
     ...read.map((li, i) => ({ kind: 'book' as const, li, no: i + 1 })),
@@ -505,6 +525,11 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
       </div>
 
       <div className={`libd__controls ${isClosed ? 'is-hidden' : ''}`} aria-label="책 페이지 넘기기">
+        {/* 맨 앞·맨 뒤는 넘김 없이 곧장 간다 — 열여섯 장을 화살표로만 오가던 자리다 */}
+        <button type="button" className="libd__arrow libd__arrow--edge" onClick={() => jumpTo(0)}
+          aria-label="첫 장으로" disabled={cursor <= 0}>
+          <EndIcon direction="left" />
+        </button>
         <button type="button" className="libd__arrow" onClick={() => requestTurn(-1)}
           aria-label="이전 장" disabled={cursor <= 0}>
           <ArrowIcon direction="left" />
@@ -513,7 +538,7 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
           <span className="libd__ticks">
             {sheets.map((s, i) => (
               <button
-                key={s.kind === 'toc' ? 'toc' : s.li.libraryItemId}
+                key={s.kind === 'toc' ? `toc-${s.rightFrom}` : s.li.libraryItemId}
                 type="button"
                 className={`libd__tick ${i === cursor ? 'is-on' : ''}`}
                 aria-label={s.kind === 'toc' ? '목차로' : `${s.li.book.title} 장으로`}
@@ -527,6 +552,10 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
         <button type="button" className="libd__arrow" onClick={() => requestTurn(1)}
           aria-label="다음 장" disabled={cursor >= sheets.length - 1}>
           <ArrowIcon direction="right" />
+        </button>
+        <button type="button" className="libd__arrow libd__arrow--edge" onClick={() => jumpTo(sheets.length - 1)}
+          aria-label="마지막 장으로" disabled={cursor >= sheets.length - 1}>
+          <EndIcon direction="right" />
         </button>
       </div>
     </div>
@@ -658,33 +687,9 @@ function ShelfCover({ li }: { li: LibraryItem }) {
   )
 }
 
-/** 표지에 마우스를 올리면 뜨는 기록 쪽지. 책 → 쪽지로 마우스가 건너갈 시간을 주려고 닫기는 지연한다. */
-function ShelfPop({ li, x, y, onEnter, onLeave }: {
-  li: LibraryItem; x: number; y: number; onEnter: () => void; onLeave: () => void
-}) {
-  return (
-    <div className="libd-pop" style={{ left: x, top: y }} onMouseEnter={onEnter} onMouseLeave={onLeave}>
-      <b>{li.book.title}</b>
-      <small>{li.book.author} · {categoryKey(li)}</small>
-      {li.reviewText && <p>{li.reviewText}</p>}
-      <Link to={`/books/${li.book.bookId}`}>상세 보기</Link>
-    </div>
-  )
-}
-
+/** 표지를 누르면 그 책의 상세로 간다. 마우스를 올리면 제목·감상평이 뜨던 쪽지는 걷었다 —
+ *  선반을 훑는 동안 표지를 가리고 따라다녔고, 표지와 제목은 쪽지 없이도 이미 읽힌다. */
 function WishShelves({ wish }: { wish: LibraryItem[] }) {
-  const [pop, setPop] = useState<{ li: LibraryItem; x: number; y: number } | null>(null)
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (hideTimer.current) clearTimeout(hideTimer.current) }, [])
-
-  const showPop = (li: LibraryItem, el: HTMLElement) => {
-    if (hideTimer.current) clearTimeout(hideTimer.current)
-    const r = el.getBoundingClientRect()
-    setPop({ li, x: Math.max(128, Math.min(window.innerWidth - 128, r.left + r.width / 2)), y: r.top })
-  }
-  const hidePop = () => { hideTimer.current = setTimeout(() => setPop(null), 150) }
-  const holdPop = () => { if (hideTimer.current) clearTimeout(hideTimer.current) }
-
   // 장르별로 나눠 꽂는다. 많이 꽂힌 선반이 위로 온다.
   const byGenre = [...wish.reduce((m, li) => {
     const k = categoryKey(li)
@@ -716,10 +721,8 @@ function WishShelves({ wish }: { wish: LibraryItem[] }) {
           <div className="libd-shelf__display">
             <div className="libd-shelf__books">
               {books.map((li) => (
-                <div key={li.libraryItemId} className="libd-shelf__book"
-                  onMouseEnter={(e) => showPop(li, e.currentTarget)} onMouseLeave={hidePop}>
-                  <Link to={`/books/${li.book.bookId}`} aria-label={`${li.book.title} 상세 보기`}
-                    onFocus={(e) => showPop(li, e.currentTarget)} onBlur={hidePop}>
+                <div key={li.libraryItemId} className="libd-shelf__book">
+                  <Link to={`/books/${li.book.bookId}`} aria-label={`${li.book.title} 상세 보기`}>
                     <ShelfCover li={li} />
                   </Link>
                 </div>
@@ -730,7 +733,6 @@ function WishShelves({ wish }: { wish: LibraryItem[] }) {
           <i aria-hidden="true" />
         </section>
       ))}
-      {pop && <ShelfPop li={pop.li} x={pop.x} y={pop.y} onEnter={holdPop} onLeave={hidePop} />}
     </div>
   )
 }
@@ -753,6 +755,24 @@ const byRecent = (x: LibraryItem, y: LibraryItem) =>
 const byRating = (x: LibraryItem, y: LibraryItem) =>
   (y.rating ?? -1) - (x.rating ?? -1) || byRecent(x, y)
 
+/** 완독이 이른 순 — 이 책이 엮인 단 하나의 차례다. 목차·장 번호·연표가 모두 이것을 따른다.
+ *  한때 목차에서 제목순·별점순을 고를 수 있게 했다가 걷었다: 연표는 완독일로만 그려지는데
+ *  장 차례가 따로 놀면, 같은 책이 연표에서는 8월 자리에 있고 책에서는 23장이 되어 둘이 어긋났다.
+ *  완독일만 비교하면 같은 날 기록한 책들은 비교값이 0 이고, Array.sort 는 stable 이라
+ *  서버가 준 순서(updatedAt 내림차순, §6.1)가 그대로 남는다 — A·B·C 로 기록한 날이 C·B·A 로 뒤집혔다.
+ *  그래서 담은 순서(createdAt)를 2차 기준으로 둔다. mock 응답에 createdAt 이 없던 때를 위해 id 를 최종 폴백으로 남긴다
+ *  (id 는 서버에서 문자열이라 뺄셈이 NaN 이 된다 — 숫자로 읽는 localeCompare 로 비교한다). */
+const byFinishedFirst = (x: LibraryItem, y: LibraryItem) =>
+  (x.finishedDate ?? '').localeCompare(y.finishedDate ?? '')
+  || (x.createdAt ?? '').localeCompare(y.createdAt ?? '')
+  || String(x.libraryItemId).localeCompare(String(y.libraryItemId), undefined, { numeric: true })
+
+/** 기록 수정 목록의 한 쪽에 놓는 행 수. 검색 화면과 같은 20 이다.
+ *  행 하나가 20개 남짓한 노드라, 서재가 커지면 전부 그리는 순간 화면이 멎는다 —
+ *  3,000권에서 노드가 62,000개, 정렬 한 번이 2.9초, 검색어를 지우면 6.0초였다.
+ *  거르고 정렬하는 일은 늘 전체를 놓고 한다(수천 권이어도 수십 ms 다). 비싼 것은 그리기뿐이다. */
+const ROWS_PER_PAGE = 20
+
 /** 어느 쪽을 보는가 — 서재 탭(읽음/찜)에서 들어온 그대로 시작한다 */
 type ShelfFilter = 'READ' | 'WISH'
 /** 필터는 목록의 이름이라 명사로 — 서재 탭(읽음/찜)과 같은 것을 가리킨다. 모달의 상태 세그먼트(읽었어요/읽고 싶어요)는 행동이라 동사다 */
@@ -765,6 +785,9 @@ function RecordScreen({ items, initialFilter, onClose }: { items: LibraryItem[];
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortKey>('recent')
   const [filter, setFilter] = useState<ShelfFilter>(initialFilter)
+  const [page, setPage] = useState(1)
+  // 스크롤은 창이 아니라 이 화면 자신이 한다(position: fixed + overflow-y: auto) — 쪽을 넘기면 여기를 올린다
+  const scrollerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // 완독 모달이 이 화면 위에 떠 있으면 ESC 는 모달 몫이다 — 둘이 같이 window 에서 듣고 있어서
@@ -788,8 +811,22 @@ function RecordScreen({ items, initialFilter, onClose }: { items: LibraryItem[];
     .filter((li) => !needle || `${li.book.title} ${li.book.author ?? ''}`.toLowerCase().includes(needle))
     .sort(sort === 'rating' ? byRating : byRecent)
 
+  const lastPage = Math.max(1, Math.ceil(shown.length / ROWS_PER_PAGE))
+  // 검색어를 좁히면 있던 쪽이 사라진다 — 그리기 전에 끌어당겨 빈 쪽을 보여 주지 않는다
+  const current = Math.min(page, lastPage)
+  const rows = shown.slice((current - 1) * ROWS_PER_PAGE, current * ROWS_PER_PAGE)
+
+  // 목록이 통째로 달라지면 1쪽부터 — 40쪽에서 검색하면 엉뚱한 자리에서 시작한다
+  useEffect(() => { setPage(1) }, [needle, sort, filter])
+
+  const goPage = (next: number) => {
+    if (next < 1 || next > lastPage || next === current) return
+    setPage(next)
+    scrollerRef.current?.scrollTo({ top: 0 })   // 쪽을 넘겼는데 눈은 목록 끝에 남아 있으면 안 된다
+  }
+
   return createPortal(
-    <div className="libd-record eo-page" role="dialog" aria-modal="true" aria-label="독서 기록 수정">
+    <div className="libd-record eo-page" role="dialog" aria-modal="true" aria-label="독서 기록 수정" ref={scrollerRef}>
       {/* 들어올 때 누른 '책 기록 수정'과 같은 자리, 같은 버튼 */}
       <button type="button" className="eo-button libd-record__back" onClick={onClose}>서재로 돌아가기</button>
       <div className="eo-shell">
@@ -836,7 +873,12 @@ function RecordScreen({ items, initialFilter, onClose }: { items: LibraryItem[];
         </div>
 
         {shown.length > 0 ? (
-          <div className="mt-4"><LibraryList items={shown} /></div>
+          <div className="mt-4">
+            <LibraryList items={rows} />
+            <Pager page={current} lastPage={lastPage}
+              from={(current - 1) * ROWS_PER_PAGE + 1} to={(current - 1) * ROWS_PER_PAGE + rows.length}
+              total={shown.length} onPage={goPage} label="기록 쪽 이동" />
+          </div>
         ) : (
           <div className="eo-empty">
             <p className="eo-body">
@@ -895,20 +937,26 @@ export default function LibraryPage() {
   })
 
   const all = data ?? []
-  // 완독은 오래된 순 — 그 순서가 곧 이 책의 장 순서다.
-  // 완독일만 비교하면 같은 날 기록한 책들은 비교값이 0 이고, Array.sort 는 stable 이라
-  // 서버가 준 순서(updatedAt 내림차순, §6.1)가 그대로 남는다 — A·B·C 로 기록한 날이 C·B·A 로 뒤집혔다.
-  // 그래서 담은 순서(createdAt)를 2차 기준으로 둔다. mock 응답에 createdAt 이 없던 때를 위해 id 를 최종 폴백으로 남긴다.
-  const read = all.filter((li) => li.status === 'READ')
-    .sort((x, y) =>
-      (x.finishedDate ?? '').localeCompare(y.finishedDate ?? '')
-      || (x.createdAt ?? '').localeCompare(y.createdAt ?? '')
-      || (x.libraryItemId - y.libraryItemId))
+  // 완독이 이른 순 — 그 순서가 곧 이 책의 장 순서다.
+  const read = all.filter((li) => li.status === 'READ').sort(byFinishedFirst)
   const wish = all.filter((li) => li.status === 'WISH')
+  // 장 번호 = 목차 장 수 + 완독 순번. 연표도 책과 같은 셈을 써야 눌렀을 때 그 책이 열린다.
+  const tocCount = tocSheetCount(read.length)
 
+  const thisYear = new Date().getFullYear()
   const meta: BookMeta = {
     title: `${nickname ?? '나'}의 책`,
-    year: new Date().getFullYear(),
+    year: thisYear,
+    // 엮은 해 — 올해를 적던 자리다. 아무것도 안 해도 해가 바뀌면 숫자가 바뀌어,
+    // 서재를 말하는 판권에서 혼자 서재와 무관했다. 완독 기록이 걸친 해로 적는다.
+    // 완독일이 없는 책('서비스를 만나기 전에 읽은 책')은 해를 모르니 범위에 넣지 않는다.
+    span: (() => {
+      const years = read.map((li) => Number(li.finishedDate?.slice(0, 4))).filter(Boolean)
+      if (years.length === 0) return String(thisYear)
+      const from = Math.min(...years)
+      const to = Math.max(...years)
+      return from === to ? String(from) : `${from}–${to}`
+    })(),
     count: read.length,
     pages: read.reduce((s, li) => s + (li.book.pageCount ?? 0), 0),
     rating: (() => {
@@ -958,8 +1006,8 @@ export default function LibraryPage() {
               isClosed={isClosed} onClosed={setIsClosed} />
           </div>
           {read.length > 0 && (
-            <Timeline read={read} year={meta.year} current={index - 1}
-              onJump={(i) => { setIndex(i + 1); setIsClosed(false) }} />
+            <Timeline read={read} year={meta.year} current={index - tocCount}
+              onJump={(i) => { setIndex(i + tocCount); setIsClosed(false) }} />
           )}
         </>
       ) : (
