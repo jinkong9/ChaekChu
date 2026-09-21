@@ -292,6 +292,16 @@ function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
   )
 }
 
+/** 첫 장·마지막 장 — 화살표에 벽을 하나 세운 글리프. ArrowIcon 과 같은 24 격자·같은 선 굵기라
+ *  네 버튼이 한 줄에서 같은 크기로 읽힌다. 오른쪽은 ArrowIcon 과 같은 규칙으로 뒤집는다. */
+function EndIcon({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={`libd-arrow-icon ${direction === 'right' ? 'is-right' : ''}`}>
+      <path d="M17 18 11 12l6-6M7 5.5v13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClosed }: {
   read: LibraryItem[]
   meta: BookMeta
@@ -514,6 +524,11 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
       </div>
 
       <div className={`libd__controls ${isClosed ? 'is-hidden' : ''}`} aria-label="책 페이지 넘기기">
+        {/* 맨 앞·맨 뒤는 넘김 없이 곧장 간다 — 열여섯 장을 화살표로만 오가던 자리다 */}
+        <button type="button" className="libd__arrow libd__arrow--edge" onClick={() => jumpTo(0)}
+          aria-label="첫 장으로" disabled={cursor <= 0}>
+          <EndIcon direction="left" />
+        </button>
         <button type="button" className="libd__arrow" onClick={() => requestTurn(-1)}
           aria-label="이전 장" disabled={cursor <= 0}>
           <ArrowIcon direction="left" />
@@ -536,6 +551,10 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
         <button type="button" className="libd__arrow" onClick={() => requestTurn(1)}
           aria-label="다음 장" disabled={cursor >= sheets.length - 1}>
           <ArrowIcon direction="right" />
+        </button>
+        <button type="button" className="libd__arrow libd__arrow--edge" onClick={() => jumpTo(sheets.length - 1)}
+          aria-label="마지막 장으로" disabled={cursor >= sheets.length - 1}>
+          <EndIcon direction="right" />
         </button>
       </div>
     </div>

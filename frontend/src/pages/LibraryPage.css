@@ -443,7 +443,7 @@
   z-index: 40;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   opacity: 1;
   pointer-events: auto;
   transform: translateX(-50%);
@@ -471,6 +471,8 @@
   transition: color 140ms ease;
 }
 
+/* 맨 앞·맨 뒤는 화살표보다 한 단 옅다 — 한 장씩 넘기는 것이 주된 일이고, 끝으로 뛰는 것은 그다음이다 */
+.libd__arrow--edge { color: rgba(23, 32, 57, 0.3); }
 .libd__arrow:hover:not(:disabled) { color: var(--ink); }
 .libd__arrow:disabled { opacity: 0.3; cursor: not-allowed; }
 .libd__arrow:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; border-radius: 4px; }
