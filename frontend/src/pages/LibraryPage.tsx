@@ -54,6 +54,13 @@ type StyleWithVars = CSSProperties & Record<`--${string}`, string | number>
 /** 한 면(--book-h)에 들어가는 목차 줄 수. 판면이 em 이라 책 크기가 변해도 이 값은 그대로다. */
 const TOC_MAX = 11
 
+/** 목차가 차지하는 장 수. 0장은 왼쪽이 속표지라 오른쪽 한 면(TOC_MAX 줄)뿐이고,
+ *  그래도 남으면 양면(TOC_MAX*2)을 쓰는 목차 장이 이어진다.
+ *  장 번호 ↔ 완독 순번을 옮기는 곳은 전부 이 값을 써야 한다 — 연표가 1로 고정해 두어,
+ *  완독이 11권을 넘어 목차가 두 장이 되면 표지를 눌렀을 때 한 장씩 밀린 곳이 열렸다. */
+const tocSheetCount = (readCount: number) =>
+  1 + Math.max(0, Math.ceil((readCount - TOC_MAX) / (TOC_MAX * 2)))
+
 /** 눈금으로 세울 수 있는 장 수. 넘으면 눈금 없이 화살표와 쪽수만 둔다 —
  *  스무 개가 넘는 눈금은 세어지지도, 눌러지지도 않는다. */
 const TICK_MAX = 12
@@ -310,10 +317,12 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
 
   // 목차는 한 면에 TOC_MAX 줄. 0장은 왼쪽이 속표지라 오른쪽 한 면뿐이고,
   // 그래도 남으면 양면을 쓰는 목차 장을 잇는다 — 모든 책이 목차에서 닿는다.
-  const tocSheets: Extract<Sheet, { kind: 'toc' }>[] = [{ kind: 'toc', leftFrom: null, rightFrom: 0 }]
-  for (let from = TOC_MAX; from < read.length; from += TOC_MAX * 2) {
-    tocSheets.push({ kind: 'toc', leftFrom: from, rightFrom: from + TOC_MAX })
-  }
+  const tocSheets: Extract<Sheet, { kind: 'toc' }>[] = Array.from(
+    { length: tocSheetCount(read.length) },
+    (_, k) => k === 0
+      ? { kind: 'toc', leftFrom: null, rightFrom: 0 }
+      : { kind: 'toc', leftFrom: TOC_MAX * (2 * k - 1), rightFrom: TOC_MAX * 2 * k },
+  )
   const sheets: Sheet[] = [
     ...tocSheets,
     ...read.map((li, i) => ({ kind: 'book' as const, li, no: i + 1 })),
@@ -513,7 +522,7 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
           <span className="libd__ticks">
             {sheets.map((s, i) => (
               <button
-                key={s.kind === 'toc' ? 'toc' : s.li.libraryItemId}
+                key={s.kind === 'toc' ? `toc-${s.rightFrom}` : s.li.libraryItemId}
                 type="button"
                 className={`libd__tick ${i === cursor ? 'is-on' : ''}`}
                 aria-label={s.kind === 'toc' ? '목차로' : `${s.li.book.title} 장으로`}
@@ -905,6 +914,8 @@ export default function LibraryPage() {
       || (x.createdAt ?? '').localeCompare(y.createdAt ?? '')
       || (x.libraryItemId - y.libraryItemId))
   const wish = all.filter((li) => li.status === 'WISH')
+  // 장 번호 = 목차 장 수 + 완독 순번. 연표도 책과 같은 셈을 써야 눌렀을 때 그 책이 열린다.
+  const tocCount = tocSheetCount(read.length)
 
   const meta: BookMeta = {
     title: `${nickname ?? '나'}의 책`,
@@ -958,8 +969,8 @@ export default function LibraryPage() {
               isClosed={isClosed} onClosed={setIsClosed} />
           </div>
           {read.length > 0 && (
-            <Timeline read={read} year={meta.year} current={index - 1}
-              onJump={(i) => { setIndex(i + 1); setIsClosed(false) }} />
+            <Timeline read={read} year={meta.year} current={index - tocCount}
+              onJump={(i) => { setIndex(i + tocCount); setIsClosed(false) }} />
           )}
         </>
       ) : (
