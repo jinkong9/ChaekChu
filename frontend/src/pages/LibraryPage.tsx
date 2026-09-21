@@ -103,7 +103,7 @@ function useReducedMotion() {
   return reduced
 }
 
-type BookMeta = { title: string; year: number; count: number; pages: number; rating: string | null }
+type BookMeta = { title: string; year: number; span: string; count: number; pages: number; rating: string | null }
 
 /* ══════════════════ 지면 — 책 안에 들어가는 네 종류의 면 ══════════════════ */
 
@@ -118,7 +118,7 @@ function FrontFace({ meta }: { meta: BookMeta }) {
         <div><dt>완독</dt><dd>{meta.count}권</dd></div>
         {meta.pages > 0 && <div><dt>쪽수</dt><dd>{meta.pages.toLocaleString()}쪽</dd></div>}
         {meta.rating && <div><dt>평균 별점</dt><dd>★ {meta.rating}</dd></div>}
-        <div><dt>엮은 해</dt><dd>{meta.year}</dd></div>
+        <div><dt>엮은 해</dt><dd>{meta.span}</dd></div>
       </dl>
     </div>
   )
@@ -963,9 +963,20 @@ export default function LibraryPage() {
   // 장 번호 = 목차 장 수 + 완독 순번. 연표도 책과 같은 셈을 써야 눌렀을 때 그 책이 열린다.
   const tocCount = tocSheetCount(read.length)
 
+  const thisYear = new Date().getFullYear()
   const meta: BookMeta = {
     title: `${nickname ?? '나'}의 책`,
-    year: new Date().getFullYear(),
+    year: thisYear,
+    // 엮은 해 — 올해를 적던 자리다. 아무것도 안 해도 해가 바뀌면 숫자가 바뀌어,
+    // 서재를 말하는 판권에서 혼자 서재와 무관했다. 완독 기록이 걸친 해로 적는다.
+    // 완독일이 없는 책('서비스를 만나기 전에 읽은 책')은 해를 모르니 범위에 넣지 않는다.
+    span: (() => {
+      const years = read.map((li) => Number(li.finishedDate?.slice(0, 4))).filter(Boolean)
+      if (years.length === 0) return String(thisYear)
+      const from = Math.min(...years)
+      const to = Math.max(...years)
+      return from === to ? String(from) : `${from}–${to}`
+    })(),
     count: read.length,
     pages: read.reduce((s, li) => s + (li.book.pageCount ?? 0), 0),
     rating: (() => {
