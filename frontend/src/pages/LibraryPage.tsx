@@ -16,6 +16,7 @@ import { useFinishModalStore } from '../stores/finishModalStore'
 import { coverPalette } from '../lib/coverPalette'
 import { coverAtWidth } from '../lib/coverUrl'
 import LibraryList from '../components/LibraryList'
+import Pager from '../components/Pager'
 import bookArchiveTitle from '../assets/book-archive-title.webp'
 import './LibraryPage.css'
 
@@ -800,6 +801,12 @@ const TOC_SORTS: Record<TocOrder, (x: LibraryItem, y: LibraryItem) => number> = 
   title: (x, y) => x.book.title.localeCompare(y.book.title, 'ko') || byFinishedFirst(x, y),
 }
 
+/** 기록 수정 목록의 한 쪽에 놓는 행 수. 검색 화면과 같은 20 이다.
+ *  행 하나가 20개 남짓한 노드라, 서재가 커지면 전부 그리는 순간 화면이 멎는다 —
+ *  3,000권에서 노드가 62,000개, 정렬 한 번이 2.9초, 검색어를 지우면 6.0초였다.
+ *  거르고 정렬하는 일은 늘 전체를 놓고 한다(수천 권이어도 수십 ms 다). 비싼 것은 그리기뿐이다. */
+const ROWS_PER_PAGE = 20
+
 /** 어느 쪽을 보는가 — 서재 탭(읽음/찜)에서 들어온 그대로 시작한다 */
 type ShelfFilter = 'READ' | 'WISH'
 /** 필터는 목록의 이름이라 명사로 — 서재 탭(읽음/찜)과 같은 것을 가리킨다. 모달의 상태 세그먼트(읽었어요/읽고 싶어요)는 행동이라 동사다 */
@@ -812,6 +819,9 @@ function RecordScreen({ items, initialFilter, onClose }: { items: LibraryItem[];
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortKey>('recent')
   const [filter, setFilter] = useState<ShelfFilter>(initialFilter)
+  const [page, setPage] = useState(1)
+  // 스크롤은 창이 아니라 이 화면 자신이 한다(position: fixed + overflow-y: auto) — 쪽을 넘기면 여기를 올린다
+  const scrollerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // 완독 모달이 이 화면 위에 떠 있으면 ESC 는 모달 몫이다 — 둘이 같이 window 에서 듣고 있어서
@@ -835,8 +845,22 @@ function RecordScreen({ items, initialFilter, onClose }: { items: LibraryItem[];
     .filter((li) => !needle || `${li.book.title} ${li.book.author ?? ''}`.toLowerCase().includes(needle))
     .sort(sort === 'rating' ? byRating : byRecent)
 
+  const lastPage = Math.max(1, Math.ceil(shown.length / ROWS_PER_PAGE))
+  // 검색어를 좁히면 있던 쪽이 사라진다 — 그리기 전에 끌어당겨 빈 쪽을 보여 주지 않는다
+  const current = Math.min(page, lastPage)
+  const rows = shown.slice((current - 1) * ROWS_PER_PAGE, current * ROWS_PER_PAGE)
+
+  // 목록이 통째로 달라지면 1쪽부터 — 40쪽에서 검색하면 엉뚱한 자리에서 시작한다
+  useEffect(() => { setPage(1) }, [needle, sort, filter])
+
+  const goPage = (next: number) => {
+    if (next < 1 || next > lastPage || next === current) return
+    setPage(next)
+    scrollerRef.current?.scrollTo({ top: 0 })   // 쪽을 넘겼는데 눈은 목록 끝에 남아 있으면 안 된다
+  }
+
   return createPortal(
-    <div className="libd-record eo-page" role="dialog" aria-modal="true" aria-label="독서 기록 수정">
+    <div className="libd-record eo-page" role="dialog" aria-modal="true" aria-label="독서 기록 수정" ref={scrollerRef}>
       {/* 들어올 때 누른 '책 기록 수정'과 같은 자리, 같은 버튼 */}
       <button type="button" className="eo-button libd-record__back" onClick={onClose}>서재로 돌아가기</button>
       <div className="eo-shell">
@@ -883,7 +907,12 @@ function RecordScreen({ items, initialFilter, onClose }: { items: LibraryItem[];
         </div>
 
         {shown.length > 0 ? (
-          <div className="mt-4"><LibraryList items={shown} /></div>
+          <div className="mt-4">
+            <LibraryList items={rows} />
+            <Pager page={current} lastPage={lastPage}
+              from={(current - 1) * ROWS_PER_PAGE + 1} to={(current - 1) * ROWS_PER_PAGE + rows.length}
+              total={shown.length} onPage={goPage} label="기록 쪽 이동" />
+          </div>
         ) : (
           <div className="eo-empty">
             <p className="eo-body">
