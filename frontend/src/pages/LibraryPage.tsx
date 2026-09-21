@@ -712,33 +712,9 @@ function ShelfCover({ li }: { li: LibraryItem }) {
   )
 }
 
-/** 표지에 마우스를 올리면 뜨는 기록 쪽지. 책 → 쪽지로 마우스가 건너갈 시간을 주려고 닫기는 지연한다. */
-function ShelfPop({ li, x, y, onEnter, onLeave }: {
-  li: LibraryItem; x: number; y: number; onEnter: () => void; onLeave: () => void
-}) {
-  return (
-    <div className="libd-pop" style={{ left: x, top: y }} onMouseEnter={onEnter} onMouseLeave={onLeave}>
-      <b>{li.book.title}</b>
-      <small>{li.book.author} · {categoryKey(li)}</small>
-      {li.reviewText && <p>{li.reviewText}</p>}
-      <Link to={`/books/${li.book.bookId}`}>상세 보기</Link>
-    </div>
-  )
-}
-
+/** 표지를 누르면 그 책의 상세로 간다. 마우스를 올리면 제목·감상평이 뜨던 쪽지는 걷었다 —
+ *  선반을 훑는 동안 표지를 가리고 따라다녔고, 표지와 제목은 쪽지 없이도 이미 읽힌다. */
 function WishShelves({ wish }: { wish: LibraryItem[] }) {
-  const [pop, setPop] = useState<{ li: LibraryItem; x: number; y: number } | null>(null)
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (hideTimer.current) clearTimeout(hideTimer.current) }, [])
-
-  const showPop = (li: LibraryItem, el: HTMLElement) => {
-    if (hideTimer.current) clearTimeout(hideTimer.current)
-    const r = el.getBoundingClientRect()
-    setPop({ li, x: Math.max(128, Math.min(window.innerWidth - 128, r.left + r.width / 2)), y: r.top })
-  }
-  const hidePop = () => { hideTimer.current = setTimeout(() => setPop(null), 150) }
-  const holdPop = () => { if (hideTimer.current) clearTimeout(hideTimer.current) }
-
   // 장르별로 나눠 꽂는다. 많이 꽂힌 선반이 위로 온다.
   const byGenre = [...wish.reduce((m, li) => {
     const k = categoryKey(li)
@@ -770,10 +746,8 @@ function WishShelves({ wish }: { wish: LibraryItem[] }) {
           <div className="libd-shelf__display">
             <div className="libd-shelf__books">
               {books.map((li) => (
-                <div key={li.libraryItemId} className="libd-shelf__book"
-                  onMouseEnter={(e) => showPop(li, e.currentTarget)} onMouseLeave={hidePop}>
-                  <Link to={`/books/${li.book.bookId}`} aria-label={`${li.book.title} 상세 보기`}
-                    onFocus={(e) => showPop(li, e.currentTarget)} onBlur={hidePop}>
+                <div key={li.libraryItemId} className="libd-shelf__book">
+                  <Link to={`/books/${li.book.bookId}`} aria-label={`${li.book.title} 상세 보기`}>
                     <ShelfCover li={li} />
                   </Link>
                 </div>
@@ -784,7 +758,6 @@ function WishShelves({ wish }: { wish: LibraryItem[] }) {
           <i aria-hidden="true" />
         </section>
       ))}
-      {pop && <ShelfPop li={pop.li} x={pop.x} y={pop.y} onEnter={holdPop} onLeave={hidePop} />}
     </div>
   )
 }

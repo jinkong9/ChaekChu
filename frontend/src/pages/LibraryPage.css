@@ -906,25 +906,6 @@
 .libd-shelf__empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 72px 0; text-align: center; }
 .libd-shelf__empty p { font-size: 13px; color: rgba(23, 32, 57, 0.5); }
 
-/* 표지에 마우스를 올리면 뜨는 기록 쪽지 — 넘침 컨테이너에 잘리지 않게 fixed */
-.libd-pop {
-  position: fixed;
-  z-index: 50;
-  width: 232px;
-  padding: 14px;
-  border: 1px solid rgba(23, 32, 57, 0.12);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 40px rgba(41, 52, 69, 0.18);
-  backdrop-filter: blur(14px);
-  transform: translate(-50%, -100%) translateY(-10px);
-}
-
-.libd-pop b { display: block; font-size: 13px; font-weight: 700; line-height: 1.4; }
-.libd-pop small { display: block; margin-top: 5px; font-size: 10px; color: rgba(23, 32, 57, 0.45); }
-.libd-pop p { margin-top: 8px; font-size: 11px; line-height: 1.6; color: rgba(23, 32, 57, 0.6); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.libd-pop a { display: inline-block; margin-top: 10px; font-size: 11px; color: var(--cobalt); border-bottom: 1px solid currentColor; }
-
 /* ── 책 기록 수정 — 전체 화면 ─────────────────────────────────
    고치는 자리는 보는 자리와 성격이 다르다. 보는 자리의 종이·무대를 끌고 오지 않고
    앱 공용 판(editorial.css 의 eo-*)을 그대로 쓴다. GNB까지 덮는 전체 화면이
