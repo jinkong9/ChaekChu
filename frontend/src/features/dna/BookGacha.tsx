@@ -7,10 +7,9 @@
  *
  *  결과가 나오기 전에는 표지를 보여 주지 않는다. */
 import { useEffect, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { addToLibrary } from '../../api/library'
-import { trackEvent } from '../../lib/events'
 import type { DnaBook } from './dnaTypes'
+import ShelfActions from '../../components/ShelfActions'
+import { useMyShelfEntry } from '../../lib/useMyShelfEntry'
 import { axisOf } from './dnaProfile'
 import { isBookNotFound } from '../../api/books'
 import { drawRandomBook } from './gachaDraw'
@@ -32,11 +31,10 @@ export default function BookGacha({
   read: ReadonlySet<string>
   onClose: () => void
 }) {
-  const qc = useQueryClient()
-  /** 뽑은 책을 서재에 담는 중·담김·실패 */
-  const [saved, setSaved] = useState<'idle' | 'saving' | 'done' | 'error'>('idle')
   const [phase, setPhase] = useState<Phase>('idle')
   const [book, setBook] = useState<DnaBook | null>(null)
+  /** 뽑은 책이 내 서재에 어떻게 있는지 — 버튼 한 벌(ShelfActions)이 이걸로 모양을 정한다 */
+  const my = useMyShelfEntry(book?.bookId)
   /** 뽑지 못했을 때의 안내 — 서버가 비었는지, 그냥 실패인지 말이 다르다 */
   const [drawError, setDrawError] = useState<string | null>(null)
   /** 직전에 뽑힌 책 — 서버에 exclude 로 넘겨 같은 책이 연달아 나오지 않게 한다 */
@@ -56,7 +54,6 @@ export default function BookGacha({
     if (phase === 'spinning') return
     setPhase('spinning')
     setBook(null)
-    setSaved('idle')
     setDrawError(null)
 
     // 기계가 다 돌기 전에 답이 와도 기다린다 — 뽑는 맛은 그 시간에서 나온다
@@ -82,25 +79,8 @@ export default function BookGacha({
 
   const reset = () => {
     setBook(null)
-    setSaved('idle')
     setDrawError(null)
     setPhase('idle')
-  }
-
-  /** 뽑은 책을 찜으로 담는다. DNA 응답까지 다시 부르지는 않는다 —
-   *  서재 지문이 바뀌어 프로필을 통째로 재계산하게 되고, 그 값은 다음에 이 화면을 열 때 맞으면 된다 */
-  const wish = (target: DnaBook) => {
-    if (!target.bookId || saved === 'saving' || saved === 'done') return
-    setSaved('saving')
-    trackEvent('WISH', { bookId: target.bookId, context: 'DNA' })
-    addToLibrary(target.bookId, 'WISH')
-      .then(() => {
-        qc.invalidateQueries({ queryKey: ['library'] })
-        qc.invalidateQueries({ queryKey: ['book', target.bookId] })
-        if (alive.current) setSaved('done')
-      })
-      // 401 은 인터셉터가 로그아웃으로 받아 간다 — 여기 남는 건 네트워크 끊김·서버 오류
-      .catch(() => alive.current && setSaved('error'))
   }
 
 
@@ -145,19 +125,12 @@ export default function BookGacha({
                 <p className="dnar-gacha__meta">
                   {book.author} · {axisOf(book.classNo)}
                 </p>
+                {/* 뽑고 끝내지 않는다 — 마음에 들면 그 자리에서 서재로 넘긴다. 버튼은 상세 화면과 같은 한 벌(ShelfActions):
+                    읽었어요는 완독 모달, 읽고 싶어요는 담고 푼다. 이미 서재에 있으면 그대로 보인다 */}
+                {book.bookId && (
+                  <ShelfActions className="dnar-shelf" bookId={book.bookId} title={book.title} my={my} eventContext="DNA" />
+                )}
                 <div className="dnar-dlg__actions">
-                  {/* 뽑고 끝내지 않는다 — 마음에 들면 그 자리에서 서재로 넘긴다.
-                      담기는 POST /library(§6.2), 이미 있으면 409 → api/library 가 PATCH 로 받는다 */}
-                  {book.bookId && (
-                    <button
-                      type="button"
-                      className="dnar-dlg__button dnar-gacha__wish"
-                      onClick={() => wish(book)}
-                      disabled={saved === 'saving' || saved === 'done'}
-                    >
-                      {saved === 'done' ? '서재에 담겼어요' : saved === 'saving' ? '담는 중…' : '읽고 싶어요'}
-                    </button>
-                  )}
                   <button type="button" className="dnar-dlg__button" onClick={reset}>
                     다시 뽑기
                   </button>
@@ -165,11 +138,6 @@ export default function BookGacha({
                     닫기
                   </button>
                 </div>
-                {saved === 'error' && (
-                  <p className="dnar-gacha__saveerror" role="status">
-                    서재에 담지 못했어요. 잠시 후 다시 눌러 주세요.
-                  </p>
-                )}
               </div>
             )}
           </>

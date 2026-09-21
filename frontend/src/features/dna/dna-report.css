@@ -690,6 +690,9 @@
 }
 .dnar-wc__error { margin: 10px 0 0; font-size: 12px; text-align: center; color: var(--eo-ink-muted); }
 
+/* 결과 화면의 서재 버튼 한 벌 — 지면 폭을 다 쓰지 않고 표지 폭 남짓으로 묶어 가운데 둔다 */
+.dnar-shelf { width: min(420px, 100%); margin: 6px auto 0; }
+
 /* ---------- 결과 ---------- */
 
 .dnar-wc__result {
@@ -824,8 +827,6 @@
 .dnar-gacha__pull:hover { transform: translateY(-2px); }
 .dnar-gacha__pull:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
 /* 뽑은 책을 담지 못했을 때 — 버튼 아래 한 줄 */
-.dnar-gacha__saveerror { margin: 10px 0 0; font-size: 11px; color: var(--eo-ink-muted); }
-.dnar-gacha__wish:disabled { opacity: 0.45; cursor: default; }
 
 /* 후보를 받아 오는 동안에는 돌릴 것이 없다 */
 .dnar-gacha__pull:disabled { opacity: 0.35; cursor: default; transform: none; }

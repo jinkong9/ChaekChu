@@ -18,6 +18,8 @@ import { toDnaBook } from './gachaDraw'
 import { axisOf } from './dnaProfile'
 import { coverAtWidth } from '../../lib/coverUrl'
 import DnaDialog from './DnaDialog'
+import ShelfActions from '../../components/ShelfActions'
+import { useMyShelfEntry } from '../../lib/useMyShelfEntry'
 
 const ROUND_LABEL: Record<number, string> = { 16: '16강', 8: '8강', 4: '준결승', 2: '결승' }
 
@@ -122,6 +124,8 @@ export default function BookWorldCup({ onClose }: { onClose: () => void }) {
   }, [phase, left, right, pick])
 
   const champion = phase === 'done' && session?.champion ? toDnaBook(session.champion) : null
+  /** 우승 책이 내 서재에 어떻게 있는지 — 대출 상위 풀이라 이미 읽은 책이 나오는 일이 잦다 */
+  const my = useMyShelfEntry(champion?.bookId)
   const status =
     phase === 'done'
       ? '우승'
@@ -168,6 +172,10 @@ export default function BookWorldCup({ onClose }: { onClose: () => void }) {
             <br />
             제목도 표지도 모른 채 소개문만으로 고른 결과입니다.
           </p>
+          {/* 우승으로 끝내지 않는다 — 상세 화면과 같은 버튼 한 벌로 그 자리에서 서재에 올린다 */}
+          {champion.bookId && (
+            <ShelfActions className="dnar-shelf" bookId={champion.bookId} title={champion.title} my={my} eventContext="DNA" />
+          )}
           <div className="dnar-dlg__actions">
             <button type="button" className="dnar-dlg__button" onClick={begin}>다시 하기</button>
             <button type="button" className="dnar-dlg__close" onClick={onClose}>닫기</button>
