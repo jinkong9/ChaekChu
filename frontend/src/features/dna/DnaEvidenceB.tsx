@@ -15,11 +15,27 @@ import { axisCounts, monthlyFinished, ratingSpread } from './dnaEvidence'
 import type { Habit } from './habits'
 import Radar from './DnaRadar'
 
+/** 값 안의 % 는 숫자보다 작게 — "13% : 87%" 에서 기호가 숫자와 같은 크기면 기호가 읽기를 막는다 */
+function HabitValue({ value }: { value: string }) {
+  if (!value.includes('%')) return <>{value}</>
+  const parts = value.split('%')
+  return (
+    <>
+      {parts.map((p, i) => (
+        <span key={i}>
+          {p}
+          {i < parts.length - 1 && <span className="dnar-habit__unit">%</span>}
+        </span>
+      ))}
+    </>
+  )
+}
+
 /** 습관 한 줄. 그림 위에 얹히는 줄(.dnar-ev__pair 안)은 CSS 가 규칙선을 지운다 — 그 줄과 그림이 한 덩이라서다 */
 function HabitRow({ habit, art }: { habit?: Habit; art: Record<string, ReactNode> }) {
   if (!habit) return null
   return (
-    <div className="dnar-habit">
+    <div className={`dnar-habit${habit.empty ? ' dnar-habit--empty' : ''}`}>
       <svg className="dnar-habit__art" viewBox="0 0 18 18" aria-hidden="true">
         {art[habit.id]}
       </svg>
@@ -30,10 +46,10 @@ function HabitRow({ habit, art }: { habit?: Habit; art: Record<string, ReactNode
       <span className="dnar-habit__value">
         {habit.to ? (
           <Link className="dnar-habit__go" to={habit.to}>
-            {habit.value} <span aria-hidden="true">→</span>
+            <HabitValue value={habit.value} /> <span aria-hidden="true">→</span>
           </Link>
         ) : (
-          habit.value
+          <HabitValue value={habit.value} />
         )}
       </span>
     </div>
@@ -207,14 +223,14 @@ export default function DnaEvidenceB({
           </div>
         </div>
 
-        {/* 짝이 없는 줄들 — 그림으로 펼칠 만큼의 분포가 없다. 아래 한 단으로 내려 급을 낮춘다 */}
-        {rest.length > 0 && (
-          <dl className="dnar-ev__rest">
-            {rest.map((h) => (
-              <HabitRow key={h.id} habit={h} art={habitArt} />
-            ))}
-          </dl>
-        )}
+        {/* 짝이 없는 줄들 — 그림으로 펼칠 만큼의 분포가 없다. 아래 한 줄 세 칸으로 내려 급을 낮춘다.
+            셋은 늘 셋이다(habits.ts) — 표본이 모자라면 값 자리에 「—」가 서고 이유가 붙는다. 줄이 생기고 사라지면
+            계정마다 아래쪽 정렬이 달라졌다 */}
+        <dl className="dnar-ev__rest">
+          {rest.map((h) => (
+            <HabitRow key={h.id} habit={h} art={habitArt} />
+          ))}
+        </dl>
       </section>
     </>
   )

@@ -241,14 +241,42 @@
 .dnar-ev__bar-label { font-size: 10px; color: var(--eo-ink-faint); }
 .dnar-ev__bar-value { font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; }
 
-/* 짝이 없는 줄들 — 아래 한 단으로 내려 급을 낮춘다 */
-.dnar-ev__rest { display: grid; grid-template-columns: 1fr 1fr; column-gap: 48px; margin: 30px 0 0; }
+/* 짝이 없는 줄들 — 아래 한 줄 세 칸. 위 그림 두 장이 「차트 줄」, 이 셋이 「지표 줄」이다.
+   칸이 좁아 값을 옆이 아니라 아래에 세운다 — 그림 위 줄(값이 오른쪽)과 다르지만 높이가 같은 세 칸이 한 줄로 읽힌다 */
+.dnar-ev__rest {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 32px;
+  margin: 30px 0 0;
+  border-top: 1px solid var(--eo-rule-soft);
+}
+.dnar-ev__rest .dnar-habit {
+  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: start;
+  gap: 10px 14px;
+  padding: 22px 2px 6px;
+  border-top: 0;
+}
+/* 칸 사이 얇은 세로 선 — 칸이 셋이라 간격만으로는 어디서 갈리는지 흐리다 */
+.dnar-ev__rest .dnar-habit + .dnar-habit { border-left: 1px solid var(--eo-rule-soft); padding-left: 26px; }
+.dnar-ev__rest .dnar-habit__art { margin-top: 1px; }
+.dnar-ev__rest .dnar-habit__value { grid-column: 2; font-size: 22px; letter-spacing: -0.03em; }
+/* 값 속 % 기호 — 숫자의 6할 크기, 살짝 흐리게. 「13% : 87%」에서 숫자만 서게 한다 */
+.dnar-habit__unit { font-size: 0.6em; font-weight: 600; color: var(--eo-ink-muted); margin-left: 1px; }
+
+/* 표본이 모자란 칸 — 값은 흐리게, 「—」는 숫자 자리를 지키기만 한다 */
+.dnar-habit--empty .dnar-habit__value { color: var(--eo-ink-faint); font-weight: 500; }
+.dnar-habit--empty .dnar-habit__go { border-bottom-color: transparent; }
 
 @media (max-width: 1080px) {
   .dnar-ev__map,
   .dnar-ev__type,
-  .dnar-ev__pairs,
-  .dnar-ev__rest { grid-template-columns: 1fr; gap: 28px; }
+  .dnar-ev__pairs { grid-template-columns: 1fr; gap: 28px; }
+  .dnar-ev__rest { grid-template-columns: 1fr; column-gap: 0; }
+  .dnar-ev__rest .dnar-habit { padding: 16px 2px; border-top: 1px solid var(--eo-rule-soft); }
+  .dnar-ev__rest .dnar-habit + .dnar-habit { border-left: 0; padding-left: 2px; }
+  .dnar-ev__rest .dnar-habit:first-child { border-top: 0; }
 }
 @media (max-width: 640px) {
   .dnar-ev { margin-top: 40px; }
