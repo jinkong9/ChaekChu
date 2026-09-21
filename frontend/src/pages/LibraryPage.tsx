@@ -61,6 +61,16 @@ const TOC_MAX = 11
 const tocSheetCount = (readCount: number) =>
   1 + Math.max(0, Math.ceil((readCount - TOC_MAX) / (TOC_MAX * 2)))
 
+/** 목차 순서 — 고른 순서가 곧 이 책의 장 차례다. 주소(?order=)가 기억한다. */
+const TOC_ORDERS = [
+  { key: 'old', label: '완독순' },
+  { key: 'new', label: '최신순' },
+  { key: 'rating', label: '별점순' },
+  { key: 'title', label: '제목순' },
+] as const
+
+type TocOrder = (typeof TOC_ORDERS)[number]['key']
+
 /** 눈금으로 세울 수 있는 장 수. 넘으면 눈금 없이 화살표와 쪽수만 둔다 —
  *  스무 개가 넘는 눈금은 세어지지도, 눌러지지도 않는다. */
 const TICK_MAX = 12
@@ -116,8 +126,9 @@ function FrontFace({ meta }: { meta: BookMeta }) {
 
 /** 목차 한 면 — read 의 from 번째부터 TOC_MAX 줄. 줄을 누르면 그 장으로 넘어간다.
  *  한 면에 다 못 담으면 다음 목차 장이 이어받는다 (ArchiveBook 의 tocSheets). */
-function TocFace({ read, from, onPick }: {
+function TocFace({ read, from, onPick, order, onOrder }: {
   read: LibraryItem[]; from: number; onPick: (bookIndex: number) => void
+  order: TocOrder; onOrder: (next: TocOrder) => void
 }) {
   const shown = read.slice(from, from + TOC_MAX)
   // 마지막 목차 장의 남는 면 — 머리말만 덩그러니 놓지 않고 빈 지면으로 둔다
@@ -126,7 +137,20 @@ function TocFace({ read, from, onPick }: {
 
   return (
     <div className="libd-face">
-      <span className="libd-face__eyebrow">{from === 0 ? '목차' : '목차 (이어서)'}</span>
+      <span className="libd-toc__head">
+        <span className="libd-face__eyebrow">{from === 0 ? '목차' : '목차 (이어서)'}</span>
+        {/* 순서는 첫 목차 면에서만 고른다 — 이어지는 면마다 같은 줄을 두면 목차가 아니라 툴바가 된다.
+            고른 순서가 곧 장 차례라, 여기서 바꾸면 책장과 아래 연표가 함께 따라온다. */}
+        {from === 0 && read.length > 1 && (
+          <span className="libd-toc__orders" role="group" aria-label="목차 순서">
+            {TOC_ORDERS.map((o) => (
+              <button key={o.key} type="button"
+                className={`libd-toc__order ${order === o.key ? 'is-on' : ''}`}
+                aria-pressed={order === o.key} onClick={() => onOrder(o.key)}>{o.label}</button>
+            ))}
+          </span>
+        )}
+      </span>
 
       {read.length === 0 ? (
         <div className="libd-empty">
@@ -302,13 +326,15 @@ function EndIcon({ direction }: { direction: 'left' | 'right' }) {
   )
 }
 
-function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClosed }: {
+function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClosed, order, onOrder }: {
   read: LibraryItem[]
   meta: BookMeta
   index: number
   onIndex: (i: number) => void
   isClosed: boolean
   onClosed: (closed: boolean) => void
+  order: TocOrder
+  onOrder: (next: TocOrder) => void
 }) {
   const reducedMotion = useReducedMotion()
   const [turn, setTurn] = useState<TurnState | null>(null)
@@ -436,11 +462,11 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
     !s ? null
       : s.kind === 'book' ? <TitleFace li={s.li} />
       : s.leftFrom === null ? <FrontFace meta={meta} />
-      : <TocFace read={read} from={s.leftFrom} onPick={pickBook} />
+      : <TocFace read={read} from={s.leftFrom} onPick={pickBook} order={order} onOrder={onOrder} />
   const rightOf = (s: Sheet | undefined): ReactNode =>
     !s ? null
       : s.kind === 'book' ? <RateFace li={s.li} no={s.no} />
-      : <TocFace read={read} from={s.rightFrom} onPick={pickBook} />
+      : <TocFace read={read} from={s.rightFrom} onPick={pickBook} order={order} onOrder={onOrder} />
 
   // 넘어가는 종이 한 장의 앞면은 먼저 놓인 장(A)의 오른쪽 면, 뒷면은 나중 장(B)의 왼쪽 면이다.
   // 그래서 -180도까지 돌면 B의 왼쪽 면이 왼쪽에 내려앉고, 미리 깔아 둔 B의 오른쪽 면이 드러난다.
@@ -781,6 +807,26 @@ const byRecent = (x: LibraryItem, y: LibraryItem) =>
 const byRating = (x: LibraryItem, y: LibraryItem) =>
   (y.rating ?? -1) - (x.rating ?? -1) || byRecent(x, y)
 
+/** 완독이 이른 순 — 목차의 기본이자, 이 책이 엮인 차례다.
+ *  완독일만 비교하면 같은 날 기록한 책들은 비교값이 0 이고, Array.sort 는 stable 이라
+ *  서버가 준 순서(updatedAt 내림차순, §6.1)가 그대로 남는다 — A·B·C 로 기록한 날이 C·B·A 로 뒤집혔다.
+ *  그래서 담은 순서(createdAt)를 2차 기준으로 둔다. mock 응답에 createdAt 이 없던 때를 위해 id 를 최종 폴백으로 남긴다
+ *  (id 는 서버에서 문자열이라 뺄셈이 NaN 이 된다 — 숫자로 읽는 localeCompare 로 비교한다). */
+const byFinishedFirst = (x: LibraryItem, y: LibraryItem) =>
+  (x.finishedDate ?? '').localeCompare(y.finishedDate ?? '')
+  || (x.createdAt ?? '').localeCompare(y.createdAt ?? '')
+  || String(x.libraryItemId).localeCompare(String(y.libraryItemId), undefined, { numeric: true })
+
+/** 목차에서 고르는 네 가지 차례. 어느 것을 골라도 동점은 완독순으로 푼다 — 같은 별점끼리
+ *  들쭉날쭉하면 순서를 바꿨다는 사실 자체가 안 읽힌다. */
+const TOC_SORTS: Record<TocOrder, (x: LibraryItem, y: LibraryItem) => number> = {
+  old: byFinishedFirst,
+  new: (x, y) => -byFinishedFirst(x, y),
+  // 별점을 안 매긴 책은 맨 뒤 — 0점과 '아직 안 매김'은 다르다
+  rating: (x, y) => (y.rating ?? -1) - (x.rating ?? -1) || byFinishedFirst(x, y),
+  title: (x, y) => x.book.title.localeCompare(y.book.title, 'ko') || byFinishedFirst(x, y),
+}
+
 /** 어느 쪽을 보는가 — 서재 탭(읽음/찜)에서 들어온 그대로 시작한다 */
 type ShelfFilter = 'READ' | 'WISH'
 /** 필터는 목록의 이름이라 명사로 — 서재 탭(읽음/찜)과 같은 것을 가리킨다. 모달의 상태 세그먼트(읽었어요/읽고 싶어요)는 행동이라 동사다 */
@@ -891,8 +937,23 @@ export default function LibraryPage() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const mode: Mode = params.get('tab') === 'wish' ? 'wish' : 'read'
-  const setMode = (next: Mode) =>
-    setParams(next === 'wish' ? { tab: 'wish' } : {}, { replace: true })
+  const setMode = (next: Mode) => {
+    // 탭을 옮겨도 목차 순서(?order=)는 들고 간다 — 찜을 들렀다 오면 제목순이 풀려 있었다
+    const next_ = new URLSearchParams(params)
+    next_.delete('edit')
+    if (next === 'wish') next_.set('tab', 'wish')
+    else next_.delete('tab')
+    setParams(next_, { replace: true })
+  }
+  // 목차 순서도 주소가 기억한다 — 기본(완독순)일 때는 주소에 아무 말도 적지 않는다
+  const orderParam = params.get('order')
+  const order: TocOrder = TOC_ORDERS.some((o) => o.key === orderParam) ? (orderParam as TocOrder) : 'old'
+  const setOrder = (next: TocOrder) => {
+    const nextParams = new URLSearchParams(params)
+    if (next === 'old') nextParams.delete('order')
+    else nextParams.set('order', next)
+    setParams(nextParams, { replace: true })
+  }
   // 편집 화면은 주소(?edit=1)에 둔다 — state 로만 들고 있으면 뒤로가기가 편집을 닫는 게 아니라 서재를 떠난다.
   // DNA 의 가챠·월드컵(?play=)과 같은 패턴: 우리가 push 했으면 뒤로가기로 걷어내고, 링크로 바로 들어왔으면 replace 로 지운다
   const editing = params.get('edit') === '1'
@@ -923,15 +984,8 @@ export default function LibraryPage() {
   })
 
   const all = data ?? []
-  // 완독은 오래된 순 — 그 순서가 곧 이 책의 장 순서다.
-  // 완독일만 비교하면 같은 날 기록한 책들은 비교값이 0 이고, Array.sort 는 stable 이라
-  // 서버가 준 순서(updatedAt 내림차순, §6.1)가 그대로 남는다 — A·B·C 로 기록한 날이 C·B·A 로 뒤집혔다.
-  // 그래서 담은 순서(createdAt)를 2차 기준으로 둔다. mock 응답에 createdAt 이 없던 때를 위해 id 를 최종 폴백으로 남긴다.
-  const read = all.filter((li) => li.status === 'READ')
-    .sort((x, y) =>
-      (x.finishedDate ?? '').localeCompare(y.finishedDate ?? '')
-      || (x.createdAt ?? '').localeCompare(y.createdAt ?? '')
-      || (x.libraryItemId - y.libraryItemId))
+  // 목차에서 고른 차례가 곧 이 책의 장 순서다 (기본은 완독이 이른 순).
+  const read = all.filter((li) => li.status === 'READ').sort(TOC_SORTS[order])
   const wish = all.filter((li) => li.status === 'WISH')
   // 장 번호 = 목차 장 수 + 완독 순번. 연표도 책과 같은 셈을 써야 눌렀을 때 그 책이 열린다.
   const tocCount = tocSheetCount(read.length)
@@ -985,7 +1039,7 @@ export default function LibraryPage() {
         <>
           <div className="libd__stage libd__stage--book" aria-label="완독 기록을 엮은 책">
             <ArchiveBook read={read} meta={meta} index={index} onIndex={setIndex}
-              isClosed={isClosed} onClosed={setIsClosed} />
+              isClosed={isClosed} onClosed={setIsClosed} order={order} onOrder={setOrder} />
           </div>
           {read.length > 0 && (
             <Timeline read={read} year={meta.year} current={index - tocCount}
