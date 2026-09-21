@@ -5,7 +5,9 @@
  *  ─ 계약 §1 의 "프론트는 서재를 집계하지 않는다"는 프로필 점수·타입에 대한 조항이고,
  *    이 줄들은 그 점수에 끼지 않는다. 나중에 서버(profile.habits)로 옮길 때도 이 식을 그대로 넘기면 된다.
  *
- *  원칙 하나: 표본이 얇으면 줄을 만들지 않는다. 세 권으로 낸 "78%"가 리포트 전체의 신뢰를 깎는다. */
+ *  원칙 하나: 표본이 얇으면 값을 내지 않는다. 세 권으로 낸 "78%"가 리포트 전체의 신뢰를 깎는다.
+ *  다만 줄 자체는 늘 다섯 개다 — 값 자리에 「—」와 왜 비었는지를 적는다. 줄이 데이터마다 생기고 사라지면
+ *  지면 아래쪽 정렬이 계정마다 달라지고, 사용자는 무엇이 있을 수 있었는지도 모른다. */
 import type { DnaBookResponse } from '../../api/dna'
 
 export interface Habit {
@@ -15,8 +17,10 @@ export interface Habit {
   to?: string
   /** 오른쪽에 큰 글씨로 서는 값 — "긴 편", "6 : 4" */
   value: string
-  /** 그 값이 무엇에서 나왔는지 한 줄 */
+  /** 그 값이 무엇에서 나왔는지 한 줄 — 비었으면 왜 비었는지 */
   detail: string
+  /** 표본이 모자라 값을 내지 못했다 — 화면은 값을 흐리게 적는다 */
+  empty?: boolean
 }
 
 /** 이만큼은 있어야 한 줄을 만든다 */
@@ -29,11 +33,12 @@ const RECENT_YEARS = 3
 const PACE_MONTHS = 6
 const DAY = 86_400_000
 
-/** 지분 x : y 를 합이 10 인 정수 두 개로. 한쪽이 0 이면 "10 : 0" 이 그대로 맞는 말이다 */
+/** 지분 x : y 를 백분율 두 개로 — "30% : 70%". 합 10 정수("3 : 7")로 적었을 때는 아래 줄의 실제 권수(4권 · 9권)와
+ *  숫자가 달라 보여 어긋난 값처럼 읽혔다. 퍼센트는 단위가 붙어 비율이라는 게 드러난다 */
 function ratio(x: number, y: number): string {
   const total = x + y
-  const left = Math.round((x / total) * 10)
-  return `${left} : ${10 - left}`
+  const left = Math.round((x / total) * 100)
+  return `${left}% : ${100 - left}%`
 }
 
 function enough(sample: number, total: number): boolean {
@@ -62,7 +67,6 @@ const trim = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1))
 export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[] {
   // 습관은 완독 기록에서 나온다 — 찜(WISH)은 아직 읽지 않은 책이라 버릇을 말해 주지 않는다
   const read = books.filter((b) => b.status === 'READ')
-  if (read.length === 0) return []
   const habits: Habit[] = []
 
   // ── 읽는 속도 ───────────────────────────────
@@ -88,6 +92,14 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
         detail: `마지막 완독은 ${months}개월 전이에요`,
       })
     }
+  } else {
+    habits.push({
+      id: 'pace',
+      label: '읽는 속도',
+      value: '—',
+      detail: `완독일이 있는 기록이 ${MIN_SAMPLE}권 넘게 쌓이면 보여드려요`,
+      empty: true,
+    })
   }
 
   // ── 신간 vs 구간 ─────────────────────────────
@@ -101,6 +113,14 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
       label: '신간 vs 구간',
       value: ratio(fresh, years.length - fresh),
       detail: `${cutoff}년 이후 출간 ${fresh}권 · 그 이전 ${years.length - fresh}권`,
+    })
+  } else {
+    habits.push({
+      id: 'recency',
+      label: '신간 vs 구간',
+      value: '—',
+      detail: '출간 연도를 아는 완독 책이 더 쌓이면 보여드려요',
+      empty: true,
     })
   }
 
@@ -122,6 +142,14 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
           ? `두 권 넘게 읽은 작가가 ${repeated.length}명`
           : '두 권 넘게 읽은 작가는 이 한 명',
     })
+  } else {
+    habits.push({
+      id: 'author',
+      label: '한 작가 파고들기',
+      value: '—',
+      detail: '두 권 넘게 읽은 작가가 아직 없어요',
+      empty: true,
+    })
   }
 
   // ── 별점 습관 ───────────────────────────────
@@ -136,20 +164,27 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
       value: ratingLabel(avg),
       detail: `평균 ${avg.toFixed(1)}점 · 완독 ${read.length}권 중 ${rated.length}권에 남겼어요`,
     })
+  } else {
+    habits.push({
+      id: 'rating',
+      label: '별점 습관',
+      value: '—',
+      detail: `별점을 ${MIN_SAMPLE}권 넘게 남기면 보여드려요`,
+      empty: true,
+    })
   }
 
   // ── 쌓아 둔 책 ──────────────────────────────
   const wish = books.filter((b) => b.status === 'WISH').length
-  if (wish > 0) {
-    habits.push({
-      id: 'wish',
-      label: '쌓아 둔 책',
-      value: `${wish}권`,
-      detail: '찜해 두고 아직 펼치지 않은 책이에요',
-      // 이 줄만 다음 걸음이 있다 — 찜 목록으로 바로 보낸다(서재의 찜 탭은 주소가 기억한다)
-      to: '/library?tab=wish',
-    })
-  }
+  habits.push({
+    id: 'wish',
+    label: '쌓아 둔 책',
+    value: `${wish}권`,
+    detail: wish > 0 ? '찜해 두고 아직 펼치지 않은 책이에요' : '찜해 둔 책이 아직 없어요',
+    // 이 줄만 다음 걸음이 있다 — 찜 목록으로 바로 보낸다(서재의 찜 탭은 주소가 기억한다)
+    to: '/library?tab=wish',
+    empty: wish === 0,
+  })
 
   return habits
 }
