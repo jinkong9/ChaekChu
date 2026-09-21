@@ -107,13 +107,16 @@ export default function DnaEvidenceB({
           <div className="dnar-ev__axes">
             {live.map((a) => (
               <div key={a.label} className="dnar-ev__axis">
-                <span className="dnar-ev__axis-label">{a.label}</span>
+                {/* 권수는 라벨 옆에 — 서재에서 센 사실이다. 오른쪽 % 는 AI 축 점수라 권수와 비례하지 않는다
+                    (0권인데 5% 가 있을 수 있다). 둘을 한 자리에 붙여 두면 어긋난 값처럼 읽혔다 */}
+                <span className="dnar-ev__axis-label">
+                  {a.label}
+                  {a.count > 0 && <span className="dnar-ev__axis-count">{a.count}권</span>}
+                </span>
                 <span className="dnar-ev__axis-bar">
                   <span style={{ width: `${(a.share / peakShare) * 100}%`, background: accent }} />
                 </span>
-                <span className="dnar-ev__axis-value">
-                  {a.count > 0 && <b>{a.count}권</b>} {a.share}%
-                </span>
+                <span className="dnar-ev__axis-value">{a.share}%</span>
               </div>
             ))}
             {/* 0% 축 다섯 줄을 그대로 세우면 지면의 절반이 0 이 된다 — 한 줄로 접는다 */}
