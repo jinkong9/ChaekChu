@@ -694,33 +694,6 @@
 
 /* ── 목차 ────────────────────────────────────────────────────── */
 
-/* 목차 머리 — 왼쪽은 '목차', 오른쪽은 차례를 고르는 줄. 판면 안이라 상자도 테두리도 없이
-   굵기와 농도만으로 고른 쪽을 말한다 (책장에 툴바를 올리지 않는다). */
-.libd-toc__head {
-  flex: none;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.7em;
-}
-
-.libd-toc__orders { display: flex; align-items: baseline; gap: 0.62em; }
-
-.libd-toc__order {
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: 0.74em;
-  color: rgba(23, 32, 57, 0.34);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color 140ms ease;
-}
-
-.libd-toc__order:hover { color: rgba(23, 32, 57, 0.62); }
-.libd-toc__order.is-on { color: var(--ink); font-weight: 700; }
-.libd-toc__order:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; border-radius: 3px; }
-
 .libd-toc { margin-top: 1.5em; display: flex; flex-direction: column; }
 
 .libd-toc__row {
