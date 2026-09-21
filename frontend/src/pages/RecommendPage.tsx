@@ -15,8 +15,8 @@ import { SHELF_ACTIONS } from '../lib/shelf'
 import { Stamp } from '../components/Stamp'
 import LetterStamp from '../components/LetterStamp'
 import StampFolder from '../components/StampFolder'
-import mailboxImg from '../assets/recommend-mailbox.webp'
-import birdImg from '../assets/recommend-bird.webp'
+import mailboxImg from '../assets/recommend-mailbox.png'
+import birdImg from '../assets/recommend-bird.png'
 import './RecommendPage.css'
 
 /** REC-001 추천 화면 — 추천을 '모아 둔 우표첩에서 오늘 치를 꺼내는' 동작으로 건넨다.

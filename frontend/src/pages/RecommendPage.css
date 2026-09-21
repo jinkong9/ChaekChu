@@ -29,15 +29,15 @@
   position: relative;
   flex: 1;
   min-width: 0;
-  height: 72px;
+  height: 78px;
 }
 
 .recommend-heading__bird {
   position: absolute;
-  top: 3px;
+  top: 2px;
   left: 0;
-  width: 68px;
-  height: 66px;
+  width: 76px;
+  height: 74px;
   object-fit: contain;
   animation: recommend-bird-deliver 18s linear infinite;
 }
@@ -45,8 +45,8 @@
 @keyframes recommend-bird-deliver {
   0% { left: 0; opacity: 1; transform: translateY(2px); }
   45% { transform: translateY(-3px); }
-  90% { left: calc(100% - 68px); opacity: 1; transform: translateY(1px); }
-  94% { left: calc(100% - 68px); opacity: 0; }
+  90% { left: calc(100% - 76px); opacity: 1; transform: translateY(1px); }
+  94% { left: calc(100% - 76px); opacity: 0; }
   95% { left: 0; opacity: 0; }
   100% { left: 0; opacity: 1; transform: translateY(2px); }
 }
@@ -55,13 +55,13 @@
   .recommend-heading { gap: 7px; }
   .recommend-heading__scene { gap: 2px; }
   .recommend-heading__mailbox { width: 68px; height: 68px; }
-  .recommend-heading__flight { height: 54px; }
-  .recommend-heading__bird { top: 3px; width: 50px; height: 48px; }
+  .recommend-heading__flight { height: 60px; }
+  .recommend-heading__bird { top: 2px; width: 56px; height: 54px; }
   @keyframes recommend-bird-deliver {
     0% { left: 0; opacity: 1; transform: translateY(2px); }
     45% { transform: translateY(-2px); }
-    90% { left: calc(100% - 50px); opacity: 1; transform: translateY(1px); }
-    94% { left: calc(100% - 50px); opacity: 0; }
+    90% { left: calc(100% - 56px); opacity: 1; transform: translateY(1px); }
+    94% { left: calc(100% - 56px); opacity: 0; }
     95% { left: 0; opacity: 0; }
     100% { left: 0; opacity: 1; transform: translateY(2px); }
   }
