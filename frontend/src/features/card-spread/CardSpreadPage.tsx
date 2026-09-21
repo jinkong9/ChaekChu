@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api } from '../../api/client'
 import { toBookSummary } from '../../api/books'
-import { addToLibrary, removeLibraryItem } from '../../api/library'
-import { useFinishModalStore } from '../../stores/finishModalStore'
-import type { BookDetail, BookSummary, CoLoansResponse, ShelfStatus, SimilarResponse } from '../../api/types'
+import type { BookDetail, BookSummary, CoLoansResponse, SimilarResponse } from '../../api/types'
+import ShelfActions from '../../components/ShelfActions'
 import { coverAtWidth } from '../../lib/coverUrl'
 import { trackEvent } from '../../lib/events'
 import { ean13Bars, ean13Modules } from './ean13'
@@ -25,11 +24,6 @@ import './card-spread.css'
 /** 시안 단계의 확장 — 계약에 들어가면 api/types.ts로 옮긴다 */
 type BookDetailDraft = BookDetail & { keywords?: string[] | null }
 
-const CTA_LABEL: Record<ShelfStatus, string> = { READ: '읽었어요', WISH: '읽고 싶어요' }
-/** 이미 읽은 책의 라벨 — 누를 수 있는 행동이 아니라 서재에 기록된 상태의 표시다 */
-const READ_DONE_LABEL = '이미 읽었어요'
-/** 찜이 담긴 뒤 hover·스크린리더에 붙는 설명 — 라벨은 그대로 두고 여기서만 '해제'를 말한다 */
-const WISH_CANCEL_HINT = '읽고 싶어요 해제'
 
 /** 카드에 인쇄된 문장 — 책이 아니라 서비스의 말이다 */
 const CARD_LINE = '“당신의 오늘도,\n좋은 책과 함께하길.”'
@@ -123,7 +117,6 @@ export default function CardSpreadPage() {
   const fromRec = params.get('from') === 'rec' // 추천 경유 시에만 이유 문구 노출
 
   const qc = useQueryClient()
-  const openFinish = useFinishModalStore((s) => s.open)
   const { data: book, isPending, isError, refetch } = useQuery({
     queryKey: ['book', bookId],
     queryFn: async () => (await api.get<BookDetailDraft>(`/books/${bookId}`)).data,
@@ -145,9 +138,6 @@ export default function CardSpreadPage() {
     retry: false,
   })
 
-  // 담기·해제는 서버 왕복이라 끝날 때까지 티가 나야 한다 — 실패하면 조용히 넘기지 않고 버튼 아래에 적는다
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
 
   // 로그인 사용자의 개인화 입력 — 같은 도서를 반복 조회해도 세션당 한 번만 전송한다.
   const viewedBookId = useRef<number | null>(null)
@@ -178,37 +168,6 @@ export default function CardSpreadPage() {
         </div>
       </main>
     )
-  }
-
-  // 두 버튼의 모양은 전부 book.my 에서 나온다 — 서버가 주는 '내 서재' 항목이다(§4.4).
-  // 서재에 없으면 null, 있으면 READ 아니면 WISH 둘 중 하나라 상태가 겹치지 않는다.
-  const readItem = book.my?.status === 'READ' ? book.my : null
-  const wishedItem = book.my?.status === 'WISH' ? book.my : null
-
-  /** 읽음은 완독 모달을 거친다(별점·한줄평·완독일).
-   *  이미 찜으로 담겨 있으면 그 항목 id 를 넘겨 새로 담지 않고 그 자리에서 READ 로 올린다(§6.3) — 같은 책이 두 줄로 남지 않는다. */
-  const openRead = () =>
-    openFinish({ bookId: book.bookId, title: book.title, libraryItemId: wishedItem?.libraryItemId,
-      rating: wishedItem?.rating, reviewText: wishedItem?.reviewText })
-
-  /** 서버로 바로 가는 건 찜뿐이다 — 왕복 동안 버튼을 잠그고, 실패하면 버튼 아래에 알린다.
-   *  담기는 POST(이미 있으면 409 → PATCH)라 두 번 눌러도 줄이 늘지 않고, 해제는 DELETE /library/{id} (§6.4) 로 서재에서 뺀다
-   *  — 찜에는 별점·감상이 없어 함께 지워질 기록이 없다. 읽은 책에서는 이 버튼이 잠겨 있어 여기로 오지 않는다. */
-  const toggleWish = () => {
-    // 이벤트는 담을 때만 보낸다 — 계약의 EventType 에 해제가 없다(lib/events.ts)
-    if (!wishedItem) trackEvent('WISH', { bookId: book.bookId })
-    setSaving(true)
-    setSaveError(null)
-    const req: Promise<unknown> = wishedItem
-      ? removeLibraryItem(wishedItem.libraryItemId)
-      : addToLibrary(book.bookId, 'WISH')
-    req
-      .then(() => { qc.invalidateQueries({ queryKey: ['library'] }); qc.invalidateQueries({ queryKey: ['book', bookId] }) })
-      // 401 은 인터셉터가 로그아웃으로 받아 간다 — 여기서는 네트워크 끊김·서버 오류·담기 경합이 남는다
-      .catch(() => setSaveError(wishedItem
-        ? '찜을 해제하지 못했습니다. 잠시 후 다시 눌러 주세요.'
-        : '서재에 담지 못했습니다. 잠시 후 다시 눌러 주세요.'))
-      .finally(() => setSaving(false))
   }
 
   const keywords = book.keywords ?? []
@@ -268,31 +227,10 @@ export default function CardSpreadPage() {
               </article>
             </div>
 
-            {/* 행동은 이 둘뿐이다 — 서재 2단(READ/WISH)과 하나씩 짝이 맞는다.
-                찜은 한 버튼에서 담고 푼다 — 라벨은 '읽고 싶어요' 하나로 두고, 담겼는지는 북마크가 채워졌는가로 말한다.
-                라벨에 '취소'를 적으면 버튼이 둘인 것처럼 읽혀서, 해제한다는 말은 title·aria-label 로 옮겼다.
-                읽은 책에서는 둘 다 잠근다: 이 화면에서 되돌릴 수 있는 건 찜뿐이고,
-                읽음을 무르는 일(READ → WISH·삭제)과 별점·감상 고치기는 내 서재 한 곳에서만 한다. */}
-            <div className="bd-cta">
-              <button className="eo-button" onClick={openRead} disabled={saving || readItem !== null} aria-pressed={readItem !== null}>
-                {readItem && <Icon d={PATH.check} />}
-                {readItem ? READ_DONE_LABEL : CTA_LABEL.READ}
-              </button>
-              <button className="bd-button-ghost" onClick={toggleWish} disabled={saving || readItem !== null}
-                aria-pressed={wishedItem !== null}
-                title={wishedItem ? WISH_CANCEL_HINT : undefined}
-                aria-label={wishedItem ? WISH_CANCEL_HINT : undefined}>
-                {/* 담긴 북마크는 속을 채운다 — 빈 북마크/채운 북마크는 따로 배우지 않아도 되는 짝이다 */}
-                <Icon d={PATH.bookmark} fill={wishedItem ? 'currentColor' : 'none'} />
-                {CTA_LABEL.WISH}
-              </button>
-            </div>
-            {readItem && (
-              <p className="bd-cta-note">
-                이미 읽은 책이에요. 별점·감상·완독일을 고치거나 기록을 무르는 건 <Link to="/library" className="eo-link">내 서재</Link>에서 할 수 있어요.
-              </p>
-            )}
-            {saveError && <p className="bd-cta-error" role="alert">{saveError}</p>}
+            {/* 행동은 이 둘뿐이다 — 서재 2단(READ/WISH)과 하나씩 짝이 맞는다. 버튼 한 벌은 components/ShelfActions —
+                가챠·월드컵 결과도 같은 것을 쓴다. 서재가 바뀌면 이 책의 `my` 도 바뀌므로 상세 캐시를 함께 비운다 */}
+            <ShelfActions className="bd-cta-wrap" bookId={book.bookId} title={book.title} my={book.my}
+              onChanged={() => qc.invalidateQueries({ queryKey: ['book', bookId] })} />
           </section>
 
           {/* ---- 오른쪽 위: 표제 ----

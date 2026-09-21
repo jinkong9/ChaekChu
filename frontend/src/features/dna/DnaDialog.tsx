@@ -6,6 +6,7 @@
  *
  *  콘텐츠별 키 조작(월드컵의 좌우 방향키 등)은 각 콘텐츠가 자기 effect에서 따로 듣는다. */
 import { useEffect, useRef, type ReactNode } from 'react'
+import { useFinishModalStore } from '../../stores/finishModalStore'
 
 export default function DnaDialog({
   label,
@@ -40,7 +41,8 @@ export default function DnaDialog({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') return onClose()
+      // 완독 모달이 위에 떠 있으면 Esc 는 그쪽 것이다 — 둘이 함께 닫히면 기록하던 자리가 사라진다
+      if (e.key === 'Escape') return useFinishModalStore.getState().target ? undefined : onClose()
       if (e.key !== 'Tab') return
       // 대화상자 안에서만 포커스가 돌게 가둔다
       const items = ref.current?.querySelectorAll<HTMLElement>(

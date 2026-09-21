@@ -314,79 +314,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- 행동 ---------- */
-
-.bd-cta {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(10px, 1.4vw, 18px);
-  margin-top: clamp(18px, 2.2vw, 30px);
-}
-
-.bd-cta .eo-button { width: 100%; }
-
-/* 두 번째 행동은 같은 캡슐에 테두리만 — 무게만 다르고 자리는 같다 */
-.bd-button-ghost {
-  display: inline-flex;
-  width: 100%;
-  min-height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 17px;
-  border: 1px solid var(--eo-rule);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--eo-ink);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: border-color var(--eo-motion) ease-out, transform var(--eo-motion) ease-out;
-}
-
-.bd-button-ghost:hover,
-.bd-button-ghost:focus-visible { border-color: var(--eo-ink); transform: translateY(-1px); }
-
-/* 담겨 있는 쪽은 테두리와 농도로 알린다 — 라벨은 그대로이고, 채워진 북마크와 함께 이 농도가 '담김'을 말한다 */
-.bd-button-ghost[aria-pressed='true'] {
-  border-color: var(--eo-ink);
-  background: rgba(11, 11, 11, 0.07);
-  color: var(--eo-ink);
-}
-
-.bd-cta .eo-button:disabled,
-.bd-button-ghost:disabled { opacity: 0.5; cursor: default; transform: none; }
-
-/* '이미 읽었어요'는 못 누르는 버튼이 아니라 기록된 상태의 표시다 — 흐려 두면 고장 난 버튼으로 읽힌다 */
-.bd-cta .eo-button[aria-pressed='true']:disabled { opacity: 1; }
-
-/* 읽은 책의 행동을 어디서 하는지 버튼 바로 아래 한 줄로 일러둔다 */
-.bd-cta-note {
-  margin-top: 11px;
-  color: var(--eo-ink-faint);
-  font-size: 11.5px;
-  line-height: 1.55;
-  word-break: keep-all;
-}
-
-/* 담기 실패는 버튼 바로 아래 한 줄로 — 지면을 흔들지 않되 놓치지는 않게 */
-.bd-cta-error {
-  margin-top: 11px;
-  border-left: 2px solid var(--eo-ink);
-  padding-left: 9px;
-  color: var(--eo-ink);
-  font-size: 11.5px;
-  line-height: 1.55;
-  word-break: keep-all;
-}
-
-@media (max-width: 640px) {
-  .bd-cta { grid-template-columns: minmax(0, 1fr); }
-  .bd-cta .eo-button,
-  .bd-button-ghost { min-height: 44px; }
-}
+/* ---------- 행동 ----------
+   버튼 한 벌(읽었어요·읽고 싶어요)은 components/ShelfActions.css — 여기서는 펼침면 안의 자리만 잡는다 */
+.bd-cta-wrap { margin-top: clamp(18px, 2.2vw, 30px); }
 
 /* ---------- 오른쪽 단 ---------- */
 
