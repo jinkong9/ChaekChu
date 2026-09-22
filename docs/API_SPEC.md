@@ -41,7 +41,7 @@
 
 - 기본 경로 `/api/v1`. 프론트는 `VITE_API_BASE_URL=/api/v1`, 개발 프록시 `/api → http://localhost:8080`.
 - 요청·응답 본문은 `application/json; charset=utf-8`. 빈 응답은 `204`/`202` 로 본문 없이.
-- 인증은 서비스 JWT 를 `Authorization: Bearer <token>` 으로. 만료·위조는 `401`. 프론트는 `401` 을 받으면 즉시 로그아웃한다.
+- 인증은 서비스 JWT 를 `Authorization: Bearer <token>` 으로. 만료·위조는 `401`. 프론트는 `401` 을 받으면 `POST /auth/refresh`(§2.3) 를 한 번 시도해 재요청하고, 그것도 `401` 이면 로그아웃한다.
 - 시각은 ISO-8601 UTC (`2026-09-07T03:00:00Z`), 날짜는 `YYYY-MM-DD`.
 
 ### 1.2 식별자
@@ -132,7 +132,37 @@ OAuth 만 지원(카카오·Google). 자체 가입·비밀번호 없음. 서비�
 - 실패 시 `302 {FRONTEND_ORIGIN}/?error=oauth_failed`.
 - **프론트에 `/oauth/callback` 라우트가 없다** — §9-2.
 
-JWT: `sub=userId`, `exp` 24시간, HS256. 갱신 토큰은 MVP 에서 두지 않는다(만료 시 재로그인). 로그아웃은 클라이언트가 토큰을 지우는 것으로 끝나며 서버 엔드포인트가 없다.
+- 같은 응답에 **`Set-Cookie: refresh_token=<난수>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=1209600`** 이 실린다(09-22, V12). §2.3 의 갱신 자격이다.
+- `AUTH_CALLBACK_TOKEN_IN_FRAGMENT=false` 면 fragment 없이 `{FRONTEND_ORIGIN}/oauth/callback` 으로만 보낸다. 프론트가 착지 직후 §2.3 을 불러 액세스 토큰을 받는 방식으로 바꾸면 그때 켠다 — 토큰이 URL 에 아예 등장하지 않게 된다. 지금은 `true`(프론트가 아직 fragment 를 읽는다).
+
+**JWT**: `sub=userId`, HS256, `exp` = `JWT_ACCESS_TTL_SECONDS`(운영 **15분**). 만료·위조는 `401`. 프론트는 401 을 받으면 §2.3 을 **한 번** 부르고 원 요청을 다시 보낸다. 그것도 401 이면 로그아웃.
+
+### 2.3 `POST /auth/refresh` — 액세스 토큰 갱신 (09-22)
+
+인증은 Bearer 가 아니라 콜백이 심은 HttpOnly 쿠키 `refresh_token` 이다. 본문 없음. `credentials: 'include'`(axios `withCredentials`) 로 보낸다.
+
+```json
+200 { "accessToken": "<jwt>", "expiresInSeconds": 900 }
+Set-Cookie: refresh_token=<새 난수>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=1209600
+```
+
+| 규칙 | 내용 |
+| --- | --- |
+| 회전 | 부를 때마다 새 리프레시 토큰으로 바뀐다. 옛 값은 즉시 무효 |
+| 절대 만료 | 로그인 시각 + 14일(`JWT_REFRESH_TTL_SECONDS`). 회전해도 늘어나지 않는다 → 14일마다 재로그인 |
+| 유예 | 회전 직후 10초(`JWT_REFRESH_GRACE_SECONDS`) 안에 옛 값이 오면 탭 경합으로 본다. 액세스 토큰만 주고 `Set-Cookie` 는 없다 |
+| 재사용 감지 | 유예를 넘겨 옛 값이 오면 도용으로 본다. 그 로그인 계열(`family`) 전체를 폐기 → 정상 사용자도 재로그인 |
+| CSRF | `Origin` 헤더가 있으면 `FRONTEND_ORIGIN` 또는 요청 자신의 origin 이어야 한다. 아니면 `403 FORBIDDEN` |
+| 실패 | 쿠키 없음·모르는 값·폐기·만료·재사용 감지 → `401 UNAUTHORIZED` + `refresh_token` 삭제(Max-Age=0). 프론트는 이때만 로그아웃 |
+
+프론트 규칙: 갱신은 **한 번에 하나만**(단일 in-flight promise 를 공유). 앱 시작 시 저장된 토큰을 믿지 말고 이 API 로 액세스 토큰을 받는다. 액세스 토큰은 메모리에만 둔다(localStorage 금지).
+
+저장: `refresh_tokens(user_id, family_id, token_hash, expires_at, rotated_at, revoked_at)` — 평문은 저장하지 않고 sha256 만. 만료·폐기·교체 뒤 하루 지난 행은 매일 04:20 KST 에 지운다.
+
+### 2.4 `POST /auth/logout` — 로그아웃 (09-22)
+
+`refresh_token` 쿠키의 로그인 계열을 폐기하고 쿠키를 지운다. **204.** 쿠키가 없거나 모르는 값이어도 204. `Origin` 규칙은 §2.3 과 같다.
+이미 발급된 액세스 토큰은 남은 수명(최대 15분)까지 유효하다 — 프론트가 메모리에서 지운다. 로그인 두 번(두 기기)은 계열이 둘이라 한쪽 로그아웃이 다른 쪽을 끊지 않는다.
 
 <br/>
 
@@ -777,7 +807,7 @@ LibraryItem {
 2. **`SKIPPED` 는 프론트에서 만들어지지 않는다.** 온보딩의 「건너뛰기」는 마지막 단계에서 `POST /users/me/preferences` 를 (빈 목록으로라도) 보내고 끝나므로 항상 `COMPLETED` 다.
    `SKIPPED` 는 계약에 있는 예약 상태로 두고, 서버는 만들지 않는다.
 
-그 외 후보로 검토했지만 필요 없는 것: 로그아웃(무상태 JWT, 클라이언트가 토큰 삭제) · 프로필 수정/조회 화면(없음) · 회원 탈퇴(MVP 범위 밖) · 표지 이미지 프록시(핫링크 `no-referrer` 로 충분) · 헬스체크(`/actuator/health`, 인프라).
+그 외 후보로 검토했지만 필요 없는 것: 프로필 수정/조회 화면(없음) · 회원 탈퇴(MVP 범위 밖) · 표지 이미지 프록시(핫링크 `no-referrer` 로 충분) · 헬스체크(`/actuator/health`, 인프라).
 
 ## 10. 아직 정하지 않은 것
 
@@ -785,6 +815,6 @@ LibraryItem {
 | --- | --- | --- |
 | 「비슷한 책」후보 생성 경로 | ~~pgvector 단독~~ / Qdrant + 어휘 융합 | **Qdrant 로 정리됨(09-11)** — 남은 것은 융합 여부와 적재 완주 |
 | `reasonText` 템플릿 문장 | `reasonType` 8종별 | 추천 구현 문서 |
-| JWT 만료·갱신 | 24시간 고정 / refresh 토큰 도입 | 베타 운영 피드백 |
+| ~~JWT 만료·갱신~~ | ~~24시간 고정 / refresh 토큰 도입~~ | **도입(09-22, §2.3·§2.4)** — 액세스 15분 + 리프레시 14일 회전. 남은 것: 프론트 연결 뒤 `AUTH_CALLBACK_TOKEN_IN_FRAGMENT=false` |
 | 이벤트 보존 기간·집계 | 원본 90일 / 일별 집계 영구 | W3 지표 설계 |
 | 온디맨드 카카오 등록 정책 | 검색 결과 0건 + ISBN 형태일 때만 | L0 적재 후 |

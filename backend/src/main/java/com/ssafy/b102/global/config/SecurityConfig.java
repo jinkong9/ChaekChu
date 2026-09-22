@@ -15,9 +15,9 @@ import com.ssafy.b102.global.web.ApiPaths;
 
 /**
  * 무상태 JWT 보안 설정 (API_SPEC §1.1·§2).
- * - 공개: 헬스체크 · Swagger · OAuth authorize/callback
+ * - 공개: 헬스체크 · Swagger · OAuth authorize/callback · 세션 갱신/종료(/auth/refresh·/auth/logout — HttpOnly 쿠키로 인증)
  * - 그 외 전부 Authorization: Bearer <서비스 JWT>. 검증은 oauth2ResourceServer 가 JwtConfig 의 HS256 JwtDecoder 로.
- * - 401/403 은 JSON { code, message } 로 낸다 (프론트가 401 이면 즉시 로그아웃).
+ * - 401/403 은 JSON { code, message } 로 낸다 (프론트는 401 이면 /auth/refresh 를 한 번 시도하고, 그것도 401 이면 로그아웃).
  * - 카카오·Google 로그인은 스타터의 oauth2Login 이 아니라 AuthController 가 명세 경로로 직접 처리한다.
  */
 @Configuration
@@ -38,6 +38,7 @@ public class SecurityConfig {
 				.requestMatchers("/actuator/health/**").permitAll()
 				.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 				.requestMatchers(ApiPaths.V1 + "/auth/oauth/*/authorize", ApiPaths.V1 + "/auth/oauth/*/callback").permitAll()
+				.requestMatchers(ApiPaths.V1 + "/auth/refresh", ApiPaths.V1 + "/auth/logout").permitAll()   // 쿠키 인증 (SessionController)
 				.anyRequest().authenticated()
 			)
 			.oauth2ResourceServer(rs -> rs

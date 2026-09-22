@@ -67,7 +67,7 @@ class JwtTokenProviderTest {
 	@DisplayName("32바이트 미만 비밀키는 기동 시 거부 (JwtConfig)")
 	void shortSecret_rejected() {
 		JwtConfig config = new JwtConfig();
-		assertThatThrownBy(() -> config.jwtSecretKey(new JwtProperties("short", 60)))
+		assertThatThrownBy(() -> config.jwtSecretKey(new JwtProperties("short", 60, 0, 0)))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("32바이트");
 	}

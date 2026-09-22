@@ -17,6 +17,8 @@ app:
   jwt:
     secret: test-only-secret-not-for-production-0123456789abcdef
     ttl-seconds: 3600
+    refresh-ttl-seconds: 1209600
+    refresh-grace-seconds: 0     # MockMvc 흐름 테스트가 「회전된 토큰 재사용 → 계열 폐기」를 기다리지 않고 재현하려고. 유예 자체는 RefreshTokenServiceTest 가 시계로 검증
   oauth:
     redirect-base-url: ""
     kakao:

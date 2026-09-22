@@ -37,3 +37,6 @@
   이 행으로 답하고, AI 장애 때는 마지막 프로필을 대신 낸다(BOOK_DNA_API_CONTRACT §5·§6). 빈 표를 만들 뿐이라 즉시 끝난다. `docs/sql/` 에 같은 파일을 둔다.
 - `V9__expand_recommendation_version_columns.sql` 은 `recommendations.feature_version`·`index_version` 을 `VARCHAR(128)` 로 확장한다. 모델·인덱스 배포 라벨이 기존 30자 제한을 넘으면 추천 스냅샷 INSERT 가 실패해 `/recommendations/next` 의 기준 덱이 사라지는 문제를 수정한다. `docs/sql/` 에 같은 파일을 둔다.
 - `V10__book_world_cup_synopses_and_sessions.sql` 은 오프라인 생성된 익명 월드컵 소개문 정본과 서버 권위형 사용자별 대진 상태를 저장한다. 세션 응답은 우승이 결정되기 전까지 책 식별자를 노출하지 않는다. `docs/sql/` 에 동일 DDL을 둔다.
+- `V12__refresh_tokens.sql` 은 리프레시 토큰 표 하나다(API_SPEC §2.3·§2.4). 액세스 JWT 를 15분으로 줄이면서 로그인이 끊기지 않게 갱신 자격을 서버가 보관한다.
+  평문은 저장하지 않고 sha256 만, 로그인 한 번 = 계열(`family_id`) 하나, 쓸 때마다 회전하고 옛 값 재사용은 계열 폐기. 빈 표를 만들 뿐이라 즉시 끝난다.
+  만료·폐기·교체 뒤 하루 지난 행은 `RefreshTokenPurgeJob` 이 매일 04:20 KST 에 지운다. `docs/sql/` 에 같은 파일을 둔다.

@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Component;
 
@@ -35,7 +36,8 @@ public class SearchIndexInitializer implements ApplicationRunner {
 	private final SearchProperties props;
 	private final TaskExecutor taskExecutor;
 
-	public SearchIndexInitializer(BookIndexService indexService, SearchProperties props, TaskExecutor taskExecutor) {
+	public SearchIndexInitializer(BookIndexService indexService, SearchProperties props,
+		@Qualifier("applicationTaskExecutor") TaskExecutor taskExecutor) {   // @EnableScheduling 이 taskScheduler(도 TaskExecutor)를 더해 이름으로 고른다
 		this.indexService = indexService;
 		this.props = props;
 		this.taskExecutor = taskExecutor;
