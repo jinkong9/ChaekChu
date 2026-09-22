@@ -35,6 +35,7 @@ erDiagram
     BOOKS ||--o{ POPULAR_SEGMENTS : ranked
     TAGS ||--o{ USER_INTERESTS : chosen
     USERS ||--o{ USER_INTERESTS : has
+    USERS ||--o{ REFRESH_TOKENS : sessions
     USERS ||--o{ LIBRARY_ITEMS : owns
     BOOKS ||--o{ LIBRARY_ITEMS : saved_in
     USERS ||--o{ RECOMMENDATIONS : receives
@@ -144,6 +145,15 @@ erDiagram
     USER_INTERESTS {
         bigint user_id PK_FK
         varchar tag_code PK_FK
+    }
+    REFRESH_TOKENS {
+        bigint id PK
+        bigint user_id FK
+        uuid family_id
+        char token_hash UK
+        timestamptz expires_at
+        timestamptz rotated_at
+        timestamptz revoked_at
     }
     LIBRARY_ITEMS {
         bigint id PK
