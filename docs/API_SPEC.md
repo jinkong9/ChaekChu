@@ -133,7 +133,7 @@ OAuth 만 지원(카카오·Google). 자체 가입·비밀번호 없음. 서비�
 - **프론트에 `/oauth/callback` 라우트가 없다** — §9-2.
 
 - 같은 응답에 **`Set-Cookie: refresh_token=<난수>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=1209600`** 이 실린다(09-22, V12). §2.3 의 갱신 자격이다.
-- `AUTH_CALLBACK_TOKEN_IN_FRAGMENT=false` 면 fragment 없이 `{FRONTEND_ORIGIN}/oauth/callback` 으로만 보낸다. 프론트가 착지 직후 §2.3 을 불러 액세스 토큰을 받는 방식으로 바꾸면 그때 켠다 — 토큰이 URL 에 아예 등장하지 않게 된다. 지금은 `true`(프론트가 아직 fragment 를 읽는다).
+- `AUTH_CALLBACK_TOKEN_IN_FRAGMENT=false` 면 fragment 없이 `{FRONTEND_ORIGIN}/oauth/callback` 으로만 보낸다. **프론트는 09-23 부터 fragment 를 읽지 않는다** — `OAuthCallbackPage` 는 주소에서 fragment 를 지우고, 액세스 토큰은 앱 부트스트랩(`App.tsx` AuthRestore)이 §2.3 으로 받는다. 따라서 운영 `.env` 에 `false` 를 넣으면 토큰이 URL 에 아예 등장하지 않는다. 기본값 `true` 는 옛 프론트 호환용으로만 남긴다.
 
 **JWT**: `sub=userId`, HS256, `exp` = `JWT_ACCESS_TTL_SECONDS`(운영 **15분**). 만료·위조는 `401`. 프론트는 401 을 받으면 §2.3 을 **한 번** 부르고 원 요청을 다시 보낸다. 그것도 401 이면 로그아웃.
 
@@ -155,7 +155,7 @@ Set-Cookie: refresh_token=<새 난수>; HttpOnly; Secure; SameSite=Lax; Path=/ap
 | CSRF | `Origin` 헤더가 있으면 `FRONTEND_ORIGIN` 또는 요청 자신의 origin 이어야 한다. 아니면 `403 FORBIDDEN` |
 | 실패 | 쿠키 없음·모르는 값·폐기·만료·재사용 감지 → `401 UNAUTHORIZED` + `refresh_token` 삭제(Max-Age=0). 프론트는 이때만 로그아웃 |
 
-프론트 규칙: 갱신은 **한 번에 하나만**(단일 in-flight promise 를 공유). 앱 시작 시 저장된 토큰을 믿지 말고 이 API 로 액세스 토큰을 받는다. 액세스 토큰은 메모리에만 둔다(localStorage 금지).
+프론트 구현(09-23, `frontend/src/api/session.ts`·`client.ts`·`stores/authStore.ts`·`App.tsx`): 갱신은 **한 번에 하나만**(단일 in-flight promise 를 공유) · 앱 시작 시 `AuthRestore` 가 이 API 로 액세스 토큰을 받은 뒤에야 라우트를 그린다(랜딩 깜빡임·보호 라우트 튕김 방지) · `api` 인터셉터는 401 에 갱신 한 번 → 원 요청 재시도 → 그것도 401 이면 `logout()` · 액세스 토큰은 zustand 메모리에만 두고 `persist` 는 닉네임·온보딩 여부만 저장(`version: 2`, 옛 저장분의 토큰은 migrate 로 제거) · 로그아웃 버튼은 §2.4 를 부른 뒤 스토어를 비운다. MSW 모의는 `mockSession` 플래그로 두 API 를 흉내 내며 새로고침이면 세션이 없는 것으로 본다.
 
 저장: `refresh_tokens(user_id, family_id, token_hash, expires_at, rotated_at, revoked_at)` — 평문은 저장하지 않고 sha256 만. 만료·폐기·교체 뒤 하루 지난 행은 매일 04:20 KST 에 지운다.
 
