@@ -52,6 +52,13 @@ function HabitRow({ habit, art }: { habit?: Habit; art: Record<string, ReactNode
           <HabitValue value={habit.value} />
         )}
       </span>
+      {/* 다음 걸음은 값 아래에 둔다 — 값과 detail 사이에 끼우면 이 칸의 값만 한 줄 내려가
+          옆 두 칸과 큰 글씨의 높이가 어긋난다 */}
+      {habit.action && (
+        <Link className="dnar-habit__more" to={habit.action.to} aria-label={habit.action.aria}>
+          {habit.action.label} <span aria-hidden="true">→</span>
+        </Link>
+      )}
     </div>
   )
 }
