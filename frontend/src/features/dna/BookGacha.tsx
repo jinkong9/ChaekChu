@@ -9,11 +9,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DnaBook } from './dnaTypes'
 import ShelfActions from '../../components/ShelfActions'
+import ResultCover from './ResultCover'
 import { useMyShelfEntry } from '../../lib/useMyShelfEntry'
 import { axisOf } from './dnaProfile'
 import { isBookNotFound } from '../../api/books'
 import { drawRandomBook } from './gachaDraw'
-import { coverAtWidth } from '../../lib/coverUrl'
 import DnaDialog from './DnaDialog'
 import GachaMachine from './GachaMachine'
 
@@ -109,14 +109,8 @@ export default function BookGacha({
         ) : (
           <>
             <div className="dnar-gacha__slot">
-              {book && (
-                <img
-                  src={coverAtWidth(book.coverUrl, COVER_W) ?? book.coverUrl}
-                  alt={`${book.title} 표지`}
-                  width={COVER_W}
-                  decoding="async"
-                />
-              )}
+              {/* 표지는 상세로 가는 문 — 올리면 살짝 열리고, 누르면 그 책으로 */}
+              {book && <ResultCover book={book} width={COVER_W} />}
             </div>
 
             {book && (

@@ -16,9 +16,9 @@ import {
 } from '../../api/dna'
 import { toDnaBook } from './gachaDraw'
 import { axisOf } from './dnaProfile'
-import { coverAtWidth } from '../../lib/coverUrl'
 import DnaDialog from './DnaDialog'
 import ShelfActions from '../../components/ShelfActions'
+import ResultCover from './ResultCover'
 import { useMyShelfEntry } from '../../lib/useMyShelfEntry'
 
 const ROUND_LABEL: Record<number, string> = { 16: '16강', 8: '8강', 4: '준결승', 2: '결승' }
@@ -126,22 +126,21 @@ export default function BookWorldCup({ onClose }: { onClose: () => void }) {
   const champion = phase === 'done' && session?.champion ? toDnaBook(session.champion) : null
   /** 우승 책이 내 서재에 어떻게 있는지 — 대출 상위 풀이라 이미 읽은 책이 나오는 일이 잦다 */
   const my = useMyShelfEntry(champion?.bookId)
-  const status =
-    phase === 'done'
-      ? '우승'
-      : phase === 'playing' && session
-        ? `${ROUND_LABEL[participantsOf(session)] ?? `${participantsOf(session)}강`} · ${session.matchNumber} / ${session.matchesInRound}`
-        : ''
+  /** 라운드 진행 — 우상단 구석이 아니라 질문 바로 위에 크게. 몇 강 몇 번째인지가 이 화면의 시간이다 */
+  const progress =
+    phase === 'playing' && session
+      ? `${ROUND_LABEL[participantsOf(session)] ?? `${participantsOf(session)}강`} · ${session.matchNumber} / ${session.matchesInRound}`
+      : null
 
   return (
-    <DnaDialog label="책 이상형 월드컵" kicker="Book World Cup" status={status} onClose={onClose}>
+    <DnaDialog label="책 이상형 월드컵" kicker="Book World Cup" status={phase === 'done' ? '우승' : ''} onClose={onClose}>
       {phase === 'idle' || phase === 'loading' ? (
         <div className="dnar-wc__result">
-          <p className="dnar-dlg__ask">표지도 제목도 없이, 소개 두 줄만 보고 고릅니다.</p>
+          <p className="dnar-dlg__ask">소개만 읽고, 한 권</p>
           <p className="dnar-wc__verdict">
-            16권이 서로 맞붙어 15번 고르면 한 권이 남아요.
+            표지와 제목은 우승이 정해질 때 공개돼요.
             <br />
-            우승한 책이 무엇이었는지는 그때 처음 알려 드려요.
+            16권이 맞붙어 15번의 선택이 남아요.
           </p>
           {error && <p className="dnar-wc__error" role="status">{error}</p>}
           <div className="dnar-dlg__actions">
@@ -154,15 +153,8 @@ export default function BookWorldCup({ onClose }: { onClose: () => void }) {
       ) : phase === 'done' && champion ? (
         <div className="dnar-wc__result">
           <h2 className="dnar-wc__crown">당신의 한 권</h2>
-          {champion.coverUrl && (
-            <img
-              className="dnar-wc__champion"
-              src={coverAtWidth(champion.coverUrl, 300) ?? champion.coverUrl}
-              alt=""
-              width={300}
-              decoding="async"
-            />
-          )}
+          {/* 표지는 상세로 가는 문 — 올리면 살짝 열리고, 누르면 그 책으로 */}
+          {champion.coverUrl && <ResultCover book={champion} width={300} className="dnar-wc__champion" />}
           <p className="dnar-wc__champion-title">{champion.title}</p>
           <p className="dnar-wc__champion-meta">
             {champion.author && `${champion.author} · `}{axisOf(champion.classNo)}
@@ -183,7 +175,10 @@ export default function BookWorldCup({ onClose }: { onClose: () => void }) {
         </div>
       ) : (
         <>
-          <p className="dnar-dlg__ask">지금 더 읽고 싶은 쪽은?</p>
+          <div className="dnar-wc__head">
+            {progress && <p className="dnar-wc__round" role="status">{progress}</p>}
+            <p className="dnar-dlg__ask">지금 더 읽고 싶은 쪽은?</p>
+          </div>
           <div className="dnar-wc__match dnar-wc__match--text">
             {left && <Synopsis text={left.synopsis} side="←" disabled={picking} onPick={() => pick(left.choiceId)} />}
             <span className="dnar-wc__vs" aria-hidden="true">VS</span>
