@@ -684,6 +684,17 @@
 
 .dnar-dlg__hint { text-align: center; }
 
+/* 라운드 진행 — 질문 바로 위, 가운데. 우상단 구석의 11px 로는 지금 몇 강인지 아무도 안 봤다 */
+.dnar-wc__head { display: grid; justify-items: center; gap: 10px; }
+.dnar-wc__round {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--eo-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* 익명 대진 — 표지 대신 소개문 카드. 두 장이 같은 높이로 서야 길이 차이가 힌트가 되지 않는다 */
 .dnar-wc__match--text { align-items: stretch; }
 .dnar-wc__synopsis {
@@ -743,14 +754,7 @@
   text-transform: uppercase;
   color: var(--eo-ink-muted);
 }
-.dnar-wc__champion {
-  width: min(300px, 62vw);
-  aspect-ratio: 0.7;
-  object-fit: cover;
-  background: var(--eo-placeholder);
-  outline: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.15);
-}
+.dnar-wc__champion { width: min(300px, 62vw); max-width: 100%; }
 .dnar-wc__champion-title {
   margin: 6px 0 0;
   font-family: var(--font-serif-ko);
@@ -788,6 +792,61 @@
   .dnar-wc__pick:hover img { transform: none; }
   .dnar-wc__synopsis { transition: none; }
   .dnar-wc__synopsis:hover:not(:disabled) { transform: none; }
+}
+
+/* ---------- 결과 표지 (가챠·월드컵 공용, ResultCover) ----------
+   표지는 상세로 가는 문이다. 올리면 왼쪽 등을 축으로 살짝 열리고 그림자가 깊어진다 —
+   "눌린다"를 글자 없이 말한다. 아래 「상세 보기」는 같은 말을 글자로 한 번 더, hover 에서만.
+   모바일은 hover 가 없어 늘 보인다. */
+.dnar-cover {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+  perspective: 1200px;
+}
+.dnar-cover__book {
+  display: block;
+  width: 100%;
+  transform-origin: left center;
+  transition: transform 220ms ease-out, filter 220ms ease-out;
+}
+.dnar-cover__img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 0.7;
+  object-fit: cover;
+  background: var(--eo-placeholder);
+  outline: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.15);
+  transition: box-shadow 220ms ease-out;
+}
+.dnar-cover__hint {
+  font-size: 11px;
+  color: var(--eo-ink-muted);
+  border-bottom: 1px solid var(--eo-rule);
+  padding-bottom: 1px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
+}
+.dnar-cover--link:hover .dnar-cover__book,
+.dnar-cover--link:focus-visible .dnar-cover__book {
+  transform: rotateY(-14deg) translateY(-6px);
+}
+.dnar-cover--link:hover .dnar-cover__img,
+.dnar-cover--link:focus-visible .dnar-cover__img { box-shadow: 18px 24px 48px rgba(0, 0, 0, 0.22); }
+.dnar-cover--link:hover .dnar-cover__hint,
+.dnar-cover--link:focus-visible .dnar-cover__hint { opacity: 1; transform: none; }
+.dnar-cover--link:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 6px; }
+@media (hover: none) {
+  .dnar-cover__hint { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dnar-cover__book, .dnar-cover__img, .dnar-cover__hint { transition: none; }
+  .dnar-cover--link:hover .dnar-cover__book,
+  .dnar-cover--link:focus-visible .dnar-cover__book { transform: none; }
 }
 
 /* ---------- 완전 랜덤 가챠 (01번 콘텐츠) ---------- */
@@ -868,15 +927,8 @@
   width: min(300px, 56vw);
   aspect-ratio: 0.7;
 }
-.dnar-gacha__slot img {
-  width: 100%;
-  aspect-ratio: 0.7;
-  object-fit: cover;
-  background: var(--eo-placeholder);
-  outline: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.15);
-}
-.dnar-gacha__slot img { animation: dnar-gacha-land 260ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.dnar-gacha__slot .dnar-cover { width: 100%; }
+.dnar-gacha__slot .dnar-cover__book { animation: dnar-gacha-land 260ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 @keyframes dnar-gacha-land {
   from { transform: scale(0.94); opacity: 0.6; }
   to { transform: none; opacity: 1; }
@@ -899,6 +951,6 @@
   .dnar-gacha__pull:hover { transform: none; }
   .dnar-machine.is-spinning svg,
   .dnar-machine.is-spinning .dnar-machine__handle,
-  .dnar-gacha__slot img { animation: none; }
+  .dnar-gacha__slot .dnar-cover__book { animation: none; }
   .dnar-machine__handle { transition: none; }
 }
