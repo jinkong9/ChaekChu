@@ -1130,7 +1130,9 @@
 .libd-face--record .libd-title__by { font-size: 0.76em; }
 .libd-rate__rule { flex: none; margin-top: 1.25em; border-top: 1px solid rgba(23, 32, 57, 0.16); }
 .libd-face--record .libd-rate__stars { margin-top: 0.85em; font-size: 1.1em; flex: none; }
+/* 감상평은 메타 줄까지 남은 자리를 다 쓴다. 넘치면 useFitReview 가 글씨를 줄인다 */
 .libd-face--record .libd-rate__review {
+  flex: 1 1 0;
   min-height: 0;
   font-size: 1.12em;
   line-height: 1.7;
