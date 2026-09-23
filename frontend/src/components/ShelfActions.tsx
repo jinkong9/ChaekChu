@@ -6,6 +6,8 @@
  *  상태는 전부 `my`(본인 서재 항목, §4.4)에서 나온다: 없으면 null, 있으면 READ 아니면 WISH.
  *  - 읽음은 완독 모달을 거친다(별점·감상·완독일). 이미 찜이면 그 항목 id 를 넘겨 그 자리에서 READ 로 올린다(§6.3).
  *  - 찜은 한 버튼에서 담고 푼다 — 라벨은 그대로, 담겼는지는 북마크가 채워졌는가로 말한다.
+ *  - 채운 잉크 캡슐은 「읽고 싶어요」 쪽이다. 이 버튼들이 서는 자리(추천·가챠·월드컵 결과)는
+ *    아직 안 읽은 책을 권하는 자리라, 가장 흔한 선택이 무게를 가져간다.
  *  - 읽은 책에서는 둘 다 잠근다. 읽음을 무르거나 기록을 고치는 일은 내 서재 한 곳에서만 한다. */
 import { useState, type SVGProps } from 'react'
 import { Link } from 'react-router'
@@ -92,11 +94,11 @@ export default function ShelfActions({
   return (
     <div className={className}>
       <div className="shelf-cta">
-        <button type="button" className="eo-button" onClick={openRead} disabled={saving || readItem !== null} aria-pressed={readItem !== null}>
+        <button type="button" className="shelf-cta__ghost" onClick={openRead} disabled={saving || readItem !== null} aria-pressed={readItem !== null}>
           {readItem && <Icon d={PATH.check} />}
           {readItem ? READ_DONE_LABEL : CTA_LABEL.READ}
         </button>
-        <button type="button" className="shelf-cta__ghost" onClick={toggleWish} disabled={saving || readItem !== null}
+        <button type="button" className="eo-button" onClick={toggleWish} disabled={saving || readItem !== null}
           aria-pressed={wishedItem !== null}
           title={wishedItem ? WISH_CANCEL_HINT : undefined}
           aria-label={wishedItem ? WISH_CANCEL_HINT : undefined}>
@@ -107,7 +109,7 @@ export default function ShelfActions({
       </div>
       {readItem && (
         <p className="shelf-cta__note">
-          이미 읽은 책이에요. 별점·감상·완독일을 고치거나 기록을 무르는 건 <Link to="/library" className="eo-link">내 서재</Link>에서 할 수 있어요.
+          이미 읽은 책이에요. 기록 수정은 <Link to="/library" className="eo-link">내 서재</Link>에서 할 수 있어요.
         </p>
       )}
       {saveError && <p className="shelf-cta__error" role="alert">{saveError}</p>}
