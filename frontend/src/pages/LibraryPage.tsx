@@ -1,9 +1,11 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
+  type RefObject,
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
@@ -185,9 +187,38 @@ function TitleFace({ li }: { li: LibraryItem }) {
   )
 }
 
+/** 감상평이 남은 지면에 다 들어가게 글씨를 줄인다. 300자는 계약상 상한이라 그대로 두고,
+ *  보여 주는 쪽이 맞춘다 — 면의 글자 크기가 책 폭을 따라 9–14px 사이를 오가고 제목 줄 수와
+ *  줄바꿈도 책마다 달라서, 입력 글자 수로는 안 잘리는 선을 정할 수 없다.
+ *  제일 작은 크기로도 넘치면(줄바꿈을 몰아 쓴 경우) 들어가는 줄까지만 보이고 말줄임으로 끝낸다. */
+const REVIEW_SIZES_EM = [1.12, 1.04, 0.96, 0.9, 0.84]
+
+function useFitReview(ref: RefObject<HTMLParagraphElement | null>, text: string | null) {
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const fit = () => {
+      if (el.clientHeight === 0) return // 아직 안 보이는 면 — 펼쳐질 때 다시 잰다
+      el.style.webkitLineClamp = 'unset'
+      for (const size of REVIEW_SIZES_EM) {
+        el.style.fontSize = `${size}em`
+        if (el.scrollHeight <= el.clientHeight + 1) return
+      }
+      const lineH = parseFloat(getComputedStyle(el).lineHeight)
+      el.style.webkitLineClamp = String(Math.max(1, Math.floor(el.clientHeight / lineH)))
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ref, text])
+}
+
 /** 한 권의 오른쪽 면 — 평가. 서재에 이미 있는 필드만 쓴다 (별점 · 완독일 · 감상평 · 분류 · 쪽수). */
 function RateFace({ li, no }: { li: LibraryItem; no: number }) {
   const rating = li.rating ?? 0
+  const reviewRef = useRef<HTMLParagraphElement>(null)
+  useFitReview(reviewRef, li.reviewText)
   return (
     <div className="libd-face libd-face--record">
       <span className="libd-face__eyebrow">완독 기록</span>
@@ -211,7 +242,7 @@ function RateFace({ li, no }: { li: LibraryItem; no: number }) {
       </span>
 
       {li.reviewText ? (
-        <p className="libd-rate__review">{li.reviewText}</p>
+        <p ref={reviewRef} className="libd-rate__review">{li.reviewText}</p>
       ) : (
         <p className="libd-rate__blank">
           이 면은 아직 비어 있어요.<br />오른쪽 위 ‘책 기록 수정’에서 한 줄 남기면 여기에 적힙니다.
