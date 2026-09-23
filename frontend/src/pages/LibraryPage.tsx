@@ -457,6 +457,11 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
   const leftSheet = covered && turn?.direction === 1 ? sheetB : sheetA
   const rightSheet = covered && turn?.direction === -1 ? sheetA : sheetB
 
+  // 목차 색인이 붙을 쪽 — 목차 장을 펼치고 있으면 오른쪽, 넘겼으면 왼쪽.
+  // 넘기는 중에는 종이가 가운데를 지나는 순간(진행 0.5)에 옮긴다. 두 방향 모두 그 전은 A, 그 뒤는 B 다
+  const facing = turn ? (turn.progress < 0.5 ? iA : iB) : cursor
+  const onToc = facing < tocSheets.length
+
 
   return (
     <div
@@ -512,6 +517,18 @@ function ArchiveBook({ read, meta, index: currentIndex, onIndex, isClosed, onClo
               <span className="libd-book__front-cover-face libd-book__front-cover-face--inside" />
             </span>
             <span className="libd-book__gutter" />
+            {/* 목차 색인 — 목차 장의 책배에 붙인 탭이다. 목차를 펼치면 그 장이 오른쪽에 있으니 탭도 오른쪽 옆,
+                넘기고 나면 그 장이 왼쪽으로 넘어가 있으니 왼쪽 옆에서 비어져 나온다. 덮었을 때만 숨긴다 */}
+            <button
+              type="button"
+              className={`libd-book__index libd-book__index--${onToc ? 'right' : 'left'} ${isClosed ? 'is-hidden' : ''}`}
+              onClick={() => jumpTo(0)}
+              aria-label="목차로"
+              aria-current={cursor === 0 || undefined}
+              tabIndex={isClosed ? -1 : 0}
+            >
+              목차
+            </button>
             {isClosed && (
               <button
                 type="button"

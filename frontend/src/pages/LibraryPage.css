@@ -402,6 +402,50 @@
 
 .libd__world.is-closed .libd-book__gutter { opacity: 0; }
 
+/* 목차 색인 — 책배(바깥 옆)에 붙여 반쯤 비어져 나오게 한 탭. 세로쓰기로 좁게 세운다.
+   종이 안쪽으로 10px 물려 두어 책에 걸쳐 보인다. 넘기는 종이는 그보다 높이 들리므로
+   넘기는 동안 탭의 물린 자리를 덮고 지나간다 — 탭이 종이에 끼워져 있는 것처럼.
+   .libd__world 는 오른쪽 면 한 장 크기라, 왼쪽 면의 바깥 끝은 책 폭 하나만큼 왼쪽이다 */
+.libd-book__index {
+  position: absolute;
+  top: 12%;
+  z-index: 50;
+  padding: 1em 0.5em;
+  border: 0;
+  font-size: clamp(9px, calc(var(--book-w) / 29), 14px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  writing-mode: vertical-rl;
+  /* 표지와 한 벌 — 뒤표지의 남색 천에 앞표지 글씨의 금박 크림 */
+  color: #e8dcc0;
+  background: #27314a;
+  cursor: pointer;
+  transform: translateZ(3px);
+  transition: opacity 180ms ease, filter 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.libd-book__index--right {
+  left: calc(100% - 10px);
+  padding-left: calc(0.5em + 4px);
+  border-radius: 0 6px 6px 0;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.18), transparent 10px), #27314a;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.16) inset, 2px 1px 3px rgba(23, 32, 57, 0.2);
+}
+
+.libd-book__index--left {
+  right: calc(100% + var(--book-w) - 10px);
+  padding-right: calc(0.5em + 4px);
+  border-radius: 6px 0 0 6px;
+  background: linear-gradient(270deg, rgba(0, 0, 0, 0.18), transparent 10px), #27314a;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.16) inset, -2px 1px 3px rgba(23, 32, 57, 0.2);
+}
+
+.libd-book__index:hover { filter: brightness(1.12); }
+.libd-book__index:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
+.libd-book__index.is-hidden { opacity: 0; pointer-events: none; }
+
 .libd-book__hit {
   position: absolute;
   top: 5px;
