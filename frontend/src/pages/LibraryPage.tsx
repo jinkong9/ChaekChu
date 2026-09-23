@@ -109,7 +109,7 @@ function FrontFace({ meta }: { meta: BookMeta }) {
         <div><dt>완독</dt><dd>{meta.count}권</dd></div>
         {meta.pages > 0 && <div><dt>쪽수</dt><dd>{meta.pages.toLocaleString()}쪽</dd></div>}
         {meta.rating && <div><dt>평균 별점</dt><dd>★ {meta.rating}</dd></div>}
-        <div><dt>엮은 해</dt><dd>{meta.span}</dd></div>
+        <div><dt>엮은 기간</dt><dd>{meta.span}</dd></div>
       </dl>
     </div>
   )
@@ -947,7 +947,7 @@ export default function LibraryPage() {
   const meta: BookMeta = {
     title: `${nickname ?? '나'}의 책`,
     year: thisYear,
-    // 엮은 해 — 올해를 적던 자리다. 아무것도 안 해도 해가 바뀌면 숫자가 바뀌어,
+    // 엮은 기간 — 올해를 적던 자리다. 아무것도 안 해도 해가 바뀌면 숫자가 바뀌어,
     // 서재를 말하는 판권에서 혼자 서재와 무관했다. 완독 기록이 걸친 해로 적는다.
     // 완독일이 없는 책('서비스를 만나기 전에 읽은 책')은 해를 모르니 범위에 넣지 않는다.
     span: (() => {
