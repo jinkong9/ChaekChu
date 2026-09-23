@@ -15,6 +15,10 @@ export interface Habit {
   label: string
   /** 값을 눌러 갈 곳 — 없으면 그냥 숫자로 둔다 */
   to?: string
+  /** 값 아래 한 줄로 서는 다음 걸음.
+   *  값 자체가 갈 곳인 `to`(찜 12권 → 찜 목록)와 다르다 — 값이 가리키는 것과 다른 지면으로 데려갈 때 쓴다.
+   *  값을 링크로 만들면 "한강 3권"을 누르면 그 세 권이 나올 것처럼 읽히는데, 실제로는 한강의 책 전부가 나온다. */
+  action?: { to: string; label: string; aria: string }
   /** 오른쪽에 큰 글씨로 서는 값 — "긴 편", "6 : 4" */
   value: string
   /** 그 값이 무엇에서 나왔는지 한 줄 — 비었으면 왜 비었는지 */
@@ -124,7 +128,7 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
     })
   }
 
-  // ── 한 작가 파고들기 ─────────────────────────
+  // ── 선호하는 작가 ───────────────────────────
   const byAuthor = new Map<string, number>()
   for (const b of read) {
     const author = b.authors[0]?.trim()
@@ -135,17 +139,26 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
     const [topAuthor, topCount] = repeated[0]
     habits.push({
       id: 'author',
-      label: '한 작가 파고들기',
+      label: '선호하는 작가',
       value: `${topAuthor} ${topCount}권`,
       detail:
         repeated.length > 1
           ? `두 권 넘게 읽은 작가가 ${repeated.length}명`
           : '두 권 넘게 읽은 작가는 이 한 명',
+      // 읽은 권수를 세어 놓고 끝내면 "그래서?"가 남는다 — 그 작가의 나머지를 볼 데로 보낸다.
+      // scope=author 는 검색 화면의 「저자」 범위(§4.1) — 제목에 이름이 섞인 책이 끼지 않는다
+      action: {
+        to: `/search?q=${encodeURIComponent(topAuthor)}&scope=author`,
+        // 보이는 글자에 이름을 또 넣으면 바로 위 값("한강 3권")과 같은 말이 두 번이다.
+        // 다만 링크 목록만 훑는 화면 낭독기에는 「이 작가」가 누구인지 남지 않으므로 읽는 이름에는 넣는다
+        label: '이 작가의 책 더 보기',
+        aria: `${topAuthor}의 책 검색 결과 보기`,
+      },
     })
   } else {
     habits.push({
       id: 'author',
-      label: '한 작가 파고들기',
+      label: '선호하는 작가',
       value: '—',
       detail: '두 권 넘게 읽은 작가가 아직 없어요',
       empty: true,
@@ -181,7 +194,7 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
     label: '쌓아 둔 책',
     value: `${wish}권`,
     detail: wish > 0 ? '찜해 두고 아직 펼치지 않은 책이에요' : '찜해 둔 책이 아직 없어요',
-    // 이 줄만 다음 걸음이 있다 — 찜 목록으로 바로 보낸다(서재의 찜 탭은 주소가 기억한다)
+    // 값 자체가 갈 곳이라 `action` 이 아니라 `to` 다 — 「12권」을 누르면 그 12권이 나온다(서재의 찜 탭은 주소가 기억한다)
     to: '/library?tab=wish',
     empty: wish === 0,
   })

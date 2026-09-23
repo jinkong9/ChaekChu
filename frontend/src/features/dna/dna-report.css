@@ -320,6 +320,25 @@
 .dnar-habit__go:hover { border-bottom-color: var(--eo-ink); }
 .dnar-habit__go:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
 
+/* 값 아래 한 줄로 서는 다음 걸음 — 값보다 작고 흐리다. 여기서 제일 큰 글씨는 값이어야 한다.
+   2 / -1 이라 세 칸짜리 기본 줄에서도, 두 칸짜리 아래 단(.dnar-ev__rest)에서도 그림 자리만 비우고 같은 선에서 시작한다.
+   상자 대신 밑줄 — 습관 줄에 버튼이 하나 들어앉으면 이 단만 지면에서 튄다 (DESIGN.md) */
+.dnar-habit__more {
+  grid-column: 2 / -1;
+  justify-self: start;
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--eo-ink-muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--eo-rule);
+  padding-bottom: 1px;
+  white-space: nowrap;
+}
+.dnar-habit__more:hover { color: var(--eo-ink); border-bottom-color: var(--eo-ink); }
+.dnar-habit__more:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 3px; }
+
 .dnar-habit__value {
   font-size: 15px;
   font-weight: 650;
