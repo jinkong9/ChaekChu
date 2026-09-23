@@ -141,10 +141,7 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
       id: 'author',
       label: '선호하는 작가',
       value: `${topAuthor} ${topCount}권`,
-      detail:
-        repeated.length > 1
-          ? `두 권 넘게 읽은 작가가 ${repeated.length}명`
-          : '두 권 넘게 읽은 작가는 이 한 명',
+      detail: `두 권 넘게 읽은 작가가 ${repeated.length}명`,
       // 읽은 권수를 세어 놓고 끝내면 "그래서?"가 남는다 — 그 작가의 나머지를 볼 데로 보낸다.
       // scope=author 는 검색 화면의 「저자」 범위(§4.1) — 제목에 이름이 섞인 책이 끼지 않는다
       action: {

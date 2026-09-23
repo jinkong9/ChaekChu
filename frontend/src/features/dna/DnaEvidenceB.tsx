@@ -198,10 +198,10 @@ export default function DnaEvidenceB({
               <div className="dnar-ev__bars">
                 {months.map((m) => (
                   <div key={m.label} className="dnar-ev__bar">
-                    <span className="dnar-ev__bar-value">{m.count}</span>
+                    <span className={`dnar-ev__bar-value${m.count === 0 ? ' is-zero' : ''}`}>{m.count}</span>
                     <span className="dnar-ev__bar-track">
                       <span
-                        className="dnar-ev__bar-fill"
+                        className={`dnar-ev__bar-fill${m.count === 0 ? ' is-zero' : ''}`}
                         style={{ height: `${(m.count / monthPeak) * 100}%`, background: accent }}
                       />
                     </span>
@@ -218,10 +218,10 @@ export default function DnaEvidenceB({
               <div className="dnar-ev__bars">
                 {stars.map((count, i) => (
                   <div key={i} className="dnar-ev__bar">
-                    <span className="dnar-ev__bar-value">{count}</span>
+                    <span className={`dnar-ev__bar-value${count === 0 ? ' is-zero' : ''}`}>{count}</span>
                     <span className="dnar-ev__bar-track">
                       <span
-                        className="dnar-ev__bar-fill"
+                        className={`dnar-ev__bar-fill${count === 0 ? ' is-zero' : ''}`}
                         style={{ height: `${(count / starPeak) * 100}%`, background: accent }}
                       />
                     </span>
