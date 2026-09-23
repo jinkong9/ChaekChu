@@ -244,7 +244,9 @@ export default function RecommendPage() {
         {/* ===== 꺼내 놓은 한 권 — 우표첩에서 표지 우표와 사연 우표가 차례로 나온 뒤, 표지 우표가 책 표지로 커진다 =====
             표지를 톱니 우표로만 두었더니 「가운데가 책인 줄 몰랐다」는 말을 들었다. 꺼내는 몸짓은 이 화면의 시그니처라
             그대로 두고, 다 나온 뒤에 표지 우표가 책 표지로 바뀌며 화면에서 가장 큰 것이 된다. 사연 우표는 그만큼 비켜 선다 */}
-        <section ref={heroRef} className="mt-10 flex justify-center overflow-x-auto" style={{ scrollMarginTop: 80 }}>
+        {/* 좁은 화면에선 가로로만 넘긴다. overflow-x 를 주면 세로도 스크롤 상자가 되어, 커진 책의 그림자가
+            무대 높이를 넘는 순간 세로 스크롤바가 생긴다 — 세로는 막고 그림자가 들어갈 여백을 위아래에 둔다 */}
+        <section ref={heroRef} className="mt-4 flex justify-center overflow-x-auto overflow-y-hidden pb-12 pt-6" style={{ scrollMarginTop: 80 }}>
           <div className="relative shrink-0" style={{ width: HERO.w, height: HERO.h }}>
             <div className="absolute left-0" style={{ top: HERO.folderTop }}>
               <StampFolder
@@ -279,7 +281,7 @@ export default function RecommendPage() {
         </section>
 
         {/* 꺼낸 책의 제목·태그 + 행동 — 우표 면을 깨지 않도록 밖에 둔다 */}
-        <div className="mt-8 flex flex-col items-center gap-4 text-center">
+        <div className="flex flex-col items-center gap-4 text-center">
           <div className="flex flex-col items-center gap-2">
             <h2 className="font-semibold leading-tight tracking-[-0.01em]" style={{ fontSize: 26, maxWidth: '22ch', textWrap: 'balance' }}>
               {featured.book.title}
