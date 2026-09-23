@@ -158,6 +158,18 @@
         "value": "16px",
         "createdAt": "2026-09-16T06:21:55.410Z",
         "reason": "로그인 뒤 GNB의 브랜드 크기 (Layout.tsx sm:text-base) — 랜딩 제호를 그것에 맞춘 값이다. 15px 은 이미 같은 사유로 열려 있다"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#27314a",
+        "createdAt": "2026-09-23T04:41:00.546Z",
+        "reason": "서재 목차 색인 탭을 표지와 맞춰 달라는 사용자 요청 — 뒤표지 천 남색(LibraryPage.css .libd-book__back-cover)과 같은 값이다"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#e8dcc0",
+        "createdAt": "2026-09-23T04:41:00.671Z",
+        "reason": "서재 목차 색인 탭을 표지와 맞춰 달라는 사용자 요청 — 앞표지 글씨의 금박 크림(LibraryPage.css .libd-book__front-cover-face--outside)과 같은 값이다"
       }
     ]
   }
