@@ -197,8 +197,9 @@ export default function OnboardingPage() {
                   <span className={`onboarding__cover ${selected ? 'is-selected' : ''}`}>
                     {book.coverUrl ? <img src={book.coverUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
                       : <span className="onboarding__cover-fallback">{book.title}</span>}
-                    {selected && <ReadStamp className="onboarding__stamp" />}
                   </span>
+                  {/* 도장은 표지 밖, 우상단 모서리에 걸친다 — 표지 안에 두면 overflow 에 잘려 모서리를 넘지 못한다 */}
+                  {selected && <ReadStamp className="onboarding__stamp" />}
                 </button>
                 <span className="onboarding__book-title" title={book.title}>{book.title}</span>
                 <span className="onboarding__book-author" title={book.author ?? undefined}>{book.author}</span>

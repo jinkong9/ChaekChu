@@ -271,6 +271,7 @@
 .onboarding__book { width: min(100%, 126px); margin: 0 auto; }
 .onboarding__book-select {
   display: block;
+  position: relative;
   width: 100%;
   padding: 0;
   border: 0;
@@ -298,16 +299,19 @@
   font-size: 15px;
   text-align: center;
 }
-/* 읽은 책 도장 — 모서리 체크 대신 표지 한가운데에 비스듬히 찍는다 */
+/* 읽은 책 도장 — 표지 우상단 모서리에 1/4 쯤 걸치게 찍는다. 종이 위에 찍은 도장은 테두리를 넘어간다.
+   표지(.onboarding__cover)는 overflow:hidden 이라 그 밖, 버튼에 붙인다.
+   blend 는 쓰지 않는다 — 도장 안 종이 원(ReadStamp)이 multiply 에 사라져 표지 위에서 획이 안 읽혔다 */
 .onboarding__stamp {
   position: absolute;
-  top: 5%;
-  right: 5%;
-  width: 56%;
+  top: -13%;
+  right: -13%;
+  width: 46%;
   height: auto;
   color: #1f1f1f;
-  transform: rotate(-8deg);
+  transform: rotate(-12deg);
   pointer-events: none;
+  z-index: 1;
 }
 .onboarding__book-title,
 .onboarding__book-author {
