@@ -13,7 +13,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { addToLibrary, removeLibraryItem } from '../api/library'
 import type { MyLibraryEntry, ShelfStatus } from '../api/types'
 import { useFinishModalStore } from '../stores/finishModalStore'
-import { trackEvent, type EventContext } from '../lib/events'
+import { trackEvent, type EventContext, type EventPayload } from '../lib/events'
 import './ShelfActions.css'
 
 const CTA_LABEL: Record<ShelfStatus, string> = { READ: '읽었어요', WISH: '읽고 싶어요' }
@@ -38,6 +38,7 @@ export default function ShelfActions({
   title,
   my,
   eventContext,
+  wishEvent,
   onChanged,
   className,
 }: {
@@ -47,6 +48,8 @@ export default function ShelfActions({
   my: MyLibraryEntry | null
   /** WISH 이벤트에 붙일 화면 표시(예: 'DNA'). 상세 화면은 비운다 */
   eventContext?: EventContext
+  /** 찜 이벤트에 더 붙일 것 — 추천 화면은 어느 덱의 몇 번째 책을 담았는지까지 남긴다(§7.1) */
+  wishEvent?: Omit<EventPayload, 'bookId' | 'context'>
   /** 서재가 바뀐 뒤 화면이 더 비워야 할 캐시가 있으면 여기서 — ['library'] 는 컴포넌트가 늘 비운다 */
   onChanged?: () => void
   className?: string
@@ -67,7 +70,11 @@ export default function ShelfActions({
    *  담기는 POST(이미 있으면 409 → PATCH)라 두 번 눌러도 줄이 늘지 않고, 해제는 DELETE /library/{id}(§6.4). */
   const toggleWish = () => {
     // 이벤트는 담을 때만 — 계약의 EventType 에 해제가 없다(lib/events.ts)
-    if (!wishedItem) trackEvent('WISH', eventContext ? { bookId, context: eventContext } : { bookId })
+    if (!wishedItem) {
+      const payload: EventPayload = { bookId, ...wishEvent }
+      if (eventContext) payload.context = eventContext
+      trackEvent('WISH', payload)
+    }
     setSaving(true)
     setSaveError(null)
     const req: Promise<unknown> = wishedItem
