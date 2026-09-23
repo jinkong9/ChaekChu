@@ -947,7 +947,8 @@
   aspect-ratio: 0.7;
 }
 .dnar-gacha__slot .dnar-cover { width: 100%; }
-.dnar-gacha__slot .dnar-cover__book { animation: dnar-gacha-land 260ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+/* 착지는 바깥(.dnar-cover)에 — 안쪽 __book 에 걸면 fill-mode 가 마지막 프레임의 transform 을 물고 있어 hover 회전이 덮인다 */
+.dnar-gacha__slot .dnar-cover { animation: dnar-gacha-land 260ms cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 @keyframes dnar-gacha-land {
   from { transform: scale(0.94); opacity: 0.6; }
   to { transform: none; opacity: 1; }
@@ -970,6 +971,6 @@
   .dnar-gacha__pull:hover { transform: none; }
   .dnar-machine.is-spinning svg,
   .dnar-machine.is-spinning .dnar-machine__handle,
-  .dnar-gacha__slot .dnar-cover__book { animation: none; }
+  .dnar-gacha__slot .dnar-cover { animation: none; }
   .dnar-machine__handle { transition: none; }
 }
