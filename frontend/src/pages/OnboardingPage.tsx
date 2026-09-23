@@ -11,6 +11,12 @@ import './OnboardingPage.css'
 const MAX_GENRES = 5
 const STEP_COUNT = 3
 
+/** 닉네임 길이 — 화면에서 10자로 끊는다(09-23). 서버는 2~20자를 받으므로(OnboardingService.NICKNAME_MAX)
+ *  서버 규칙을 좁히는 쪽이고 이 값으로는 400 이 날 수 없다. 서버·명세까지 10자로 맞출지는 별건이다.
+ *  maxLength 는 붙여넣기까지 막지만 앞뒤 공백을 떼면 더 짧아질 수 있어, 제출 가능 판정(canProfile)도 같은 상수를 본다. */
+const NICKNAME_MIN = 2
+const NICKNAME_MAX = 10
+
 /** ONB-002 온보딩 3단 — Step 0 프로필(닉네임·생년월일·성별, 8/27 확정: OAuth 후 필수 수집)
  *  → Step 1 분야(0개 허용) → Step 2 읽은 책+별점(0권 허용) */
 export default function OnboardingPage() {
@@ -68,7 +74,8 @@ export default function OnboardingPage() {
     setProfile((prev) => ({ ...prev, birthDate: done ? `${next.year}-${next.month}-${next.day}` : '' }))
   }
 
-  const canProfile = profile.nickname.trim().length >= 2 && profile.birthDate !== ''
+  const nickname = profile.nickname.trim()
+  const canProfile = nickname.length >= NICKNAME_MIN && nickname.length <= NICKNAME_MAX && profile.birthDate !== ''
   const canFinishBooks = [...picked.values()].every((rating) => rating != null)
 
   const submitProfile = async () => {
@@ -129,7 +136,8 @@ export default function OnboardingPage() {
           <div className="onboarding__form">
             <div className="onboarding__form-row">
               <label htmlFor="onb-nickname">닉네임</label>
-              <input id="onb-nickname" placeholder="2자 이상" autoComplete="nickname" value={profile.nickname}
+              <input id="onb-nickname" placeholder={`${NICKNAME_MIN}~${NICKNAME_MAX}자`} autoComplete="nickname"
+                maxLength={NICKNAME_MAX} value={profile.nickname}
                 onChange={(event) => setProfile({ ...profile, nickname: event.target.value })} />
             </div>
             <div className="onboarding__form-row">
