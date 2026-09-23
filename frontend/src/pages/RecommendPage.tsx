@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useReducedMotion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { api } from '../api/client'
-import type { LibraryItem, RecommendationItem } from '../api/types'
+import type { BookSummary, LibraryItem, RecommendationItem } from '../api/types'
 import { useRecommendations, fetchNextRecommendations, RECOMMEND_DECK_SIZE } from '../lib/useRecommendations'
 import { tagLabel, useTags } from '../lib/useTags'
 import { useTuneStore } from '../stores/tuneStore'
 import { useAuthStore } from '../stores/authStore'
 import { trackEvent } from '../lib/events'
+import { coverPalette } from '../lib/coverPalette'
+import { coverAtWidth } from '../lib/coverUrl'
 import { toShelfEntry } from '../lib/useMyShelfEntry'
 import ShelfActions from '../components/ShelfActions'
 import { Stamp } from '../components/Stamp'
@@ -19,7 +21,7 @@ import birdImg from '../assets/recommend-bird.png'
 import './RecommendPage.css'
 
 /** REC-001 추천 화면 — 추천을 '모아 둔 우표첩에서 오늘 치를 꺼내는' 동작으로 건넨다.
- *  유산지 봉투의 오른쪽 덮개가 젖혀지고, 그 틈으로 표지 우표와 사연 우표가 계단식으로 나온다.
+ *  유산지 봉투의 덮개가 젖혀지면 그 앞으로 책 표지가 크게 올라서고, 옆에 제목·사연 엽서·행동이 한 덩어리로 선다.
  *  아래 후보를 누르면 그 책을 이 자리로 꺼내 놓는다 — 넣었다가 다시 꺼내는 동작을 그대로 되풀이한다.
  *  덱은 태그로 재정렬만 하고 후보를 새로 만들지는 않는다 (덱 구조 원칙).
  *  우표첩·엽서라는 재질은 이 화면의 시그니처로 남기고, 그 밖의 면은 홈과 같은 종이·잉크로 둔다. */
@@ -27,8 +29,19 @@ import './RecommendPage.css'
 const PAGE_BG = '#fdfdfb'      // 톱니를 파낼 배경색 = 페이지 바탕(paper). 실제 배경과 달라지면 톱니에 테가 생긴다
 const STAMP_PAPER = '#f6f1e3'  // 우표 테 — 종이 바탕에서 톱니가 보이려면 바탕색과 달라야 한다
 
-/** 히어로 무대 치수 — 폴더에서 나온 두 장이 오른쪽으로 늘어설 자리까지 포함한 폭 */
-const HERO = { w: 748, h: 344, folderW: 240, folderH: 336 }
+/** 히어로 무대 치수 — 우표첩(240×336)과 두 우표가 나오는 자리(표지 250px·사연 505px)는 이전 그대로 두고,
+ *  무대는 표지 우표가 책 표지(bookW)로 커지고 사연 우표가 비켜 선 뒤의 자리까지 잡는다 */
+const HERO = {
+  w: 790, h: 392,
+  folderW: 240, folderH: 336, folderTop: 30,
+  stampW: 200, bookW: 270,
+  /** 커지면서 옮겨 앉는 거리 — 책이 우표첩 앞판에 가리지 않도록 오른쪽으로 비켜 선다 */
+  shift: { x: 20, y: 0 },
+  /** 책이 커진 만큼 사연 우표가 오른쪽으로 물러나는 거리 */
+  letterShift: 45,
+}
+/** 우표가 다 나온 뒤 표지로 커지기까지 — 우표첩 열림(0.25s 지연 + 스프링)이 가라앉을 즈음 */
+const GROW_DELAY = 950
 /** 2위 이하 미니 우표첩 */
 const MINI = { folderW: 132, folderH: 185, stampW: 108, out: 100 }
 
@@ -71,6 +84,15 @@ export default function RecommendPage() {
     return () => clearTimeout(t)
   }, [reduced])
   useEffect(() => () => clearTimeout(reopen.current), [])
+
+  // 표지 우표 → 책 표지. 우표첩이 열려 우표가 다 나온 뒤에 커지고, 닫히면(다른 책을 꺼낼 때) 다시 우표로 돌아간다
+  const [coverGrown, setCoverGrown] = useState(false)
+  useEffect(() => {
+    if (!heroOpen) { setCoverGrown(false); return }
+    if (reduced) { setCoverGrown(true); return }
+    const t = setTimeout(() => setCoverGrown(true), GROW_DELAY)
+    return () => clearTimeout(t)
+  }, [heroOpen, reduced])
 
   // 덱이 갈리면(기준 조절 등) 소진·오류 표시를 턴다 — 새 조건에서는 다시 꺼낼 수 있다
   useEffect(() => {
@@ -219,40 +241,51 @@ export default function RecommendPage() {
         </div>
         {rerollError && <p className="eo-utility mt-2 text-ink" role="alert">{rerollError}</p>}
 
-        {/* ===== 꺼내 놓은 한 권 — 우표첩에서 표지 우표와 사연 우표가 차례로 나온다 ===== */}
+        {/* ===== 꺼내 놓은 한 권 — 우표첩에서 표지 우표와 사연 우표가 차례로 나온 뒤, 표지 우표가 책 표지로 커진다 =====
+            표지를 톱니 우표로만 두었더니 「가운데가 책인 줄 몰랐다」는 말을 들었다. 꺼내는 몸짓은 이 화면의 시그니처라
+            그대로 두고, 다 나온 뒤에 표지 우표가 책 표지로 바뀌며 화면에서 가장 큰 것이 된다. 사연 우표는 그만큼 비켜 선다 */}
         <section ref={heroRef} className="mt-10 flex justify-center overflow-x-auto" style={{ scrollMarginTop: 80 }}>
           <div className="relative shrink-0" style={{ width: HERO.w, height: HERO.h }}>
-            <StampFolder
-              open={heroOpen} width={HERO.folderW} height={HERO.folderH}
-              label={`For ${nickname ?? '독자'}`} sub={`${postmark}`}
-              slots={[
-                {
-                  key: 'cover', out: 250, tilt: -2, top: 28, left: 20,
-                  // 표지 우표 = 도서 상세로 가는 문
-                  node: (
-                    <Link to={`/books/${featured.book.bookId}?from=rec`} onClick={() => click(featured)}
-                      className="block transition-transform duration-150 hover:-translate-y-1" aria-label={`${featured.book.title} 상세 보기`}>
-                      <Stamp book={featured.book} width={200} notch={PAGE_BG} frame={STAMP_PAPER} />
-                    </Link>
-                  ),
-                },
-                {
-                  key: 'letter', out: 505, tilt: 1.6, top: 7, left: 5,
-                  // 사연 우표 = 추천 상세로 가는 문. 그 화면이 아직 없어 링크는 보류 —
-                  // 라우트가 생기면 표지 우표와 같은 모양으로 Link만 감싸면 된다.
-                  node: <LetterStamp reason={featured.reasonText} to={nickname} width={230} notch={PAGE_BG} />,
-                },
-              ]}
-            />
+            <div className="absolute left-0" style={{ top: HERO.folderTop }}>
+              <StampFolder
+                open={heroOpen} width={HERO.folderW} height={HERO.folderH}
+                label={`For ${nickname ?? '독자'}`} sub={postmark}
+                slots={[
+                  {
+                    key: 'cover', out: 250, tilt: -2, top: 28, left: 20,
+                    // 표지 = 도서 상세로 가는 문
+                    node: (
+                      <Link to={`/books/${featured.book.bookId}?from=rec`} onClick={() => click(featured)}
+                        className="block transition-transform duration-200 hover:-translate-y-1" aria-label={`${featured.book.title} 상세 보기`}>
+                        <CoverMorph book={featured.book} grown={coverGrown} reduced={!!reduced} />
+                      </Link>
+                    ),
+                  },
+                  {
+                    key: 'letter', out: 505, tilt: 1.6, top: 7, left: 5,
+                    // 사연 우표 = 추천 상세로 가는 문. 그 화면이 아직 없어 링크는 보류 —
+                    // 라우트가 생기면 표지와 같은 모양으로 Link만 감싸면 된다.
+                    node: (
+                      <motion.div initial={false} animate={{ x: coverGrown ? HERO.letterShift : 0 }}
+                        transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 130, damping: 19 }}>
+                        <LetterStamp reason={featured.reasonText} to={nickname} width={230} notch={PAGE_BG} />
+                      </motion.div>
+                    ),
+                  },
+                ]}
+              />
+            </div>
           </div>
         </section>
 
-        {/* 꺼낸 책의 태그 + 행동 — 우표 면을 깨지 않도록 밖에 둔다 */}
+        {/* 꺼낸 책의 제목·태그 + 행동 — 우표 면을 깨지 않도록 밖에 둔다 */}
         <div className="mt-8 flex flex-col items-center gap-4 text-center">
-          <p className="max-w-[46ch]">
-            <span className="text-[15px] font-semibold">{featured.book.title}</span>
-            {featured.book.author && <span className="text-[12px] text-ink-muted"> · {featured.book.author}</span>}
-          </p>
+          <div className="flex flex-col items-center gap-2">
+            <h2 className="font-semibold leading-tight tracking-[-0.01em]" style={{ fontSize: 26, maxWidth: '22ch', textWrap: 'balance' }}>
+              {featured.book.title}
+            </h2>
+            {featured.book.author && <p className="text-[12px] text-ink-muted">{featured.book.author}</p>}
+          </div>
           <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
             {featured.tags.map((t) => <span key={t} className={`eo-tag eo-tag--bare eo-tag--md ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
           </div>
@@ -306,5 +339,59 @@ function MiniFolder({ item, label, onSelect }: { item: RecommendationItem; label
         {item.tags.slice(0, 2).map((t) => <span key={t} className="eo-tag eo-tag--bare">{label(t)}</span>)}
       </div>
     </button>
+  )
+}
+
+
+/** 톱니·테 없이 「책」으로 읽히는 표지 — 책등 그늘과 바닥 그림자로 두께를 준다 */
+function BookFace({ book, width }: { book: BookSummary; width: number }) {
+  const [broken, setBroken] = useState(false)
+  const c = coverPalette(book.bookId)
+  const height = Math.round(width * 1.43)
+  return (
+    <div className="relative overflow-hidden" style={{
+      width, height, borderRadius: 2,
+      boxShadow: '0 1px 3px rgba(11,11,11,.14), 12px 24px 40px -14px rgba(11,11,11,.42)',
+    }}>
+      {book.coverUrl && !broken ? (
+        <img src={coverAtWidth(book.coverUrl, width)!} alt="" referrerPolicy="no-referrer"
+          onError={() => setBroken(true)} className="block h-full w-full object-cover" />
+      ) : (
+        <div className="flex h-full flex-col justify-between font-bold leading-tight"
+          style={{ background: c.bg, color: c.fg, padding: width * 0.1, fontSize: width * 0.09 }}>
+          <span className="line-clamp-5">{book.title}</span>
+          <span className="truncate font-normal opacity-80" style={{ fontSize: width * 0.05 }}>{book.author}</span>
+        </div>
+      )}
+      {/* 책등 — 왼쪽 가장자리의 접힘 그늘 */}
+      <div className="pointer-events-none absolute inset-y-0 left-0" style={{
+        width: Math.max(8, width * 0.06),
+        background: 'linear-gradient(90deg, rgba(11,11,11,.24), rgba(255,255,255,.2) 55%, rgba(11,11,11,.1))',
+      }} />
+      <div className="pointer-events-none absolute inset-0" style={{ background: 'linear-gradient(105deg, rgba(255,255,255,.16), transparent 38%)' }} />
+    </div>
+  )
+}
+
+/** 표지 우표가 책 표지로 커지는 한 장 — 우표와 책 표지를 같은 중심에 겹쳐 두고, 커지는 동안 서로 바꿔 보인다.
+ *  우표첩 슬롯 안에서 그려지므로 꺼내는 움직임(밀려 나옴·기울기·흐림)은 우표첩이 맡고, 여기는 크기와 재질만 바꾼다.
+ *  슬롯이 준 기울기(-2°)는 커지면서 되돌려 책은 반듯하게 선다 */
+function CoverMorph({ book, grown, reduced }: { book: BookSummary; grown: boolean; reduced: boolean }) {
+  const k = HERO.bookW / HERO.stampW
+  const bookH = Math.round(HERO.bookW * 1.43)
+  const t = reduced ? { duration: 0 } : { type: 'spring' as const, stiffness: 130, damping: 19 }
+  const move = grown ? { x: HERO.shift.x, y: HERO.shift.y, rotate: 2 } : { x: 0, y: 0, rotate: 0 }
+  return (
+    <div className="relative" style={{ width: HERO.stampW }}>
+      <motion.div initial={false} animate={{ ...move, scale: grown ? k : 1, opacity: grown ? 0 : 1 }}
+        transition={{ ...t, opacity: { duration: reduced ? 0 : 0.28, delay: reduced ? 0 : 0.08 } }}>
+        <Stamp book={book} width={HERO.stampW} notch={PAGE_BG} frame={STAMP_PAPER} />
+      </motion.div>
+      <motion.div className="absolute left-1/2 top-1/2" style={{ width: HERO.bookW, marginLeft: -HERO.bookW / 2, marginTop: -bookH / 2 }}
+        initial={false} animate={{ ...move, scale: grown ? 1 : 1 / k, opacity: grown ? 1 : 0 }}
+        transition={{ ...t, opacity: { duration: reduced ? 0 : 0.28 } }}>
+        <BookFace book={book} width={HERO.bookW} />
+      </motion.div>
+    </div>
   )
 }
