@@ -128,7 +128,7 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
     })
   }
 
-  // ── 한 작가 파고들기 ─────────────────────────
+  // ── 선호하는 작가 ───────────────────────────
   const byAuthor = new Map<string, number>()
   for (const b of read) {
     const author = b.authors[0]?.trim()
@@ -158,7 +158,7 @@ export function buildHabits(books: DnaBookResponse[], now = new Date()): Habit[]
   } else {
     habits.push({
       id: 'author',
-      label: '한 작가 파고들기',
+      label: '선호하는 작가',
       value: '—',
       detail: '두 권 넘게 읽은 작가가 아직 없어요',
       empty: true,
