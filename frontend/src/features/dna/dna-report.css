@@ -237,11 +237,18 @@
 .dnar-ev__chart { margin: 0; display: grid; gap: 10px; }
 .dnar-ev__bars { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; align-items: end; height: 96px; }
 .dnar-ev__bar { display: grid; grid-template-rows: auto 1fr auto; gap: 4px; justify-items: center; height: 100%; }
-/* 값이 0 이어도 자리는 남는다 — 빈 달을 지우면 흐름이 끊긴다 */
-.dnar-ev__bar-track { display: flex; align-items: flex-end; width: 100%; height: 100%; background: var(--eo-placeholder); }
-.dnar-ev__bar-fill { display: block; width: 100%; min-height: 1px; }
+/* 막대만 세운다 — 바탕에 회색 트랙을 깔았을 때는 0 인 달도 채워진 것으로 읽혔고, 진한 막대는 값이 아니라 '선택'으로 보였다.
+   값이 0 이어도 자리는 남는다(빈 달을 지우면 흐름이 끊긴다) — 기준선 위 2px 선으로만 */
+/* 칸마다 3px 회색 기준선이 칸 폭으로 깔리고, 막대는 같은 밑변에서 좁게(56%) 선다 — 막대 폭만큼은 기준선을 덮는다.
+   0 인 칸은 기준선만 남는다 */
+.dnar-ev__bar-track { position: relative; display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 100%; }
+.dnar-ev__bar-track::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--eo-rule-soft); }
+.dnar-ev__bar-fill { position: relative; z-index: 1; display: block; width: 56%; min-height: 3px; }
+.dnar-ev__bar-fill.is-zero { display: none; }
 .dnar-ev__bar-label { font-size: 10px; color: var(--eo-ink-faint); }
 .dnar-ev__bar-value { font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; }
+/* 0 은 숫자로만 남기고 무게를 뺀다 — 있는 값이 먼저 보여야 한다 */
+.dnar-ev__bar-value.is-zero { color: var(--eo-ink-faint); font-weight: 500; }
 
 /* 짝이 없는 줄들 — 아래 한 줄 세 칸. 위 그림 두 장이 「차트 줄」, 이 셋이 「지표 줄」이다.
    칸이 좁아 값을 옆이 아니라 아래에 세운다 — 그림 위 줄(값이 오른쪽)과 다르지만 높이가 같은 세 칸이 한 줄로 읽힌다 */
