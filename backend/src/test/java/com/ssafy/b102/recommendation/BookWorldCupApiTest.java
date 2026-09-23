@@ -81,16 +81,23 @@ class BookWorldCupApiTest {
 
 		for (int pickNumber = 1; pickNumber < 15; pickNumber++) {
 			assertAnonymous(current);
+			assertRoundFields(current, pickNumber);
 			String choiceId = current.path("choices").get(0).path("choiceId").asText();
 			current = pick(current.path("sessionId").asText(), choiceId);
 			assertThat(current.path("status").asText()).isEqualTo("IN_PROGRESS");
 		}
 
 		assertAnonymous(current);
+		assertRoundFields(current, 15);
 		String finalChoice = current.path("choices").get(0).path("choiceId").asText();
 		current = pick(current.path("sessionId").asText(), finalChoice);
 		assertThat(current.path("status").asText()).isEqualTo("COMPLETED");
 		assertThat(current.path("choices").size()).isZero();
+		// 우승 응답도 편성 인원은 16 그대로 — 프론트가 「15번의 선택」을 roundSize - 1 로 그린다
+		assertThat(current.path("roundSize").asInt()).isEqualTo(16);
+		assertThat(current.path("roundNumber").asInt()).isEqualTo(4);
+		assertThat(current.path("matchNumber").asInt()).isZero();
+		assertThat(current.path("matchesInRound").asInt()).isZero();
 		assertThat(current.path("champion").path("title").asText()).isIn(titles);
 		assertThat(current.path("champion").path("authors").isArray()).isTrue();
 		assertThat(current.path("champion").path("coverUrl").asText()).contains("cover.example");
@@ -120,6 +127,20 @@ class BookWorldCupApiTest {
 
 	private JsonNode json(MvcResult result) throws Exception {
 		return objectMapper.readTree(result.getResponse().getContentAsString());
+	}
+
+	/**
+	 * pickNumber 번째 선택을 앞둔 응답의 라운드 필드 — 프론트 정의(roundSize 16 고정, 현재 인원 = roundSize >> (roundNumber-1))와 맞는지.
+	 * 선택 1~8 = 16강(1라운드, 대진 8), 9~12 = 8강(2, 4), 13~14 = 준결승(3, 2), 15 = 결승(4, 1).
+	 */
+	private static void assertRoundFields(JsonNode response, int pickNumber) {
+		int roundNumber = pickNumber <= 8 ? 1 : pickNumber <= 12 ? 2 : pickNumber <= 14 ? 3 : 4;
+		int matchesInRound = 16 >> roundNumber;
+		int firstPickOfRound = roundNumber == 1 ? 1 : roundNumber == 2 ? 9 : roundNumber == 3 ? 13 : 15;
+		assertThat(response.path("roundSize").asInt()).as("pick %d roundSize", pickNumber).isEqualTo(16);
+		assertThat(response.path("roundNumber").asInt()).as("pick %d roundNumber", pickNumber).isEqualTo(roundNumber);
+		assertThat(response.path("matchesInRound").asInt()).as("pick %d matchesInRound", pickNumber).isEqualTo(matchesInRound);
+		assertThat(response.path("matchNumber").asInt()).as("pick %d matchNumber", pickNumber).isEqualTo(pickNumber - firstPickOfRound + 1);
 	}
 
 	private static void assertAnonymous(JsonNode response) {
