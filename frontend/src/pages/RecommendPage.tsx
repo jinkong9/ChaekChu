@@ -3,15 +3,14 @@ import { Link } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useReducedMotion } from 'motion/react'
 import { api } from '../api/client'
-import { addToLibrary, removeLibraryItem } from '../api/library'
-import type { LibraryItem, RecommendationItem, ShelfStatus } from '../api/types'
+import type { LibraryItem, RecommendationItem } from '../api/types'
 import { useRecommendations, fetchNextRecommendations, RECOMMEND_DECK_SIZE } from '../lib/useRecommendations'
 import { tagLabel, useTags } from '../lib/useTags'
 import { useTuneStore } from '../stores/tuneStore'
-import { useFinishModalStore } from '../stores/finishModalStore'
 import { useAuthStore } from '../stores/authStore'
 import { trackEvent } from '../lib/events'
-import { SHELF_ACTIONS } from '../lib/shelf'
+import { toShelfEntry } from '../lib/useMyShelfEntry'
+import ShelfActions from '../components/ShelfActions'
 import { Stamp } from '../components/Stamp'
 import LetterStamp from '../components/LetterStamp'
 import StampFolder from '../components/StampFolder'
@@ -32,10 +31,6 @@ const STAMP_PAPER = '#f6f1e3'  // 우표 테 — 종이 바탕에서 톱니가 �
 const HERO = { w: 748, h: 344, folderW: 240, folderH: 336 }
 /** 2위 이하 미니 우표첩 */
 const MINI = { folderW: 132, folderH: 185, stampW: 108, out: 100 }
-/** 찜한 책의 버튼을 다시 누르면 무슨 일이 생기는지 — 라벨(「✓ 찜했어요」)은 상태만 말하고 행동은 말하지 않는다 */
-const WISH_CANCEL_HINT = '찜 해제'
-/** 이미 서재에 담긴 책의 버튼 라벨 — SHELF_ACTIONS 의 현재형과 짝 */
-const DONE_LABEL: Record<ShelfStatus, string> = { WISH: '찜했어요', READ: '읽었어요' }
 
 export default function RecommendPage() {
   const qc = useQueryClient()
@@ -48,7 +43,6 @@ export default function RecommendPage() {
   const isMine = (t: string) => myTags.includes(label(t))
   const nickname = useAuthStore((s) => s.nickname)
   const reduced = useReducedMotion()
-  const openFinish = useFinishModalStore((s) => s.open)
 
   // 내 서재 — 추천 응답에는 `my` 가 없어서, 이 책이 이미 담겨 있는지는 서재 목록과 대조해 안다.
   // 서재 화면과 같은 queryKey 라 캐시를 공유하고, 담기·완독 모달이 invalidate 하면 여기 표시도 같이 바뀐다
@@ -57,9 +51,6 @@ export default function RecommendPage() {
     queryFn: async () => (await api.get<{ items: LibraryItem[] }>('/library/me')).data.items,
   })
   const mine = (bookId: number) => library?.find((li) => li.book.bookId === bookId)
-  // 담기 왕복 동안 버튼을 잠그고, 실패는 버튼 아래에 적는다 — 눌렀는데 아무 반응이 없던 것을 없앤다
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
 
   // 「다시 추천받기」 — 받는 동안 링크를 잠그고, 실패·소진은 그 자리에서 말한다
   const [rerolling, setRerolling] = useState(false)
@@ -131,33 +122,6 @@ export default function RecommendPage() {
   const appliedTags = data.appliedTags
   const postmark = new Date(data.generatedAt).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
 
-  const save = (item: RecommendationItem, status: ShelfStatus) => {
-    const { bookId, title } = item.book
-    const existing = mine(bookId)
-    // 읽음은 상세 화면과 똑같이 완독 모달(별점·한줄평·완독일)을 거친다. 이미 서재에 있으면 그 기록을 채워 열어 수정이 된다
-    if (status === 'READ') {
-      openFinish({ bookId, title, libraryItemId: existing?.libraryItemId,
-        rating: existing?.rating, reviewText: existing?.reviewText,
-        finishedDate: existing?.status === 'READ' ? existing.finishedDate : undefined })
-      return
-    }
-    // 찜은 서버로 바로 간다. 담기는 POST(이미 있으면 409 → api/library 가 PATCH)라 두 번 눌러도 줄이 늘지 않고,
-    // 이미 찜해 둔 책이면 같은 버튼이 해제가 된다 — DELETE /library/{id} (§6.4). 도서 상세의 찜 버튼과 같은 몸짓이다.
-    // 찜에는 별점·감상이 없어 해제해도 함께 지워질 기록이 없다.
-    const wished = existing?.status === 'WISH' ? existing : null
-    // 이벤트는 담을 때만 보낸다 — 계약의 EventType 에 해제가 없다(lib/events.ts)
-    if (!wished) trackEvent('WISH', { bookId, recommendationId: data.recommendationId, rank: item.rank, position: positionOf(item), context: 'RECOMMEND' })
-    setSaving(true)
-    setSaveError(null)
-    const req: Promise<unknown> = wished ? removeLibraryItem(wished.libraryItemId) : addToLibrary(bookId, status)
-    req
-      .then(() => { qc.invalidateQueries({ queryKey: ['library'] }); qc.invalidateQueries({ queryKey: ['book', String(bookId)] }) })
-      // 401 은 인터셉터가 로그아웃으로 받아 간다 — 여기 남는 건 네트워크 끊김·서버 오류
-      .catch(() => setSaveError(wished
-        ? '찜을 해제하지 못했어요. 잠시 후 다시 눌러 주세요.'
-        : '서재에 담지 못했어요. 잠시 후 다시 눌러 주세요.'))
-      .finally(() => setSaving(false))
-  }
   const click = (item: RecommendationItem) =>
     trackEvent('CLICK', { bookId: item.book.bookId, recommendationId: data.recommendationId, rank: item.rank, position: positionOf(item), context: 'RECOMMEND' })
 
@@ -292,23 +256,15 @@ export default function RecommendPage() {
           <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
             {featured.tags.map((t) => <span key={t} className={`eo-tag eo-tag--bare eo-tag--md ${isMine(t) ? 'is-on' : ''}`}>{label(t)}</span>)}
           </div>
-          {/* 둘 다 캡슐이되 채운 쪽은 찜하기 하나 — 읽음은 테두리만 남긴 같은 판이라 자리는 같고 무게만 낮다.
-              이미 담긴 쪽은 라벨이 과거형으로 바뀌고 눌린 상태(aria-pressed)가 된다 —
-              다시 누르면 읽음은 기록 수정, 찜은 해제다. 해제는 라벨에 드러나지 않으므로 이름표로 알린다 */}
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
-            {SHELF_ACTIONS.map((a, i) => {
-              const on = mine(featured.book.bookId)?.status === a.status
-              const undo = on && a.status === 'WISH'
-              return (
-                <button key={a.status} onClick={() => save(featured, a.status)} disabled={saving} aria-pressed={on}
-                  title={undo ? WISH_CANCEL_HINT : undefined} aria-label={undo ? WISH_CANCEL_HINT : undefined}
-                  className={i === 0 ? 'eo-button' : 'eo-button eo-button--ghost'}>
-                  {on ? `✓ ${DONE_LABEL[a.status]}` : a.label}
-                </button>
-              )
-            })}
-          </div>
-          {saveError && <p className="text-[11px] text-ink-muted" role="alert">{saveError}</p>}
+          {/* 버튼 한 벌은 도서 상세·가챠·월드컵과 같은 것(components/ShelfActions) —
+              어디서 만나든 책에 하는 일은 이 둘뿐이라 모양도 같아야 같은 일로 읽힌다.
+              추천 화면이라 찜 이벤트에는 어느 덱의 몇 번째 책을 담았는지까지 붙인다(§7.1) */}
+          <ShelfActions className="recommend-shelf"
+            bookId={featured.book.bookId} title={featured.book.title}
+            my={toShelfEntry(mine(featured.book.bookId))}
+            eventContext="RECOMMEND"
+            wishEvent={{ recommendationId: data.recommendationId, rank: featured.rank, position: positionOf(featured) }}
+            onChanged={() => qc.invalidateQueries({ queryKey: ['book', String(featured.book.bookId)] })} />
         </div>
 
         {/* ===== 나머지 후보 — 같은 우표첩을 작게. 손을 올린 한 통만 열린다 ===== */}

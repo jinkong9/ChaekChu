@@ -7,14 +7,8 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { LibraryItem, MyLibraryEntry } from '../api/types'
 
-export function useMyShelfEntry(bookId: string | number | null | undefined): MyLibraryEntry | null {
-  const { data } = useQuery({
-    queryKey: ['library'],
-    queryFn: async () => (await api.get<{ items: LibraryItem[] }>('/library/me')).data.items,
-    enabled: bookId != null && bookId !== '',
-  })
-  if (bookId == null || !data) return null
-  const li = data.find((x) => String(x.book.bookId) === String(bookId))
+/** 서재 목록의 한 줄 → 상세 화면의 `my` 모양. 이미 목록을 들고 있어 훅을 부를 수 없는 자리(추천 화면)에서 쓴다 */
+export function toShelfEntry(li: LibraryItem | null | undefined): MyLibraryEntry | null {
   if (!li) return null
   return {
     libraryItemId: String(li.libraryItemId),
@@ -23,4 +17,14 @@ export function useMyShelfEntry(bookId: string | number | null | undefined): MyL
     reviewText: li.reviewText,
     finishedDate: li.finishedDate,
   }
+}
+
+export function useMyShelfEntry(bookId: string | number | null | undefined): MyLibraryEntry | null {
+  const { data } = useQuery({
+    queryKey: ['library'],
+    queryFn: async () => (await api.get<{ items: LibraryItem[] }>('/library/me')).data.items,
+    enabled: bookId != null && bookId !== '',
+  })
+  if (bookId == null || !data) return null
+  return toShelfEntry(data.find((x) => String(x.book.bookId) === String(bookId)))
 }
