@@ -442,8 +442,6 @@ export const handlers = [
       ...found, isbn13: '9791100000007',
       description: '자기 자신을 잃어버린 채 어른들의 기대 속에서 소진되어 가는 한 소년의 이야기. 성장과 자아 탐색이라는 주제를 정면으로 다룬다.',
       toc: '1부\n2부\n3부',
-      /** 시안용 — 'AI 추천 키워드'. 계약에 아직 없다 (docs/BACKEND_DATA_CONTRACT.md 합의 대기) */
-      keywords: ['#성장소설', '#청소년의 고민', '#자기 탐색', '#고전의 힘', '#짧은 호흡'],
       metrics: [
         { source: '정보나루', name: '전국 대출 순위', value: '상위 3%', asOf: '2026-06' },
         { source: '알라딘', name: '평균 별점', value: '4.2 · 128명', asOf: '2026-08' },

@@ -16,13 +16,11 @@ import './card-spread.css'
  *  「이 책을 빌린 사람들」(연령대별 대출)은 뺐다 — 정보나루 loan_grps 수집률이 낮아 적재하지 않기로 했고(API_SPEC §4.4),
  *  화면에는 늘 「기록이 아직 없습니다」 한 줄만 서 있었다. BookDetail.loanByAge 는 계약에 남으니 값이 붙으면 되살린다.
  *
- *  /similar(§4.5) · /co-loans(§4.6) 는 계약에 들어왔다. 아직 임시인 것은 keywords 하나다
- *  ('AI 추천 키워드' — BookDetail 의 선택 필드로 가정, docs/BACKEND_DATA_CONTRACT.md 합의 대기).
- *  세 자리 모두 값이 없으면 비우고 왜 비었는지 적는다 — 가짜 데이터를 채우지 않는다.
+ *  「이런 분께 추천해요」(AI 추천 키워드)도 뺐다 — 계약에 없는 시안용 필드였고(docs/BACKEND_DATA_CONTRACT.md 합의 대기),
+ *  화면에는 늘 「아직 없습니다」 한 줄만 서 있었다. 키워드가 계약에 들어오면 되살린다.
+ *
+ *  /similar(§4.5) · /co-loans(§4.6) 는 계약에 들어왔다. 값이 없으면 비우고 왜 비었는지 적는다 — 가짜 데이터를 채우지 않는다.
  *  /similar 는 임베딩 적재가 진행 중이라 빈 배열이 잦다(§4.5). 그것도 정상 응답이다. */
-
-/** 시안 단계의 확장 — 계약에 들어가면 api/types.ts로 옮긴다 */
-type BookDetailDraft = BookDetail & { keywords?: string[] | null }
 
 
 /** 카드에 인쇄된 문장 — 책이 아니라 서비스의 말이다 */
@@ -119,7 +117,7 @@ export default function CardSpreadPage() {
   const qc = useQueryClient()
   const { data: book, isPending, isError, refetch } = useQuery({
     queryKey: ['book', bookId],
-    queryFn: async () => (await api.get<BookDetailDraft>(`/books/${bookId}`)).data,
+    queryFn: async () => (await api.get<BookDetail>(`/books/${bookId}`)).data,
   })
   // 이웃 책은 상세와 별개로 온다 — 실패해도 상세 화면은 그대로 뜬다
   const similar = useQuery({
@@ -170,7 +168,6 @@ export default function CardSpreadPage() {
     )
   }
 
-  const keywords = book.keywords ?? []
   // 카드의 항목 — 값이 없는 줄은 카드에 인쇄하지 않는다
   const cardRows: [string, string][] = [
     ['제목', book.title],
@@ -271,21 +268,6 @@ export default function CardSpreadPage() {
                 <p className="bd-prose">{book.description}</p>
               </section>
             )}
-
-            {/* 두 절 사이의 늘어나는 여백 — 왼쪽 펼침면이 더 길 때 그 차이를 여기서 받아
-                두 단이 같은 선에서 끝난다. 56px 까지만 벌어지므로, 소개가 아주 짧은 책에서
-                절 사이에 구멍이 뚫리지는 않는다(그때는 예전처럼 그냥 어긋난 채로 둔다). */}
-            <span className="bd-slack" aria-hidden="true" />
-
-            <section className="bd-block">
-              <div className="bd-block__head">
-                <h2 className="eo-title">이런 분께 추천해요</h2>
-                <span>AI 추천 키워드</span>
-              </div>
-              {keywords.length > 0
-                ? <div className="bd-tags">{keywords.map((k) => <span key={k} className="eo-tag">{k}</span>)}</div>
-                : <p className="bd-note">이 책의 AI 추천 키워드가 아직 없습니다. 소개·목차 임베딩 키워드가 붙으면 이 자리에 들어갑니다.</p>}
-            </section>
           </section>
         </div>
 
