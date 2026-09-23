@@ -1,44 +1,31 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
-import { api } from '../api/client'
 import { useAuthStore } from '../stores/authStore'
 
-/** AUTH-002 OAuth 콜백 착지 — 서버가 302로 보낸 fragment(#accessToken=…&onboarded=…)를 읽는다.
+/** AUTH-002 OAuth 콜백 착지 (API_SPEC §2.2·§2.3).
  *
- *  토큰이 쿼리가 아니라 fragment에 있는 이유: 서버 로그·Referer에 남지 않게 (BE AuthController §2.2).
- *  처리 순서: 파싱 → 저장 → 주소에서 fragment 제거(뒤로가기·새로고침 흔적 방지)
- *  → GET /users/me로 닉네임·온보딩 상태를 서버 기준으로 확정 → 홈/온보딩 분기 */
+ *  서버 콜백은 302 로 여기 보내면서 HttpOnly 쿠키 `refresh_token` 을 심는다. 토큰은 URL 에서 읽지 않는다 —
+ *  App 의 AuthRestore 가 라우트를 그리기 전에 POST /auth/refresh 로 액세스 토큰을 받고 GET /users/me 로 닉네임·온보딩 상태를 맞춰 두므로,
+ *  이 화면이 렌더될 때는 스토어가 이미 결정돼 있다. 여기서는 (아직 서버가 붙여 보내는) fragment 를 주소에서 지우고 분기만 한다.
+ *  fragment 를 읽지 않는 이유: 링크에 남의 토큰을 심어 보내는 로그인 CSRF 를 막고, 토큰이 URL 에 있을 이유를 없애기 위해서다
+ *  (서버가 AUTH_CALLBACK_TOKEN_IN_FRAGMENT=false 로 바꾸면 fragment 자체가 사라진다). */
 export default function OAuthCallbackPage() {
   const navigate = useNavigate()
-  const login = useAuthStore((s) => s.login)
   const ran = useRef(false)
 
   useEffect(() => {
-    if (ran.current) return // StrictMode 이중 실행 방지 — 토큰 파싱·이동은 1회만
+    if (ran.current) return // StrictMode 이중 실행 방지
     ran.current = true
 
-    const params = new URLSearchParams(window.location.hash.slice(1))
-    const token = params.get('accessToken')
-    const onboarded = params.get('onboarded') === 'true'
     history.replaceState(null, '', window.location.pathname)
-
-    if (!token) {
+    const { accessToken, onboarded } = useAuthStore.getState()
+    if (!accessToken) {
+      // 쿠키가 안 심어졌거나(제공자 실패·state 불일치는 서버가 /?error= 로 보낸다) 갱신이 401 — 랜딩에 실패 표시
       navigate('/?error=oauth_failed', { replace: true })
       return
     }
-    login(token, null, onboarded)
-    api.get('/users/me')
-      .then((res) => {
-        const me = res.data as { nickname: string | null; onboardingStatus: 'PENDING' | 'COMPLETED' | 'SKIPPED' }
-        const done = me.onboardingStatus !== 'PENDING'
-        login(token, me.nickname, done)
-        navigate(done ? '/home' : '/onboarding', { replace: true })
-      })
-      .catch(() => {
-        // /users/me가 잠깐 실패해도 토큰은 유효할 수 있다 — fragment의 onboarded로 진행
-        navigate(onboarded ? '/home' : '/onboarding', { replace: true })
-      })
-  }, [navigate, login])
+    navigate(onboarded ? '/home' : '/onboarding', { replace: true })
+  }, [navigate])
 
   return (
     <main className="eo-page">

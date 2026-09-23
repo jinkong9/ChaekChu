@@ -208,6 +208,9 @@ const requireAuth = (request: Request) =>
     ? null
     : HttpResponse.json({ message: '로그인이 필요합니다.' }, { status: 401 })
 
+/** mock 세션 — 실서버의 refresh_token 쿠키에 해당. authorize 가 켜고 logout 이 끈다. 새로고침이면 모듈이 다시 로드되어 꺼진다(= 쿠키 없음) */
+let mockSession = false
+
 /** mock 사용자 상태 — 실서버의 users 행에 해당. authorize/profile/preferences가 갱신하고 GET /users/me가 읽는다 */
 const me = { userId: '1', nickname: null as string | null, onboardingStatus: 'PENDING' as 'PENDING' | 'COMPLETED' | 'SKIPPED', interestTags: [] as string[], birthYear: null as number | null, gender: null as string | null }
 
@@ -340,12 +343,23 @@ export const handlers = [
     if (provider !== 'KAKAO' && provider !== 'GOOGLE') {
       return HttpResponse.json({ message: '지원하지 않는 OAuth provider입니다.' }, { status: 400 })
     }
+    mockSession = true
     if (provider === 'GOOGLE') {
       Object.assign(me, { nickname: 'Google 독자', onboardingStatus: 'COMPLETED' })
       return HttpResponse.json({ accessToken: 'mock-token', nickname: me.nickname, onboarded: true })
     }
     Object.assign(me, { nickname: null, onboardingStatus: 'PENDING' })
     return HttpResponse.json({ accessToken: 'mock-token', nickname: null, onboarded: false })
+  }),
+  // §2.3 갱신 — 세션(쿠키)이 있으면 새 액세스 토큰, 없으면 401. 앱 시작·401 재시도 때 프론트가 부른다
+  http.post('*/auth/refresh', () =>
+    mockSession
+      ? HttpResponse.json({ accessToken: 'mock-token', expiresInSeconds: 900 })
+      : HttpResponse.json({ code: 'UNAUTHORIZED', message: '인증이 필요합니다.' }, { status: 401 })),
+  // §2.4 로그아웃 — 세션 폐기. 없어도 204
+  http.post('*/auth/logout', () => {
+    mockSession = false
+    return new HttpResponse(null, { status: 204 })
   }),
 
   // 내 정보 — 실서버 응답 모양(§3.1): userId 문자열, onboardingStatus enum. onboarded 판정은 FE가 != PENDING 으로

@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuthStore } from '../stores/authStore'
+import { logoutSession } from '../api/session'
 import FinishReadModal from './FinishReadModal'
 import RouteFallback from './RouteFallback'
 
@@ -39,7 +40,8 @@ export default function Layout() {
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-4">
           <span className="hidden text-[11px] text-ink-muted lg:inline">{nickname ?? '독자'}</span>
-          <button className="eo-link" onClick={() => { logout(); navigate('/') }}>로그아웃</button>
+          {/* 서버의 리프레시 계열을 먼저 폐기(§2.4) — 그래야 다른 탭·새로고침이 다시 로그인 상태로 살아나지 않는다 */}
+          <button className="eo-link" onClick={async () => { await logoutSession(); logout(); navigate('/') }}>로그아웃</button>
         </div>
       </header>
       {/* 라우트 청크를 받는 동안에도 헤더는 남는다 — Routes 바깥에 두면 GNB 까지 사라진다 */}
