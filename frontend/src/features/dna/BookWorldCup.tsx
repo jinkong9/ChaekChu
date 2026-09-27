@@ -28,19 +28,41 @@ const participantsOf = (s: WorldCupSession) => s.roundSize >> (s.roundNumber - 1
 
 type Phase = 'idle' | 'loading' | 'playing' | 'done'
 
+/** 모서리 장식 — 네 갈래 별. 이름 없는 책 두 권이 뒤집어 놓은 카드처럼 보이게 한다 */
+const CORNERS = ['tl', 'tr', 'bl', 'br'] as const
+function Star() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 0C12.9 7.6 16.4 11.1 24 12C16.4 12.9 12.9 16.4 12 24C11.1 16.4 7.6 12.9 0 12C7.6 11.1 11.1 7.6 12 0Z" />
+    </svg>
+  )
+}
+
 function Synopsis({
   text,
+  numeral,
   side,
   disabled,
   onPick,
 }: {
   text: string
+  /** 카드 윗머리의 번호 — 타로 카드의 로마 숫자 자리 */
+  numeral: string
   side: string
   disabled: boolean
   onPick: () => void
 }) {
   return (
     <button type="button" className="dnar-wc__synopsis" onClick={onPick} disabled={disabled}>
+      {/* 안쪽 이중 테두리와 네 모서리 별 — 장식이라 읽지 않는다 */}
+      <span className="dnar-wc__frame" aria-hidden="true">
+        {CORNERS.map((c) => (
+          <span key={c} className={`dnar-wc__corner dnar-wc__corner--${c}`}>
+            <Star />
+          </span>
+        ))}
+      </span>
+      <span className="dnar-wc__numeral" aria-hidden="true">{numeral}</span>
       <span className="dnar-wc__synopsis-text">{text}</span>
       <span className="dnar-wc__pick-key" aria-hidden="true">{side}</span>
     </button>
@@ -174,22 +196,23 @@ export default function BookWorldCup({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       ) : (
-        <>
+        // 질문·카드·안내를 한 덩어리로 묶어 가운데 세운다 — 질문만 위에 붙고 카드가 가운데 떠 있으면 둘 사이가 빈 벌판이 된다
+        <div className="dnar-wc__stage">
           <div className="dnar-wc__head">
             {progress && <p className="dnar-wc__round" role="status">{progress}</p>}
             <p className="dnar-dlg__ask">지금 더 읽고 싶은 쪽은?</p>
           </div>
           <div className="dnar-wc__match dnar-wc__match--text">
-            {left && <Synopsis text={left.synopsis} side="←" disabled={picking} onPick={() => pick(left.choiceId)} />}
+            {left && <Synopsis text={left.synopsis} numeral="I" side="←" disabled={picking} onPick={() => pick(left.choiceId)} />}
             <span className="dnar-wc__vs" aria-hidden="true">VS</span>
-            {right && <Synopsis text={right.synopsis} side="→" disabled={picking} onPick={() => pick(right.choiceId)} />}
+            {right && <Synopsis text={right.synopsis} numeral="II" side="→" disabled={picking} onPick={() => pick(right.choiceId)} />}
           </div>
           {error ? (
             <p className="dnar-wc__error" role="status">{error}</p>
           ) : (
             <p className="dnar-utility dnar-dlg__hint">카드를 누르거나 방향키로 고르세요 · Esc로 닫기</p>
           )}
-        </>
+        </div>
       )}
     </DnaDialog>
   )
