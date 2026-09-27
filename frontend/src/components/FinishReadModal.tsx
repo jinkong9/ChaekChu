@@ -190,8 +190,10 @@ export default function FinishReadModal() {
           <div className="flex items-center gap-x-4 text-[11px]">
             {editing && (removeArmed ? (
               <>
-                <span className="text-ink-faint">별점·감상평·완독일도 함께 지워져요</span>
-                <button className="eo-link" disabled={busy} onClick={() => remove.mutate()}>빼기</button>
+                <span className="text-ink-muted">별점·감상평·완독일도 함께 지워져요</span>
+                {/* 확인 단계의 「삭제」는 실제로 지우는 버튼이라 밑줄 링크 사이에 묻히면 안 된다 — 테두리 캡슐로 세운다.
+                    채운 캡슐은 「저장」 하나로 지킨다(DESIGN.md Ghost pill) */}
+                <button className="eo-button eo-button--ghost frm-remove" disabled={busy} onClick={() => remove.mutate()}>삭제</button>
                 <button className="eo-link" onClick={() => setRemoveArmed(false)}>취소</button>
               </>
             ) : (

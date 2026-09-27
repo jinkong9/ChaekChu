@@ -106,9 +106,20 @@
 .frm-review-wrap { border-bottom: 1px solid transparent; transition: border-color 140ms ease-out; }
 .frm-review-wrap:focus-within { border-bottom-color: var(--color-ink); }
 
+/* 서재에서 빼기 — 확인 단계의 실행 버튼. 저장보다 작은 테두리 캡슐로, 테두리는 처음부터 잉크 */
+.eo-button.frm-remove {
+  min-height: 32px;
+  padding: 0 13px;
+  border-color: var(--color-ink);
+  font-size: 11px;
+}
+.eo-button.frm-remove:hover:not(:disabled),
+.eo-button.frm-remove:focus-visible:not(:disabled) { background: rgba(11, 11, 11, 0.07); }
+
 @media (max-width: 640px) {
   .frm-sheet { --frm-margin: 18px; padding: 18px 16px 16px calc(var(--frm-margin) + 12px); }
   .frm-star { min-width: 32px; min-height: 44px; }
+  .eo-button.frm-remove { min-height: 44px; padding: 0 18px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
