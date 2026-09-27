@@ -651,12 +651,20 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: start;
   justify-items: center;
-  gap: clamp(16px, 4vw, 56px);
-  align-content: center;
-  flex: 1;
+  gap: clamp(12px, 2.4vw, 32px);
   width: 100%;
-  max-width: 900px;
+  max-width: 1120px;
   margin: 0 auto;
+}
+
+/* 대진 화면 본체 — 질문·카드·안내를 한 덩어리로 세로 가운데. 남는 높이는 위아래로 고르게 나뉜다 */
+.dnar-wc__stage {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(20px, 3.5vh, 36px);
+  padding: 8px 0;
 }
 .dnar-wc__vs {
   align-self: center;
@@ -711,7 +719,7 @@
 .dnar-dlg__hint { text-align: center; }
 
 /* 라운드 진행 — 질문 바로 위, 가운데. 우상단 구석의 11px 로는 지금 몇 강인지 아무도 안 봤다 */
-.dnar-wc__head { display: grid; justify-items: center; gap: 10px; }
+.dnar-wc__head { display: grid; justify-items: center; gap: 8px; }
 .dnar-wc__round {
   margin: 0;
   font-size: 13px;
@@ -724,15 +732,21 @@
 /* 익명 대진 — 표지 대신 소개문 카드. 두 장이 같은 높이로 서야 길이 차이가 힌트가 되지 않는다 */
 .dnar-wc__match--text { align-items: stretch; }
 .dnar-wc__synopsis {
+  /* 타로 카드 한 장 — 바깥 테두리, 안쪽 이중선, 모서리 별, 윗머리 번호, 아랫단 방향.
+     색은 쓰지 않는다: 이 화면의 색은 우승 표지가 처음 가져온다 */
+  --wc-inset: 12px;
+  --wc-star: 14px;
+  position: relative;
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: auto 1fr auto;
   justify-items: center;
-  gap: 14px;
+  gap: 16px;
   width: 100%;
-  max-width: 340px;
-  min-height: 220px;
-  padding: 28px 26px 20px;
-  border: 1px solid var(--eo-rule-soft);
+  /* 카드가 칸을 다 채운다 — 좁은 카드 둘이 넓은 종이 가운데 떠 있으면 여백만 보인다 */
+  min-height: clamp(260px, 38vh, 380px);
+  padding: calc(var(--wc-inset) + 22px) clamp(36px, 4vw, 64px) calc(var(--wc-inset) + 18px);
+  border: 1px solid var(--eo-rule);
+  border-radius: 2px;
   background: var(--eo-paper);
   color: var(--eo-ink);
   font: inherit;
@@ -747,11 +761,75 @@
 }
 .dnar-wc__synopsis:focus-visible { outline: 2px solid var(--eo-ink); outline-offset: 4px; }
 .dnar-wc__synopsis:disabled { cursor: wait; opacity: 0.7; }
+
+/* 안쪽 이중선 — 굵은 선 하나 대신 가는 선 둘을 4px 띄워 종이에 찍힌 인쇄 테두리처럼 */
+.dnar-wc__frame {
+  position: absolute;
+  inset: var(--wc-inset);
+  border: 1px solid var(--eo-rule);
+  pointer-events: none;
+  transition: border-color var(--eo-motion) ease-out;
+}
+.dnar-wc__frame::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid var(--eo-rule-soft);
+}
+/* 모서리 별은 테두리 꼭짓점 위에 얹는다 — 종이색 바탕이 선의 끝을 덮어 별이 선을 끊고 선다 */
+.dnar-wc__corner {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: calc(var(--wc-star) + 8px);
+  height: calc(var(--wc-star) + 8px);
+  background: var(--eo-paper);
+  color: var(--eo-ink-muted);
+  transition: color var(--eo-motion) ease-out, transform var(--eo-motion) ease-out;
+}
+.dnar-wc__corner svg { width: var(--wc-star); height: var(--wc-star); fill: currentColor; }
+.dnar-wc__corner--tl { top: 0; left: 0; transform: translate(-50%, -50%); }
+.dnar-wc__corner--tr { top: 0; right: 0; transform: translate(50%, -50%); }
+.dnar-wc__corner--bl { bottom: 0; left: 0; transform: translate(-50%, 50%); }
+.dnar-wc__corner--br { bottom: 0; right: 0; transform: translate(50%, 50%); }
+
+/* 윗머리 번호 — 타로의 XVIII 자리. 워드마크 서체로 작게 */
+.dnar-wc__numeral {
+  font-family: var(--font-wordmark);
+  font-size: 13px;
+  font-weight: 600;
+  /* 자간을 넓히면 II 가 'I I' 두 글자로 읽힌다 */
+  letter-spacing: 0.04em;
+  color: var(--eo-ink-muted);
+}
+
+/* 아랫단 방향 — 화살표 양옆에 짧은 선을 그어 카드 이름 자리처럼 */
+.dnar-wc__synopsis .dnar-wc__pick-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--eo-ink-faint);
+  transition: color var(--eo-motion) ease-out;
+}
+.dnar-wc__synopsis .dnar-wc__pick-key::before,
+.dnar-wc__synopsis .dnar-wc__pick-key::after {
+  content: '';
+  width: 22px;
+  height: 1px;
+  background: currentColor;
+}
+
+/* 올리면 인쇄가 한 톤 진해진다 — 테두리·별·방향이 함께 먹색으로 */
+.dnar-wc__synopsis:hover:not(:disabled) .dnar-wc__frame { border-color: var(--eo-ink-muted); }
+.dnar-wc__synopsis:hover:not(:disabled) .dnar-wc__corner,
+.dnar-wc__synopsis:hover:not(:disabled) .dnar-wc__pick-key { color: var(--eo-ink); }
 .dnar-wc__synopsis-text {
   align-self: center;
   font-family: var(--font-serif-ko);
-  font-size: 16px;
-  line-height: 1.8;
+  max-width: 26em;
+  font-size: clamp(16px, 1.25vw, 19px);
+  line-height: 1.85;
   letter-spacing: -0.01em;
   word-break: keep-all;
 }
@@ -807,10 +885,17 @@
   /* 좁은 화면에서는 두 표지를 위아래로 세우고 VS가 그 사이에 놓인다 */
   .dnar-wc__match { grid-template-columns: 1fr; gap: 14px; }
   .dnar-wc__pick { max-width: 46vw; }
-  .dnar-wc__synopsis { max-width: none; min-height: 0; padding: 20px 18px 14px; }
+  .dnar-wc__stage { gap: 18px; }
+  .dnar-wc__synopsis {
+    --wc-inset: 8px;
+    --wc-star: 11px;
+    min-height: 0;
+    padding: calc(var(--wc-inset) + 16px) 26px calc(var(--wc-inset) + 18px);
+  }
   .dnar-wc__synopsis-text { font-size: 14px; }
   /* 방향키 안내는 키보드가 없는 화면에서 뜻이 없다 */
-  .dnar-wc__pick-key { display: none; }
+  .dnar-wc__pick-key,
+  .dnar-wc__synopsis .dnar-wc__pick-key { display: none; }
   .dnar-dlg__hint { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
