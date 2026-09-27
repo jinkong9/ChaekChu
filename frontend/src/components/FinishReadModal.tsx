@@ -15,7 +15,7 @@ const weekday = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('ko-
 const STATUS_LABEL: Record<ShelfStatus, string> = { READ: '읽었어요', WISH: '읽고 싶어요' }
 
 /** 완독 기록 모달 — 두 가지 일을 한다.
- *  · finish(기본): 상세·추천에서 「읽었어요」를 눌렀을 때. 별점(필수)·감상평(선택 300자)·완독일(기본 오늘, 미래 금지)을 받아 READ 로 저장한다.
+ *  · finish(기본): 상세·추천에서 「읽었어요」를 눌렀을 때. 별점(선택)·감상평(선택 300자)·완독일(기본 오늘, 미래 금지)을 받아 READ 로 저장한다.
  *  · edit: 서재 「책 기록 수정」에서. 위 셋에 더해 상태(읽었어요/읽고 싶어요)를 바꾸고 서재에서 뺄 수 있다.
  *    행에서 별점·감상·상태를 따로따로 고치던 것을 여기 한 곳으로 모았다 — 진입점이 셋이면 어디를 눌러야 하는지 안 보인다.
  *  완독일을 비우면 "서비스 이전에 읽은 책"(finishedDate null)로 저장되어 연표·통계에서 빠진다.
@@ -65,7 +65,7 @@ export default function FinishReadModal() {
       const fin = date && date > today() ? today() : date
       const body = {
         status: 'READ' as const,
-        rating,
+        rating: rating || null,
         reviewText: review.trim() || null,
         finishedDate: fin || null, // null = 완독일 지움(§6.3: READ 항목의 완독일을 seed 처럼 null 로)
       }
@@ -97,8 +97,6 @@ export default function FinishReadModal() {
   const busy = save.isPending || remove.isPending
   // 읽고 싶어요로 바꾸면 완독 기록 칸은 접는다 — 저장되지 않는 값을 만지게 두면 안 된다
   const showRecord = !editing || status === 'READ'
-  // 별점은 필수 — 완독으로 남기는 기록엔 별점이 있어야 한다. 읽고 싶어요로 내릴 때는 별점 칸이 접히므로 묻지 않는다
-  const needsRating = showRecord && rating === 0
 
   // z-110: 서재의 「책 기록 수정」 화면(.libd-record, z-100)에서도 열린다 — 그 아래(90)에 두면 모달이 뜨긴 하는데 편집 화면이 덮어 안 보인다.
   // 이 모달은 어느 화면에서 부르든 맨 위여야 하므로 오버레이들보다 한 단 높게 둔다
@@ -160,13 +158,14 @@ export default function FinishReadModal() {
             </div>
 
             <div className="mt-4">
-              <p className="eo-utility">별점 — 필수</p>
+              <p className="eo-utility">별점 — 선택</p>
               <div className="mt-0.5 flex items-center">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button key={n} type="button" aria-label={`별점 ${n}점`} aria-pressed={rating === n}
-                    onClick={() => setRating(n)}
+                    onClick={() => setRating(rating === n ? 0 : n)}
                     className={`frm-star ${rating >= n ? 'is-on' : ''}`}>★</button>
                 ))}
+                {rating > 0 && <button className="eo-link ml-2" onClick={() => setRating(0)}>지우기</button>}
               </div>
             </div>
 
@@ -201,7 +200,7 @@ export default function FinishReadModal() {
           </div>
           <div className="ml-auto flex items-center gap-6">
             <button className="eo-link" onClick={close}>취소</button>
-            <button className="eo-button" disabled={busy || needsRating} onClick={() => save.mutate()}>
+            <button className="eo-button" disabled={busy} onClick={() => save.mutate()}>
               {editing ? '저장' : '완독으로 기록'}
             </button>
           </div>
