@@ -3,18 +3,19 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { patchLibraryItem, removeLibraryItem, saveLibraryRecord } from '../api/library'
 import type { ShelfStatus } from '../api/types'
 import { useFinishModalStore } from '../stores/finishModalStore'
+import './finish-read-modal.css'
 
 const REVIEW_MAX = 300
-/** 감상평 입력이 늘어날 수 있는 최대 높이(px) — 세 줄쯤. 그 위로는 안에서 스크롤한다 */
-const REVIEW_MAX_H = 72
 /** 오늘(로컬 날짜, YYYY-MM-DD) — toISOString 은 UTC 라 한국 새벽엔 전날이 된다. 서버도 Asia/Seoul 기준(§6.2) */
 const today = () => new Date().toLocaleDateString('sv-SE')
+/** YYYY-MM-DD → 「일요일」. 로컬 자정으로 읽어야 한다 — new Date('2026-09-27') 는 UTC 라 요일이 하루 밀릴 수 있다 */
+const weekday = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('ko-KR', { weekday: 'long' })
 
 /** 상태 세그먼트 라벨 — 상세 화면의 CTA 와 같은 말을 쓴다(찜/읽음 은 이 화면에서 쓰지 않는다) */
 const STATUS_LABEL: Record<ShelfStatus, string> = { READ: '읽었어요', WISH: '읽고 싶어요' }
 
 /** 완독 기록 모달 — 두 가지 일을 한다.
- *  · finish(기본): 상세·추천에서 「읽었어요」를 눌렀을 때. 별점(선택)·한줄평(선택 300자)·완독일(기본 오늘, 미래 금지)을 받아 READ 로 저장한다.
+ *  · finish(기본): 상세·추천에서 「읽었어요」를 눌렀을 때. 별점(선택)·감상평(선택 300자)·완독일(기본 오늘, 미래 금지)을 받아 READ 로 저장한다.
  *  · edit: 서재 「책 기록 수정」에서. 위 셋에 더해 상태(읽었어요/읽고 싶어요)를 바꾸고 서재에서 뺄 수 있다.
  *    행에서 별점·감상·상태를 따로따로 고치던 것을 여기 한 곳으로 모았다 — 진입점이 셋이면 어디를 눌러야 하는지 안 보인다.
  *  완독일을 비우면 "서비스 이전에 읽은 책"(finishedDate null)로 저장되어 연표·통계에서 빠진다.
@@ -32,7 +33,6 @@ export default function FinishReadModal() {
   const [removeArmed, setRemoveArmed] = useState(false)
   // 완독일을 비웠다가 되돌릴 때 쓸 값 — 기록 수정으로 들어온 책의 원래 완독일이 날아가지 않게 한다
   const lastDate = useRef(today())
-  const reviewRef = useRef<HTMLTextAreaElement>(null)
 
   const editing = target?.mode === 'edit'
 
@@ -46,17 +46,6 @@ export default function FinishReadModal() {
     setRemoveArmed(false)
     lastDate.current = target.finishedDate || today()
   }, [target])
-
-  /** 내용에 맞춰 감상평 칸의 높이를 맞춘다.
-   *  .eo-field 는 한 줄짜리 입력용이라 min-height:40px 를 갖는데, 클래스(min-h-0)로 누르면 editorial.css 가
-   *  Tailwind 뒤에 로드되어 같은 특이도에서 밀린다. 그래서 인라인으로 눌러 둔다 — 인라인은 클래스를 이긴다. */
-  useEffect(() => {
-    const el = reviewRef.current
-    if (!el) return
-    el.style.minHeight = '0px'
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, REVIEW_MAX_H)}px`
-  }, [review, target, status])
 
   useEffect(() => {
     if (!target) return
@@ -115,12 +104,16 @@ export default function FinishReadModal() {
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-7" role="dialog" aria-modal="true" aria-label={`${target.title} ${editing ? '기록 수정' : '완독 기록'}`}>
       {/* 어둡게만 — 블러·글로우는 쓰지 않는다 */}
       <button className="absolute inset-0 bg-black/25" aria-label="닫기" onClick={close} />
-      <div className="eo-panel relative w-[min(430px,calc(100vw-56px))] p-[18px]">
-        <p className="eo-label">{editing ? '기록 수정' : '완독 기록'}</p>
-        <h2 className="mt-1.5 line-clamp-2 text-[19px] font-[650] leading-[1.25] tracking-[-0.02em]">{target.title}</h2>
+      {/* 다이어리 한 장 — 종이·여백선·괘선·손글씨는 finish-read-modal.css. 판형·그림자는 .eo-panel 을 그대로 쓴다 */}
+      <div className="eo-panel frm-sheet relative w-[min(430px,calc(100vw-56px))]">
+        <div className="frm-head">
+          <p className="eo-label">{editing ? '기록 수정' : '완독 기록'}</p>
+          <p className="eo-utility">나만 볼 수 있어요</p>
+        </div>
+        <h2 className="frm-title line-clamp-2 text-[19px] font-[650] leading-[1.25] tracking-[-0.02em]">{target.title}</h2>
 
         {editing && (
-          <div className="mt-5">
+          <div className="mt-4">
             <p className="eo-utility">상태</p>
             <div className="eo-segments mt-1.5">
               {(['READ', 'WISH'] as const).map((s) => (
@@ -139,35 +132,19 @@ export default function FinishReadModal() {
 
         {showRecord && (
           <>
-            <div className="mt-5">
-              <p className="eo-utility">별점 — 선택</p>
-              <div className="mt-1.5 flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} type="button" aria-label={`별점 ${n}점`} aria-pressed={rating === n}
-                    onClick={() => setRating(rating === n ? 0 : n)}
-                    className={`text-[19px] leading-none ${rating >= n ? 'text-ink' : 'text-rule-soft'}`}>★</button>
-                ))}
-                {rating > 0 && <button className="eo-link ml-2" onClick={() => setRating(0)}>지우기</button>}
-              </div>
-            </div>
-
-            <div className="mt-5">
-              <p className="eo-utility">한 줄 감상평 — 선택, 나만 볼 수 있어요</p>
-              <textarea ref={reviewRef} rows={1}
-                className="eo-field eo-field--sm mt-1.5 w-full resize-none overflow-y-auto leading-relaxed"
-                maxLength={REVIEW_MAX} value={review} onChange={(e) => setReview(e.target.value)} />
-              <p className="eo-utility mt-1 text-right">{review.length} / {REVIEW_MAX}</p>
-            </div>
-
-            {/* 완독일을 비우면 「서비스를 만나기 전에 읽은 책」이 되는데, 날짜 칸을 직접 지워야 하는 걸 아는 사람이 없었다.
+            {/* 일기의 첫 줄은 날짜다 — 그래서 완독일을 맨 위로 올리고, 손글씨 날짜 옆에 요일을 적는다.
+                완독일을 비우면 「서비스를 만나기 전에 읽은 책」이 되는데, 날짜 칸을 직접 지워야 하는 걸 아는 사람이 없었다.
                 그래서 비우는 일을 칩 하나로 만든다 — 켜면 날짜 칸을 걷어내고(빈 「연도-월-일」만 남아 있을 이유가 없다),
                 끄면 원래 날짜(없으면 오늘)로 되돌린다. 칩이 눌린 것 자체가 완독일 없음의 표시라 따로 설명을 두지 않는다. */}
             <div className="mt-4">
-              <p className="eo-utility">완독일</p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="eo-utility">다 읽은 날</p>
+              <div className="mt-1.5 flex flex-wrap items-end gap-x-3 gap-y-2">
                 {date && (
-                  <input type="date" className="eo-field eo-field--sm w-[180px]" max={today()}
-                    value={date} onChange={(e) => setDate(e.target.value)} aria-label="완독일" />
+                  <span className="flex items-end gap-2">
+                    <input type="date" className="frm-date w-[150px]" max={today()}
+                      value={date} onChange={(e) => setDate(e.target.value)} aria-label="완독일" />
+                    <span className="frm-weekday pb-[5px]" aria-hidden="true">{weekday(date)}</span>
+                  </span>
                 )}
                 <button type="button" aria-pressed={!date}
                   className={`eo-tag ${!date ? 'is-on' : ''}`}
@@ -178,6 +155,28 @@ export default function FinishReadModal() {
                   서비스를 만나기 전에 읽었어요
                 </button>
               </div>
+            </div>
+
+            <div className="mt-4">
+              <p className="eo-utility">별점 — 선택</p>
+              <div className="mt-0.5 flex items-center">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} type="button" aria-label={`별점 ${n}점`} aria-pressed={rating === n}
+                    onClick={() => setRating(rating === n ? 0 : n)}
+                    className={`frm-star ${rating >= n ? 'is-on' : ''}`}>★</button>
+                ))}
+                {rating > 0 && <button className="eo-link ml-2" onClick={() => setRating(0)}>지우기</button>}
+              </div>
+            </div>
+
+            {/* 감상평이 이 면의 주인공 — 괘선 다섯 줄을 미리 깔아 두고 손글씨로 받는다. 넘치면 괘선째 안에서 스크롤한다 */}
+            <div className="mt-3">
+              <p className="eo-utility">감상 — 선택</p>
+              <div className="frm-review-wrap mt-1">
+                <textarea className="frm-review" aria-label="감상평" spellCheck={false}
+                  maxLength={REVIEW_MAX} value={review} onChange={(e) => setReview(e.target.value)} />
+              </div>
+              <p className="eo-utility mt-1.5 text-right tabular-nums">{review.length} / {REVIEW_MAX}</p>
             </div>
           </>
         )}
@@ -191,8 +190,10 @@ export default function FinishReadModal() {
           <div className="flex items-center gap-x-4 text-[11px]">
             {editing && (removeArmed ? (
               <>
-                <span className="text-ink-faint">별점·감상평·완독일도 함께 지워져요</span>
-                <button className="eo-link" disabled={busy} onClick={() => remove.mutate()}>빼기</button>
+                <span className="text-ink-muted">별점·감상평·완독일도 함께 지워져요</span>
+                {/* 확인 단계의 「삭제」는 실제로 지우는 버튼이라 밑줄 링크 사이에 묻히면 안 된다 — 테두리 캡슐로 세운다.
+                    채운 캡슐은 「저장」 하나로 지킨다(DESIGN.md Ghost pill) */}
+                <button className="eo-button eo-button--ghost frm-remove" disabled={busy} onClick={() => remove.mutate()}>삭제</button>
                 <button className="eo-link" onClick={() => setRemoveArmed(false)}>취소</button>
               </>
             ) : (
